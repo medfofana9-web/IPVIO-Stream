@@ -22,7 +22,7 @@ object SportNet {
     /** Words that say nothing about which network a channel is (country, quality, feed). */
     private val NOISE = setOf(
         "us", "usa", "uk", "ca", "canada", "en", "eng", "hd", "fhd", "uhd", "sd", "4k", "hevc", "h265", "raw", "50fps", "60fps",
-        "backup", "alt", "vip", "plus", "premium", "tv", "channel", "live", "hq", "lq", "the", "ppv", "am", "na", "ny"
+        "backup", "alt", "vip", "premium", "channel", "live", "hq", "lq", "the", "ppv", "am", "na", "ny"
     )
 
     private val STATES = mapOf(
