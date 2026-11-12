@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -155,4 +156,37 @@ internal fun StremioPage(ctx: Context) {
         }
     }
     Hint("Only streams with a direct link play. Torrent-only addons need a debrid service (such as Real-Debrid) configured inside the addon.")
+}
+
+/**
+ * Home rows from Stremio catalogs (Stremio's popular lists plus the catalogs of added addons). A title opens the list of
+ * streams from your addons; picking one plays it. Rows without any stream addon stay hidden (nothing could play).
+ */
+@Composable
+fun StremioCatalogRows(onPlayNow: (Item) -> Unit) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(Unit) { Stremio.ensure(ctx) }
+    if (Stremio.addons.none { it.streams }) return
+    var open by remember { mutableStateOf<Pair<Item, String>?>(null) }
+    Column(verticalArrangement = Arrangement.spacedBy(dpx(18))) {
+        for (cat in Stremio.allCatalogs().take(8)) {
+            val metas by produceState(emptyList<Stremio.Meta>(), cat) { value = Stremio.catalog(cat) }
+            if (metas.isEmpty()) continue
+            Column(verticalArrangement = Arrangement.spacedBy(dpx(10))) {
+                Text(cat.name, color = Color.White, fontSize = spx(24), fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = RowPadX), raw = cat.addon != "Cinemeta")
+                androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = RowPadX), horizontalArrangement = Arrangement.spacedBy(dpx(14))) {
+                    items(metas.size, key = { metas[it].imdb }) { i ->
+                        val m = metas[i]
+                        val item = remember(m) { Stremio.itemOf(m) }
+                        PosterTile(item, Modifier.width(dpx(150))) { open = item to m.imdb }
+                    }
+                }
+            }
+        }
+    }
+    open?.let { (item, imdb) ->
+        StremioSourcesPopup(item, imdb, 1, 1, onPlay = { url, title, _ ->
+            onPlayNow(item.copy(id = "stremio:" + title.hashCode(), kind = Kind.MOVIE, title = title, url = url))
+        }, onDismiss = { open = null })
+    }
 }

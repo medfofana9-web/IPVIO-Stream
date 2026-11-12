@@ -51,7 +51,9 @@ object Lang {
 
     fun tr(s: String): String {
         val i = index
-        return if (i == 0) s else I18nCore.translate(s, i)
+        val t = if (i == 0) s else I18nCore.translate(s, i)
+        // Fof TV branding: the original app name in UI texts (translation keys stay unchanged)
+        return if (t.contains("IPVIO")) t.replace("IPVIO Stream", "Fof TV").replace("IPVIO", "Fof TV") else t
     }
 }
 

@@ -508,6 +508,8 @@ private fun DetailScreenFull(
                                     // Watched movie: "Play again" instead of "Play"
                                     val seenMovie = item.kind == Kind.MOVIE && progress[ResumeLogic.key(0, 0)]?.done == true
                                     HeroButton(if (seenMovie) "Erneut abspielen" else "Abspielen", if (seenMovie) AIcon.Rewind else AIcon.Play, true, Modifier.focusRequester(playFocus), bh) {
+                                        // Playlist link known as broken (or a Stremio-only title): offer the addon streams instead
+                                        if ((playUrl.isNullOrBlank() || DeadLinks.isDead(playUrl)) && Stremio.addons.isNotEmpty()) { showStremio = true; return@HeroButton }
                                         playUrl?.let { onPlay(it, item.title + (if (item.kind == Kind.SERIES) " S" + season + "E" + (eps.firstOrNull()?.num ?: 1) else ""), 0L) }
                                     }
                                 }

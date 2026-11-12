@@ -162,7 +162,16 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
         HubPanel(Modifier.fillMaxWidth()) {
             MatchHeader(g, 90)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(12))) {
-                if (hits.isNotEmpty()) HeroButton("Live ansehen", AIcon.Play, true, Modifier, 46) { hub.watch(g) }
+                if (hits.isNotEmpty() && g.state != 2) HeroButton("Live ansehen", AIcon.Play, true, Modifier, 46) { hub.watch(g) }
+                // Finished game: play it from the provider's archive (catch-up) on the matched channel, when the provider offers it
+                val replay = remember(g.key, g.state, hits) {
+                    if (g.state != 2) null else {
+                        val now = System.currentTimeMillis() / 1000
+                        val e = EpgEntry(if (g.solo) g.title else g.away.short + " at " + g.home.short, "", g.start - 300, minOf(g.start + 4 * 3600, now - 60))
+                        hits.firstNotNullOfOrNull { h -> Catchup.urlFor(h.ch, e)?.let { u -> h.ch.copy(url = u, title = "Replay: " + e.title) } }
+                    }
+                }
+                if (replay != null) HeroButton("Watch replay", AIcon.Catchup, true, Modifier, 46) { hub.play(replay, listOf(replay)) }
                 FilterPill(if (hits.isEmpty()) "Sender zuordnen" else "Anderen Sender wählen", false, Modifier.focusRequester(first), aicon = AIcon.Edit) { pick = true }
                 if (SportFix.map.containsKey(SportFix.key(g))) FilterPill("Automatisch zuordnen", false, Modifier.trackFocus(), aicon = AIcon.Refresh) { SportFix.set(ctx, g, null) }
                 FilterPill("Mehr Infos", false, Modifier.trackFocus(), aicon = AIcon.Info) { hub.nav.open(HubPage.Match(g)) }

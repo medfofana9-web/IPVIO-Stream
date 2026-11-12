@@ -91,8 +91,8 @@ http://h/x
 
     @Test fun farben_firmenfarbenSindStandard() {
         assertEquals(Look.BRAND_GREEN, Look.ACCENTS[0].fill)
-        assertEquals(0x0B0F19, Look.BGS[0].bg)
-        // Neon green gets dark text, dark surfaces still get white
+        assertEquals(0x0A0A0C, Look.BGS[0].bg)
+        // Fof coral gets dark text, dark surfaces still get white
         assertEquals(ThemeMath.INK, ThemeMath.onAccent(Look.BRAND_GREEN))
         assertEquals(0xFFFFFF, ThemeMath.onAccent(0x7C5CFF))
         assertTrue(ThemeMath.contrast(ThemeMath.onAccent(Look.BRAND_GREEN), Look.BRAND_GREEN) >= 7.0)

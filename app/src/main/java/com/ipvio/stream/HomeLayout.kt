@@ -88,6 +88,7 @@ private val HOME_BLOCKS = listOf(
     LayoutBlock("favch", "Meine Sender", "Deine Live-Favoriten als Reihe"),
     LayoutBlock("chnow", "Live TV gerade", "Was jetzt auf deinen Sendern läuft"),
     LayoutBlock("trend", "Top 10 heute", "Die beliebtesten Titel des Tages"),
+    LayoutBlock("stremio", "From your Stremio addons", "Popular movies and series, plus your addons' catalogs"),
     LayoutBlock("because", "Weil du etwas geschaut hast", "Ähnliche Titel zu deinem letzten Film oder deiner letzten Serie"),
     LayoutBlock("wl", "Meine Liste", "Titel, die du dir gemerkt hast"),
     LayoutBlock("hist", "Zuletzt geschaut", "Alles, was du zuletzt gestartet hast"),

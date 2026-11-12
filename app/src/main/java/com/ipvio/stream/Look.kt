@@ -20,15 +20,15 @@ class BgPreset(val name: String, val bg: Int, val surf: Int, val surf2: Int)
  */
 object Look {
     /** Default design: light green #4ADE80 (highlight #86EFAC) on navy #0B0F19. */
-    const val BRAND_GREEN = 0x4ADE80
-    const val BRAND_GREEN_HI = 0x86EFAC
-    const val BRAND_NAVY = 0x0B0F19
+    const val BRAND_GREEN = 0xFF7A5C
+    const val BRAND_GREEN_HI = 0xFFA284
+    const val BRAND_NAVY = 0x0A0A0C
     /** Default: IPVIO green on navy (round 13e: the design colors were removed again). */
     const val DEFAULT_ACCENT = 0
     const val DEFAULT_BG = 0
 
     val ACCENTS = listOf(
-        AccentPreset("IPVIO", BRAND_GREEN, BRAND_GREEN_HI),
+        AccentPreset("Fof Coral", BRAND_GREEN, BRAND_GREEN_HI),
         AccentPreset("Violett & Türkis", 0x7C5CFF, 0x00D4C8),
         AccentPreset("Ozean", 0x2F6FE0, 0x5CD6FF),
         AccentPreset("Smaragd", 0x0A7F58, 0x4ADE80),
@@ -50,7 +50,7 @@ object Look {
     val CUSTOM get() = ACCENTS.size
 
     val BGS = listOf(
-        BgPreset("IPVIO Navy", BRAND_NAVY, 0x151B2A, 0x1F2739),
+        BgPreset("Fof Black", BRAND_NAVY, 0x141418, 0x1E1E24),
         BgPreset("Mitternacht", 0x07080C, 0x12141C, 0x1B1E2A),
         BgPreset("OLED-Schwarz", 0x000000, 0x0B0C10, 0x15171E),
         BgPreset("Graphit", 0x121316, 0x1C1E24, 0x272A32),
