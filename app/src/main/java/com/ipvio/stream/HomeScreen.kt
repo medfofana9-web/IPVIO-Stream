@@ -221,8 +221,13 @@ fun HomeScreen(
     val newMovies = remember(movies) { movies.takeLast(40).reversed() }
     val newSeries = remember(series) { series.takeLast(40).reversed() }
     val histTop = remember(hist) { hist.take(30) }
-    val trendItems = data.trendItems
+    // Fof TV: Netflix-style rows from TMDB (trending and genres), matched to the playlist by title and year
+    val tmdbTrend by produceState(emptyList<Item>(), movies, series) { if (movies.isNotEmpty() || series.isNotEmpty()) value = TmdbRows.trending(movies, series) }
+    val tmdbMovieRows by produceState(emptyList<TmdbRows.Row>(), movies, series) { if (movies.isNotEmpty()) value = TmdbRows.genres(movies, series, Kind.MOVIE) }
+    val tmdbSeriesRows by produceState(emptyList<TmdbRows.Row>(), movies, series) { if (series.isNotEmpty()) value = TmdbRows.genres(movies, series, Kind.SERIES) }
+    val trendItems = tmdbTrend
     val trendTop = remember(trendItems) { trendItems.take(10) }
+    LaunchedEffect(Unit) { FofHome.apply(ctx) }
     val wlVod = remember(watchList) { watchList.filter { it.kind != Kind.LIVE } }
     // Live TV opens faster: genres and quality bundling of all channels are prepared in the background (both keep their result)
     LaunchedEffect(live) {
@@ -611,10 +616,14 @@ fun HomeScreen(
                                     "tops" -> { if (topS.size >= 8) item(key = "tops") {
                                         ItemsRow("Top bewertet · Serien", topS, cardW, onOpen) { onBrowse(BrowseReq("Top bewertet · Serien", topS, SORT_RATING)) }
                                     } }
-                                    "sg" -> { seriesG.entries.take(3).forEach { (g, l) ->
+                                    "sg" -> if (tmdbSeriesRows.isNotEmpty()) tmdbSeriesRows.take(4).forEach { r ->
+                                        item(key = "ts" + r.title) { ItemsRow("Series · " + r.title, r.items, cardW, onOpen) { onBrowse(BrowseReq("Series · " + r.title, r.items, SORT_PLAYLIST)) } }
+                                    } else { seriesG.entries.take(3).forEach { (g, l) ->
                                         item(key = "s$g") { ItemsRow("Serien · $g", l, cardW, onOpen) { onBrowse(BrowseReq("Serien · $g", l, SORT_NEW)) } }
                                     } }
-                                    "mg" -> { movieG.entries.take(3).forEach { (g, l) ->
+                                    "mg" -> if (tmdbMovieRows.isNotEmpty()) tmdbMovieRows.take(4).forEach { r ->
+                                        item(key = "tm" + r.title) { ItemsRow("Movies · " + r.title, r.items, cardW, onOpen) { onBrowse(BrowseReq("Movies · " + r.title, r.items, SORT_PLAYLIST)) } }
+                                    } else { movieG.entries.take(3).forEach { (g, l) ->
                                         item(key = "m$g") { ItemsRow("Filme · $g", l, cardW, onOpen) { onBrowse(BrowseReq("Filme · $g", l, SORT_NEW)) } }
                                     } }
                                 }
@@ -656,8 +665,14 @@ fun HomeScreen(
                             if (base.isEmpty()) item { EmptyHint("Keine $noun in dieser Playlist") }
                             if (base.isNotEmpty()) item(key = "new$tab") { ItemsRow("Neu hinzugefügt", if (isM) newMovies else newSeries, cardW, onOpen) { onBrowse(BrowseReq("Neu hinzugefügt · $noun", base, SORT_NEW)) } }
                             if (top.size >= 8) item(key = "best$tab") { ItemsRow("Top bewertet", top, cardW, onOpen) { onBrowse(BrowseReq("Top bewertet · $noun", top, SORT_RATING)) } }
-                            groups.entries.take(12).forEach { (g, l) -> item(key = "G$tab$g") { ItemsRow(g, l, cardW, onOpen) { onBrowse(BrowseReq(g, l, SORT_NEW)) } } }
-                            if (groups.size > 12) item { EmptyHint("Weitere Kategorien findest du unter „Kategorien“ oben.") }
+                            val tRows = if (isM) tmdbMovieRows else tmdbSeriesRows
+                            if (tRows.isNotEmpty()) {
+                                tRows.forEach { r -> item(key = "T$tab" + r.title) { ItemsRow(r.title, r.items, cardW, onOpen) { onBrowse(BrowseReq(r.title, r.items, SORT_PLAYLIST)) } } }
+                                item(key = "Tmore$tab") { EmptyHint("Your provider's categories are under „Kategorien“ at the top.") }
+                            } else {
+                                groups.entries.take(12).forEach { (g, l) -> item(key = "G$tab$g") { ItemsRow(g, l, cardW, onOpen) { onBrowse(BrowseReq(g, l, SORT_NEW)) } } }
+                                if (groups.size > 12) item { EmptyHint("Weitere Kategorien findest du unter „Kategorien“ oben.") }
+                            }
 
                         }
                         MenuLogic.FAVS -> {

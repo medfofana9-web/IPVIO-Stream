@@ -82,26 +82,37 @@ open class BlockLayout(private val prefName: String, val blocks: List<LayoutBloc
 
 private val HOME_BLOCKS = listOf(
     LayoutBlock("hero", "Große Slideshow", "Großes Bild oben mit aktuellen Filmen und Serien", fixed = true),
-    LayoutBlock("tiles", "Kacheln", "Live TV, Filme, Serien, Favoriten und Meine Liste"),
     LayoutBlock("sportlive", "Live sports", "Games on now: one click plays the right channel"),
     LayoutBlock("resume", "Weiterschauen", "Dort weitermachen, wo du aufgehört hast"),
-    LayoutBlock("favch", "Meine Sender", "Deine Live-Favoriten als Reihe"),
-    LayoutBlock("chnow", "Live TV gerade", "Was jetzt auf deinen Sendern läuft"),
     LayoutBlock("trend", "Top 10 heute", "Die beliebtesten Titel des Tages"),
     LayoutBlock("stremio", "From your Stremio addons", "Popular movies and series, plus your addons' catalogs"),
     LayoutBlock("because", "Weil du etwas geschaut hast", "Ähnliche Titel zu deinem letzten Film oder deiner letzten Serie"),
     LayoutBlock("wl", "Meine Liste", "Titel, die du dir gemerkt hast"),
-    LayoutBlock("hist", "Zuletzt geschaut", "Alles, was du zuletzt gestartet hast"),
     LayoutBlock("newm", "Neue Filme", "Zuletzt hinzugefügte Filme"),
-    LayoutBlock("topm", "Beste Filme", "Die am besten bewerteten Filme"),
     LayoutBlock("news", "Neue Serien", "Zuletzt hinzugefügte Serien"),
-    LayoutBlock("tops", "Beste Serien", "Die am besten bewerteten Serien"),
+    LayoutBlock("mg", "Filme nach Genre", "Reihen für die häufigsten Film-Genres"),
     LayoutBlock("sg", "Serien nach Genre", "Reihen für die häufigsten Serien-Genres"),
-    LayoutBlock("mg", "Filme nach Genre", "Reihen für die häufigsten Film-Genres")
+    LayoutBlock("tiles", "Kacheln", "Live TV, Filme, Serien, Favoriten und Meine Liste"),
+    LayoutBlock("chnow", "Live TV gerade", "Was jetzt auf deinen Sendern läuft"),
+    LayoutBlock("favch", "Meine Sender", "Deine Live-Favoriten als Reihe"),
+    LayoutBlock("hist", "Zuletzt geschaut", "Alles, was du zuletzt gestartet hast"),
+    LayoutBlock("topm", "Beste Filme", "Die am besten bewerteten Filme"),
+    LayoutBlock("tops", "Beste Serien", "Die am besten bewerteten Serien")
 )
 
 /** Home screen: new blocks are hidden by default so it looks as before until someone switches them on. */
-object HomeLayout : BlockLayout("ipvio_homelayout", HOME_BLOCKS, setOf("favch", "hist"))
+object HomeLayout : BlockLayout("ipvio_homelayout", HOME_BLOCKS, setOf("favch", "hist", "tiles", "chnow", "topm", "tops", "newm", "news"))
+
+/** Fof TV: the clean Netflix-style home order is applied once (later changes in "Customize home screen" stay). */
+object FofHome {
+    fun apply(c: android.content.Context) {
+        val p = c.applicationContext.getSharedPreferences("fof_flags", android.content.Context.MODE_PRIVATE)
+        if (p.getBoolean("home_v1", false)) return
+        HomeLayout.init(c)
+        HomeLayout.reset(c)
+        p.edit().putBoolean("home_v1", true).apply()
+    }
+}
 
 private val BOOMER_BLOCKS = listOf(
     LayoutBlock("clock", "Große Uhr", "Uhrzeit und Datum, gut lesbar"),

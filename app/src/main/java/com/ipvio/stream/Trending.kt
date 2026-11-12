@@ -11,7 +11,9 @@ object Trending {
 
     fun norm(s: String): String = s.lowercase().filter { it.isLetterOrDigit() }
 
+    // Fof TV: replaced by TmdbRows.trending (matches by title and year); the name-only match pulled in wrong old titles
     suspend fun titles(): Set<String> {
+        if (true) return emptySet()
         cache?.let { return it }
         if (!MetaRepo.enabled()) return emptySet()
         val out = HashSet<String>()
