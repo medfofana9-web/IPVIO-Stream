@@ -3,6 +3,8 @@ package com.ipvio.stream
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
@@ -504,6 +506,7 @@ fun PosterTile(item: Item, modifier: Modifier, onClick: () -> Unit) {
     val dimA by animateFloatAsState(if (rowF && !f) 0.5f else 1f, tween(if (Look.motion == 0) 0 else 320), label = "dim")
     val img: String? = when {
         item.kind == Kind.LIVE -> item.logo
+        item.id.startsWith("stremio:") && item.logo != null -> item.logo
         m?.poster != null -> cardPoster(m.poster)
         st.done -> item.logo
         else -> null
@@ -589,7 +592,7 @@ fun CardRow(
     val live = list.firstOrNull()?.kind == Kind.LIVE
     // Highlight stays in the middle (round 15/16): the row slides through under the highlight
     var cur by remember { mutableIntStateOf(-1) }
-    CenterFollow(state, cur)
+    CenterGlide(state, cur)
     Column {
         RowTitle(title, linkReq, firstCard, raw = raw, upReq = upReq, leftReq = leftReq, rowState = state, onAll = onAll)
         // Enough space above/below for the enlargement on highlight (otherwise the cover is cropped)
@@ -597,7 +600,8 @@ fun CardRow(
         // cards step back (LocalRowFocus); sideways the calm scrolling (SmoothSpec) applies, not the holding of the home screen.
         var rowFocused by remember { mutableStateOf(false) }
         Box(Modifier.onFocusChanged { rowFocused = it.hasFocus }) {
-        CompositionLocalProvider(LocalRowFocus provides rowFocused, androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides SmoothSpec) {
+        // Sideways only CenterGlide moves the row (one glide per press); two scrollers at once made it jerky
+        CompositionLocalProvider(LocalRowFocus provides rowFocused, androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides NoBringSpec) {
         LazyRow(
             state = state,
             contentPadding = PaddingValues(start = RowPadX, end = RowPadX, top = dpx(30), bottom = dpx(30)),
@@ -620,6 +624,29 @@ fun CardRow(
         }
         }
         }
+    }
+}
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+val NoBringSpec = object : androidx.compose.foundation.gestures.BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = 0f
+}
+
+/**
+ * Fof TV: centers the selected card with one short glide per key press (instead of a controller that nudges the row
+ * every frame). Holding the key starts each glide from where the last one is, so the row flows evenly.
+ */
+@Composable
+fun CenterGlide(state: LazyListState, cur: Int) {
+    LaunchedEffect(cur) {
+        if (cur < 0) return@LaunchedEffect
+        val info = state.layoutInfo
+        val x = info.visibleItemsInfo.firstOrNull { it.index == cur }
+        if (x == null) { state.scrollToItem(cur); return@LaunchedEffect }
+        val d = x.offset + x.size / 2f - info.viewportSize.width / 2f
+        if (kotlin.math.abs(d) < 1.5f) return@LaunchedEffect
+        if (Look.motion == 0) state.scrollBy(d)
+        else state.animateScrollBy(d, tween(230, easing = androidx.compose.animation.core.FastOutSlowInEasing))
     }
 }
 
@@ -704,6 +731,7 @@ fun RowPosterCard(item: Item, baseW: Dp, modifier: Modifier, overlay: Int = 0, a
     ) {
         // Poster at the bottom, the scene image fades in above it with the progress (no crossfade switch)
         val img: String? = when {
+            item.id.startsWith("stremio:") && item.logo != null -> item.logo
             m?.poster != null -> cardPoster(m.poster)
             st.done -> item.logo
             else -> null

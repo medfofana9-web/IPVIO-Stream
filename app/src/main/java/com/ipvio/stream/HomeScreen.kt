@@ -222,13 +222,11 @@ fun HomeScreen(
     val newSeries = remember(series) { series.takeLast(40).reversed() }
     val histTop = remember(hist) { hist.take(30) }
     // Fof TV: Netflix-style rows from TMDB (trending and genres), matched to the playlist by title and year
-    val tmdbTrend by produceState(emptyList<Item>(), movies, series) { if (movies.isNotEmpty() || series.isNotEmpty()) value = TmdbRows.trending(movies, series) }
-    remember { TmdbRows.init(ctx) }
-    val tmdbMovieRows by produceState(emptyList<TmdbRows.Row>(), movies, series) { if (movies.isNotEmpty()) value = TmdbRows.genres(movies, series, Kind.MOVIE) }
-    val tmdbSeriesRows by produceState(emptyList<TmdbRows.Row>(), movies, series) { if (series.isNotEmpty()) value = TmdbRows.genres(movies, series, Kind.SERIES) }
-    val tmdbMoviePage by produceState(emptyList<TmdbRows.Row>(), movies, series) { if (movies.isNotEmpty()) value = TmdbRows.catalog(movies, series, Kind.MOVIE) }
-    val tmdbSeriesPage by produceState(emptyList<TmdbRows.Row>(), movies, series) { if (series.isNotEmpty()) value = TmdbRows.catalog(movies, series, Kind.SERIES) }
-    val trendItems = tmdbTrend
+    // Fof TV: one catalog for the whole app – Cinemeta (current popular titles), not the provider's lists
+    remember { Catalog.init(ctx) }
+    val cmPopM by produceState(Catalog.cached(Catalog.popular(Kind.MOVIE))) { value = Catalog.items(Catalog.popular(Kind.MOVIE)) }
+    val cmPopS by produceState(Catalog.cached(Catalog.popular(Kind.SERIES))) { value = Catalog.items(Catalog.popular(Kind.SERIES)) }
+    val trendItems = remember(cmPopM, cmPopS) { (0 until 20).flatMap { listOfNotNull(cmPopM.getOrNull(it), cmPopS.getOrNull(it)) } }
     val trendTop = remember(trendItems) { trendItems.take(10) }
     LaunchedEffect(Unit) { FofHome.apply(ctx) }
     val wlVod = remember(watchList) { watchList.filter { it.kind != Kind.LIVE } }
@@ -268,26 +266,30 @@ fun HomeScreen(
     val ready = remember { mutableStateListOf<Item>() }
     // Also use the sizes of movies/series as a key: if the computed home screen arrives only after the list (and without trend titles,
     // i.e. the same empty trend list), the selection stayed empty and the big picture was missing.
-    val candidates = remember(all, trendItems, movies.size, series.size, tab) {
+    // Big picture: the most popular titles of the catalog right now
+    val candidates = remember(cmPopM, cmPopS, trendItems, tab) {
         when (tab) {
-            1 -> (trendItems.filter { it.kind == Kind.MOVIE }.take(8) + movies.takeLast(30).reversed())
-            2 -> (trendItems.filter { it.kind == Kind.SERIES }.take(8) + series.takeLast(30).reversed())
-            else -> (trendItems.take(8) + movies.takeLast(25).reversed() + series.takeLast(15).reversed())
-        }.distinctBy { it.id }
+            1 -> cmPopM.take(15)
+            2 -> cmPopS.take(15)
+            else -> trendItems.take(16)
+        }
     }
     // Movies/series: tabs at the top next to the search (instead of the big buttons under the picture)
     val isVod = tab == 1 || tab == 2
     val vodBase = if (tab == 1) movies else series
     val vodTop = if (tab == 1) topM else topS
     val vodNoun = if (tab == 1) "Filme" else "Serien"
+    val vodK = if (tab == 1) Kind.MOVIE else Kind.SERIES
     val openCats: () -> Unit = {
         scope.launch {
-            val g = if (data.genresOk) withContext(Dispatchers.Default) { ipvioGroups(vodBase) } else emptyMap()
-            // Own imported lists (Letterboxd, Trakt, MyAnimeList) come first, next to the genres
-            val imported = ImportedLists.groups(ctx, if (tab == 1) Kind.MOVIE else Kind.SERIES, byId)
-            val prov = if (tab == 1) movieP else seriesP
-            onCategories(CatReq("$vodNoun · Kategorien", imported + g, imported + prov, SORT_NEW))
+            // Catalog genres (Cinemeta); own imported lists (Letterboxd, Trakt, MyAnimeList) come first
+            val g = Catalog.genreMap(vodK)
+            val imported = ImportedLists.groups(ctx, vodK, byId)
+            onCategories(CatReq("$vodNoun · Kategorien", imported + g, imported + g, SORT_PLAYLIST))
         }
+    }
+    val openList: (Catalog.Spec, String, Int) -> Unit = { spec, title, pages ->
+        scope.launch { onBrowse(BrowseReq(title, Catalog.items(spec, pages), SORT_PLAYLIST)) }
     }
     // One header button per imported service (Letterboxd, Trakt, MyAnimeList) that has titles in this area
     val importedTabs = if (!isVod) emptyList() else remember(tab, byId) {
@@ -300,7 +302,7 @@ fun HomeScreen(
     // Asked by the View settings' live preview (consumed at once so a later visit does not open it again)
     LaunchedEffect(AppNav.openCatsSignal) { if (AppNav.openCatsSignal > 0) { AppNav.openCatsSignal = 0; if (tab == 1) openCats() } }
     LaunchedEffect(AppNav.openBrowseSignal) {
-        if (AppNav.openBrowseSignal > 0) { AppNav.openBrowseSignal = 0; if (tab == 1) onBrowse(BrowseReq("Alle $vodNoun", vodBase, SORT_NEW)) }
+        if (AppNav.openBrowseSignal > 0) { AppNav.openBrowseSignal = 0; if (tab == 1) openList(Catalog.popular(vodK), "Alle $vodNoun", 6) }
     }
     // Asked by the View settings preview: bring the home rows into view (they are far down the list)
     LaunchedEffect(AppNav.homeScrollKey) {
@@ -320,9 +322,9 @@ fun HomeScreen(
     }
     val navTabs = if (!isVod) emptyList() else listOf(
         HeaderTab("Kategorien", AIcon.Categories, "tb:cats$tab") { openCats() },
-        HeaderTab("Top bewertet", AIcon.Star, "tb:top$tab") { onBrowse(BrowseReq("Top bewertet · $vodNoun", vodTop, SORT_RATING)) },
-        HeaderTab("Neu hinzugefügt", AIcon.Sparkle, "tb:new$tab") { onBrowse(BrowseReq("Neu hinzugefügt · $vodNoun", vodBase, SORT_NEW)) },
-        HeaderTab("Alle $vodNoun", AIcon.Grid, "tb:all$tab") { onBrowse(BrowseReq("Alle $vodNoun", vodBase, SORT_NEW)) }
+        HeaderTab("Top bewertet", AIcon.Star, "tb:top$tab") { openList(Catalog.featured(vodK), "Top bewertet · $vodNoun", 4) },
+        HeaderTab("Neu hinzugefügt", AIcon.Sparkle, "tb:new$tab") { openList(Catalog.newest(vodK), "Neu hinzugefügt · $vodNoun", 4) },
+        HeaderTab("Alle $vodNoun", AIcon.Grid, "tb:all$tab") { openList(Catalog.popular(vodK), "Alle $vodNoun", 6) }
     ) + importedTabs.map { (src, l, id) -> HeaderTab(src, AIcon.Download, id) { onBrowse(BrowseReq("$src · $vodNoun", l, SORT_NEW)) } }
     var inHeader by remember { mutableStateOf(false) }
     val header: @Composable (Modifier) -> Unit = { m ->
@@ -591,7 +593,7 @@ fun HomeScreen(
                                 if (!HomeLayout.shown(blockId)) continue
                                 when (blockId) {
                                     "tiles" -> { item(key = "tiles") { QuickTiles(tiles) } }
-                                    "stremio" -> { item(key = "stremio") { StremioCatalogRows(onOpen) } }
+                                    "stremio" -> Catalog.home().forEach { sp -> item(key = "cm" + sp.title) { CatalogRow(sp, cardW, onOpen, onBrowse) } }
                                     "sportlive" -> { item(key = "sportlive") { LiveSportsRow(live, onOpen) { onTab(MenuLogic.SPORT) } } }
                                     "clock" -> { item(key = "clock") { ClockWidget() } }
                                     // Continue watching directly under the tiles: whoever watches a lot wants to continue in few clicks
@@ -602,9 +604,7 @@ fun HomeScreen(
                                     "trend" -> { if (trendItems.size >= 3) item(key = "trend") {
                                         ItemsRow("Top 10 heute", trendTop, cardW, onOpen, style = CARD_TOP10) { onBrowse(BrowseReq("Im Trend", trendItems, SORT_PLAYLIST)) }
                                     } }
-                                    "because" -> { because?.let { (src, l) ->
-                                        item(key = "because") { ItemsRow("Weil du „" + src.title + "“ geschaut hast", l, cardW, onOpen) { onBrowse(BrowseReq("Ähnlich wie " + src.title, l, SORT_PLAYLIST)) } }
-                                    } }
+                                    "because" -> { /* Fof TV: based on the provider's titles, not shown */ }
                                     "wl" -> { if (wl.isNotEmpty()) item(key = "wl") { ItemsRow("Meine Liste", wl, cardW, onOpen) { onTab(MenuLogic.MYLIST) } } }
                                     "hist" -> { if (hist.isNotEmpty()) item(key = "hist") { ItemsRow("Zuletzt geschaut", histTop, cardW, onOpen) { onBrowse(BrowseReq("Zuletzt geschaut", hist, SORT_PLAYLIST)) } } }
                                     "newm" -> { if (movies.isNotEmpty()) item(key = "newm") {
@@ -619,12 +619,8 @@ fun HomeScreen(
                                     "tops" -> { if (topS.size >= 8) item(key = "tops") {
                                         ItemsRow("Top bewertet · Serien", topS, cardW, onOpen) { onBrowse(BrowseReq("Top bewertet · Serien", topS, SORT_RATING)) }
                                     } }
-                                    "sg" -> if (tmdbSeriesRows.isNotEmpty()) tmdbSeriesRows.take(4).forEach { r ->
-                                        item(key = "ts" + r.title) { ItemsRow("Series · " + r.title, r.items, cardW, onOpen) { onBrowse(BrowseReq("Series · " + r.title, r.items, SORT_PLAYLIST)) } }
-                                    }
-                                    "mg" -> if (tmdbMovieRows.isNotEmpty()) tmdbMovieRows.take(4).forEach { r ->
-                                        item(key = "tm" + r.title) { ItemsRow("Movies · " + r.title, r.items, cardW, onOpen) { onBrowse(BrowseReq("Movies · " + r.title, r.items, SORT_PLAYLIST)) } }
-                                    }
+                                    "sg" -> Catalog.genres(Kind.SERIES).take(4).forEach { sp -> item(key = "cms" + sp.title) { CatalogRow(sp.copy(title = "Series · " + sp.title), cardW, onOpen, onBrowse) } }
+                                    "mg" -> Catalog.genres(Kind.MOVIE).take(4).forEach { sp -> item(key = "cmm" + sp.title) { CatalogRow(sp.copy(title = "Movies · " + sp.title), cardW, onOpen, onBrowse) } }
                                 }
                             }
                             // Build own home screen: entry at the end of the page
@@ -650,7 +646,7 @@ fun HomeScreen(
                             val recent = histK
                             if (recent.isNotEmpty()) item(key = "hr$tab") { ItemsRow("Zuletzt geschaut", recent, cardW, onOpen) { onBrowse(BrowseReq("Zuletzt geschaut · $noun", recent, SORT_PLAYLIST)) } }
                             // Fof TV: the Stremio addons are the catalog here, not the provider's categories
-                            item(key = "stc$tab") { StremioTypeRows(if (isM) "movie" else "series", onOpen) }
+                            Catalog.page(kind).forEach { sp -> item(key = "cp$tab" + sp.title) { CatalogRow(sp, cardW, onOpen, onBrowse) } }
                         }
                         MenuLogic.FAVS -> {
                             // Round 14: besides channels also movies and series (detail page > "Add to favorites")
@@ -761,6 +757,15 @@ private fun EmptyHint(text: String) {
 
 object PillMemory {
     var key: String? = null
+}
+
+/** One catalog row: shown at once from the saved list, refreshed in the background; keeps its height while loading. */
+@Composable
+private fun CatalogRow(spec: Catalog.Spec, cardW: Int, onOpen: (Item) -> Unit, onBrowse: (BrowseReq) -> Unit) {
+    val scope = rememberCoroutineScope()
+    val list by produceState(Catalog.cached(spec), spec) { value = Catalog.items(spec) }
+    if (list.isEmpty()) { Spacer(Modifier.fillMaxWidth().height(dpx(300))); return }
+    ItemsRow(spec.title, list, cardW, onOpen) { scope.launch { onBrowse(BrowseReq(spec.title, Catalog.items(spec, 4), SORT_PLAYLIST)) } }
 }
 
 @Composable

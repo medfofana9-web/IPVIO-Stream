@@ -1,0 +1,163 @@
+package com.ipvio.stream
+
+import android.content.Context
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
+import okhttp3.Request
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+import java.net.URLEncoder
+import java.util.concurrent.ConcurrentHashMap
+
+/**
+ * Fof TV: the one catalog of the app (Home, Movies, Series, the big picture and the top buttons) comes from Cinemeta,
+ * Stremio's free and current movie/series catalog, instead of the IPTV provider's categories.
+ * Opening a title uses the provider's copy when the playlist has it ([resolve]); otherwise the Stremio addon streams.
+ * Lists are kept on disk, so rows are there at once on the next start (refreshed after 6 hours).
+ */
+object Catalog {
+    private const val CM = "https://v3-cinemeta.strem.io"
+    private const val FRESH = 6 * 3600_000L
+
+    /** A list of Cinemeta: [id] "top" (popular now), "year" (needs genre = a year) or "imdbRating" (featured). */
+    data class Spec(val title: String, val type: String, val id: String, val genre: String? = null)
+
+    val year: Int = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+
+    private fun type(k: Kind) = if (k == Kind.SERIES) "series" else "movie"
+    fun popular(k: Kind) = Spec(if (k == Kind.SERIES) "Popular series" else "Popular movies", type(k), "top")
+    fun newest(k: Kind) = Spec(if (k == Kind.SERIES) "New series $year" else "New movies $year", type(k), "year", "$year")
+    fun featured(k: Kind) = Spec(if (k == Kind.SERIES) "Top rated series" else "Top rated movies", type(k), "imdbRating")
+
+    private val MOVIE_GENRES = listOf("Action", "Comedy", "Thriller", "Drama", "Crime", "Horror", "Sci-Fi", "Adventure",
+        "Animation", "Family", "Romance", "Mystery", "Fantasy", "Documentary")
+    private val SERIES_GENRES = listOf("Drama", "Comedy", "Crime", "Action", "Mystery", "Thriller", "Sci-Fi", "Animation",
+        "Reality-TV", "Family", "Documentary")
+    fun genres(k: Kind): List<Spec> =
+        (if (k == Kind.SERIES) SERIES_GENRES else MOVIE_GENRES).map { Spec(it, type(k), "top", it) }
+
+    /** Rows of the Movies or Series page. */
+    fun page(k: Kind): List<Spec> = listOf(popular(k), newest(k), Spec(if (k == Kind.SERIES) "Last year's series" else "Last year's movies", type(k), "year", "${year - 1}")) + genres(k) + featured(k)
+
+    /** Rows of the home screen (after Top 10). */
+    fun home(): List<Spec> = listOf(popular(Kind.MOVIE), popular(Kind.SERIES), newest(Kind.MOVIE), newest(Kind.SERIES))
+
+    private class Entry(val at: Long, val items: List<Item>)
+    private val mem = ConcurrentHashMap<String, Entry>()
+    @Volatile private var file: File? = null
+    @Volatile private var diskRead = false
+
+    fun init(c: Context) { if (file == null) file = File(c.applicationContext.cacheDir, "catalog_cm.json") }
+
+    private fun url(s: Spec, skip: Int): String {
+        val ex = ArrayList<String>()
+        s.genre?.let { ex.add("genre=" + URLEncoder.encode(it, "UTF-8")) }
+        if (skip > 0) ex.add("skip=$skip")
+        return "$CM/catalog/${s.type}/${s.id}" + (if (ex.isEmpty()) "" else "/" + ex.joinToString("&")) + ".json"
+    }
+
+    @Synchronized private fun readDisk() {
+        if (diskRead) return
+        diskRead = true
+        val f = file ?: return
+        runCatching {
+            if (!f.exists()) return
+            val o = JSONObject(f.readText())
+            for (k in o.keys()) {
+                val e = o.getJSONObject(k)
+                val a = e.getJSONArray("i")
+                val l = (0 until a.length()).map { i ->
+                    val x = a.getJSONObject(i)
+                    Item(x.getString("id"), if (x.optBoolean("s")) Kind.SERIES else Kind.MOVIE, x.getString("n"),
+                        if (x.has("y")) x.getInt("y") else null, "", x.optString("p").ifBlank { null }, "Stremio")
+                }
+                mem.putIfAbsent(k, Entry(e.getLong("t"), l))
+            }
+        }
+    }
+
+    @Synchronized private fun writeDisk() {
+        val f = file ?: return
+        runCatching {
+            val o = JSONObject()
+            mem.forEach { (k, e) ->
+                val a = JSONArray()
+                e.items.forEach { i ->
+                    val x = JSONObject().put("id", i.id).put("n", i.title).put("s", i.kind == Kind.SERIES)
+                    i.year?.let { x.put("y", it) }
+                    i.logo?.let { x.put("p", it) }
+                    a.put(x)
+                }
+                o.put(k, JSONObject().put("t", e.at).put("i", a))
+            }
+            f.writeText(o.toString())
+        }
+    }
+
+    private fun key(s: Spec, pages: Int) = url(s, 0) + "#" + pages
+
+    /** Already known titles of a list (memory or disk), without waiting for the network. */
+    fun cached(s: Spec, pages: Int = 1): List<Item> { readDisk(); return mem[key(s, pages)]?.items.orEmpty() }
+
+    /** Titles of a list; [pages] pages of about 50 titles. Old titles are kept when the network fails. */
+    suspend fun items(s: Spec, pages: Int = 1): List<Item> {
+        withContext(Dispatchers.IO) { readDisk() }
+        val k = key(s, pages)
+        val have = mem[k]
+        if (have != null && System.currentTimeMillis() - have.at < FRESH) return have.items
+        val got = coroutineScope {
+            (0 until pages).map { p -> async(Dispatchers.IO) { fetch(url(s, p * 50), s.type == "series") } }.awaitAll()
+        }.flatten().distinctBy { it.id }
+        if (got.isEmpty()) return have?.items.orEmpty()
+        mem[k] = Entry(System.currentTimeMillis(), got)
+        withContext(Dispatchers.IO) { writeDisk() }
+        return got
+    }
+
+    private fun fetch(u: String, series: Boolean): List<Item> = runCatching {
+        val body = Net.base.newCall(Request.Builder().url(u).build()).execute().use { r -> if (r.isSuccessful) r.body?.string() else null }
+            ?: return emptyList()
+        val metas = JSONObject(body).optJSONArray("metas") ?: return emptyList()
+        (0 until metas.length()).mapNotNull { i ->
+            val o = metas.optJSONObject(i) ?: return@mapNotNull null
+            val id = o.optString("imdb_id").ifBlank { o.optString("id") }
+            if (!StremioLogic.isImdb(id)) return@mapNotNull null
+            // Bigger poster than the default small one (sharper on a TV)
+            val poster = o.optString("poster").takeIf { it.startsWith("http") }?.replace("/poster/small/", "/poster/medium/")
+            Item("stremio:$id", if (series) Kind.SERIES else Kind.MOVIE, o.optString("name"),
+                StremioLogic.year(o.optString("releaseInfo").ifBlank { o.optString("year") }), "", poster, "Stremio")
+        }
+    }.getOrDefault(emptyList())
+
+    /** Genre name → titles, for the "Categories" button. */
+    suspend fun genreMap(k: Kind): Map<String, List<Item>> = coroutineScope {
+        (listOf(newest(k), popular(k), featured(k)) + genres(k)).map { s -> async { s.title to items(s, 2) } }.awaitAll()
+            .filter { it.second.isNotEmpty() }.toMap(LinkedHashMap())
+    }
+
+    private var ixOf: List<Item>? = null
+    private var ix: Map<String, List<Item>> = emptyMap()
+    @Synchronized private fun index(all: List<Item>): Map<String, List<Item>> {
+        if (ixOf === all) return ix
+        val m = HashMap<String, MutableList<Item>>()
+        for (i in all) {
+            if (i.kind == Kind.LIVE) continue
+            val k = TmdbRows.key(i.title)
+            if (k.length >= 2) m.getOrPut(i.kind.name + k) { ArrayList(1) }.add(i)
+        }
+        ix = m; ixOf = all
+        return m
+    }
+
+    /** A Cinemeta title opens as the playlist's own copy when the provider has it (same name, year ±1). */
+    suspend fun resolve(i: Item, all: List<Item>): Item {
+        if (!i.id.startsWith("stremio:")) return i
+        return withContext(Dispatchers.Default) {
+            index(all)[i.kind.name + TmdbRows.key(i.title)]?.firstOrNull { c -> val y = c.year; i.year == null || y == null || kotlin.math.abs(y - i.year) <= 1 }
+        } ?: i
+    }
+}

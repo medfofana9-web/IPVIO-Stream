@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -314,10 +315,15 @@ private fun AppContent() {
         jumpTick++
     }
 
-    val open: (Item) -> Unit = { i ->
+    val openScope = rememberCoroutineScope()
+    val openNow: (Item) -> Unit = { i ->
         if (i.kind == Kind.SERIES) NewEpisodes.dismiss(ctx, i.id)
         LastFocus.pending = i.id
         if (i.kind == Kind.LIVE) start(i, i.title, i.url) else pushTop(i)
+    }
+    // Fof TV: a catalog title (Cinemeta) opens as the provider's copy when the playlist has it, otherwise with addon streams
+    val open: (Item) -> Unit = { i ->
+        if (i.id.startsWith("stremio:")) openScope.launch { openNow(Catalog.resolve(i, all)) } else openNow(i)
     }
 
     // Launch test: play a test stream like a live channel
@@ -481,7 +487,12 @@ private fun AppContent() {
             else -> Box(Modifier.fillMaxSize().screenEnter(tab)) { HomeScreen(
                 tab = tab, onTab = { goTab(it) }, states = states,
                 onOpen = open,
-                onPlayNow = { i -> LastFocus.pending = i.id; if (i.kind == Kind.SERIES) pushTop(i) else { if (i.kind != Kind.LIVE && !i.id.startsWith("rec:")) pushTop(i); start(i, i.title, i.url) } },
+                onPlayNow = { i0 -> openScope.launch {
+                    val i = Catalog.resolve(i0, all)
+                    LastFocus.pending = i.id
+                    // Not in the playlist: the detail page offers the addon streams
+                    if (i.kind == Kind.SERIES || i.url.isBlank()) pushTop(i) else { if (i.kind != Kind.LIVE && !i.id.startsWith("rec:")) pushTop(i); start(i, i.title, i.url) }
+                } },
                 onResume = { e, i ->
                     LastFocus.pending = i.id
                     if (i.kind != Kind.LIVE) pushTop(i)
