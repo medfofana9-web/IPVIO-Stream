@@ -1,5 +1,31 @@
 # Changelog
 
+## Fof TV 1.3.15 – 1.3.20 (November 2026)
+**Catalog**
+- One catalog for Home, Movies, Series, the big picture and the top buttons: Cinemeta (popular now, new this year, genres, top rated), kept on disk for instant rows (`Catalog.kt`)
+- A catalog title opens as the provider's copy when the playlist has it (English, exact year and 1080p preferred), otherwise with the Stremio addon streams
+- Stremio-only series load their seasons and episodes from Cinemeta; picking an episode opens its streams
+- Provider category rows removed from Home, Movies and Series
+
+**Playback**
+- One-click play: the title page asks the addons ahead; Play starts the best stream (1080p direct link first). Can be turned off on the settings website
+- Title logos on the big picture and the title page
+
+**Sports**
+- One press plays the best channel; no picture within 9 s or a failed stream moves to the next channel of the game; channels that worked are marked Verified and tried first (`SportSession.kt`)
+- Up/Down in the player switches between live games; score bug and live ticker over the picture
+- Close-game / overtime popup: OK switches to that game
+- Multiview (2 x 2) from the sports Live tab; My Teams row with countdown and auto-tune for every game of your teams
+- Team colors on game cards; spoiler-free mode hides scores everywhere
+
+**Look and speed**
+- R8 optimizes the libraries by default (`FOF_R8=0` turns it off); startup profile (`baseline-prof.txt`, profileinstaller)
+- Rows glide once per key press; catalog posters and pictures need no TMDB lookup per card
+- Default design: Fof Premium (red on true black) with Inter; Fof Coral stays as a preset
+
+**Settings website**
+- `http://<TV>:<port>/s` (QR via the phone icon in the menu): home rows, one-click play, big picture speed, Stremio addons. The server starts with the app
+
 ## Unreleased
 **Playlists (T-009)**
 - Xtream: any number of backup server addresses per login (same username and password). If the main server stops answering, the app switches to the next one by itself, for the playlist, TV guide, catch-up and streams

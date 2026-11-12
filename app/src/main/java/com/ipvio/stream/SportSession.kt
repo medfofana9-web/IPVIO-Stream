@@ -81,13 +81,19 @@ object SportSession {
         if (s.add(chId)) prefs(c).edit().putStringSet("ids", HashSet(s)).apply()
     }
 
-    fun owns(chId: String?) = chId != null && gameOfCh.containsKey(chId)
+    @Volatile private var startedAt = 0L
+    /** A session older than 6 hours is over (the games have ended). */
+    fun owns(chId: String?) = chId != null && System.currentTimeMillis() - startedAt < 6 * 3600_000L && gameOfCh.containsKey(chId)
+
+    /** Ends the session (a channel outside it was started). */
+    fun stop() { order = emptyList(); cands.clear(); pick.clear(); gameOfCh.clear(); failed.clear() }
 
     /** Starts a session for [g] with its [first] channels; other live games are added in the background. */
     fun start(g: SportData.Game, first: List<Item>, live: List<Item>) {
         val verified = app?.let { ok(it) } ?: emptySet()
         // Channels that worked before go first (same reason order otherwise)
         val sorted = first.sortedBy { if (it.id in verified) 0 else 1 }
+        startedAt = System.currentTimeMillis()
         order = listOf(g.key)
         cands.clear(); pick.clear(); gameOfCh.clear(); failed.clear()
         cands[g.key] = sorted

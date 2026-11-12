@@ -895,6 +895,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
 
     LaunchedEffect(cur.url) {
         sportT[0] = System.currentTimeMillis()
+        // Something outside the sports session (other channel, movie): the session ends, Up/Down works as usual again
+        if (!SportSession.owns(cur.itemId) && cur.archive == null) SportSession.stop()
         SportSession.watching = cur.itemId
         readyOnce = false; stalls = emptyList()
         retries = 0; msg = null; boomerFail = false; buffering = true; segs = emptyList(); pos = 0; dur = 0; buffered = 0

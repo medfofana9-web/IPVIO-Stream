@@ -204,7 +204,14 @@ object Catalog {
     suspend fun resolve(i: Item, all: List<Item>): Item {
         if (!i.id.startsWith("stremio:")) return i
         return withContext(Dispatchers.Default) {
-            index(all)[i.kind.name + TmdbRows.key(i.title)]?.firstOrNull { c -> val y = c.year; i.year == null || y == null || kotlin.math.abs(y - i.year) <= 1 }
+            val c = index(all)[i.kind.name + TmdbRows.key(i.title)]
+                ?.filter { c -> val y = c.year; i.year == null || y == null || kotlin.math.abs(y - i.year) <= 1 }
+            // Several copies (languages, years of remakes, qualities): English first, then the exact year, then 1080p
+            c?.minWithOrNull(compareBy<Item>(
+                { when (it.lang) { "en" -> 0; LangTagLogic.UNKNOWN -> 1; else -> 2 } },
+                { if (i.year != null && it.year == i.year) 0 else 1 },
+                { when (it.quality) { "FHD" -> 0; "HD" -> 1; "4K" -> 2; else -> 3 } }
+            ))
         } ?: i
     }
 }

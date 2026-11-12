@@ -1,6 +1,17 @@
 # Work state
 
-Last update: 2026-11-11. Read `CLAUDE.md` first, then this file.
+Last update: 2026-11-12. Read `CLAUDE.md` first, then this file.
+
+## Fof TV (fork) – state on 2026-11-12
+
+Released builds: `v1.3.15` to `v1.3.20` (GitHub Actions `release.yml`, every push to `main`). See `CHANGELOG.md` for the list.
+New files: `Catalog.kt` (Cinemeta catalog, disk cache, playlist matching), `SportSession.kt` (sports failover, live-game switching,
+score bug and ticker), `SettingsWeb.kt` (settings website `/s`), `FofPrefs.kt` (one-click play), `DictFof.kt` (missing English texts),
+`app/src/main/baseline-prof.txt`.
+Checks run: Gradle build and unit tests in CI; emulator launch test (`launch-test-r8`) passed with R8 on.
+**Not tested on a device:** scrolling feel, one-click stream choice, sports failover timing (9 s), Up/Down game switching,
+settings website on a phone, multiview with the provider's connection limit.
+Next step: device test with the maintainer, then fix what it finds.
 
 ## Current task
 
