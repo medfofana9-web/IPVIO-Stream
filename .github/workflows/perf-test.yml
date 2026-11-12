@@ -64,7 +64,9 @@ jobs:
           script: |
             adb install -r app.apk
             adb shell am start -W -n com.fof.tv/com.ipvio.stream.MainActivity --es fof_test_playlist http://10.0.2.2:8000/test.m3u | tee start.txt
-            sleep 75
+            sleep 60
+            adb shell input keyevent 23
+            sleep 40
             adb exec-out screencap -p > p0_start.png
             adb shell uiautomator dump /sdcard/ui0.xml >/dev/null 2>&1; adb pull /sdcard/ui0.xml ui0.xml >/dev/null 2>&1
             echo "== screen texts after start"; grep -o 'text="[^"]\+"' ui0.xml | head -40 || true
