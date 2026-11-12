@@ -1,0 +1,101 @@
+name: Performance test
+
+# Fof TV: measures frame times while the remote is pressed through Home, Movies and Sports on an Android emulator
+# with a generated playlist (4,000 movies, 300 channels). The emulator renders on the CPU (swiftshader), so the
+# numbers are slower than a Fire TV in absolute terms; they are for comparing builds and finding spikes.
+on:
+  workflow_dispatch:
+  push:
+    branches: [perf-test, perf-before]
+
+jobs:
+  perf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      FOF_VERSION_CODE: 999999
+      FOF_VERSION_NAME: 9.9.9-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build release APK
+        run: |
+          chmod +x gradlew
+          printf 'storeFile=signing/fof-tv.jks\nstorePassword=foftv-sign\nkeyAlias=foftv\nkeyPassword=foftv-sign\n' > keystore.properties
+          ./gradlew --no-daemon assembleRelease
+          cp app/build/outputs/apk/release/*.apk app.apk
+      - name: Generate test playlist and serve it
+        run: |
+          mkdir -p srv
+          python3 - <<'PY'
+          import random
+          random.seed(7)
+          words = "Night Storm River City Shadow Last Silent Red Lost Iron Golden Broken Dark Wild Hidden Final Black Blue Empire Garden".split()
+          out = ["#EXTM3U"]
+          for i in range(300):
+              out.append(f'#EXTINF:-1 tvg-id="ch{i}" group-title="{random.choice(["News","Sports","Kids","Movies HD","Music"])}",Channel {i}')
+              out.append(f"http://10.0.2.2:8000/live/{i}.ts")
+          for i in range(4000):
+              t = " ".join(random.sample(words, 2)) + f" {i}"
+              out.append(f'#EXTINF:-1 group-title="{random.choice(["Action","Drama","Comedy","Thriller","Family"])}",{t} ({random.randint(1980,2026)})')
+              out.append(f"http://10.0.2.2:8000/movie/{i}.mp4")
+          open("srv/test.m3u","w").write("\n".join(out)+"\n")
+          PY
+          (cd srv && nohup python3 -m http.server 8000 >/dev/null 2>&1 &)
+          sleep 2; curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8000/test.m3u
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run and measure
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 31
+          arch: x86_64
+          target: google_apis
+          profile: pixel_5
+          disable-animations: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          script: |
+            adb install -r app.apk
+            adb shell am start -W -n com.fof.tv/com.ipvio.stream.MainActivity --es fof_test_playlist http://10.0.2.2:8000/test.m3u | tee start.txt
+            sleep 75
+            adb exec-out screencap -p > p0_start.png
+            adb shell dumpsys gfxinfo com.fof.tv reset > /dev/null
+            adb shell 'for i in 1 2 3; do input keyevent 20; sleep 0.6; done'
+            adb shell 'for i in $(seq 1 25); do input keyevent 22; sleep 0.15; done'
+            adb exec-out screencap -p > p1_home_right.png
+            adb shell 'for i in $(seq 1 6); do input keyevent 20; sleep 0.4; done'
+            adb shell 'for i in $(seq 1 6); do input keyevent 19; sleep 0.4; done'
+            adb exec-out screencap -p > p2_home_updown.png
+            adb shell dumpsys gfxinfo com.fof.tv > gfx_home.txt
+            adb shell dumpsys gfxinfo com.fof.tv reset > /dev/null
+            adb shell 'input keyevent 22; sleep 1; input keyevent 23; sleep 3'
+            adb exec-out screencap -p > p3_detail.png
+            adb shell 'input keyevent 4; sleep 2'
+            adb exec-out screencap -p > p4_back.png
+            adb shell dumpsys gfxinfo com.fof.tv > gfx_detail.txt
+            adb shell dumpsys meminfo com.fof.tv | head -40 > meminfo.txt
+            adb logcat -d > logcat.txt
+            (adb shell pidof com.fof.tv && echo RUNNING || echo NOT-RUNNING) | tee alive.txt
+      - name: Summary
+        if: always()
+        run: |
+          for f in gfx_home.txt gfx_detail.txt; do echo "== $f"; grep -E "Total frames rendered|Janky frames|50th percentile|90th percentile|95th percentile|99th percentile|Slow UI thread|Frame deadline missed" $f || true; done
+          grep -E "TOTAL" meminfo.txt | head -3 || true
+          grep -n "FATAL EXCEPTION" -A20 logcat.txt | head -40 || true
+          grep -q RUNNING alive.txt && ! grep -q NOT-RUNNING alive.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: perf-test
+          path: |
+            *.png
+            gfx_*.txt
+            meminfo.txt
+            start.txt

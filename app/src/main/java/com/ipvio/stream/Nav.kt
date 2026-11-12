@@ -74,6 +74,7 @@ object NavState {
 object AppNav {
     /** Launch test only (builds named "-test"): stream address to play right after the start. */
     var testUrl by androidx.compose.runtime.mutableStateOf<String?>(null)
+    var testPlaylist: String? = null
     var homeSignal by androidx.compose.runtime.mutableIntStateOf(0)
     /** The View settings ask the movie area to open its categories screen (counts up). */
     var openCatsSignal by androidx.compose.runtime.mutableIntStateOf(0)

@@ -78,6 +78,7 @@ class MainActivity : ComponentActivity() {
         ScreenAwake.attach(this)
         intent?.getStringExtra(Reminders.EXTRA_CH)?.let { AppNav.openChannel = it }
         if (BuildConfig.VERSION_NAME.endsWith("-test")) intent?.getStringExtra("fof_test_url")?.let { AppNav.testUrl = it }
+        if (BuildConfig.VERSION_NAME.endsWith("-test")) intent?.getStringExtra("fof_test_playlist")?.let { AppNav.testPlaylist = it }
         setContent { App(pick) }
     }
 
@@ -349,6 +350,11 @@ private fun AppContent() {
     LaunchedEffect(all) { Catalog.warm(all) }
 
     // Launch test: play a test stream like a live channel
+    LaunchedEffect(Unit) {
+        val u = AppNav.testPlaylist ?: return@LaunchedEffect
+        AppNav.testPlaylist = null
+        if (PlaylistStore.savedUrl(ctx) != u) PlaylistStore.load(ctx, u, true, ask = false)
+    }
     LaunchedEffect(AppNav.testUrl) {
         val u = AppNav.testUrl ?: return@LaunchedEffect
         AppNav.testUrl = null
