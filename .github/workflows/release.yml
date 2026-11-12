@@ -1,0 +1,42 @@
+name: Release Fof TV
+
+# Every push to main builds a signed APK and publishes it as the latest release.
+# Fire TV: Downloader → https://github.com/medfofana9-web/IPVIO-Stream/releases/latest/download/FofTV.apk
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      FOF_VERSION_CODE: ${{ github.run_number }}0
+      FOF_VERSION_NAME: 1.3.${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Signing config
+        run: |
+          chmod +x gradlew
+          printf 'storeFile=signing/fof-tv.jks\nstorePassword=foftv-sign\nkeyAlias=foftv\nkeyPassword=foftv-sign\n' > keystore.properties
+      - name: Unit tests
+        run: ./gradlew --no-daemon testDebugUnitTest
+      - name: Build release APK
+        run: |
+          ./gradlew --no-daemon assembleRelease
+          cp app/build/outputs/apk/release/*.apk FofTV.apk
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.3.${{ github.run_number }}
+          name: Fof TV 1.3.${{ github.run_number }}
+          body: Automatic build of ${{ github.sha }}
+          make_latest: true
+          files: FofTV.apk
