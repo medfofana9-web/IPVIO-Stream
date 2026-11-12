@@ -919,10 +919,7 @@ private fun Hero(
                 val m = rememberFullMeta(c, rememberMeta(c))
                 Column(verticalArrangement = Arrangement.spacedBy(dpx(if (home) 10 else 8))) {
                     Kicker(Lang.tr(kindLabel(c.kind)) + (qualityOf(c)?.let { q -> "  ·  " + q.uppercase() } ?: ""))
-                    Text(
-                        raw = true, text = c.title, color = Tok.TextHi, fontSize = spx(if (home) 80 else 72), lineHeight = spx(if (home) 80 else 72),
-                        fontWeight = FontWeight.ExtraBold, letterSpacing = (-1.5).sp, maxLines = 2, overflow = TextOverflow.Ellipsis
-                    )
+                    HeroTitle(c, m, if (home) 80 else 72, dpx(560), dpx(170))
                     HeroMetaLine(c, m, dots = !home)
                     m?.overview?.takeIf { it.isNotBlank() }?.let {
                         Text(raw = true, text = TitleText.short(it, 250), color = Tok.TextMid, fontSize = spx(19), lineHeight = spx(27), maxLines = 3)

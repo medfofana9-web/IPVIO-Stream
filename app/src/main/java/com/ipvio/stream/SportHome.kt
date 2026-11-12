@@ -86,7 +86,12 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
                     scope.launch {
                         // Channel lookups are built off the main thread (big playlists), then the game starts
                         val chans = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { SportWatch.prewarm(live); SportWatch.channels(g, live) }
-                        if (chans.isNotEmpty()) { ZapContext.list = chans; ZapContext.key = null; onOpen(chans[0]) } else onSports()
+                        if (chans.isNotEmpty()) {
+                            // Score box in the corner while watching: pin this game and switch the mini score window on
+                            if (!SportAlerts.isPinned(g)) SportAlerts.togglePin(ctx, g)
+                            if (!SportAlerts.miniOn) SportAlerts.setMini(ctx, on = true)
+                            ZapContext.list = chans; ZapContext.key = null; onOpen(chans[0])
+                        } else onSports()
                     }
                 }
             }
@@ -100,7 +105,7 @@ private fun LiveGameCard(g: SportData.Game, onClick: () -> Unit) {
     val s by animateFloatAsState(if (f) focusScale(1.06f) else 1f, label = "livegame")
     val shape = RoundedCornerShape(DS.RadiusM)
     Column(
-        Modifier.width(dpx(300)).graphicsLayer { scaleX = s; scaleY = s }.clip(shape)
+        Modifier.width(dpx(320)).graphicsLayer { scaleX = s; scaleY = s }.clip(shape)
             .background(if (f) DS.FocusFill else Tok.Card)
             .border(1.dp, if (f) DS.FocusFill else Tok.Line, shape)
             .onFocusChanged { f = it.isFocused }
@@ -118,9 +123,12 @@ private fun LiveGameCard(g: SportData.Game, onClick: () -> Unit) {
             }
         }
         for (t in listOf(g.away, g.home)) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
-            TeamLogo(t.logo, t.abbr, dpx(30))
-            Text(raw = true, text = t.short, color = ink, fontSize = spx(17), fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (!SportPrefs.hideScores) Text(raw = true, text = t.score.orEmpty(), color = ink, fontSize = spx(19), fontWeight = FontWeight.ExtraBold)
+            // Thin bar in the team color (ESPN), then a larger logo
+            val tc = t.color?.let { c -> runCatching { Color(android.graphics.Color.parseColor("#" + c.removePrefix("#"))) }.getOrNull() } ?: Color(0x55FFFFFF)
+            Box(Modifier.width(dpx(4)).height(dpx(34)).clip(RoundedCornerShape(dpx(2))).background(tc))
+            TeamLogo(t.logo, t.abbr, dpx(38))
+            Text(raw = true, text = t.short, color = ink, fontSize = spx(18), fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (!SportPrefs.hideScores) Text(raw = true, text = t.score.orEmpty(), color = ink, fontSize = spx(26), fontWeight = FontWeight.ExtraBold)
         }
         Text(raw = true, text = listOf(statusText(g), g.tv).filter { it.isNotBlank() }.joinToString(" · "), color = sub, fontSize = spx(13), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
