@@ -10,3 +10,6 @@
 #-keepclassmembers class fqcn.of.javascript.interface.for.webview {
 #   public *;
 #}
+# Fof TV: shrink and optimize, but keep names and packages. Renaming moved classes out of their packages and broke
+# package-private access at startup ("IllegalAccessError ... kotlin.text"), found by the launch test on an emulator.
+-dontobfuscate
