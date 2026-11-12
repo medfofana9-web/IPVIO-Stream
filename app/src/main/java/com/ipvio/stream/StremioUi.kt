@@ -196,11 +196,34 @@ fun StremioCatalogRows(onOpen: (Item) -> Unit) {
     LaunchedEffect(Unit) { Stremio.ensure(ctx) }
     if (Stremio.addons.none { it.streams }) return
     Column(verticalArrangement = Arrangement.spacedBy(dpx(18))) {
-        // Home: Stremio's own popular lists only (addon catalogs that mirror an IPTV library looked like the provider rows)
-        for (cat in Stremio.builtIn) {
+        // Home: the catalogs of the added addons (the user's source of truth), mixed movies and series;
+        // Stremio's own popular lists only when no addon has a catalog
+        val own = Stremio.addons.flatMap { it.cats }
+        val cats = if (own.isEmpty()) Stremio.builtIn else {
+            val m = own.filter { it.type == "movie" }; val s = own.filter { it.type == "series" }
+            (0 until maxOf(m.size, s.size)).flatMap { listOfNotNull(m.getOrNull(it), s.getOrNull(it)) }.take(8)
+        }
+        for (cat in cats) {
             val metas by produceState(emptyList<Stremio.Meta>(), cat) { value = Stremio.catalog(cat) }
             if (metas.isEmpty()) continue
             StremioMetaRow(cat.name, metas, raw = cat.addon != "Cinemeta", onOpen = onOpen)
+        }
+    }
+}
+
+/** Movies or Series page: every catalog of that type from the added addons (falls back to Stremio's popular list). */
+@Composable
+fun StremioTypeRows(type: String, onOpen: (Item) -> Unit) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(Unit) { Stremio.ensure(ctx) }
+    val own = Stremio.addons.flatMap { it.cats }.filter { it.type == type }
+    val cats = own.ifEmpty { Stremio.builtIn.filter { it.type == type } }
+    if (cats.isEmpty()) return
+    Column(verticalArrangement = Arrangement.spacedBy(dpx(18))) {
+        for (cat in cats) {
+            val metas by produceState(emptyList<Stremio.Meta>(), cat) { value = Stremio.catalog(cat) }
+            if (metas.isEmpty()) continue
+            StremioMetaRow(cat.name.removeSuffix(" (movies)").removeSuffix(" (series)"), metas, raw = true, onOpen = onOpen)
         }
     }
 }

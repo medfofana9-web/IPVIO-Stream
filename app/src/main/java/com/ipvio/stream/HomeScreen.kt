@@ -643,38 +643,14 @@ fun HomeScreen(
                             val kind = if (isM) Kind.MOVIE else Kind.SERIES
                             if (ready.isNotEmpty()) item(key = "hero$tab") { Hero(ready.toList(), heroH, false, onOpen, onPlayNow, header, { heroScroll(states[tab]) }) { scope.launch { states[tab].animateScrollToItem(0) } } }
                             else item(key = "top$tab") { header(Modifier) }
-                            // Popular (trending, otherwise top rated) directly under the big picture. First row:
-                            // "Show all" up = profile at the top right, left = "To list" in the picture
-                            val tt = trendK
-                            val pop = if (tt.size >= 5) tt else top
-                            val tPage = if (isM) tmdbMoviePage else tmdbSeriesPage
-                            if (tPage.isEmpty() && pop.size >= 3) item(key = "pop$tab") {
-                                ItemsRow(if (isM) "Beliebte Filme" else "Beliebte Serien", pop, cardW, onOpen,
-                                    upReq = HeaderFocus.profile, leftReq = if (ready.isNotEmpty()) HeroFocus.second else null) {
-                                    onBrowse(BrowseReq((if (isM) "Beliebte Filme" else "Beliebte Serien"), pop, SORT_PLAYLIST))
-                                }
-                            }
-                            if (ready.isEmpty() && pop.size < 3) item(key = "hint$tab") { EmptyHint("Oben findest du alle $noun, Neuheiten, Top bewertet und Kategorien.") }
                             val rl = resumeK
                             if (rl.isNotEmpty()) item(key = "res$tab") { ResumeRow(rl, cardW, onResume) }
                             val wl = watchK
                             if (wl.isNotEmpty()) item(key = "wl$tab") { ItemsRow("Meine Liste", wl, cardW, onOpen) { onBrowse(BrowseReq("Meine Liste · $noun", wl, SORT_PLAYLIST)) } }
                             val recent = histK
                             if (recent.isNotEmpty()) item(key = "hr$tab") { ItemsRow("Zuletzt geschaut", recent, cardW, onOpen) { onBrowse(BrowseReq("Zuletzt geschaut · $noun", recent, SORT_PLAYLIST)) } }
-                            if (base.isEmpty()) item { EmptyHint("Keine $noun in dieser Playlist") }
-                            if (tPage.isNotEmpty()) {
-                                tPage.forEach { r -> item(key = "P$tab" + r.title) { ItemsRow(r.title, r.items, cardW, onOpen) { onBrowse(BrowseReq(r.title, r.items, SORT_PLAYLIST)) } } }
-                                item(key = "Pmore$tab") { EmptyHint("Your provider's own categories are under „Kategorien“ at the top.") }
-                            }
-                            if (tPage.isEmpty() && base.isNotEmpty()) item(key = "new$tab") { ItemsRow("Neu hinzugefügt", if (isM) newMovies else newSeries, cardW, onOpen) { onBrowse(BrowseReq("Neu hinzugefügt · $noun", base, SORT_NEW)) } }
-                            if (tPage.isEmpty() && top.size >= 8) item(key = "best$tab") { ItemsRow("Top bewertet", top, cardW, onOpen) { onBrowse(BrowseReq("Top bewertet · $noun", top, SORT_RATING)) } }
-                            val tRows = if (isM) tmdbMovieRows else tmdbSeriesRows
-                            if (tPage.isNotEmpty()) { /* the TMDB page above already has the genre rows */ }
-                            else if (tRows.isNotEmpty()) {
-                                tRows.forEach { r -> item(key = "T$tab" + r.title) { ItemsRow(r.title, r.items, cardW, onOpen) { onBrowse(BrowseReq(r.title, r.items, SORT_PLAYLIST)) } } }
-                                item(key = "Tmore$tab") { EmptyHint("Your provider's categories are under „Kategorien“ at the top.") }
-                            }
-
+                            // Fof TV: the Stremio addons are the catalog here, not the provider's categories
+                            item(key = "stc$tab") { StremioTypeRows(if (isM) "movie" else "series", onOpen) }
                         }
                         MenuLogic.FAVS -> {
                             // Round 14: besides channels also movies and series (detail page > "Add to favorites")

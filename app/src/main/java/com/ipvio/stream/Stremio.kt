@@ -113,7 +113,7 @@ object Stremio {
             val nm = o.optString("name").ifBlank { o.optString("id") }
             out.add(Cat(base, type, o.optString("id"), "$nm (${if (type == "movie") "movies" else "series"})", addon))
         }
-        return out.take(8)
+        return out.take(30)
     }
 
     /** All catalog rows: Stremio's popular lists first, then the catalogs of added addons. */
