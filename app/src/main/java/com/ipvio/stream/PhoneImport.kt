@@ -389,6 +389,7 @@ class PhoneImport(private val onReceive: (PhoneInput) -> Unit) {
                     else -> html(c, PhoneImportLogic.message(li, "lock"))
                 }
             }
+            "GET /s" -> if (api != null) html(200, SettingsWeb.page()) else html(404, PhoneImportLogic.message(li, "bad"))
             "GET /r" -> if (api != null) html(200, RemoteLogic.page(li)) else html(404, PhoneImportLogic.message(li, "bad"))
             else -> {
                 val a = api

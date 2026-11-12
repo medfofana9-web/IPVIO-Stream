@@ -195,9 +195,17 @@ private fun DetailScreenFull(
     val tmdbId = meta?.tmdbId
     val imdbId = meta?.imdbId
     LaunchedEffect(Unit) { Stremio.ensure(ctx) }
+    // Title without a playlist link: ask the addons ahead, so Play starts without waiting
+    LaunchedEffect(item.id, season, imdbId, Stremio.addons.size) {
+        if (!playUrl.isNullOrBlank() || Stremio.addons.none { it.streams } || item.kind == Kind.LIVE) return@LaunchedEffect
+        val id = Stremio.imdbFor(item, imdbId ?: item.id.removePrefix("stremio:").takeIf { StremioLogic.isImdb(it) }) ?: return@LaunchedEffect
+        runCatching { Stremio.streams(item.kind, id, season, eps.firstOrNull()?.num ?: 1) }
+    }
     var showStremio by remember(item.id) { mutableStateOf(false) }
     // Episode picked in a Stremio-only series: the streams popup opens at that season and episode
     var stremioAt by remember(item.id) { mutableStateOf<Pair<Int, Int>?>(null) }
+    // Play / episode pressed (not the "Stremio" button): one-click play may start the best stream at once
+    var stremioAuto by remember(item.id) { mutableStateOf(false) }
     val isTv = meta?.isTv == true
     // Long seasons (One Piece & co.): fetch TMDB seasons to use them as sections
     val needTmdbSeasons = remember(item) {
@@ -447,8 +455,8 @@ private fun DetailScreenFull(
                             Kicker(kindLabel(item.kind), raw = false)
                             qualityOf(item)?.let { PreviewQualityBadge(it) }
                         }
-                        Text(raw = true, text = item.title, color = Tok.TextHi, fontSize = spx(84), lineHeight = spx(84), fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = (-1.5).sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        // Netflix-style: the official title logo when there is one, otherwise the title in large type
+                        HeroTitle(item, meta, 84, dpx(620), dpx(170))
                         HeroMetaLine(item, meta, dots = false)
                         // Movie started: small progress bar with remaining time
                         if (item.kind != Kind.SERIES && resume != null && resume.dur > 0 && !ResumeLogic.finished(resume.pos, resume.dur)) {
@@ -511,13 +519,13 @@ private fun DetailScreenFull(
                                     val seenMovie = item.kind == Kind.MOVIE && progress[ResumeLogic.key(0, 0)]?.done == true
                                     HeroButton(if (seenMovie) "Erneut abspielen" else "Abspielen", if (seenMovie) AIcon.Rewind else AIcon.Play, true, Modifier.focusRequester(playFocus), bh) {
                                         // Playlist link known as broken (or a Stremio-only title): offer the addon streams instead
-                                        if ((playUrl.isNullOrBlank() || DeadLinks.isDead(playUrl)) && Stremio.addons.isNotEmpty()) { showStremio = true; return@HeroButton }
+                                        if ((playUrl.isNullOrBlank() || DeadLinks.isDead(playUrl)) && Stremio.addons.isNotEmpty()) { stremioAuto = true; showStremio = true; return@HeroButton }
                                         playUrl?.let { onPlay(it, item.title + (if (item.kind == Kind.SERIES) " S" + season + "E" + (eps.firstOrNull()?.num ?: 1) else ""), 0L) }
                                     }
                                 }
                                 // Stremio addons (Settings > Stremio addons): extra streams for this title
                                 if (Stremio.addons.isNotEmpty() && item.kind != Kind.LIVE) {
-                                    HeroButton("Stremio", AIcon.Globe, false, Modifier, bh) { showStremio = true }
+                                    HeroButton("Stremio", AIcon.Globe, false, Modifier, bh) { stremioAuto = false; showStremio = true }
                                 }
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(dpx(12))) {
@@ -534,7 +542,7 @@ private fun DetailScreenFull(
                                 StremioSourcesPopup(
                                     item, imdbId ?: item.id.removePrefix("stremio:").takeIf { StremioLogic.isImdb(it) },
                                     stremioAt?.first ?: season, stremioAt?.second ?: rs?.second ?: eps.firstOrNull()?.num ?: 1,
-                                    onPlay, { showStremio = false; stremioAt = null }
+                                    onPlay, { showStremio = false; stremioAt = null }, auto = stremioAuto
                                 )
                             }
                             // Watched by hand: movie, season, whole series (also reachable per episode: long OK / menu key on the row)
@@ -726,7 +734,7 @@ private fun DetailScreenFull(
                                         progVer++
                                     }
                                 ) {
-                                    if (v.url.isBlank()) { stremioAt = ep.season to ep.num; showStremio = true }
+                                    if (v.url.isBlank()) { stremioAt = ep.season to ep.num; stremioAuto = true; showStremio = true }
                                     else onPlay(v.url, item.title + " S" + ep.season + "E" + ep.num, 0L)
                                 }
                             }

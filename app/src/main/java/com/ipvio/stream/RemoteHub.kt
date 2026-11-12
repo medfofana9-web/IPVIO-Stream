@@ -103,6 +103,9 @@ object RemoteHub {
                     RemoteLogic.resume(it.id, it.title, if (it.kind == Kind.SERIES) "s" else "m", s, n, pct)
                 }.take(LIMIT))
             }
+            // Fof TV settings website (/s)
+            "cfg" -> SettingsWeb.state()
+            "cfgset" -> { val c = appCtx ?: return "{\"err\":\"TV not ready\"}"; SettingsWeb.set(c, q["k"].orEmpty(), q["id"].orEmpty().take(500), q["v"].orEmpty().take(20)) }
             // Stremio addon link pasted on the phone (Settings > Stremio addons on the TV shows it afterwards)
             "addon" -> {
                 val c = appCtx ?: return "{\"err\":\"TV not ready\"}"

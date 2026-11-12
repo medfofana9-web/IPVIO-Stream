@@ -49,7 +49,9 @@ object TitleLogos {
 /** Hero title: the official logo when TMDB has one, otherwise the title in large type. */
 @Composable
 fun HeroTitle(item: Item, m: Meta?, size: Int, maxW: Dp, maxH: Dp) {
-    val logo by produceState<String?>(null, m?.tmdbId) { value = m?.let { TitleLogos.url(it.tmdbId, it.isTv) } }
+    val logo by produceState(Catalog.logo(item.id), item.id, m?.tmdbId) {
+        value = Catalog.logo(item.id) ?: m?.takeIf { it.tmdbId > 0 }?.let { TitleLogos.url(it.tmdbId, it.isTv) }
+    }
     val l = logo
     if (l != null) AsyncImage(l, item.title, Modifier.widthIn(max = maxW).heightIn(max = maxH), contentScale = ContentScale.Fit, alignment = Alignment.CenterStart)
     else Text(raw = true, text = item.title, color = Tok.TextHi, fontSize = spx(size), lineHeight = spx(size),

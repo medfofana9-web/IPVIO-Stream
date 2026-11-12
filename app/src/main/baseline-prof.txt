@@ -1,0 +1,3 @@
+# Fof TV startup profile: the app's own code is compiled ahead of time, so the first scrolls and screen changes run smoothly.
+HSPLcom/ipvio/stream/**->**(**)**
+Lcom/ipvio/stream/**;

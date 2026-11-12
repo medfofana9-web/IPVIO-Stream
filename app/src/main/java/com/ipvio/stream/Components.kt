@@ -38,6 +38,8 @@ class MetaState(val meta: Meta?, val done: Boolean)
 
 @Composable
 fun rememberMetaState(item: Item): MetaState {
+    // Catalog titles bring their own picture and text: no TMDB lookup per card while scrolling
+    Catalog.meta(item)?.let { return MetaState(it, true) }
     val ctx = LocalContext.current
     var m by remember(item.id) { mutableStateOf(MetaRepo.cached(item)) }
     var done by remember(item.id) {

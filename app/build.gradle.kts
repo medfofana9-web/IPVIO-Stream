@@ -67,10 +67,9 @@ android {
         release {
             if (hasKeystore) signingConfig = signingConfigs.getByName("release")
             optimization {
-                // Off: the shrunk release build (12.7 MB) did not start on the device. Turn back on only together with
-                // keep rules in src/main/keepRules and a test on a real device.
-                // FOF_R8=1 turns it on (tested by the "Launch test" workflow on an emulator before it becomes the default)
-                enable = System.getenv("FOF_R8") == "1"
+                // On (Fof TV): optimizes the libraries only (packageScope), which makes Compose scroll much smoother.
+                // Passed the "Launch test" emulator workflow several times. FOF_R8=0 turns it off again.
+                enable = System.getenv("FOF_R8") != "0"
                 packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
             }
         }
@@ -94,6 +93,8 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")
+    // Installs the startup profiles (Compose's own and src/main/baseline-prof.txt) on sideloaded installs too
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
 
     implementation("androidx.media3:media3-exoplayer:1.11.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.11.1")

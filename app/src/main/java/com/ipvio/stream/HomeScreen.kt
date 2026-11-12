@@ -383,7 +383,7 @@ fun HomeScreen(
         }
         ready.clear()
         for (c in candidates) {
-            val m = MetaRepo.basic(ctx, c)
+            val m = Catalog.meta(c) ?: MetaRepo.basic(ctx, c)
             if (m?.backdrop != null) ready.add(c)
             if (ready.size >= 6) break
         }

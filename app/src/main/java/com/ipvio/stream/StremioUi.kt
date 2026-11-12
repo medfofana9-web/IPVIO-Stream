@@ -33,7 +33,9 @@ import kotlinx.coroutines.launch
 @Composable
 fun StremioSourcesPopup(
     item: Item, knownImdb: String?, startSeason: Int, startEp: Int,
-    onPlay: (String, String, Long) -> Unit, onDismiss: () -> Unit
+    onPlay: (String, String, Long) -> Unit, onDismiss: () -> Unit,
+    /** Fof TV one-click play: start the best stream as soon as the list is there (the list stays as fallback). */
+    auto: Boolean = false
 ) {
     val series = item.kind == Kind.SERIES
     var season by remember { mutableIntStateOf(startSeason.coerceAtLeast(1)) }
@@ -56,7 +58,22 @@ fun StremioSourcesPopup(
         sources = null
         sources = Stremio.streams(item.kind, id, season, ep)
     }
+    fun choose(s: Stremio.Source) {
+        val title = item.title + if (series) " S${season}E$ep" else ""
+        if (s.hash == null) { onDismiss(); onPlay(s.url, title, 0L) }
+        else if (!resolving) {
+            resolving = true; rdError = null
+            scope.launch {
+                val r = runCatching { Debrid.resolve(s.hash, s.file) }
+                resolving = false
+                r.onSuccess { u -> onDismiss(); onPlay(u, title, 0L) }.onFailure { e -> rdError = e.message ?: "Real-Debrid error" }
+            }
+        }
+    }
+    var autoDone by remember { mutableStateOf(false) }
     LaunchedEffect(sources) {
+        val l = sources
+        if (auto && !autoDone && FofPrefs.oneClick && !l.isNullOrEmpty()) { autoDone = true; choose(Stremio.best(l)); return@LaunchedEffect }
         if (sources?.isNotEmpty() == true) runCatching { first.requestFocus() }
         else if (series) runCatching { stepFocus.requestFocus() }
     }
@@ -90,18 +107,7 @@ fun StremioSourcesPopup(
                 list.isEmpty() -> Text("No playable streams found. Torrent-only results are skipped; addons set up with a debrid service return playable links.", color = Muted, fontSize = 16.sp)
                 else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     itemsIndexed(list) { i, s ->
-                        SourceRow(s, if (i == 0) Modifier.focusRequester(first) else Modifier) {
-                            val title = item.title + if (series) " S${season}E$ep" else ""
-                            if (s.hash == null) { onDismiss(); onPlay(s.url, title, 0L) }
-                            else if (!resolving) {
-                                resolving = true; rdError = null
-                                scope.launch {
-                                    val r = runCatching { Debrid.resolve(s.hash, s.file) }
-                                    resolving = false
-                                    r.onSuccess { u -> onDismiss(); onPlay(u, title, 0L) }.onFailure { e -> rdError = e.message ?: "Real-Debrid error" }
-                                }
-                            }
-                        }
+                        SourceRow(s, if (i == 0) Modifier.focusRequester(first) else Modifier) { choose(s) }
                     }
                 }
             }

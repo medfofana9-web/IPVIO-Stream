@@ -47,6 +47,50 @@ object Catalog {
     fun home(): List<Spec> = listOf(popular(Kind.MOVIE), popular(Kind.SERIES), newest(Kind.MOVIE), newest(Kind.SERIES))
 
     private class Entry(val at: Long, val items: List<Item>)
+
+    /** Picture, logo and text that Cinemeta sends with each title: the big picture and the cards need no TMDB lookup. */
+    class Info(val bg: String?, val logo: String?, val desc: String?, val rating: String?, val genres: List<String>, val runtime: String?, val year: String?)
+    private val infos = ConcurrentHashMap<String, Info>()
+    private val metas = ConcurrentHashMap<String, Meta>()
+
+    fun logo(id: String): String? = infos[id]?.logo
+
+    /** Card and big-picture info of a catalog title, null for other titles. */
+    fun meta(i: Item): Meta? {
+        if (!i.id.startsWith("stremio:")) return null
+        metas[i.id]?.let { return it }
+        val f = infos[i.id] ?: return null
+        val m = Meta(0, i.kind == Kind.SERIES, i.logo, f.bg, f.desc, f.rating?.toDoubleOrNull(), f.year, f.genres,
+            minutes(f.runtime), imdbId = i.id.removePrefix("stremio:"), imdbRating = f.rating)
+        metas[i.id] = m
+        return m
+    }
+
+    /** "130 min" or "2h 10min" → 130. */
+    private fun minutes(r: String?): Int? {
+        if (r == null) return null
+        val h = Regex("(\\d+)\\s*h").find(r)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        val m = Regex("(\\d+)\\s*m").find(r)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        return (h * 60 + m).takeIf { it > 0 }
+    }
+
+    private fun infoJson(f: Info): JSONObject = JSONObject().apply {
+        f.bg?.let { put("bg", it) }; f.logo?.let { put("lg", it) }; f.desc?.let { put("ds", it) }; f.rating?.let { put("rt", it) }
+        put("gn", JSONArray(f.genres)); f.runtime?.let { put("rn", it) }; f.year?.let { put("yr", it) }
+    }
+
+    private fun infoOf(o: JSONObject): Info? {
+        val bg = o.optString("bg").ifBlank { o.optString("background") }.takeIf { it.startsWith("http") }
+        val lg = o.optString("lg").ifBlank { o.optString("logo") }.takeIf { it.startsWith("http") }
+        val ds = o.optString("ds").ifBlank { o.optString("description") }.ifBlank { null }
+        val rt = o.optString("rt").ifBlank { o.optString("imdbRating") }.ifBlank { null }
+        val ga = o.optJSONArray("gn") ?: o.optJSONArray("genres") ?: o.optJSONArray("genre")
+        val gn = if (ga == null) emptyList() else (0 until ga.length()).map { ga.optString(it) }.filter { it.isNotBlank() }
+        val rn = o.optString("rn").ifBlank { o.optString("runtime") }.ifBlank { null }
+        val yr = o.optString("yr").ifBlank { o.optString("releaseInfo") }.ifBlank { null }
+        if (bg == null && lg == null && ds == null) return null
+        return Info(bg, lg, ds, rt, gn, rn, yr)
+    }
     private val mem = ConcurrentHashMap<String, Entry>()
     @Volatile private var file: File? = null
     @Volatile private var diskRead = false
@@ -72,6 +116,7 @@ object Catalog {
                 val a = e.getJSONArray("i")
                 val l = (0 until a.length()).map { i ->
                     val x = a.getJSONObject(i)
+                    x.optJSONObject("f")?.let { infoOf(it) }?.let { infos.putIfAbsent(x.getString("id"), it) }
                     Item(x.getString("id"), if (x.optBoolean("s")) Kind.SERIES else Kind.MOVIE, x.getString("n"),
                         if (x.has("y")) x.getInt("y") else null, "", x.optString("p").ifBlank { null }, "Stremio")
                 }
@@ -90,6 +135,7 @@ object Catalog {
                     val x = JSONObject().put("id", i.id).put("n", i.title).put("s", i.kind == Kind.SERIES)
                     i.year?.let { x.put("y", it) }
                     i.logo?.let { x.put("p", it) }
+                    infos[i.id]?.let { x.put("f", infoJson(it)) }
                     a.put(x)
                 }
                 o.put(k, JSONObject().put("t", e.at).put("i", a))
@@ -128,6 +174,7 @@ object Catalog {
             if (!StremioLogic.isImdb(id)) return@mapNotNull null
             // Bigger poster than the default small one (sharper on a TV)
             val poster = o.optString("poster").takeIf { it.startsWith("http") }?.replace("/poster/small/", "/poster/medium/")
+            infoOf(o)?.let { f -> infos["stremio:$id"] = f; metas.remove("stremio:$id") }
             Item("stremio:$id", if (series) Kind.SERIES else Kind.MOVIE, o.optString("name"),
                 StremioLogic.year(o.optString("releaseInfo").ifBlank { o.optString("year") }), "", poster, "Stremio")
         }

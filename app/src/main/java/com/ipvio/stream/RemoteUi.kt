@@ -57,21 +57,22 @@ fun RemoteOverlay(modifier: Modifier = Modifier) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("Mit dem Handy suchen", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
+            Text("Settings and remote on your phone", raw = true, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
             if (ip == null) Text("Das Gerät ist nicht mit einem WLAN verbunden.", color = Color(0xFFFFB86B), fontSize = 17.sp)
             else if (server == null) Text("Der Server konnte nicht gestartet werden.", color = Color(0xFFFFB86B), fontSize = 17.sp)
             else {
-                val addr = "http://$ip:${server.port}/r?code=${server.code}"
+                // Fof TV: the QR opens the settings website; it links to the phone remote
+                val addr = "http://$ip:${server.port}/s?code=${server.code}"
                 QrImage(addr, 280.dp)
                 Text("Mit der Handy-Kamera scannen", color = Muted, fontSize = 16.sp)
-                Text("http://$ip:${server.port}/r", color = Accent2, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, raw = true)
+                Text("http://$ip:${server.port}/s", color = Accent2, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, raw = true)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("Code", color = Muted, fontSize = 16.sp)
                     Text(server.code, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, raw = true)
                 }
                 Text(
-                    "Suche und starte Filme, Serien und Sender am Handy. Handy und Fernseher müssen im selben WLAN sein.",
-                    color = Muted, fontSize = 14.sp
+                    "Change settings and add addons, or search and start titles from your phone. Phone and TV must be on the same Wi-Fi.",
+                    color = Muted, fontSize = 14.sp, raw = true
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

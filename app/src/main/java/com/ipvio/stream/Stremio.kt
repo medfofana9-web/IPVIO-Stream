@@ -204,8 +204,26 @@ object Stremio {
         }
     }
 
+    private val streamCache = java.util.concurrent.ConcurrentHashMap<String, Pair<Long, List<Source>>>()
+
+    /** Streams, kept 10 minutes: the detail page asks ahead, so Play has them at once. */
+    suspend fun streams(kind: Kind, imdb: String, season: Int, ep: Int): List<Source> {
+        val k = "$kind|$imdb|$season|$ep"
+        streamCache[k]?.let { if (System.currentTimeMillis() - it.first < 10 * 60_000L) return it.second }
+        val l = streamsNow(kind, imdb, season, ep)
+        if (l.isNotEmpty()) streamCache[k] = System.currentTimeMillis() to l
+        return l
+    }
+
+    /** One-click choice: 1080p direct link first (smooth on a Fire TV), then 720p, 4K, unknown; Real-Debrid last. */
+    fun best(l: List<Source>): Source {
+        val direct = l.filter { it.hash == null }
+        for (q in listOf(2, 1, 3, 0)) direct.firstOrNull { it.q == q }?.let { return it }
+        return direct.firstOrNull() ?: l.first()
+    }
+
     /** Streams from all addons at once; addons that fail or time out are left out. Best quality first. */
-    suspend fun streams(kind: Kind, imdb: String, season: Int, ep: Int): List<Source> = coroutineScope {
+    private suspend fun streamsNow(kind: Kind, imdb: String, season: Int, ep: Int): List<Source> = coroutineScope {
         addons.filter { it.streams }.map { a ->
             async(Dispatchers.IO) {
                 runCatching { parse(a.name, get(StremioLogic.streamUrl(a.base, kind, imdb, season, ep))) }.getOrDefault(emptyList())

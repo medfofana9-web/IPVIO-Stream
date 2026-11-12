@@ -80,7 +80,7 @@ val LocalRowFocus = compositionLocalOf { false }
 @OptIn(ExperimentalFoundationApi::class)
 class PivotSpec(private val pivot: Float, private val list: () -> androidx.compose.foundation.lazy.LazyListState) : BringIntoViewSpec {
     @Suppress("OVERRIDE_DEPRECATION")
-    override val scrollAnimationSpec = tween<Float>(if (Look.motion == 0) 1 else 380, easing = FastOutSlowInEasing)
+    override val scrollAnimationSpec = tween<Float>(if (Look.motion == 0) 1 else 300, easing = FastOutSlowInEasing)
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
         if (size >= containerSize * 0.45f) return SmoothSpec.calculateScrollDistance(offset, size, containerSize)
         val d = offset - containerSize * pivot
