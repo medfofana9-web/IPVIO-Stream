@@ -146,12 +146,15 @@ function cats(){msg(L.load);api('cats').then(function(a){list.innerHTML='';
  var fb=row(L.favs,null,null,function(){chList('favs',{},cats,L.cats,L.favs)});list.appendChild(fb);
  list.appendChild(row(L.manage,null,null,manage));
  list.appendChild(row(L.imp,null,null,importList));
+ list.appendChild(row('Add Stremio addon',null,null,addAddon));
  list.appendChild(el('div','msg',L.mylists));
  api('lists').then(function(ls){ls.forEach(function(l){list.insertBefore(row(l.g,l.n+'',null,function(){chList('list',{i:l.i},cats,L.cats,l.g)}),mark)})}).catch(function(){});
  var mark=el('div','msg',L.cats);list.appendChild(mark);if(!a.length){return}
  a.forEach(function(c){list.appendChild(row(c.g,c.n+'',null,function(){chans(c.g)}))})}).catch(function(e){if(e!==0)msg(L.err)})}
 function importList(){var f=document.createElement('input');f.type='file';f.onchange=function(){var x=f.files[0];if(!x)return;msg(L.load);
  fetch('/listimport?name='+encodeURIComponent(x.name)+'&code='+encodeURIComponent(code),{method:'POST',body:x}).then(function(r){if(!r.ok)throw 1;toast(L.impDone);cats()}).catch(function(){toast(L.err)})};f.click()}
+function addAddon(){var u=prompt('Paste the Stremio addon link (manifest.json or stremio://)');if(!u)return;toast('Adding...');
+ api('addon',{u:u}).then(function(d){toast(d&&d.ok?'Addon added on the TV':((d&&d.err)||L.err))}).catch(function(e){if(e!==0)toast(L.err)})}
 function chans(g){chList('channels',{g:g},cats,L.cats,null)}
 function manage(){msg(L.load);api('groups').then(function(a){list.innerHTML='';var bk=el('button','back','< '+L.back);bk.onclick=cats;list.appendChild(bk);
  list.appendChild(el('div','msg',L.manageHint));

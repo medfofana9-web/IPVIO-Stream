@@ -103,6 +103,12 @@ object RemoteHub {
                     RemoteLogic.resume(it.id, it.title, if (it.kind == Kind.SERIES) "s" else "m", s, n, pct)
                 }.take(LIMIT))
             }
+            // Stremio addon link pasted on the phone (Settings > Stremio addons on the TV shows it afterwards)
+            "addon" -> {
+                val c = appCtx ?: return "{\"err\":\"TV not ready\"}"
+                val err = kotlinx.coroutines.runBlocking { Stremio.add(c, q["u"].orEmpty().take(500)) }
+                if (err == null) "{\"ok\":true}" else "{\"err\":" + RemoteLogic.q(err) + "}"
+            }
             "cats" -> {
                 val g = all.filter { it.kind == Kind.LIVE }.groupingBy { it.group }.eachCount()
                 RemoteLogic.arr(g.entries.sortedBy { it.key.lowercase() }.map { "{\"g\":" + RemoteLogic.q(it.key) + ",\"n\":" + it.value + "}" })
