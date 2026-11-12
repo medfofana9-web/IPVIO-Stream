@@ -13,3 +13,11 @@
 # Fof TV: shrink and optimize, but keep names and packages. Renaming moved classes out of their packages and broke
 # package-private access at startup ("IllegalAccessError ... kotlin.text"), found by the launch test on an emulator.
 -dontobfuscate
+
+# Classes created by reflection at startup (launch test: NoSuchMethodException WorkDatabase_Impl.<init>)
+-keep class * extends androidx.room.RoomDatabase { <init>(); }
+-keep class * implements androidx.startup.Initializer { <init>(); }
+-keep class * extends androidx.work.ListenableWorker { <init>(android.content.Context, androidx.work.WorkerParameters); }
+# Media3 loads the FFmpeg renderer and optional extractors by class name
+-keep class androidx.media3.decoder.ffmpeg.** { *; }
+-keep class androidx.media3.exoplayer.DefaultRenderersFactory { *; }
