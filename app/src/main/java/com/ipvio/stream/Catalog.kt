@@ -146,8 +146,11 @@ object Catalog {
 
     private fun key(s: Spec, pages: Int) = url(s, 0) + "#" + pages
 
-    /** Already known titles of a list (memory or disk), without waiting for the network. */
-    fun cached(s: Spec, pages: Int = 1): List<Item> { readDisk(); return mem[key(s, pages)]?.items.orEmpty() }
+    /** Reads the saved lists in the background at app start, so the first screen has them without touching the disk. */
+    fun preload() { kotlin.concurrent.thread(isDaemon = true, name = "catalog-preload") { readDisk() } }
+
+    /** Already known titles of a list (memory only, never blocks), without waiting for the network. */
+    fun cached(s: Spec, pages: Int = 1): List<Item> = mem[key(s, pages)]?.items.orEmpty()
 
     /** Titles of a list; [pages] pages of about 50 titles. Old titles are kept when the network fails. */
     suspend fun items(s: Spec, pages: Int = 1): List<Item> {

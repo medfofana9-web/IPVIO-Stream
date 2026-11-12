@@ -44,6 +44,7 @@ class MainActivity : ComponentActivity() {
         General.init(this)
         Boomer.init(this)
         HomeLayout.init(this); BoomerLayout.init(this); FofPrefs.init(this); SportSession.init(this)
+        Catalog.init(this); Catalog.preload()
         // Fof TV: the settings website is always reachable on the local network (address: phone icon in the menu)
         RemoteHub.start(this)
         SidebarPrefs.init(this)

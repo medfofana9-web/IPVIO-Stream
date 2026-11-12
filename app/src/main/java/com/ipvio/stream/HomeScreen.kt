@@ -763,8 +763,11 @@ object PillMemory {
 @Composable
 private fun CatalogRow(spec: Catalog.Spec, cardW: Int, onOpen: (Item) -> Unit, onBrowse: (BrowseReq) -> Unit) {
     val scope = rememberCoroutineScope()
-    val list by produceState(Catalog.cached(spec), spec) { value = Catalog.items(spec) }
-    if (list.isEmpty()) { Spacer(Modifier.fillMaxWidth().height(dpx(300))); return }
+    // null = still loading (the row keeps its place); empty after loading (no network) = the row is left out
+    val got by produceState(Catalog.cached(spec).ifEmpty { null }, spec) { value = Catalog.items(spec) }
+    val list = got
+    if (list == null) { Spacer(Modifier.fillMaxWidth().height(dpx(300))); return }
+    if (list.isEmpty()) return
     ItemsRow(spec.title, list, cardW, onOpen) { scope.launch { onBrowse(BrowseReq(spec.title, Catalog.items(spec, 4), SORT_PLAYLIST)) } }
 }
 
