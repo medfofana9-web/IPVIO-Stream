@@ -79,12 +79,17 @@ object CrashLog {
         val prev = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { t, e ->
             runCatching {
-                val frames = e.stackTrace.filter { it.className.startsWith("com.ipvio") }.take(4)
-                    .joinToString(" < ") { it.fileName + ":" + it.lineNumber }
-                val kind = e.javaClass.simpleName + (if (e is OutOfMemoryError) " (Speicher voll)" else "")
+                // Deepest cause, own frames first (else the first library frames), plus the message
+                var root: Throwable = e
+                while (root.cause != null && root.cause !== root) root = root.cause!!
+                val own = root.stackTrace.filter { it.className.startsWith("com.ipvio") }.take(4)
+                val frames = (own.ifEmpty { root.stackTrace.take(3).toList() })
+                    .joinToString(" < ") { (it.fileName ?: it.className.substringAfterLast('.')) + ":" + it.lineNumber }
+                val kind = root.javaClass.simpleName + (if (root is OutOfMemoryError) " (Speicher voll)" else "") +
+                    (root.message?.take(140)?.let { ": $it" } ?: "")
                 app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
                     .putString("last", kind + (if (frames.isNotEmpty()) " · " + frames else ""))
-                    .putLong("at", System.currentTimeMillis()).commit()
+                    .putLong("at", System.currentTimeMillis()).putBoolean("shown", false).commit()
             }
             prev?.uncaughtException(t, e)
         }
@@ -94,5 +99,15 @@ object CrashLog {
         val sp = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val s = sp.getString("last", null) ?: return null
         return s to sp.getLong("at", 0L)
+    }
+
+    /** Last crash not shown yet and less than 30 minutes old; marks it as shown. */
+    fun takeRecent(ctx: Context): String? {
+        val sp = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (sp.getBoolean("shown", true)) return null
+        val at = sp.getLong("at", 0L)
+        sp.edit().putBoolean("shown", true).apply()
+        if (System.currentTimeMillis() - at > 30 * 60_000L) return null
+        return sp.getString("last", null)
     }
 }

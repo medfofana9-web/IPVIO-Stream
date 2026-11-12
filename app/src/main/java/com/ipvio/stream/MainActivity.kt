@@ -64,6 +64,7 @@ class MainActivity : ComponentActivity() {
         )
         ScreenAwake.attach(this)
         intent?.getStringExtra(Reminders.EXTRA_CH)?.let { AppNav.openChannel = it }
+        if (BuildConfig.VERSION_NAME.endsWith("-test")) intent?.getStringExtra("fof_test_url")?.let { AppNav.testUrl = it }
         setContent { App(pick) }
     }
 
@@ -160,6 +161,8 @@ fun App(pick: Boolean = false) {
         }
         // New version available: dialog with one button (above every screen)
         UpdatePromptHost()
+        // The app closed by an error in the last 30 minutes: show why (once), so it can be reported
+        LastCrashNotice()
     }
 }
 
@@ -317,6 +320,13 @@ private fun AppContent() {
         if (i.kind == Kind.LIVE) start(i, i.title, i.url) else pushTop(i)
     }
 
+    // Launch test: play a test stream like a live channel
+    LaunchedEffect(AppNav.testUrl) {
+        val u = AppNav.testUrl ?: return@LaunchedEffect
+        AppNav.testUrl = null
+        adding = false
+        start(Item("fof-test", Kind.LIVE, "Test stream", null, u, null, "Test"), "Test stream", u)
+    }
     // Reminder notification tapped: open the channel as soon as the list is loaded
     LaunchedEffect(AppNav.openChannel, liveAll) {
         val id = AppNav.openChannel ?: return@LaunchedEffect

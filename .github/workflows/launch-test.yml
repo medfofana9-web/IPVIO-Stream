@@ -56,6 +56,11 @@ jobs:
             adb exec-out screencap -p > shot1.png
             adb shell input keyevent KEYCODE_DPAD_DOWN; sleep 2; adb shell input keyevent KEYCODE_DPAD_CENTER; sleep 6
             adb exec-out screencap -p > shot2.png
+            adb shell am start -n com.fof.tv/com.ipvio.stream.MainActivity --es fof_test_url "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
+            sleep 30
+            adb exec-out screencap -p > shot3.png
+            (adb shell pidof com.fof.tv && echo PLAYING-OK || echo NOT-RUNNING) | tee -a alive.txt
+            adb logcat -d | grep -iE "ExoPlayer|PlaybackException|MediaCodec|FATAL" | tail -40 | tee playback.txt
             adb logcat -d > logcat.txt
             (adb shell pidof com.fof.tv && echo RUNNING || echo NOT-RUNNING) | tee alive.txt
       - name: Check for crashes
@@ -71,5 +76,7 @@ jobs:
           path: |
             shot1.png
             shot2.png
+            shot3.png
+            playback.txt
             start.txt
             logcat.txt
