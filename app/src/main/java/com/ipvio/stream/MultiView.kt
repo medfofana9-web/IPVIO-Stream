@@ -88,6 +88,7 @@ fun MultiViewScreen(live: List<Item>, onClose: () -> Unit) {
                         .combinedClickable(onClick = { if (item != null) audio = i else picking = minOf(i, slots.size) }, onLongClick = { picking = minOf(i, slots.size) })
                 ) {
                     if (item != null) androidx.compose.runtime.key(item.id) { SecondStream(item, split = false, audioOn = audio == i, modifier = Modifier.fillMaxSize(), small = true) }
+                    if (item != null) TileScore(item, live, Modifier.align(Alignment.TopStart).padding(10.dp))
                     else Text("OK = pick a channel", color = Color(0xFFA0A6B8), fontSize = 16.sp, modifier = Modifier.align(Alignment.Center))
                 }
             }
@@ -117,5 +118,18 @@ fun MultiViewScreen(live: List<Item>, onClose: () -> Unit) {
             if (p in 0 until slots.size) slots[p] = ch else if (p == slots.size) slots.add(ch)
             picking = -1
         }, onClose = { picking = -1 })
+    }
+}
+
+
+/** Score of the game running on this channel (if the sports data knows one), as a small chip on the tile. */
+@Composable
+private fun TileScore(ch: Item, live: List<Item>, modifier: Modifier) {
+    val g = SportFeed.latest.values.firstOrNull { g -> g.state == 1 && !g.solo && SportWatch.channels(g, live).any { it.id == ch.id } } ?: return
+    val txt = if (SportPrefs.hideScores) g.away.short + " at " + g.home.short + "  ·  " + g.detail
+        else g.away.short + " " + g.away.score.orEmpty() + " – " + g.home.score.orEmpty() + " " + g.home.short + "  ·  " + g.detail
+    Box(modifier.background(Color(0xCC000000), RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 5.dp)) {
+        Text(txt, color = if (GameDayLogic.isClose(g)) Color(0xFFFFA284) else Color.White, fontSize = 15.sp,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, maxLines = 1, raw = true)
     }
 }
