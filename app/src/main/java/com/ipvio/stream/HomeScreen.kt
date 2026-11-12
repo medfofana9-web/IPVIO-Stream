@@ -583,6 +583,7 @@ fun HomeScreen(
                                 if (!HomeLayout.shown(blockId)) continue
                                 when (blockId) {
                                     "tiles" -> { item(key = "tiles") { QuickTiles(tiles) } }
+                                    "sportlive" -> { item(key = "sportlive") { LiveSportsRow(live, onOpen) { onTab(MenuLogic.SPORT) } } }
                                     "clock" -> { item(key = "clock") { ClockWidget() } }
                                     // Continue watching directly under the tiles: whoever watches a lot wants to continue in few clicks
                                     "resume" -> { if (resumeList.isNotEmpty()) item(key = "resume") { ResumeRow(resumeList, cardW, onResume) } }

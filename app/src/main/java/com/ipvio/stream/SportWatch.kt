@@ -43,7 +43,7 @@ import androidx.compose.ui.window.Dialog
  * No URL is ever built; playing uses the normal player.
  */
 object SportWatch {
-    /** [why]: 0 = chosen by hand, 1 = TV guide, 2 = channel name. [show] = matching show title. */
+    /** [why]: 0 = chosen by hand, 1 = TV guide, 2 = channel name, 3 = network, 4 = team channel, 5 = learned. [show] = detail text. */
     class Hit(val ch: Item, val why: Int, val show: String)
 
     /** Sports shows from the TV guide (now and the next 48 h), computed by the hub once a minute. */
@@ -82,20 +82,61 @@ object SportWatch {
     /** Prepares the list of sports channels in the background (otherwise the first opening of the hub filters all channels on the main thread). */
     fun prewarm(live: List<Item>) { sportChannels(live) }
 
+    // Channels by cleaned name ("US| ESPN HD" → "espn"), built once per channel list, for the network match
+    private var netSig = 0
+    private var netIndex: Map<String, List<Item>> = emptyMap()
+    private fun netIndex(live: List<Item>): Map<String, List<Item>> {
+        val sig = System.identityHashCode(live) * 31 + live.size
+        synchronized(this) {
+            if (sig != netSig) {
+                val m = HashMap<String, MutableList<Item>>()
+                for (c in live) if (c.kind == Kind.LIVE) m.getOrPut(SportNet.key(SportNet.stripPrefix(c.title))) { ArrayList(2) }.add(c)
+                netIndex = m; netSig = sig
+            }
+            return netIndex
+        }
+    }
+
+    /** Team channels: sports channels whose name or group carries the league tag and name exactly one of the two teams. */
+    private fun teamChannels(g: SportData.Game, sport: List<Item>): List<Pair<Item, Int>> {
+        if (g.solo) return emptyList()
+        val tags = SportNet.leagueTags(g.league)
+        if (tags.isEmpty()) return emptyList()
+        val hk = SportData.keysCached(g.home); val ak = SportData.keysCached(g.away)
+        val out = ArrayList<Pair<Item, Int>>()
+        for (c in sport) {
+            if (!SportNet.hasTag(c.group, tags) && !SportNet.hasTag(c.title, tags)) continue
+            val t = SportNet.teamOf(c.title, hk, ak)
+            if (t != 0) out.add(c to t)
+        }
+        // Favorite team first, otherwise the home team (the home broadcast is usually the main one)
+        val favAway = SportFavs.has(g.away) && !SportFavs.has(g.home)
+        return out.sortedBy { if (favAway) (if (it.second == 2) 0 else 1) else (if (it.second == 1) 0 else 1) }
+    }
+
     fun resolve(g: SportData.Game, live: List<Item>): List<Hit> {
         val fixed = SportFix.map[SportFix.key(g)]
-        val sig = ((System.identityHashCode(live) * 31 + live.size) * 31 + version) * 31 + (fixed?.hashCode() ?: 0)
+        val learned = SportLearn.lookup(g)
+        val sig = ((((System.identityHashCode(live) * 31 + live.size) * 31 + version) * 31 + (fixed?.hashCode() ?: 0)) * 31 +
+            learned.hashCode()) * 31 + SportLearn.version
         synchronized(cache) { cache[g.key]?.let { if (it.first == sig) return it.second } }
         val out = ArrayList<Hit>()
         if (fixed != null) live.firstOrNull { it.id == fixed }?.let { out.add(Hit(it, 0, "")) }
+        learned.forEach { id -> live.firstOrNull { it.id == id }?.let { out.add(Hit(it, 5, "")) } }
+        val sport = sportChannels(live)
+        // Event channels that name both teams ("NBA 01: Pacers vs Celtics") are the most exact
+        SportData.channelsFor(g, sport).forEach { out.add(Hit(it, 2, "")) }
         val multiDay = g.end > g.start
         for (s in slots) {
             val timeOk = (s.live && g.state == 1) || kotlin.math.abs(s.prog.start - g.start) <= 3 * 3600 ||
                 (multiDay && s.prog.start in g.start..g.end && g.state != 2)
             if (timeOk && showMatches(g, s.prog.title + " " + s.prog.desc)) out.add(Hit(s.ch, 1, s.prog.title))
         }
-        SportData.channelsFor(g, sportChannels(live)).forEach { out.add(Hit(it, 2, "")) }
-        val r = out.distinctBy { it.ch.id }
+        teamChannels(g, sport).forEach { (c, t) -> out.add(Hit(c, 4, if (t == 1) g.home.name else g.away.name)) }
+        val idx = netIndex(live)
+        for (n in g.nets) idx[SportNet.key(n)]?.forEach { out.add(Hit(it, 3, n)) }
+        // Working channels before ones marked broken; the rest of the list is the backup order for the player
+        val r = out.distinctBy { it.ch.id }.sortedBy { if (DeadLinks.isDead(it.ch.url)) 1 else 0 }
         synchronized(cache) { if (cache.size > 800) cache.clear(); cache[g.key] = sig to r }
         return r
     }
@@ -134,6 +175,9 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
                         val why = when (h.why) {
                             0 -> Lang.tr("Von dir zugeordnet")
                             1 -> Lang.tr("Laut TV-Guide") + ": " + h.show
+                            3 -> "Network: " + h.show
+                            4 -> "Team channel: " + h.show
+                            5 -> "Your usual channel"
                             else -> Lang.tr("Sendername passt")
                         }
                         Text(raw = true, text = why, color = Muted, fontSize = spx(14), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -145,7 +189,11 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
             }
         }
     }
-    if (pick) ChannelPicker(g, hub.live, { pick = false }) { id -> SportFix.set(ctx, g, id); pick = false }
+    if (pick) ChannelPicker(g, hub.live, { pick = false }) { id ->
+        SportFix.set(ctx, g, id)
+        hub.live.firstOrNull { it.id == id }?.let { SportLearn.learn(ctx, g, it) }
+        pick = false
+    }
 }
 
 /** Choose a channel by hand (sports channels first, all channels if the playlist has none). */

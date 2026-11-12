@@ -38,7 +38,9 @@ object SportData {
         /** Field event without home/away (F1 session, golf): [title] and [field] instead of two teams. */
         val solo: Boolean = false, val title: String = "", val field: List<Entrant> = emptyList(),
         /** End of a multi-day event (golf, cricket test), 0 = unknown. */
-        val end: Long = 0L
+        val end: Long = 0L,
+        /** All networks carrying the game (national and local), used to find the channel in the playlist. */
+        val nets: List<String> = emptyList()
     ) {
         val groupName: String get() = group.ifBlank { league }
         val key: String get() = "$league|$id"
@@ -72,7 +74,12 @@ object SportData {
         League("Ligue 1", "soccer/fra.1", "Fußball"),
         League("Champions League", "soccer/uefa.champions", "Fußball"),
         League("Europa League", "soccer/uefa.europa", "Fußball"),
+        League("MLS", "soccer/usa.1", "Fußball"),
+        League("Liga MX", "soccer/mex.1", "Fußball"),
         League("NBA", "basketball/nba", "Basketball", "basketball"),
+        League("WNBA", "basketball/wnba", "Basketball", "basketball"),
+        League("College Basketball", "basketball/mens-college-basketball", "Basketball", "basketball"),
+        League("Women's College Basketball", "basketball/womens-college-basketball", "Basketball", "basketball"),
         League("NFL", "football/nfl", "American Football", "nfl"),
         League("College Football", "football/college-football", "American Football", "nfl"),
         League("NHL", "hockey/nhl", "Eishockey", "nhl"),
@@ -86,7 +93,7 @@ object SportData {
     )
 
     /** Popular competitions for the overview (shown if active). */
-    val POPULAR = listOf("Premier League", "Champions League", "Bundesliga", "LaLiga", "NBA", "NFL", "NHL", "MLB")
+    val POPULAR = listOf("NBA", "NFL", "College Football", "College Basketball", "NHL", "MLB", "WNBA", "MLS", "Premier League", "Champions League")
 
     fun league(name: String): League? = LEAGUES.firstOrNull { it.name == name }
     fun leagueOf(g: Game): League? = league(g.league)
@@ -101,6 +108,9 @@ object SportData {
     @Volatile var lastOk = true
 
     private val cache = HashMap<String, Pair<Long, List<Game>>>()
+
+    /** Drop loaded scoreboards (after switching spoiler-free mode, so scores disappear or come back right away). */
+    fun clearCache() { synchronized(cache) { cache.clear() } }
 
     /** Day as yyyyMMdd in the chosen time zone; [dayOffset] -1 = yesterday, 0 = today, 1 = tomorrow. */
     fun ymd(dayOffset: Int, tz: TimeZone, nowMs: Long = System.currentTimeMillis()): String {
@@ -142,11 +152,12 @@ object SportData {
         val t = c.optJSONObject("team")
         val name = t?.optString("displayName").orEmpty()
         val short = t?.optString("shortDisplayName").orEmpty().ifBlank { name }
-        val score = c.optString("score", "").takeIf { it.isNotBlank() }
+        // Spoiler-free mode (Settings > Sports): no score, no winner
+        val score = if (SportPrefs.hideScores) null else c.optString("score", "").takeIf { it.isNotBlank() }
         val rec = c.optJSONArray("records")?.optJSONObject(0)?.optString("summary")?.takeIf { it.isNotBlank() }
         val logo = t?.optString("logo")?.takeIf { it.isNotBlank() }
             ?: t?.optJSONArray("logos")?.optJSONObject(0)?.optString("href")?.takeIf { it.isNotBlank() }
-        return Team(name, short, t?.optString("abbreviation").orEmpty(), logo, score, c.optBoolean("winner", false),
+        return Team(name, short, t?.optString("abbreviation").orEmpty(), logo, score, !SportPrefs.hideScores && c.optBoolean("winner", false),
             rec, t?.optString("color")?.takeIf { it.isNotBlank() }, t?.optString("id").orEmpty())
     }
 
@@ -184,6 +195,18 @@ object SportData {
         }
     }
 
+    /** Every network name of a competition: "broadcasts" (names per market) and "geoBroadcasts" (media short names). */
+    private fun networks(comp: JSONObject): List<String> {
+        val out = LinkedHashSet<String>()
+        comp.optJSONArray("broadcasts")?.let { b ->
+            for (i in 0 until b.length()) b.optJSONObject(i)?.optJSONArray("names")?.let { n -> for (j in 0 until n.length()) n.optString(j).takeIf { it.isNotBlank() }?.let(out::add) }
+        }
+        comp.optJSONArray("geoBroadcasts")?.let { b ->
+            for (i in 0 until b.length()) b.optJSONObject(i)?.optJSONObject("media")?.optString("shortName")?.takeIf { it.isNotBlank() }?.let(out::add)
+        }
+        return out.toList()
+    }
+
     private fun parseTeams(o: JSONObject, l: League): List<Game> {
         val out = ArrayList<Game>()
         val events = o.optJSONArray("events") ?: return out
@@ -203,7 +226,8 @@ object SportData {
                     statusName = type?.optString("name").orEmpty(), clock = st?.optString("displayClock").orEmpty(), period = st?.optInt("period", 0) ?: 0,
                     homeLines = lines(homeC), awayLines = lines(awayC),
                     venue = comp.optJSONObject("venue")?.optString("fullName").orEmpty(),
-                    note = comp.optJSONArray("notes")?.optJSONObject(0)?.optString("headline").orEmpty(), tv = tv
+                    note = comp.optJSONArray("notes")?.optJSONObject(0)?.optString("headline").orEmpty(), tv = tv,
+                    nets = networks(comp)
                 ))
             } catch (_: Exception) { }
         }

@@ -63,6 +63,7 @@ private val CATS = listOf(
     Cat(AIcon.Live, "Boomer Mode", "Ganz einfach: große Kacheln zum Auswählen"),
     Cat(AIcon.Sliders, "Startseite anpassen", "Reihen und Widgets wählen und ordnen"),
     Cat(AIcon.Globe, "Stremio addons", "Add addon links for extra streams"),
+    Cat(AIcon.Live, "Sports", "Spoiler-free mode, how games find channels"),
     Cat(AIcon.Info, "Über IPVIO Stream", "Version, Quellen, Zurücksetzen"),
     // Donate is always the very last entry
     Cat(AIcon.HeartFilled, "Spende", "Unterstütze IPVIO Stream")
@@ -148,8 +149,9 @@ fun SettingsHub(onAdd: () -> Unit, reload: () -> Unit) {
                 17 -> HomeLayoutPage(ctx)
                 15 -> ListImportPage(ctx)
                 18 -> StremioPage(ctx)
-                20 -> DonateSection(ctx)
-                else -> AboutPage(ctx)   // 19
+                19 -> FofSportsPage(ctx)
+                21 -> DonateSection(ctx)
+                else -> AboutPage(ctx)   // 20
             }
             // Every setting page ends with a way back to the defaults
             if (page in 0..8) {

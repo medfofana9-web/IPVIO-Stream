@@ -113,6 +113,7 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     SportLeagues.init(ctx)
     SportHubFavs.init(ctx)
     SportFix.init(ctx)
+    SportLearn.init(ctx)
     var tab by remember { mutableIntStateOf(HubMemory.tab) }
     var sport by remember { mutableStateOf(HubMemory.sport) }
     var retry by remember { mutableIntStateOf(0) }
