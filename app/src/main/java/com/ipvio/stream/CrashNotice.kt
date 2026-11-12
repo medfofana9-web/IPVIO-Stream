@@ -24,7 +24,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun LastCrashNotice() {
     val ctx = LocalContext.current
-    var msg by remember { mutableStateOf(Mem.takeRecent(ctx)) }
+    var msg by remember { mutableStateOf<String?>(CrashLog.takeRecent(ctx)) }
     val m = msg ?: return
     LaunchedEffect(m) { delay(25_000L); msg = null }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {

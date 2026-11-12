@@ -92,7 +92,10 @@ object GameDay {
                 val games = leagues.flatMap { l -> runCatching { SportData.fetch(l, ymd, 40_000) }.getOrDefault(emptyList()) }
                 SportFeed.put(games)
                 val now = System.currentTimeMillis() / 1000
-                val live = PlaylistStore.channels.filter { it.kind == Kind.LIVE }
+                val due = games.any { it.key in reminders && (it.state == 1 || it.start - now <= 60) }
+                val live = if (!due) emptyList() else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                    PlaylistStore.channels.filter { it.kind == Kind.LIVE }.also { SportWatch.prewarm(it) }
+                }
                 // Reminders: at the start, switch to the game's channel (as if picked on the phone)
                 for (g in games) if (g.key in reminders && (g.state == 1 || g.start - now <= 60)) {
                     reminders.remove(g.key); save(c)

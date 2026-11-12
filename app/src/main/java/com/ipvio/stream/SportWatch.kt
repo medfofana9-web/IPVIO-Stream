@@ -80,39 +80,61 @@ object SportWatch {
     }
 
     /** Prepares the list of sports channels in the background (otherwise the first opening of the hub filters all channels on the main thread). */
-    fun prewarm(live: List<Item>) { sportChannels(live); netIndex(live) }
+    fun prewarm(live: List<Item>) {
+        sportChannels(live)
+        val sig = sigOf(live)
+        if (prep?.sig != sig) build(live, sig)?.let { prep = it; prepVersion++ }
+    }
 
-    // Channels by cleaned name ("US| ESPN HD" → "espn"), built once per channel list, for the network match
-    private var netSig = 0
-    private var netIndex: Map<String, List<Item>> = emptyMap()
-    private fun netIndex(live: List<Item>): Map<String, List<Item>> {
-        val sig = System.identityHashCode(live) * 31 + live.size
-        synchronized(this) {
-            if (sig != netSig) {
-                val m = HashMap<String, MutableList<Item>>()
-                for (c in live) if (c.kind == Kind.LIVE) {
-                    val t = SportNet.stripPrefix(c.title)
-                    m.getOrPut(SportNet.key(t)) { ArrayList(2) }.add(c)
-                    val loose = "~" + SportNet.looseKey(t)
-                    m.getOrPut(loose) { ArrayList(2) }.add(c)
-                }
-                netIndex = m; netSig = sig
-            }
-            return netIndex
+    /**
+     * Prepared lookups per channel list: channels by cleaned network name ("US| ESPN HD" → "espn", plus a looser form)
+     * and the sports channels with their cleaned title and group (for team channels). Built once per list, off the main thread.
+     */
+    private class Prep(val sig: Int, val net: Map<String, List<Item>>, val team: List<Triple<Item, String, String>>)
+    @Volatile private var prep: Prep? = null
+    @Volatile private var building = 0
+    var prepVersion by mutableIntStateOf(0)
+        private set
+    private val worker by lazy { java.util.concurrent.Executors.newSingleThreadExecutor() }
+    private fun sigOf(live: List<Item>) = System.identityHashCode(live) * 31 + live.size
+
+    private fun build(live: List<Item>, sig: Int): Prep? = runCatching {
+        val m = HashMap<String, MutableList<Item>>()
+        for (c in live) if (c.kind == Kind.LIVE) {
+            val t = SportNet.stripPrefix(c.title)
+            m.getOrPut(SportNet.key(t)) { ArrayList(2) }.add(c)
+            m.getOrPut("~" + SportNet.looseKey(t)) { ArrayList(2) }.add(c)
         }
+        val team = sportChannels(live).map { c -> Triple(c, " " + SportNet.norm(SportNet.stripPrefix(c.title)) + " ", " " + SportNet.norm(c.group) + " ") }
+        Prep(sig, m, team)
+    }.getOrNull()
+
+    /** Ready lookups for this list, or null while they are built in the background (then team and network matches wait). */
+    private fun prepFor(live: List<Item>): Prep? {
+        val sig = sigOf(live)
+        prep?.let { if (it.sig == sig) return it }
+        synchronized(this) {
+            if (building != sig) {
+                building = sig
+                worker.execute { build(live, sig)?.let { prep = it; prepVersion++ } }
+            }
+        }
+        return null
     }
 
     /** Team channels: sports channels whose name or group carries the league tag and name exactly one of the two teams. */
-    private fun teamChannels(g: SportData.Game, sport: List<Item>): List<Pair<Item, Int>> {
+    private fun teamChannels(g: SportData.Game, pr: Prep): List<Pair<Item, Int>> {
         if (g.solo) return emptyList()
-        val tags = SportNet.leagueTags(g.league)
+        val tags = SportNet.leagueTags(g.league).map { " $it " }
         if (tags.isEmpty()) return emptyList()
-        val hk = SportData.keysCached(g.home); val ak = SportData.keysCached(g.away)
+        val hk = SportData.keysCached(g.home).filter { it.length >= 3 }.map { " $it " }
+        val ak = SportData.keysCached(g.away).filter { it.length >= 3 }.map { " $it " }
         val out = ArrayList<Pair<Item, Int>>()
-        for (c in sport) {
-            if (!SportNet.hasTag(c.group, tags) && !SportNet.hasTag(c.title, tags)) continue
-            val t = SportNet.teamOf(c.title, hk, ak)
-            if (t != 0) out.add(c to t)
+        for ((c, title, group) in pr.team) {
+            if (tags.none { group.contains(it) || title.contains(it) }) continue
+            val h = hk.any { title.contains(it) }
+            val a = ak.any { title.contains(it) }
+            if (h != a) out.add(c to (if (h) 1 else 2))
         }
         // Favorite team first, otherwise the home team (the home broadcast is usually the main one)
         val favAway = SportFavs.has(g.away) && !SportFavs.has(g.home)
@@ -122,8 +144,9 @@ object SportWatch {
     fun resolve(g: SportData.Game, live: List<Item>): List<Hit> {
         val fixed = SportFix.map[SportFix.key(g)]
         val learned = SportLearn.lookup(g)
-        val sig = ((((System.identityHashCode(live) * 31 + live.size) * 31 + version) * 31 + (fixed?.hashCode() ?: 0)) * 31 +
-            learned.hashCode()) * 31 + SportLearn.version
+        val pr = prepFor(live)
+        val sig = (((((System.identityHashCode(live) * 31 + live.size) * 31 + version) * 31 + (fixed?.hashCode() ?: 0)) * 31 +
+            learned.hashCode()) * 31 + SportLearn.version) * 31 + (if (pr != null) 1 else 0)
         synchronized(cache) { cache[g.key]?.let { if (it.first == sig) return it.second } }
         val out = ArrayList<Hit>()
         if (fixed != null) live.firstOrNull { it.id == fixed }?.let { out.add(Hit(it, 0, "")) }
@@ -137,9 +160,10 @@ object SportWatch {
                 (multiDay && s.prog.start in g.start..g.end && g.state != 2)
             if (timeOk && showMatches(g, s.prog.title + " " + s.prog.desc)) out.add(Hit(s.ch, 1, s.prog.title))
         }
-        teamChannels(g, sport).forEach { (c, t) -> out.add(Hit(c, 4, if (t == 1) g.home.name else g.away.name)) }
-        val idx = netIndex(live)
-        for (n in g.nets) (idx[SportNet.key(n)] ?: idx["~" + SportNet.looseKey(n)])?.forEach { out.add(Hit(it, 3, n)) }
+        if (pr != null) {
+            teamChannels(g, pr).forEach { (c, t) -> out.add(Hit(c, 4, if (t == 1) g.home.name else g.away.name)) }
+            for (n in g.nets) (pr.net[SportNet.key(n)] ?: pr.net["~" + SportNet.looseKey(n)])?.forEach { out.add(Hit(it, 3, n)) }
+        }
         // Working channels before ones marked broken; the rest of the list is the backup order for the player
         val r = out.distinctBy { it.ch.id }.sortedBy { if (DeadLinks.isDead(it.ch.url)) 1 else 0 }
         synchronized(cache) { if (cache.size > 800) cache.clear(); cache[g.key] = sig to r }
@@ -155,6 +179,7 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
     val ctx = LocalContext.current
     SportFix.init(ctx)
     val g = SportFeed.latest[g0.key] ?: g0
+    @Suppress("UNUSED_VARIABLE") val ready = SportWatch.prepVersion   // recompose once the channel lookups are built
     val hits = SportWatch.resolve(g, hub.live)
     var pick by remember { mutableStateOf(false) }
     val first = remember { FocusRequester() }

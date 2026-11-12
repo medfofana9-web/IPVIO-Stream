@@ -24,6 +24,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /** Fof sports settings (per device): hide scores, leagues of the home row. */
 object SportPrefs {
@@ -60,6 +61,7 @@ private val HOME_LEAGUES = listOf("NBA", "NFL", "College Football", "College Bas
 fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit) {
     val ctx = LocalContext.current
     SportFavs.init(ctx); SportLeagues.init(ctx); SportFix.init(ctx); SportLearn.init(ctx); SportPrefs.init(ctx)
+    val scope = rememberCoroutineScope()
     val games by produceState(emptyList<SportData.Game>(), SportPrefs.version) {
         while (true) {
             val ymd = SportData.ymd(0, General.zone())
@@ -81,8 +83,11 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
         LazyRow(contentPadding = PaddingValues(horizontal = RowPadX), horizontalArrangement = Arrangement.spacedBy(dpx(14))) {
             items(games, key = { it.key }) { g ->
                 LiveGameCard(g) {
-                    val chans = SportWatch.channels(g, live)
-                    if (chans.isNotEmpty()) { ZapContext.list = chans; ZapContext.key = null; onOpen(chans[0]) } else onSports()
+                    scope.launch {
+                        // Channel lookups are built off the main thread (big playlists), then the game starts
+                        val chans = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { SportWatch.prewarm(live); SportWatch.channels(g, live) }
+                        if (chans.isNotEmpty()) { ZapContext.list = chans; ZapContext.key = null; onOpen(chans[0]) } else onSports()
+                    }
                 }
             }
         }
