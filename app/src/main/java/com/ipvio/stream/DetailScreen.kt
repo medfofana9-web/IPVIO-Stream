@@ -196,6 +196,8 @@ private fun DetailScreenFull(
     val imdbId = meta?.imdbId
     LaunchedEffect(Unit) { Stremio.ensure(ctx) }
     var showStremio by remember(item.id) { mutableStateOf(false) }
+    // Episode picked in a Stremio-only series: the streams popup opens at that season and episode
+    var stremioAt by remember(item.id) { mutableStateOf<Pair<Int, Int>?>(null) }
     val isTv = meta?.isTv == true
     // Long seasons (One Piece & co.): fetch TMDB seasons to use them as sections
     val needTmdbSeasons = remember(item) {
@@ -530,8 +532,9 @@ private fun DetailScreenFull(
                             if (showStremio) {
                                 val rs = resumeSE?.takeIf { it.first == season }
                                 StremioSourcesPopup(
-                                    item, imdbId ?: item.id.removePrefix("stremio:").takeIf { StremioLogic.isImdb(it) }, season, rs?.second ?: eps.firstOrNull()?.num ?: 1,
-                                    onPlay, { showStremio = false }
+                                    item, imdbId ?: item.id.removePrefix("stremio:").takeIf { StremioLogic.isImdb(it) },
+                                    stremioAt?.first ?: season, stremioAt?.second ?: rs?.second ?: eps.firstOrNull()?.num ?: 1,
+                                    onPlay, { showStremio = false; stremioAt = null }
                                 )
                             }
                             // Watched by hand: movie, season, whole series (also reachable per episode: long OK / menu key on the row)
@@ -722,7 +725,10 @@ private fun DetailScreenFull(
                                         if (!seen && resumeSE?.let { ResumeLogic.key(it.first, it.second) } == k) WatchStore.remove(ctx, item.id)
                                         progVer++
                                     }
-                                ) { onPlay(v.url, item.title + " S" + ep.season + "E" + ep.num, 0L) }
+                                ) {
+                                    if (v.url.isBlank()) { stremioAt = ep.season to ep.num; showStremio = true }
+                                    else onPlay(v.url, item.title + " S" + ep.season + "E" + ep.num, 0L)
+                                }
                             }
                         }
                     }

@@ -29,12 +29,46 @@ object TmdbRows {
     fun key(title: String): String =
         StremioLogic.cleanTitle(title).replace(YEAR_TAIL, "").lowercase().filter { it.isLetterOrDigit() }
 
+    @Volatile private var cacheFile: java.io.File? = null
+    @Volatile private var diskLoaded = false
+
+    /** Keeps the TMDB lists on disk, so the rows appear at once on the next start instead of after ~100 requests. */
+    fun init(c: android.content.Context) { if (cacheFile == null) cacheFile = java.io.File(c.applicationContext.cacheDir, "tmdb_rows.json") }
+
+    @Synchronized private fun loadDisk() {
+        if (diskLoaded) return
+        diskLoaded = true
+        val f = cacheFile ?: return
+        runCatching {
+            if (!f.exists()) return
+            val o = JSONObject(f.readText())
+            for (k in o.keys()) {
+                val e = o.getJSONObject(k); val a = e.getJSONArray("i")
+                val l = (0 until a.length()).map { val x = a.getJSONArray(it); T(x.getString(0), x.getString(1), if (x.isNull(2)) null else x.getInt(2)) }
+                lists.putIfAbsent(k, e.getLong("t") to l)
+            }
+        }
+    }
+
+    @Synchronized private fun saveDisk() {
+        val f = cacheFile ?: return
+        runCatching {
+            val o = JSONObject()
+            lists.forEach { (k, v) ->
+                val a = org.json.JSONArray()
+                v.second.forEach { t -> a.put(org.json.JSONArray().put(t.key).put(t.alt).put(t.year ?: JSONObject.NULL)) }
+                o.put(k, JSONObject().put("t", v.first).put("i", a))
+            }
+            f.writeText(o.toString())
+        }
+    }
+
     private suspend fun list(path: String, pages: Int): List<T> {
+        withContext(Dispatchers.IO) { loadDisk() }
         lists[path]?.let { if (System.currentTimeMillis() - it.first < 12 * 3600_000L) return it.second }
         if (!MetaRepo.enabled()) return emptyList()
-        val out = ArrayList<T>()
-        withContext(Dispatchers.IO) {
-            for (page in 1..pages) runCatching {
+        // All pages at once instead of one after the other
+        val pagesOut = coroutineScope { (1..pages).map { page -> async(Dispatchers.IO) { val out = ArrayList<T>(); runCatching {
                 val sep = if ('?' in path) "&" else "?"
                 val url = "https://api.themoviedb.org/3/$path${sep}api_key=${Config.TMDB_KEY}&language=en-US&page=$page"
                 val body = Net.base.newCall(Request.Builder().url(url).build()).execute().use { r -> if (r.isSuccessful) r.body?.string() else null }
@@ -48,9 +82,9 @@ object TmdbRows {
                     if (name.isBlank()) continue
                     out.add(T(key(name), key(orig), date.take(4).toIntOrNull()))
                 }
-            }
-        }
-        if (out.isNotEmpty()) lists[path] = System.currentTimeMillis() to out
+            }; out } }.awaitAll() }
+        val out = pagesOut.flatten()
+        if (out.isNotEmpty()) { lists[path] = System.currentTimeMillis() to out; withContext(Dispatchers.IO) { saveDisk() } }
         return out
     }
 

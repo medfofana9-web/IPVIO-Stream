@@ -16,7 +16,23 @@ object LazySeries {
     private val done = ConcurrentHashMap<String, Hit>()
     private const val MAX_AGE = 30 * 60_000L
 
-    fun isStub(i: Item): Boolean = XtreamLogic.isLazy(i) || StalkerLogic.isLazy(i)
+    fun isStub(i: Item): Boolean = XtreamLogic.isLazy(i) || StalkerLogic.isLazy(i) || isStremioSeries(i)
+
+    /** A series from a Stremio catalog: it comes without episodes; they are read from Cinemeta (Stremio's free catalog). */
+    fun isStremioSeries(i: Item): Boolean = i.kind == Kind.SERIES && i.episodes.isEmpty() && i.id.startsWith("stremio:")
+
+    /** Seasons and episodes of a Stremio series. The episodes have no address: playing one opens the addon streams. */
+    private fun cinemeta(imdb: String): List<Episode>? = runCatching {
+        val req = okhttp3.Request.Builder().url("https://v3-cinemeta.strem.io/meta/series/$imdb.json").build()
+        val body = Net.base.newCall(req).execute().use { r -> if (r.isSuccessful) r.body?.string() else null } ?: return null
+        val vs = org.json.JSONObject(body).optJSONObject("meta")?.optJSONArray("videos") ?: return null
+        (0 until vs.length()).mapNotNull { k ->
+            val v = vs.optJSONObject(k) ?: return@mapNotNull null
+            val s = v.optInt("season", -1); val n = v.optInt("episode", v.optInt("number", -1))
+            if (s < 1 || n < 1) return@mapNotNull null // season 0 = specials
+            Episode(s, n, v.optString("name").ifBlank { v.optString("title") }.ifBlank { EpTitles.of(n) }, "")
+        }.distinctBy { it.season * 10000 + it.num }.sortedWith(compareBy({ it.season }, { it.num }))
+    }.getOrNull()
 
     /** The series with its real episodes if already loaded; otherwise the series itself. */
     fun full(i: Item): Item {
@@ -34,6 +50,12 @@ object LazySeries {
     suspend fun load(@Suppress("UNUSED_PARAMETER") ctx: Context, i: Item): Item? {
         val have = full(i)
         if (have !== i) return have
+        if (isStremioSeries(i)) return withContext(Dispatchers.IO) {
+            val e = cinemeta(i.id.removePrefix("stremio:"))?.takeIf { it.isNotEmpty() } ?: return@withContext null
+            val r = i.copy(episodes = e)
+            done[i.id] = Hit(r, System.currentTimeMillis())
+            r
+        }
         // Stalker portal: seasons and episodes via the portal's API
         val sUrls = StalkerLogic.lazyUrls(i)
         if (sUrls.isNotEmpty()) return withContext(Dispatchers.IO) {

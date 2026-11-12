@@ -223,6 +223,7 @@ fun HomeScreen(
     val histTop = remember(hist) { hist.take(30) }
     // Fof TV: Netflix-style rows from TMDB (trending and genres), matched to the playlist by title and year
     val tmdbTrend by produceState(emptyList<Item>(), movies, series) { if (movies.isNotEmpty() || series.isNotEmpty()) value = TmdbRows.trending(movies, series) }
+    remember { TmdbRows.init(ctx) }
     val tmdbMovieRows by produceState(emptyList<TmdbRows.Row>(), movies, series) { if (movies.isNotEmpty()) value = TmdbRows.genres(movies, series, Kind.MOVIE) }
     val tmdbSeriesRows by produceState(emptyList<TmdbRows.Row>(), movies, series) { if (series.isNotEmpty()) value = TmdbRows.genres(movies, series, Kind.SERIES) }
     val tmdbMoviePage by produceState(emptyList<TmdbRows.Row>(), movies, series) { if (movies.isNotEmpty()) value = TmdbRows.catalog(movies, series, Kind.MOVIE) }
@@ -620,14 +621,10 @@ fun HomeScreen(
                                     } }
                                     "sg" -> if (tmdbSeriesRows.isNotEmpty()) tmdbSeriesRows.take(4).forEach { r ->
                                         item(key = "ts" + r.title) { ItemsRow("Series · " + r.title, r.items, cardW, onOpen) { onBrowse(BrowseReq("Series · " + r.title, r.items, SORT_PLAYLIST)) } }
-                                    } else { seriesG.entries.take(3).forEach { (g, l) ->
-                                        item(key = "s$g") { ItemsRow("Serien · $g", l, cardW, onOpen) { onBrowse(BrowseReq("Serien · $g", l, SORT_NEW)) } }
-                                    } }
+                                    }
                                     "mg" -> if (tmdbMovieRows.isNotEmpty()) tmdbMovieRows.take(4).forEach { r ->
                                         item(key = "tm" + r.title) { ItemsRow("Movies · " + r.title, r.items, cardW, onOpen) { onBrowse(BrowseReq("Movies · " + r.title, r.items, SORT_PLAYLIST)) } }
-                                    } else { movieG.entries.take(3).forEach { (g, l) ->
-                                        item(key = "m$g") { ItemsRow("Filme · $g", l, cardW, onOpen) { onBrowse(BrowseReq("Filme · $g", l, SORT_NEW)) } }
-                                    } }
+                                    }
                                 }
                             }
                             // Build own home screen: entry at the end of the page
@@ -644,7 +641,6 @@ fun HomeScreen(
                             val top = if (isM) topM else topS
                             val noun = if (isM) "Filme" else "Serien"
                             val kind = if (isM) Kind.MOVIE else Kind.SERIES
-                            val groups = if (isM) movieG else seriesG
                             if (ready.isNotEmpty()) item(key = "hero$tab") { Hero(ready.toList(), heroH, false, onOpen, onPlayNow, header, { heroScroll(states[tab]) }) { scope.launch { states[tab].animateScrollToItem(0) } } }
                             else item(key = "top$tab") { header(Modifier) }
                             // Popular (trending, otherwise top rated) directly under the big picture. First row:
@@ -677,9 +673,6 @@ fun HomeScreen(
                             else if (tRows.isNotEmpty()) {
                                 tRows.forEach { r -> item(key = "T$tab" + r.title) { ItemsRow(r.title, r.items, cardW, onOpen) { onBrowse(BrowseReq(r.title, r.items, SORT_PLAYLIST)) } } }
                                 item(key = "Tmore$tab") { EmptyHint("Your provider's categories are under „Kategorien“ at the top.") }
-                            } else {
-                                groups.entries.take(12).forEach { (g, l) -> item(key = "G$tab$g") { ItemsRow(g, l, cardW, onOpen) { onBrowse(BrowseReq(g, l, SORT_NEW)) } } }
-                                if (groups.size > 12) item { EmptyHint("Weitere Kategorien findest du unter „Kategorien“ oben.") }
                             }
 
                         }
