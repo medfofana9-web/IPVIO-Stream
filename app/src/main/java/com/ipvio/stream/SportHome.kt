@@ -71,7 +71,7 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
             val now = System.currentTimeMillis() / 1000
             value = all.filter { g ->
                 g.state == 1 || (g.state == 0 && SportFavs.isFavGame(g) && g.start - now in 0..3600)
-            }.sortedWith(compareByDescending<SportData.Game> { SportFavs.isFavGame(it) }.thenByDescending { it.state }.thenBy { it.start })
+            }.sortedWith(compareByDescending<SportData.Game> { GameDayLogic.isClose(it) }.thenByDescending { SportFavs.isFavGame(it) }.thenByDescending { it.state }.thenBy { it.start })
             delay(if (value.isNotEmpty()) 45_000L else 180_000L)
         }
     }
@@ -129,6 +129,12 @@ internal fun FofSportsPage(ctx: Context) {
     ToggleRow("Hide scores (spoiler-free)", "Scores are hidden on the home screen and in the sports area until you turn this off.", hide) {
         hide = it; SportPrefs.setHideScores(ctx, it)
     }
+    GameDay.init(ctx)
+    var close by remember { mutableStateOf(GameDay.closeAlerts) }
+    ToggleRow("Close-game alerts (Game Day)", "A popup when any game today is close in the final minutes, even while you watch something else.", close) {
+        close = it; GameDay.setCloseAlerts(ctx, it)
+    }
+    Hint("Auto-tune: open an upcoming game in the sports area, choose Watch Live, then Auto-tune at start. When it starts, the TV switches to the game.")
     SectionTitle("How games find their channel")
     Hint("In this order: a channel you picked for the game, your usual channel for that team or network, provider event channels that name both teams, the TV guide, team channels (for example \"NBA: Indiana Pacers\" in an NBA group), and finally the network ESPN lists for the game (ESPN, TNT, FanDuel Sports Indiana and so on). Pick a channel by hand once under Watch Live and the app remembers it for that team.")
     SectionTitle("Home screen")

@@ -172,6 +172,21 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
                     }
                 }
                 if (replay != null) HeroButton("Watch replay", AIcon.Catchup, true, Modifier, 46) { hub.play(replay, listOf(replay)) }
+                // Joined late: start the running game from the beginning (provider archive)
+                val fromStart = remember(g.key, g.state, hits) {
+                    if (g.state != 1) null else {
+                        val now = System.currentTimeMillis() / 1000
+                        val e = EpgEntry(if (g.solo) g.title else g.away.short + " at " + g.home.short, "", g.start - 300, now - 60)
+                        hits.firstNotNullOfOrNull { h -> Catchup.urlFor(h.ch, e)?.let { u -> h.ch.copy(url = u, title = "From the start: " + e.title) } }
+                    }
+                }
+                if (fromStart != null) FilterPill("Watch from the start", false, Modifier.trackFocus(), aicon = AIcon.Rewind) { hub.play(fromStart, listOf(fromStart)) }
+                // Upcoming: reminder switches the TV to the game when it starts
+                if (g.state == 0) {
+                    GameDay.init(ctx)
+                    val on = GameDay.has(g)
+                    FilterPill(if (on) "Auto-tune on" else "Auto-tune at start", on, Modifier.trackFocus(), aicon = AIcon.Bell) { GameDay.toggle(ctx, g) }
+                }
                 FilterPill(if (hits.isEmpty()) "Sender zuordnen" else "Anderen Sender wählen", false, Modifier.focusRequester(first), aicon = AIcon.Edit) { pick = true }
                 if (SportFix.map.containsKey(SportFix.key(g))) FilterPill("Automatisch zuordnen", false, Modifier.trackFocus(), aicon = AIcon.Refresh) { SportFix.set(ctx, g, null) }
                 FilterPill("Mehr Infos", false, Modifier.trackFocus(), aicon = AIcon.Info) { hub.nav.open(HubPage.Match(g)) }
