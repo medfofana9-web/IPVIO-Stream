@@ -78,7 +78,13 @@ class MainActivity : ComponentActivity() {
         ScreenAwake.attach(this)
         intent?.getStringExtra(Reminders.EXTRA_CH)?.let { AppNav.openChannel = it }
         if (BuildConfig.VERSION_NAME.endsWith("-test")) intent?.getStringExtra("fof_test_url")?.let { AppNav.testUrl = it }
-        if (BuildConfig.VERSION_NAME.endsWith("-test")) intent?.getStringExtra("fof_test_playlist")?.let { AppNav.testPlaylist = it }
+        // Performance test: load the given playlist once, without the setup screens and without asking for languages
+        if (BuildConfig.VERSION_NAME.endsWith("-test")) intent?.getStringExtra("fof_test_playlist")?.let { u ->
+            val app = applicationContext
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                if (PlaylistStore.savedUrl(app) != u) PlaylistStore.load(app, u, true, ask = false)
+            }
+        }
         setContent { App(pick) }
     }
 
@@ -351,12 +357,6 @@ private fun AppContent() {
     LaunchedEffect(all) { Catalog.warm(all) }
 
     // Launch test: play a test stream like a live channel
-    // Performance test: load the given playlist once, without asking for languages
-    LaunchedEffect(Unit) {
-        val u = AppNav.testPlaylist ?: return@LaunchedEffect
-        AppNav.testPlaylist = null
-        if (PlaylistStore.savedUrl(ctx) != u) PlaylistStore.load(ctx, u, true, ask = false)
-    }
     LaunchedEffect(AppNav.testUrl) {
         val u = AppNav.testUrl ?: return@LaunchedEffect
         AppNav.testUrl = null
