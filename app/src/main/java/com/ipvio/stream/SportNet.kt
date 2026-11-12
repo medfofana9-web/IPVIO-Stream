@@ -48,6 +48,13 @@ object SportNet {
             .replace(" tnt sports ", " tnt ").replace(" truetv ", " trutv ").replace(" tru tv ", " trutv ")
             .replace(" amazon prime video ", " prime video ").replace(" amazon prime ", " prime video ")
             .replace(" espn deportes ", " espndeportes ")
+            .replace(" fs1 ", " fox sports 1 ").replace(" fs2 ", " fox sports 2 ").replace(" fox sports one ", " fox sports 1 ")
+            .replace(" espn news ", " espnews ").replace(" nbatv ", " nba tv ").replace(" mlbn ", " mlb ").replace(" mlb network ", " mlb ")
+            .replace(" nfln ", " nfl ").replace(" nfl network ", " nfl ").replace(" nhln ", " nhl ").replace(" nhl network ", " nhl ")
+            .replace(" btn ", " big ten ").replace(" big ten network ", " big ten ").replace(" b1g ", " big ten ")
+            .replace(" accn ", " acc ").replace(" secn ", " sec ").replace(" acc network ", " acc ").replace(" sec network ", " sec ")
+            .replace(" mnmt ", " monumental ").replace(" sny ", " snysports ").replace(" snysports sports ", " snysports ")
+            .replace(" peacock live tv ", " peacock ")
         val words = s.trim().split(' ').filter { it.isNotEmpty() && it !in NOISE }.toMutableList()
         // A trailing state code after a regional network ("fanduel sports in") is spelled out
         if (words.size >= 2 && words.contains("sports")) {
@@ -55,6 +62,12 @@ object SportNet {
             STATES[last]?.let { words[words.lastIndex] = it }
         }
         return words.joinToString("")
+    }
+
+    /** Looser form for a second try: without "sports", "sportsnet", "network" ("Altitude Sports" = "Altitude"). */
+    fun looseKey(name: String): String {
+        val k = key(name)
+        return k.replace("sportsnet", "").replace("sports", "").replace("network", "").ifEmpty { k }
     }
 
     /** All network keys of a game (national and local broadcasts). Streaming-only services stay in, event channels use them. */

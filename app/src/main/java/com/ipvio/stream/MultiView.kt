@@ -33,18 +33,22 @@ import androidx.compose.ui.window.DialogProperties
 object MultiViewLogic {
     const val GRID = 0   // two tiles of equal size side by side
     const val BIG = 1    // one large tile on the left, a smaller one on the right
-    val LAYOUT_NAMES = listOf("Zwei gleich groß", "Einer groß, einer klein")
+    const val QUAD = 2   // four tiles, 2 x 2
+    const val BIG3 = 3   // one large tile, three small ones below
+    val LAYOUT_NAMES = listOf("Zwei gleich groß", "Einer groß, einer klein", "Four games (2 x 2)", "One big, three small")
 
-    /** Number of tiles (two for now: more streams overload most boxes and many providers allow few connections). */
-    const val SLOTS = 2
+    /** Most tiles at once. Four streams need a strong box (Fire TV 4K Max, Shield) and a provider with 4 connections. */
+    const val SLOTS = 4
 
-    /** Start channels: the first two distinct live channels from favorites, then history, then the list. */
-    fun startChannels(live: List<Item>, favs: List<String>, hist: List<String>): List<Item> {
+    fun tiles(layout: Int): Int = if (layout >= QUAD) 4 else 2
+
+    /** Start channels: the first distinct live channels from favorites, then history, then the list. */
+    fun startChannels(live: List<Item>, favs: List<String>, hist: List<String>, n: Int = 2): List<Item> {
         val byId = live.associateBy { it.id }
         val out = LinkedHashMap<String, Item>()
         for (id in favs + hist) byId[id]?.let { out.putIfAbsent(it.id, it) }
-        for (i in live) { if (out.size >= SLOTS) break; out.putIfAbsent(i.id, i) }
-        return out.values.take(SLOTS)
+        for (i in live) { if (out.size >= n) break; out.putIfAbsent(i.id, i) }
+        return out.values.take(n)
     }
 }
 
@@ -64,7 +68,13 @@ fun MultiViewScreen(live: List<Item>, onClose: () -> Unit) {
         Column(Modifier.fillMaxSize().background(Color.Black).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Mehrfachansicht", color = Color.White, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                SmallPill(MultiViewLogic.LAYOUT_NAMES[layout], icon = AIcon.Grid) { layout = (layout + 1) % MultiViewLogic.LAYOUT_NAMES.size }
+                SmallPill(MultiViewLogic.LAYOUT_NAMES[layout], icon = AIcon.Grid) {
+                    layout = (layout + 1) % MultiViewLogic.LAYOUT_NAMES.size
+                    // Going from four tiles back to two: close the extra streams (they hold provider connections)
+                    val n = MultiViewLogic.tiles(layout)
+                    while (slots.size > n) slots.removeAt(slots.lastIndex)
+                    if (audio >= n) audio = 0
+                }
                 SmallPill("Schließen", icon = AIcon.Close) { onClose() }
                 Text("OK = Ton hierher, OK lange = Sender wechseln", color = Color(0xFFA0A6B8), fontSize = 14.sp)
             }
@@ -75,14 +85,31 @@ fun MultiViewScreen(live: List<Item>, onClose: () -> Unit) {
                 Box(
                     m.onFocusChanged { f = it.isFocused }
                         .border(if (f) 4.dp else 0.dp, if (f) Color.White else Color.Transparent, RoundedCornerShape(10.dp))
-                        .combinedClickable(onClick = { audio = i }, onLongClick = { picking = i })
+                        .combinedClickable(onClick = { if (item != null) audio = i else picking = minOf(i, slots.size) }, onLongClick = { picking = minOf(i, slots.size) })
                 ) {
                     if (item != null) androidx.compose.runtime.key(item.id) { SecondStream(item, split = false, audioOn = audio == i, modifier = Modifier.fillMaxSize(), small = true) }
+                    else Text("OK = pick a channel", color = Color(0xFFA0A6B8), fontSize = 16.sp, modifier = Modifier.align(Alignment.Center))
                 }
             }
-            Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                tile(0, Modifier.weight(if (layout == MultiViewLogic.GRID) 1f else 2f).fillMaxSize())
-                tile(1, Modifier.weight(1f).fillMaxSize())
+            when (layout) {
+                MultiViewLogic.QUAD -> Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        tile(0, Modifier.weight(1f).fillMaxSize()); tile(1, Modifier.weight(1f).fillMaxSize())
+                    }
+                    Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        tile(2, Modifier.weight(1f).fillMaxSize()); tile(3, Modifier.weight(1f).fillMaxSize())
+                    }
+                }
+                MultiViewLogic.BIG3 -> Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    tile(0, Modifier.weight(2f).fillMaxWidth())
+                    Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        tile(1, Modifier.weight(1f).fillMaxSize()); tile(2, Modifier.weight(1f).fillMaxSize()); tile(3, Modifier.weight(1f).fillMaxSize())
+                    }
+                }
+                else -> Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    tile(0, Modifier.weight(if (layout == MultiViewLogic.GRID) 1f else 2f).fillMaxSize())
+                    tile(1, Modifier.weight(1f).fillMaxSize())
+                }
             }
         }
         if (picking >= 0) GuideSearchDialog(live, onPick = { ch ->

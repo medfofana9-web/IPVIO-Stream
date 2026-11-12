@@ -90,7 +90,12 @@ object SportWatch {
         synchronized(this) {
             if (sig != netSig) {
                 val m = HashMap<String, MutableList<Item>>()
-                for (c in live) if (c.kind == Kind.LIVE) m.getOrPut(SportNet.key(SportNet.stripPrefix(c.title))) { ArrayList(2) }.add(c)
+                for (c in live) if (c.kind == Kind.LIVE) {
+                    val t = SportNet.stripPrefix(c.title)
+                    m.getOrPut(SportNet.key(t)) { ArrayList(2) }.add(c)
+                    val loose = "~" + SportNet.looseKey(t)
+                    m.getOrPut(loose) { ArrayList(2) }.add(c)
+                }
                 netIndex = m; netSig = sig
             }
             return netIndex
@@ -134,7 +139,7 @@ object SportWatch {
         }
         teamChannels(g, sport).forEach { (c, t) -> out.add(Hit(c, 4, if (t == 1) g.home.name else g.away.name)) }
         val idx = netIndex(live)
-        for (n in g.nets) idx[SportNet.key(n)]?.forEach { out.add(Hit(it, 3, n)) }
+        for (n in g.nets) (idx[SportNet.key(n)] ?: idx["~" + SportNet.looseKey(n)])?.forEach { out.add(Hit(it, 3, n)) }
         // Working channels before ones marked broken; the rest of the list is the backup order for the player
         val r = out.distinctBy { it.ch.id }.sortedBy { if (DeadLinks.isDead(it.ch.url)) 1 else 0 }
         synchronized(cache) { if (cache.size > 800) cache.clear(); cache[g.key] = sig to r }

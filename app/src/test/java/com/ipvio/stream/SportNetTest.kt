@@ -31,4 +31,14 @@ class SportNetTest {
         assertTrue(SportNet.hasTag("USA | NBA TEAMS", SportNet.leagueTags("NBA")))
         assertFalse(SportNet.hasTag("USA | WNBA", SportNet.leagueTags("NBA")))
     }
+
+    @Test fun provider_names() {
+        assertEquals(SportNet.key("FS1"), SportNet.key("FOX Sports 1 FHD"))
+        assertEquals(SportNet.key("ESPNU"), SportNet.key("ESPN U"))
+        assertEquals(SportNet.key("YES"), SportNet.key("YES Network HD"))
+        assertEquals(SportNet.looseKey("Altitude"), SportNet.looseKey("Altitude Sports"))
+        assertEquals(1, SportNet.teamOf("NBA INDIANA PACERS FHD", listOf("pacers", "indiana pacers", "indiana"), listOf("wizards", "washington wizards")))
+        assertTrue(SportNet.hasTag("USA | NBA Teams", SportNet.leagueTags("NBA")))
+        assertTrue(SportNet.hasTag("USA | NCAAF", SportNet.leagueTags("College Football")))
+    }
 }
