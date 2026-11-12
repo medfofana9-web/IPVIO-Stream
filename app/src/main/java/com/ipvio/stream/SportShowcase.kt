@@ -69,19 +69,26 @@ internal object SportShowcase {
 /** Darkened team color, so white text stays readable on any color. */
 private fun deep(c: Color, f: Float = 0.62f) = Color(c.red * f, c.green * f, c.blue * f, 1f)
 
+/** Team color as a quiet accent: mostly the near-black card, a hint of the team at its own side. */
+private fun accentBrush(away: Color, home: Color): Brush {
+    val base = Color(0xFF111114)
+    fun mix(c: Color) = Color(base.red + (c.red - base.red) * 0.32f, base.green + (c.green - base.green) * 0.32f, base.blue + (c.blue - base.blue) * 0.32f, 1f)
+    return Brush.horizontalGradient(0f to mix(away), 0.45f to base, 0.55f to base, 1f to mix(home))
+}
+
 @Composable
 internal fun GameTile(g: SportData.Game, hub: HubCtx, modifier: Modifier = Modifier) {
     var f by remember { mutableStateOf(false) }
-    val sc by animateFloatAsState(if (f) focusScale(1.06f) else 1f, label = "gametile")
+    val sc by animateFloatAsState(if (f) focusScale(1.04f) else 1f, androidx.compose.animation.core.tween(150), label = "gametile")
     val shape = RoundedCornerShape(dpx(14))
     val live = g.state == 1
-    val w = dpx(400); val h = dpx(225)
+    val w = dpx(360); val h = dpx(202)
     val a = deep(teamColor(g.away)); val b = deep(teamColor(g.home))
     Column(modifier.width(w), verticalArrangement = Arrangement.spacedBy(dpx(10))) {
         Box(
             Modifier.size(w, h).graphicsLayer { scaleX = sc; scaleY = sc }.focusGlow(f, shape).clip(shape)
-                .background(if (g.solo) Brush.linearGradient(listOf(Color(0xFF1B2638), Color(0xFF0B0F17))) else Brush.horizontalGradient(0f to a, 0.5f to a, 0.5f to b, 1f to b))
-                .border(if (f) 3.dp else 1.dp, if (f) Color.White else Color(0x22FFFFFF), shape)
+                .background(if (g.solo) Brush.linearGradient(listOf(Color(0xFF1B2638), Color(0xFF0B0F17))) else accentBrush(a, b))
+                .border(if (f) 2.dp else 1.dp, if (f) Color.White else Color(0x1AFFFFFF), shape)
                 .onFocusChanged { f = it.isFocused }
                 .trackFocus()
                 .clickable { if (live && hub.chans(g).isNotEmpty()) hub.watch(g) else hub.open(g) }
@@ -135,7 +142,7 @@ internal fun GameTile(g: SportData.Game, hub: HubCtx, modifier: Modifier = Modif
 @Composable
 private fun TileSide(t: SportData.Team, modifier: Modifier) {
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        TeamLogo(t.logo, t.abbr.ifBlank { t.short }, dpx(72))
+        TeamLogo(t.logo, t.abbr.ifBlank { t.short }, dpx(64))
         Spacer(Modifier.height(dpx(10)))
         Text(raw = true, text = t.short.ifBlank { t.name }.uppercase(), color = Color.White, fontSize = spx(15), fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)

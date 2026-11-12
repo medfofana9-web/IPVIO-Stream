@@ -311,9 +311,15 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
         }
         val liveAll = games.filter { it.state == 1 }.sortedWith(compareBy({ if (it.key in m.withCh) 0 else 1 }, { if (SportHubFavs.isFavGame(it)) 0 else 1 }, { popularity(it) }))
         if (liveAll.isNotEmpty()) item(key = "live") { GameTileRow("Live now", liveAll, hub) { hub.goTab(1, null) } }
+        val soon = games.filter { it.state == 0 && statusKind(it) == 0 }.sortedWith(compareBy({ if (SportHubFavs.isFavGame(it)) 0 else 1 }, { it.start }))
+        if (soon.isNotEmpty()) item(key = "soon") { GameTileRow("Upcoming", soon, hub) { hub.goTab(2, null) } }
+        // One row per sport: live and upcoming games; finished games are collected in "Today's results"
         bySport.forEach { (sp, l) ->
-            if (l.isNotEmpty()) item(key = "sp$sp") { GameTileRow(SportShowcase.title(sp), l, hub) { hub.goTab(1, sp) } }
+            val open = l.filter { it.state != 2 }
+            if (open.isNotEmpty()) item(key = "sp$sp") { GameTileRow(SportShowcase.title(sp), open, hub) { hub.goTab(1, sp) } }
         }
+        val done = games.filter { it.state == 2 }.sortedByDescending { it.start }
+        if (done.isNotEmpty()) item(key = "done") { GameTileRow("Today's results", done, hub, null) }
         if (popular.isNotEmpty()) item(key = "leagues") {
             HubSectionTitle("Beliebte Ligen", action = "Alle Ligen") { hub.goTab(3, null) }
             Spacer(Modifier.height(dpx(8)))

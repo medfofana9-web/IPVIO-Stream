@@ -35,6 +35,15 @@ import coil.ImageLoader
 import coil.memory.MemoryCache
 
 class MainActivity : ComponentActivity() {
+    /** Escape (keyboards, desktop remotes) works like Back everywhere. */
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (event.keyCode == android.view.KeyEvent.KEYCODE_ESCAPE) {
+            if (event.action == android.view.KeyEvent.ACTION_UP) onBackPressedDispatcher.onBackPressed()
+            return true
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Load settings early so colors and size are right in the very first frame.
