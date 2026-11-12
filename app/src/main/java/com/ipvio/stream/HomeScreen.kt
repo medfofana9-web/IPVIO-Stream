@@ -225,6 +225,8 @@ fun HomeScreen(
     val tmdbTrend by produceState(emptyList<Item>(), movies, series) { if (movies.isNotEmpty() || series.isNotEmpty()) value = TmdbRows.trending(movies, series) }
     val tmdbMovieRows by produceState(emptyList<TmdbRows.Row>(), movies, series) { if (movies.isNotEmpty()) value = TmdbRows.genres(movies, series, Kind.MOVIE) }
     val tmdbSeriesRows by produceState(emptyList<TmdbRows.Row>(), movies, series) { if (series.isNotEmpty()) value = TmdbRows.genres(movies, series, Kind.SERIES) }
+    val tmdbMoviePage by produceState(emptyList<TmdbRows.Row>(), movies, series) { if (movies.isNotEmpty()) value = TmdbRows.catalog(movies, series, Kind.MOVIE) }
+    val tmdbSeriesPage by produceState(emptyList<TmdbRows.Row>(), movies, series) { if (series.isNotEmpty()) value = TmdbRows.catalog(movies, series, Kind.SERIES) }
     val trendItems = tmdbTrend
     val trendTop = remember(trendItems) { trendItems.take(10) }
     LaunchedEffect(Unit) { FofHome.apply(ctx) }
@@ -649,7 +651,8 @@ fun HomeScreen(
                             // "Show all" up = profile at the top right, left = "To list" in the picture
                             val tt = trendK
                             val pop = if (tt.size >= 5) tt else top
-                            if (pop.size >= 3) item(key = "pop$tab") {
+                            val tPage = if (isM) tmdbMoviePage else tmdbSeriesPage
+                            if (tPage.isEmpty() && pop.size >= 3) item(key = "pop$tab") {
                                 ItemsRow(if (isM) "Beliebte Filme" else "Beliebte Serien", pop, cardW, onOpen,
                                     upReq = HeaderFocus.profile, leftReq = if (ready.isNotEmpty()) HeroFocus.second else null) {
                                     onBrowse(BrowseReq((if (isM) "Beliebte Filme" else "Beliebte Serien"), pop, SORT_PLAYLIST))
@@ -663,10 +666,15 @@ fun HomeScreen(
                             val recent = histK
                             if (recent.isNotEmpty()) item(key = "hr$tab") { ItemsRow("Zuletzt geschaut", recent, cardW, onOpen) { onBrowse(BrowseReq("Zuletzt geschaut · $noun", recent, SORT_PLAYLIST)) } }
                             if (base.isEmpty()) item { EmptyHint("Keine $noun in dieser Playlist") }
-                            if (base.isNotEmpty()) item(key = "new$tab") { ItemsRow("Neu hinzugefügt", if (isM) newMovies else newSeries, cardW, onOpen) { onBrowse(BrowseReq("Neu hinzugefügt · $noun", base, SORT_NEW)) } }
-                            if (top.size >= 8) item(key = "best$tab") { ItemsRow("Top bewertet", top, cardW, onOpen) { onBrowse(BrowseReq("Top bewertet · $noun", top, SORT_RATING)) } }
+                            if (tPage.isNotEmpty()) {
+                                tPage.forEach { r -> item(key = "P$tab" + r.title) { ItemsRow(r.title, r.items, cardW, onOpen) { onBrowse(BrowseReq(r.title, r.items, SORT_PLAYLIST)) } } }
+                                item(key = "Pmore$tab") { EmptyHint("Your provider's own categories are under „Kategorien“ at the top.") }
+                            }
+                            if (tPage.isEmpty() && base.isNotEmpty()) item(key = "new$tab") { ItemsRow("Neu hinzugefügt", if (isM) newMovies else newSeries, cardW, onOpen) { onBrowse(BrowseReq("Neu hinzugefügt · $noun", base, SORT_NEW)) } }
+                            if (tPage.isEmpty() && top.size >= 8) item(key = "best$tab") { ItemsRow("Top bewertet", top, cardW, onOpen) { onBrowse(BrowseReq("Top bewertet · $noun", top, SORT_RATING)) } }
                             val tRows = if (isM) tmdbMovieRows else tmdbSeriesRows
-                            if (tRows.isNotEmpty()) {
+                            if (tPage.isNotEmpty()) { /* the TMDB page above already has the genre rows */ }
+                            else if (tRows.isNotEmpty()) {
                                 tRows.forEach { r -> item(key = "T$tab" + r.title) { ItemsRow(r.title, r.items, cardW, onOpen) { onBrowse(BrowseReq(r.title, r.items, SORT_PLAYLIST)) } } }
                                 item(key = "Tmore$tab") { EmptyHint("Your provider's categories are under „Kategorien“ at the top.") }
                             } else {

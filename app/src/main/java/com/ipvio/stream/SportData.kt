@@ -574,6 +574,11 @@ object SportLeagues {
         if (inited) return
         inited = true
         off.addAll((prefs(c).getString("off", "") ?: "").split("|").filter { it.isNotBlank() })
+        // Fof TV (US): cricket and the German second division start switched off (once; can be turned on under Leagues)
+        if (!prefs(c).getBoolean("fof_def1", false)) {
+            listOf("Cricket", "2. Bundesliga").forEach { if (it !in off) off.add(it) }
+            prefs(c).edit().putString("off", off.joinToString("|")).putBoolean("fof_def1", true).apply()
+        }
     }
 
     fun on(l: SportData.League) = l.name !in off

@@ -115,6 +115,32 @@ object TmdbRows {
         }
     }
 
+    private val SERVICES = listOf(8 to "Netflix", 350 to "Apple TV+", 337 to "Disney+", 9 to "Prime Video", 1899 to "Max",
+        15 to "Hulu", 531 to "Paramount+", 386 to "Peacock")
+
+    /**
+     * The full Netflix-style page for Movies or Series: Trending, Popular, New, Top rated, one row per streaming service
+     * (what is on Netflix, Apple TV+ … in the US), then genres. Only rows with at least 6 titles the playlist has.
+     */
+    suspend fun catalog(movies: List<Item>, series: List<Item>, kind: Kind): List<Row> = coroutineScope {
+        val tv = kind == Kind.SERIES
+        val type = if (tv) "tv" else "movie"
+        val heads = listOf(
+            "Trending now" to "trending/$type/week",
+            "Popular" to "$type/popular",
+            (if (tv) "New episodes" else "New releases") to (if (tv) "tv/on_the_air" else "movie/now_playing"),
+            "Top rated" to "$type/top_rated"
+        )
+        val services = SERVICES.map { (id, name) -> name to "discover/$type?with_watch_providers=$id&watch_region=US&sort_by=popularity.desc" }
+        val genresL = (if (tv) TV_GENRES else MOVIE_GENRES).map { (id, name) -> name to "discover/$type?with_genres=$id&sort_by=popularity.desc&vote_count.gte=150" }
+        val all = (heads + services + genresL).map { (name, path) -> async { name to list(path, 3) } }.awaitAll()
+        withContext(Dispatchers.Default) {
+            val ix = index2(movies, series, kind)
+            val seen = HashSet<String>()
+            all.map { (name, ts) -> Row(name, match(ts, ix)) }.filter { it.items.size >= 6 && seen.add(it.title) }
+        }
+    }
+
     /** Trending rows split per kind (for the Movies and Series pages). */
     suspend fun trendingOf(movies: List<Item>, series: List<Item>, kind: Kind): List<Item> {
         val ts = list(if (kind == Kind.SERIES) "trending/tv/week" else "trending/movie/week", 3)

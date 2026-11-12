@@ -377,10 +377,9 @@ private fun HubLive(feed: SportFeed.State, hub: HubCtx, sport: String?, sportReq
         .sortedWith(compareBy({ if (SportHubFavs.isFavGame(it)) 0 else 1 }, { popularity(it) }, { it.groupName }, { it.start }))
     Column(Modifier.fillMaxSize()) {
         SportFilter(sport, counts, sportReq, compReq) { onSport(it); comp = null }
-        LazyRow(contentPadding = PaddingValues(horizontal = DS.PageX, vertical = dpx(4)), horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
-            item(key = "all") { FilterPill("Alle Wettbewerbe", c == null, Modifier.trackFocus(compReq).focusProperties { up = sportReq }) { comp = null } }
-            item(key = "fav") { FilterPill("Nur Favoriten", favOnly, Modifier.trackFocus().focusProperties { up = sportReq }, aicon = if (favOnly) AIcon.Star else AIcon.StarOutline) { favOnly = !favOnly } }
-            items(comps, key = { it }) { n -> FilterPill(n, c == n, Modifier.trackFocus().focusProperties { up = sportReq }, raw = true) { comp = if (c == n) null else n } }
+        // Fof TV: no row of competition chips (the list is grouped by competition already), only "Favorites only"
+        LazyRow(contentPadding = PaddingValues(horizontal = DS.PageX, vertical = dpx(4))) {
+            item(key = "fav") { FilterPill("Nur Favoriten", favOnly, Modifier.trackFocus(compReq).focusProperties { up = sportReq }, aicon = if (favOnly) AIcon.Star else AIcon.StarOutline) { favOnly = !favOnly } }
         }
         LazyColumn(contentPadding = PaddingValues(horizontal = DS.PageX, vertical = dpx(8)), verticalArrangement = Arrangement.spacedBy(dpx(4))) {
             when {

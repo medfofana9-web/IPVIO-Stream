@@ -196,7 +196,8 @@ fun StremioCatalogRows(onOpen: (Item) -> Unit) {
     LaunchedEffect(Unit) { Stremio.ensure(ctx) }
     if (Stremio.addons.none { it.streams }) return
     Column(verticalArrangement = Arrangement.spacedBy(dpx(18))) {
-        for (cat in Stremio.allCatalogs().take(8)) {
+        // Home: Stremio's own popular lists only (addon catalogs that mirror an IPTV library looked like the provider rows)
+        for (cat in Stremio.builtIn) {
             val metas by produceState(emptyList<Stremio.Meta>(), cat) { value = Stremio.catalog(cat) }
             if (metas.isEmpty()) continue
             StremioMetaRow(cat.name, metas, raw = cat.addon != "Cinemeta", onOpen = onOpen)
