@@ -17,6 +17,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -211,7 +212,7 @@ private fun StremioMetaRow(title: String, metas: List<Stremio.Meta>, raw: Boolea
             items(metas.size, key = { metas[it].imdb + it }) { i ->
                 val m = metas[i]
                 val item = remember(m) { Stremio.itemOf(m) }
-                PosterTile(item, Modifier.width(dpx(150))) { onOpen(item) }
+                StremioPoster(m, Modifier.width(dpx(150))) { onOpen(item) }
             }
         }
     }
@@ -230,4 +231,24 @@ fun StremioSearchRow(q: String, have: List<String>, onOpen: (Item) -> Unit) {
     }
     if (metas.isEmpty()) return
     StremioMetaRow("From your Stremio addons", metas, raw = false, onOpen = onOpen)
+}
+
+
+/** Poster card for a catalog title: shows the catalog's own poster right away (no metadata lookup per card). */
+@Composable
+private fun StremioPoster(m: Stremio.Meta, modifier: Modifier, onClick: () -> Unit) {
+    var f by remember { mutableStateOf(false) }
+    val sc by androidx.compose.animation.core.animateFloatAsState(if (f) focusScale(1.07f) else 1f, label = "stp")
+    val shape = RoundedCornerShape(dpx(8))
+    Box(
+        modifier.aspectRatio(2f / 3f).graphicsLayer { scaleX = sc; scaleY = sc }.clip(shape).background(Surf2)
+            .border(1.dp, if (f) Color(0x40FFFFFF) else Color.Transparent, shape)
+            .onFocusChanged { f = it.isFocused }
+            .trackFocus()
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(m.name, color = Muted, fontSize = 14.sp, maxLines = 3, raw = true, modifier = Modifier.padding(8.dp))
+        if (m.poster != null) coil.compose.AsyncImage(m.poster, m.name, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+    }
 }

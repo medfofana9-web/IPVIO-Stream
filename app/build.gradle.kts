@@ -69,7 +69,8 @@ android {
             optimization {
                 // Off: the shrunk release build (12.7 MB) did not start on the device. Turn back on only together with
                 // keep rules in src/main/keepRules and a test on a real device.
-                enable = false
+                // FOF_R8=1 turns it on (tested by the "Launch test" workflow on an emulator before it becomes the default)
+                enable = System.getenv("FOF_R8") == "1"
                 packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
             }
         }

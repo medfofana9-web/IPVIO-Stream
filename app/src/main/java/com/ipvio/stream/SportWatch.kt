@@ -80,7 +80,7 @@ object SportWatch {
     }
 
     /** Prepares the list of sports channels in the background (otherwise the first opening of the hub filters all channels on the main thread). */
-    fun prewarm(live: List<Item>) { sportChannels(live) }
+    fun prewarm(live: List<Item>) { sportChannels(live); netIndex(live) }
 
     // Channels by cleaned name ("US| ESPN HD" → "espn"), built once per channel list, for the network match
     private var netSig = 0
