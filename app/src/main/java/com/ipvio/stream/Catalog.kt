@@ -174,7 +174,7 @@ object Catalog {
             if (!StremioLogic.isImdb(id)) return@mapNotNull null
             // Bigger poster than the default small one (sharper on a TV)
             val poster = o.optString("poster").takeIf { it.startsWith("http") }?.replace("/poster/small/", "/poster/medium/")
-            infoOf(o)?.let { f -> infos["stremio:$id"] = f; metas.remove("stremio:$id") }
+            infoOf(o)?.let { f -> infos["stremio:$id"] = f; this@Catalog.metas.remove("stremio:$id") }
             Item("stremio:$id", if (series) Kind.SERIES else Kind.MOVIE, o.optString("name"),
                 StremioLogic.year(o.optString("releaseInfo").ifBlank { o.optString("year") }), "", poster, "Stremio")
         }
