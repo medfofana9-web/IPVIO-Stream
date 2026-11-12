@@ -105,7 +105,8 @@ object Profiles {
         val m = meta(c)
         val skip = m.getBoolean("skip", false)
         if (skip) m.edit().putBoolean("skip", false).commit()
-        return list.size > 1 && askAtStart && !skip
+        // Fof TV: the "Who's watching?" welcome shows on every start (also with one profile), unless turned off
+        return askAtStart && !skip
     }
 
     fun add(c: Context): Boolean {
@@ -198,44 +199,6 @@ fun ProfilePicker(onPick: (Int) -> Unit) {
     val pick: (Int) -> Unit = { id ->
         if (id != Profiles.active && Parental.profileLocked(ctx, Profiles.active)) pending = id else onPick(id)
     }
-    val first = remember { FocusRequester() }
-    val start = remember { Profiles.list.indexOfFirst { it.id == Profiles.active }.coerceAtLeast(0) }
-    LaunchedEffect(Unit) {
-        delay(150)
-        repeat(8) { if (runCatching { first.requestFocus() }.getOrDefault(false)) return@LaunchedEffect; delay(80) }
-    }
-    Box(Modifier.fillMaxSize().background(Bg), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(36.dp)) {
-            Text("Wer schaut?", color = Color.White, fontSize = 38.sp, fontWeight = FontWeight.ExtraBold)
-            Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-                Profiles.list.forEachIndexed { i, p ->
-                    var f by remember { mutableStateOf(false) }
-                    Column(
-                        Modifier.clip(RoundedCornerShape(DS.RadiusL))
-                            .then(if (i == start) Modifier.focusRequester(first) else Modifier)
-                            .onFocusChanged { f = it.isFocused }
-                            .clickable { pick(p.id) }
-                            .padding(14.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Box(
-                            Modifier.size(110.dp).clip(CircleShape).background(if (f) Accent2 else Surf2)
-                                .border(3.dp, if (f) Color.White else DS.Overlay2, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            androidx.compose.foundation.text.BasicText(
-                                Profiles.displayName(p).take(1).uppercase(),
-                                style = androidx.compose.ui.text.TextStyle(color = if (f) Color.Black else Color.White, fontSize = 48.sp, fontWeight = FontWeight.ExtraBold)
-                            )
-                        }
-                        androidx.compose.foundation.text.BasicText(
-                            Profiles.displayName(p),
-                            style = androidx.compose.ui.text.TextStyle(color = if (f) Color.White else Muted, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-                        )
-                    }
-                }
-            }
-        }
-    }
+    FofWelcome(pick)
 }
+
