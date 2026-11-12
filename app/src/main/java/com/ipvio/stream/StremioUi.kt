@@ -159,34 +159,48 @@ internal fun StremioPage(ctx: Context) {
 }
 
 /**
- * Home rows from Stremio catalogs (Stremio's popular lists plus the catalogs of added addons). A title opens the list of
- * streams from your addons; picking one plays it. Rows without any stream addon stay hidden (nothing could play).
+ * Home rows from Stremio catalogs (Stremio's popular lists plus the catalogs of added addons). A title opens its detail page,
+ * where Play lists the streams from your addons. Hidden while no stream addon is added (nothing could play).
  */
 @Composable
-fun StremioCatalogRows(onPlayNow: (Item) -> Unit) {
+fun StremioCatalogRows(onOpen: (Item) -> Unit) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(Unit) { Stremio.ensure(ctx) }
     if (Stremio.addons.none { it.streams }) return
-    var open by remember { mutableStateOf<Pair<Item, String>?>(null) }
     Column(verticalArrangement = Arrangement.spacedBy(dpx(18))) {
         for (cat in Stremio.allCatalogs().take(8)) {
             val metas by produceState(emptyList<Stremio.Meta>(), cat) { value = Stremio.catalog(cat) }
             if (metas.isEmpty()) continue
-            Column(verticalArrangement = Arrangement.spacedBy(dpx(10))) {
-                Text(cat.name, color = Color.White, fontSize = spx(24), fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = RowPadX), raw = cat.addon != "Cinemeta")
-                androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = RowPadX), horizontalArrangement = Arrangement.spacedBy(dpx(14))) {
-                    items(metas.size, key = { metas[it].imdb }) { i ->
-                        val m = metas[i]
-                        val item = remember(m) { Stremio.itemOf(m) }
-                        PosterTile(item, Modifier.width(dpx(150))) { open = item to m.imdb }
-                    }
-                }
+            StremioMetaRow(cat.name, metas, raw = cat.addon != "Cinemeta", onOpen = onOpen)
+        }
+    }
+}
+
+@Composable
+private fun StremioMetaRow(title: String, metas: List<Stremio.Meta>, raw: Boolean, onOpen: (Item) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(dpx(10))) {
+        Text(title, color = Color.White, fontSize = spx(24), fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = RowPadX), raw = raw)
+        androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = RowPadX), horizontalArrangement = Arrangement.spacedBy(dpx(14))) {
+            items(metas.size, key = { metas[it].imdb + it }) { i ->
+                val m = metas[i]
+                val item = remember(m) { Stremio.itemOf(m) }
+                PosterTile(item, Modifier.width(dpx(150))) { onOpen(item) }
             }
         }
     }
-    open?.let { (item, imdb) ->
-        StremioSourcesPopup(item, imdb, 1, 1, onPlay = { url, title, _ ->
-            onPlayNow(item.copy(id = "stremio:" + title.hashCode(), kind = Kind.MOVIE, title = title, url = url))
-        }, onDismiss = { open = null })
+}
+
+/** Search results from Stremio (titles not already found in the playlist), below the playlist results. */
+@Composable
+fun StremioSearchRow(q: String, have: List<String>, onOpen: (Item) -> Unit) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(Unit) { Stremio.ensure(ctx) }
+    if (Stremio.addons.none { it.streams } || q.length < 2) return
+    val metas by produceState(emptyList<Stremio.Meta>(), q) {
+        kotlinx.coroutines.delay(450)
+        val own = have.map { StremioLogic.cleanTitle(it).lowercase() }.toHashSet()
+        value = Stremio.search(q).filter { StremioLogic.cleanTitle(it.name).lowercase() !in own }
     }
+    if (metas.isEmpty()) return
+    StremioMetaRow("From your Stremio addons", metas, raw = false, onOpen = onOpen)
 }

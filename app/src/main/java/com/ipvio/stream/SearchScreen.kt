@@ -243,6 +243,7 @@ fun SearchScreen(
                             AppSettings.addSearch(ctx, q); onBrowse(BrowseReq("Suche „$q“ · Live TV", rl, S_SORT_AZ))
                         }
                     }
+                    if (!searching) item(key = "stremio") { StremioSearchRow(q, (rm + rs).map { it.title }, openS) }
                 }
                     }
                 }

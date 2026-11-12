@@ -530,7 +530,7 @@ private fun DetailScreenFull(
                             if (showStremio) {
                                 val rs = resumeSE?.takeIf { it.first == season }
                                 StremioSourcesPopup(
-                                    item, imdbId, season, rs?.second ?: eps.firstOrNull()?.num ?: 1,
+                                    item, imdbId ?: item.id.removePrefix("stremio:").takeIf { StremioLogic.isImdb(it) }, season, rs?.second ?: eps.firstOrNull()?.num ?: 1,
                                     onPlay, { showStremio = false }
                                 )
                             }

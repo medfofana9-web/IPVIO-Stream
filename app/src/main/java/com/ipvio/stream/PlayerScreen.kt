@@ -90,6 +90,7 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.SubtitleView
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 
@@ -427,6 +428,34 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         return true
     }
 
+    /**
+     * Last resort for movies and episodes: when every playlist source failed, ask the Stremio addons for the same title
+     * and continue at the same position. Their streams become the new alternatives, so later failures switch among them.
+     */
+    var stremioTried by remember { mutableStateOf(false) }
+    fun stremioFallback(): Boolean {
+        if (stremioTried || cur.live || cur.archive != null || Stremio.addons.none { it.streams }) return false
+        stremioTried = true
+        val at = player.currentPosition.coerceAtLeast(0L)
+        val series = cur.season > 0 || cur.episode > 0
+        val base = cur.title.replace(Regex("\\s+S\\d+\\s*E\\d+\\s*$"), "")
+        val failed = cur.url
+        scope.launch {
+            val probe = Item("probe", if (series) Kind.SERIES else Kind.MOVIE, base, null, "", null, "")
+            val id = Stremio.imdbFor(probe, null)
+            val list = if (id == null) emptyList() else Stremio.streams(probe.kind, id, cur.season.coerceAtLeast(1), cur.episode.coerceAtLeast(1))
+            val s = list.firstOrNull { it.url !in triedUrls && it.url != failed }
+            if (s == null) { msg = "No working source in your playlist or your Stremio addons.  " + Lang.tr("Zurück mit der Zurück-Taste."); return@launch }
+            triedUrls.add(failed)
+            retries = 0; pError = false; msg = null
+            val q = { n: Int -> when (n) { 3 -> "4K"; 2 -> "FHD"; 1 -> "HD"; else -> null } }
+            cur = cur.copy(url = s.url, startMs = if (at > 0) at else cur.startMs, note = null,
+                alts = list.map { Variant(it.url, it.label, q(it.q), null) })
+            notice = "Playlist source failed – playing from " + s.addon
+        }
+        return true
+    }
+
     /** Audio and subtitles according to settings and the remembered choice for this title. */
     fun applyTrackPrefs() {
         val mem = TrackMemory.get(ctx, cur.itemId)
@@ -716,6 +745,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     // Finally failed: remember the link (only if the link is the cause) and try another source
                     if (cur.archive == null && DeadLinkLogic.counts(status, decoder, DeviceCaps.online(ctx))) DeadLinks.fail(ctx, cur.url, DeadLinkLogic.permanent(status))
                     if (switchSource(if (decoder) "Format nicht abspielbar" else "Quelle gestört", sameFirst = !decoder)) { pError = false; msg = null }
+                    else if (stremioFallback()) { msg = "Looking for another source in your Stremio addons …" }
                     else if (cur.archive != null) msg = "Diese Sendung ist im Archiv des Anbieters nicht abrufbar.  Zurück = Live-Sender."
                     else { msg = Lang.tr(playbackErrorText(e.errorCode, status, cur.live, TlsFallback.isHostMismatch(e))) + "  " + Lang.tr("Zurück mit der Zurück-Taste."); if (Boomer.enabled) boomerFail = true }
                 }

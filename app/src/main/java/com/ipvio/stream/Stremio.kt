@@ -137,6 +137,24 @@ object Stremio {
         list
     }
 
+    /** Search Stremio's catalog (movies and series) for [q]; no key needed. Best matches first, at most 20 per type. */
+    suspend fun search(q: String): List<Meta> = coroutineScope {
+        listOf(Kind.MOVIE, Kind.SERIES).map { k ->
+            async(Dispatchers.IO) {
+                runCatching {
+                    val metas = JSONObject(get(StremioLogic.searchUrl(k, q))).optJSONArray("metas") ?: JSONArray()
+                    (0 until metas.length()).mapNotNull { i ->
+                        val o = metas.optJSONObject(i) ?: return@mapNotNull null
+                        val id = o.optString("imdb_id").ifBlank { o.optString("id") }
+                        if (!StremioLogic.isImdb(id)) null
+                        else Meta(id, o.optString("name"), o.optString("poster").takeIf { it.startsWith("http") },
+                            StremioLogic.year(o.optString("releaseInfo")), k == Kind.SERIES)
+                    }.take(20)
+                }.getOrDefault(emptyList())
+            }
+        }.awaitAll().flatten()
+    }
+
     /** A catalog title as an app item (opens the stream list; plays like any movie). */
     fun itemOf(m: Meta): Item = Item("stremio:" + m.imdb, if (m.series) Kind.SERIES else Kind.MOVIE, m.name, m.year, "", m.poster, "Stremio")
 
