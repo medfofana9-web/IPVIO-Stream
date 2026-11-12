@@ -1,6 +1,7 @@
 package com.ipvio.stream
 
 import androidx.compose.animation.Crossfade
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -93,12 +94,28 @@ class PivotSpec(private val pivot: Float, private val list: () -> androidx.compo
     }
 }
 
+/**
+ * Fof TV: the title the focus has rested on for [ms]. While the remote is held or pressed quickly the big picture and its
+ * info stay put, so no full-screen image is loaded, decoded and cross-faded for every card passed (that made scrolling stutter).
+ */
+@Composable
+fun <T> rememberSettled(value: T, ms: Long): T {
+    var settled by remember { mutableStateOf(value) }
+    LaunchedEffect(value) {
+        if (settled == null) { settled = value; return@LaunchedEffect }
+        kotlinx.coroutines.delay(ms)
+        settled = value
+    }
+    return settled
+}
+
 /** Full-screen background with the scene image of the title; without an image a gradient from the title color. */
 @Composable
-fun BillboardBackdrop(item: Item?, modifier: Modifier = Modifier) {
+fun BillboardBackdrop(item0: Item?, modifier: Modifier = Modifier) {
+    val item = rememberSettled(item0, 280)
     Box(modifier.background(Bg)) {
         // 17c: calm picture (no constant zoom), medium image size (w780) instead of full resolution – saves memory and computing time
-        Crossfade(item, animationSpec = tween(if (Look.motion == 0) 0 else 600), label = "bb") { it0 ->
+        Crossfade(item, animationSpec = tween(if (Look.motion == 0) 0 else 320), label = "bb") { it0 ->
             if (it0 != null) {
                 val m = rememberMeta(it0)
                 val url = m?.backdrop?.let { b -> cardBackdrop(b) } ?: m?.poster?.let { p -> cardPoster(p) }
@@ -114,18 +131,17 @@ fun BillboardBackdrop(item: Item?, modifier: Modifier = Modifier) {
 
 /** Info about the selected title at the top left (like the big picture, but for every selected title). */
 @Composable
-fun BillboardInfo(item: Item, modifier: Modifier = Modifier) {
-    Crossfade(item, animationSpec = tween(if (Look.motion == 0) 0 else 450), label = "bbi", modifier = modifier) { c ->
+fun BillboardInfo(item0: Item, modifier: Modifier = Modifier) {
+    val item = rememberSettled(item0, 220)
+    Crossfade(item, animationSpec = tween(if (Look.motion == 0) 0 else 220), label = "bbi", modifier = modifier) { c ->
         val m = rememberFullMeta(c, rememberMeta(c))
         Column(Modifier.widthIn(max = dpx(980)), verticalArrangement = Arrangement.spacedBy(dpx(14))) {
             Kicker(Lang.tr(kindLabel(c.kind)) + (qualityOf(c)?.let { q -> "  ·  " + q.uppercase() } ?: ""))
             // The info block must fit into the space above the selected row: title always single-line (long titles smaller),
             // description at most two lines. Otherwise it runs into the row title.
             val tsz = if (c.title.length <= 24) 84 else if (c.title.length <= 34) 66 else 54
-            Text(
-                raw = true, text = c.title, color = Tok.TextHi, fontSize = spx(tsz), lineHeight = spx(84),
-                fontWeight = FontWeight.ExtraBold, letterSpacing = (-1.5).sp, maxLines = 1, overflow = TextOverflow.Ellipsis
-            )
+            // Apple TV style: the official title logo when there is one, otherwise the title in large type
+            HeroTitle(c, m, tsz, dpx(620), dpx(150))
             HeroMetaLine(c, m, dots = false)
             m?.overview?.takeIf { it.isNotBlank() }?.let {
                 Text(raw = true, text = TitleText.short(it, 170), color = Tok.TextMid, fontSize = spx(20), lineHeight = spx(29), maxLines = 2, overflow = TextOverflow.Ellipsis)

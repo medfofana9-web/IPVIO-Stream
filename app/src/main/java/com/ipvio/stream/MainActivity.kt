@@ -78,6 +78,7 @@ class MainActivity : ComponentActivity() {
         ScreenAwake.attach(this)
         intent?.getStringExtra(Reminders.EXTRA_CH)?.let { AppNav.openChannel = it }
         if (BuildConfig.VERSION_NAME.endsWith("-test")) intent?.getStringExtra("fof_test_url")?.let { AppNav.testUrl = it }
+        if (BuildConfig.VERSION_NAME.endsWith("-test")) intent?.getStringExtra("fof_test_playlist")?.let { AppNav.testPlaylist = it }
         setContent { App(pick) }
     }
 
@@ -339,7 +340,8 @@ private fun AppContent() {
         if (!i.id.startsWith("stremio:")) openNow(i)
         else openScope.launch {
             val quick = kotlinx.coroutines.withTimeoutOrNull(250) { Catalog.resolve(i, all) }
-            if (quick != null) { openNow(quick); return@launch }
+            // Back from the title page returns the focus to the catalog card that was pressed
+            if (quick != null) { openNow(quick); LastFocus.pending = i.id; return@launch }
             openNow(i)
             val r = Catalog.resolve(i, all)
             if (r !== i && (top as? Item)?.id == i.id) top = r
@@ -349,6 +351,12 @@ private fun AppContent() {
     LaunchedEffect(all) { Catalog.warm(all) }
 
     // Launch test: play a test stream like a live channel
+    // Performance test: load the given playlist once, without asking for languages
+    LaunchedEffect(Unit) {
+        val u = AppNav.testPlaylist ?: return@LaunchedEffect
+        AppNav.testPlaylist = null
+        if (PlaylistStore.savedUrl(ctx) != u) PlaylistStore.load(ctx, u, true, ask = false)
+    }
     LaunchedEffect(AppNav.testUrl) {
         val u = AppNav.testUrl ?: return@LaunchedEffect
         AppNav.testUrl = null

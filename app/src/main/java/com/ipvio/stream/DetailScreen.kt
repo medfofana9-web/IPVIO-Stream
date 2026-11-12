@@ -206,6 +206,7 @@ private fun DetailScreenFull(
     var stremioAt by remember(item.id) { mutableStateOf<Pair<Int, Int>?>(null) }
     // Play / episode pressed (not the "Stremio" button): one-click play may start the best stream at once
     var stremioAuto by remember(item.id) { mutableStateOf(false) }
+    var showMore by remember(item.id) { mutableStateOf(false) }
     val isTv = meta?.isTv == true
     // Long seasons (One Piece & co.): fetch TMDB seasons to use them as sections
     val needTmdbSeasons = remember(item) {
@@ -523,19 +524,11 @@ private fun DetailScreenFull(
                                         playUrl?.let { onPlay(it, item.title + (if (item.kind == Kind.SERIES) " S" + season + "E" + (eps.firstOrNull()?.num ?: 1) else ""), 0L) }
                                     }
                                 }
-                                // Stremio addons (Settings > Stremio addons): extra streams for this title
-                                if (Stremio.addons.isNotEmpty() && item.kind != Kind.LIVE) {
-                                    HeroButton("Stremio", AIcon.Globe, false, Modifier, bh) { stremioAuto = false; showStremio = true }
-                                }
-                            }
-                            Row(horizontalArrangement = Arrangement.spacedBy(dpx(12))) {
+                                // Fof TV: one calm row – Play, My List, Trailer, More. Everything used rarely is in "More"
                                 val inList = Library.isWatch(item.id)
                                 HeroButton(if (inList) "In Meiner Liste" else "Meine Liste", if (inList) AIcon.Check else AIcon.Plus, false, Modifier, bh) { Library.toggleWatch(ctx, item.id) }
-                                // Round 14: movies and series as favorites (appear under "Favorites")
-                                val fav = Library.isFav(item.id)
-                                HeroButton(if (fav) "Favorit" else "Zu Favoriten", if (fav) AIcon.HeartFilled else AIcon.Heart, false, Modifier, bh) { Library.toggleFav(ctx, item.id) }
                                 HeroButton("Trailer", AIcon.Play, false, Modifier, bh) { openTrailer(ctx, meta?.trailerKey, item.title) }
-                                HeroButton("Extern", AIcon.External, false, Modifier, bh) { playUrl?.let { openExternal(ctx, it, item.title) } }
+                                HeroButton("More", AIcon.Gear, false, Modifier, bh) { showMore = true }
                             }
                             if (showStremio) {
                                 val rs = resumeSE?.takeIf { it.first == season }
@@ -545,43 +538,40 @@ private fun DetailScreenFull(
                                     onPlay, { showStremio = false; stremioAt = null }, auto = stremioAuto
                                 )
                             }
-                            // Watched by hand: movie, season, whole series (also reachable per episode: long OK / menu key on the row)
-                            Row(horizontalArrangement = Arrangement.spacedBy(dpx(12))) {
+                            if (showMore) {
                                 // A finished resume point would otherwise keep offering "Continue"
                                 fun dropResume(keys: Collection<Long>) {
                                     if (resume == null) return
                                     val rk = resumeSE?.let { ResumeLogic.key(it.first, it.second) }
                                     if (item.kind != Kind.SERIES || rk in keys) WatchStore.remove(ctx, item.id)
                                 }
+                                val acts = ArrayList<Triple<String, AIcon?, () -> Unit>>()
+                                if (Stremio.addons.isNotEmpty() && item.kind != Kind.LIVE) acts.add(Triple("Choose a stream", AIcon.Globe) { stremioAuto = false; showStremio = true })
+                                val fav = Library.isFav(item.id)
+                                acts.add(Triple(if (fav) "Aus Favoriten entfernen" else "Zu Favoriten", if (fav) AIcon.HeartFilled else AIcon.Heart) { Library.toggleFav(ctx, item.id) })
+                                if (!playUrl.isNullOrBlank()) acts.add(Triple("Extern", AIcon.External) { playUrl?.let { openExternal(ctx, it, item.title) } })
                                 if (item.kind == Kind.SERIES) {
                                     val seasonKeys = eps.map { ResumeLogic.key(it.season, it.num) }
                                     val seasonSeen = seasonKeys.isNotEmpty() && seasonKeys.all { progress[it]?.done == true }
-                                    HeroButton(if (seasonSeen) "Staffel zurücksetzen" else "Staffel gesehen", if (seasonSeen) AIcon.Rewind else AIcon.Check, false, Modifier, bh) {
-                                        EpProgress.mark(ctx, item.id, seasonKeys, !seasonSeen)
-                                        if (!seasonSeen) dropResume(seasonKeys)
-                                        progVer++
-                                    }
+                                    acts.add(Triple(if (seasonSeen) "Staffel zurücksetzen" else "Staffel gesehen", if (seasonSeen) AIcon.Rewind else AIcon.Check) {
+                                        EpProgress.mark(ctx, item.id, seasonKeys, !seasonSeen); if (!seasonSeen) dropResume(seasonKeys); progVer++
+                                    })
                                     if (seasons.size > 1) {
                                         val allKeys = item.episodes.map { ResumeLogic.key(it.season, it.num) }
                                         val allSeen = allKeys.isNotEmpty() && allKeys.all { progress[it]?.done == true }
-                                        HeroButton(if (allSeen) "Serie zurücksetzen" else "Serie gesehen", if (allSeen) AIcon.Rewind else AIcon.Check, false, Modifier, bh) {
-                                            EpProgress.mark(ctx, item.id, allKeys, !allSeen)
-                                            if (!allSeen) dropResume(allKeys)
-                                            progVer++
-                                        }
+                                        acts.add(Triple(if (allSeen) "Serie zurücksetzen" else "Serie gesehen", if (allSeen) AIcon.Rewind else AIcon.Check) {
+                                            EpProgress.mark(ctx, item.id, allKeys, !allSeen); if (!allSeen) dropResume(allKeys); progVer++
+                                        })
                                     }
                                 } else if (item.kind == Kind.MOVIE) {
                                     val k = ResumeLogic.key(0, 0)
                                     val seen = progress[k]?.done == true
-                                    HeroButton(if (seen) "Als ungesehen markieren" else "Als gesehen markieren", if (seen) AIcon.Rewind else AIcon.Check, false, Modifier, bh) {
-                                        EpProgress.mark(ctx, item.id, listOf(k), !seen)
-                                        if (!seen) dropResume(listOf(k))
-                                        progVer++
-                                    }
+                                    acts.add(Triple(if (seen) "Als ungesehen markieren" else "Als gesehen markieren", if (seen) AIcon.Rewind else AIcon.Check) {
+                                        EpProgress.mark(ctx, item.id, listOf(k), !seen); if (!seen) dropResume(listOf(k)); progVer++
+                                    })
                                 }
-                                if (item.id in History.ids) {
-                                    HeroButton("Aus „Zuletzt geschaut“ entfernen", AIcon.Close, false, Modifier, bh) { History.remove(ctx, item.id) }
-                                }
+                                if (item.id in History.ids) acts.add(Triple("Aus „Zuletzt geschaut“ entfernen", AIcon.Close) { History.remove(ctx, item.id) })
+                                OptionPopup(acts.map { it.first }, -1, { showMore = false }, acts.map { it.second }) { i -> showMore = false; acts[i].third() }
                             }
                         }
                         if (item.kind == Kind.MOVIE && movieAlts.size > 1) Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {

@@ -593,7 +593,10 @@ fun HomeScreen(
                                 if (!HomeLayout.shown(blockId)) continue
                                 when (blockId) {
                                     "tiles" -> { item(key = "tiles") { QuickTiles(tiles) } }
-                                    "stremio" -> Catalog.home().forEach { sp -> item(key = "cm" + sp.title) { CatalogRow(sp, cardW, onOpen, onBrowse) } }
+                                    "stremio" -> {
+                                        val topIds = trendTop.mapTo(HashSet()) { it.id }
+                                        Catalog.home().forEach { sp -> item(key = "cm" + sp.title) { CatalogRow(sp, cardW, onOpen, onBrowse, topIds) } }
+                                    }
                                     "sportlive" -> { item(key = "sportlive") { LiveSportsRow(live, onOpen) { onTab(MenuLogic.SPORT) } } }
                                     "clock" -> { item(key = "clock") { ClockWidget() } }
                                     // Continue watching directly under the tiles: whoever watches a lot wants to continue in few clicks
@@ -761,11 +764,12 @@ object PillMemory {
 
 /** One catalog row: shown at once from the saved list, refreshed in the background; keeps its height while loading. */
 @Composable
-private fun CatalogRow(spec: Catalog.Spec, cardW: Int, onOpen: (Item) -> Unit, onBrowse: (BrowseReq) -> Unit) {
+private fun CatalogRow(spec: Catalog.Spec, cardW: Int, onOpen: (Item) -> Unit, onBrowse: (BrowseReq) -> Unit, exclude: Set<String> = emptySet()) {
     val scope = rememberCoroutineScope()
     // null = still loading (the row keeps its place); empty after loading (no network) = the row is left out
     val got by produceState(Catalog.cached(spec).ifEmpty { null }, spec) { value = Catalog.items(spec) }
-    val list = got
+    // Titles already in Top 10 right above are not repeated
+    val list = remember(got, exclude) { got?.let { l -> if (exclude.isEmpty()) l else l.filter { it.id !in exclude } } }
     if (list == null) { Spacer(Modifier.fillMaxWidth().height(dpx(300))); return }
     if (list.isEmpty()) return
     ItemsRow(spec.title, list, cardW, onOpen) { scope.launch { onBrowse(BrowseReq(spec.title, Catalog.items(spec, 4), SORT_PLAYLIST)) } }
