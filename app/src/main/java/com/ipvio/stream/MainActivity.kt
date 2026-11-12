@@ -325,9 +325,19 @@ private fun AppContent() {
         if (i.kind == Kind.LIVE) start(i, i.title, i.url) else pushTop(i)
     }
     // Fof TV: a catalog title (Cinemeta) opens as the provider's copy when the playlist has it, otherwise with addon streams
+    // The title page opens at once; when the provider's copy is found it takes the catalog title's place
     val open: (Item) -> Unit = { i ->
-        if (i.id.startsWith("stremio:")) openScope.launch { openNow(Catalog.resolve(i, all)) } else openNow(i)
+        if (!i.id.startsWith("stremio:")) openNow(i)
+        else openScope.launch {
+            val quick = kotlinx.coroutines.withTimeoutOrNull(250) { Catalog.resolve(i, all) }
+            if (quick != null) { openNow(quick); return@launch }
+            openNow(i)
+            val r = Catalog.resolve(i, all)
+            if (r !== i && (top as? Item)?.id == i.id) top = r
+        }
     }
+    // Match index for catalog titles, built in the background whenever the playlist changes (opening stays instant)
+    LaunchedEffect(all) { Catalog.warm(all) }
 
     // Launch test: play a test stream like a live channel
     LaunchedEffect(AppNav.testUrl) {
@@ -491,7 +501,7 @@ private fun AppContent() {
                 tab = tab, onTab = { goTab(it) }, states = states,
                 onOpen = open,
                 onPlayNow = { i0 -> openScope.launch {
-                    val i = Catalog.resolve(i0, all)
+                    val i = kotlinx.coroutines.withTimeoutOrNull(400) { Catalog.resolve(i0, all) } ?: i0
                     LastFocus.pending = i.id
                     // Not in the playlist: the detail page offers the addon streams
                     if (i.kind == Kind.SERIES || i.url.isBlank()) pushTop(i) else { if (i.kind != Kind.LIVE && !i.id.startsWith("rec:")) pushTop(i); start(i, i.title, i.url) }

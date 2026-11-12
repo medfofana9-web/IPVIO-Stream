@@ -590,7 +590,7 @@ fun CardRow(
 ) {
     val g = LocalCardGrid.current
     val live = list.firstOrNull()?.kind == Kind.LIVE
-    // Highlight stays in the middle (round 15/16): the row slides through under the highlight
+    // Highlight sits in the first slot of the row (Fof TV, Netflix-style); the row slides under it
     var cur by remember { mutableIntStateOf(-1) }
     CenterGlide(state, cur)
     Column {
@@ -609,9 +609,10 @@ fun CardRow(
         ) {
             itemsIndexed(list.take(60)) { i, it ->
                 val fr = if (i == 0) Modifier.focusRequester(firstCard) else Modifier
-                // Up on a card highlights "Show all" of the same row (otherwise hard to reach)
+                // Up/Down go straight to the row above/below (same column). "Show all" is reached with Right on the last card
+                val last = i == minOf(list.size, 60) - 1
                 val track = Modifier.onPreviewKeyEvent { ev ->
-                    if (onAll != null && ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionUp) runCatching { linkReq.requestFocus() }.getOrDefault(false)
+                    if (last && onAll != null && ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionRight) runCatching { linkReq.requestFocus() }.getOrDefault(false)
                     else false
                 }.onFocusChanged { st -> if (st.hasFocus) cur = i }
                 when {
@@ -643,7 +644,9 @@ fun CenterGlide(state: LazyListState, cur: Int) {
         val info = state.layoutInfo
         val x = info.visibleItemsInfo.firstOrNull { it.index == cur }
         if (x == null) { state.scrollToItem(cur); return@LaunchedEffect }
-        val d = x.offset + x.size / 2f - info.viewportSize.width / 2f
+        // Netflix-style: the selected card always sits in the first slot of the row. Every row keeps its card in the same
+        // place, so Up/Down lands in the same column (centering put each row's card somewhere else)
+        val d = x.offset.toFloat()
         if (kotlin.math.abs(d) < 1.5f) return@LaunchedEffect
         if (Look.motion == 0) state.scrollBy(d)
         else state.animateScrollBy(d, tween(230, easing = androidx.compose.animation.core.FastOutSlowInEasing))

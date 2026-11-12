@@ -191,7 +191,10 @@ object Catalog {
 
     private var ixOf: List<Item>? = null
     private var ix: Map<String, List<Item>> = emptyMap()
-    @Synchronized private fun index(all: List<Item>): Map<String, List<Item>> {
+    private val ixLock = Any()
+    // Own lock: building the index for a big playlist must not hold up the catalog's disk cache
+    private fun index(all: List<Item>): Map<String, List<Item>> = synchronized(ixLock) { indexLocked(all) }
+    private fun indexLocked(all: List<Item>): Map<String, List<Item>> {
         if (ixOf === all) return ix
         val m = HashMap<String, MutableList<Item>>()
         for (i in all) {
@@ -202,6 +205,8 @@ object Catalog {
         ix = m; ixOf = all
         return m
     }
+
+    suspend fun warm(all: List<Item>) { withContext(Dispatchers.Default) { index(all) } }
 
     /** A Cinemeta title opens as the playlist's own copy when the provider has it (same name, year ±1). */
     suspend fun resolve(i: Item, all: List<Item>): Item {

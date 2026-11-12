@@ -201,6 +201,11 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
         }
     }
     HubFocusRestore(nav)
+    // Back on Live, Schedule, Leagues … (e.g. after picking Basketball) returns to the sports overview first
+    androidx.activity.compose.BackHandler(enabled = nav.stack.isEmpty() && tab != 0) {
+        tab = 0; HubMemory.tab = 0; sport = null; HubMemory.sport = null
+        runCatching { ContentFocus.req.requestFocus() }
+    }
     nav.stack.forEachIndexed { i, p ->
         key(i, p) {
             when (p) {
@@ -278,51 +283,36 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
     val top = m.top
     val popular = m.popular
     val newsLeagues = m.newsLeagues
-    LazyColumn(contentPadding = PaddingValues(horizontal = DS.PageX, vertical = dpx(8)), verticalArrangement = Arrangement.spacedBy(dpx(18))) {
+    // Fof TV (Nuvio style): wide game tiles in rows – My teams, Live now, then one row per sport
+    val bySport = remember(games) {
+        val order = listOf("soccer", "basketball", "nfl", "nhl", "mlb", "ufc", "tennis", "f1", "golf", "cricket")
+        games.groupBy { SportData.sportOf(it) }
+            .mapValues { (_, l) -> l.sortedWith(compareBy({ when (it.state) { 1 -> 0; 0 -> 1; else -> 2 } }, { if (SportHubFavs.isFavGame(it)) 0 else 1 }, { popularity(it) }, { it.start })) }
+            .toList().sortedBy { (k, _) -> order.indexOf(k).let { if (it < 0) 99 else it } }
+    }
+    LazyColumn(contentPadding = PaddingValues(horizontal = DS.PageX, vertical = dpx(8)), verticalArrangement = Arrangement.spacedBy(dpx(26))) {
         when {
-            top != null -> item(key = "featured") { FeaturedPanel(top, hub) }
+            games.isNotEmpty() -> {}
             feed.loading -> item(key = "load") { HubLoading("Lade Spiele …") }
             feed.failed -> item(key = "err") {
                 HubEmpty(AIcon.Warning, "Daten konnten nicht geladen werden", "ESPN antwortet gerade nicht. Prüfe die Internetverbindung und versuche es erneut.", "Erneut versuchen") { onRetry() }
             }
             else -> item(key = "empty") { HubEmpty(AIcon.Info, "Heute keine Spiele gefunden.", "In deinen Ligen ist heute nichts angesetzt. Im Spielplan siehst du die nächsten Tage.", "Spielplan öffnen") { hub.goTab(2, null) } }
         }
-        // Fof TV: My Teams first – your teams' games with a countdown, and auto-tune at the start
         val mine = games.filter { SportFavs.isFavGame(it) && it.state != 2 }.sortedBy { if (it.state == 1) 0L else it.start }
         if (mine.isNotEmpty()) item(key = "myteams") {
             GameDay.init(ctx)
             var auto by remember { mutableStateOf(GameDay.autoTeams) }
             HubSectionTitle("My teams", raw = true, action = if (auto) "Auto-tune: on" else "Auto-tune: off") { auto = !auto; GameDay.setAutoTeams(ctx, auto) }
-            Spacer(Modifier.height(dpx(8)))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(14)), contentPadding = PaddingValues(vertical = dpx(8))) {
-                items(mine.take(12), key = { "my" + it.key }) { g ->
-                    Column(verticalArrangement = Arrangement.spacedBy(dpx(6))) {
-                        MatchCard(g, hub.chans(g).isNotEmpty()) { if (g.state == 1) hub.watch(g) else hub.open(g) }
-                        Text(raw = true, text = countdown(g), color = if (g.state == 1) Accent2 else Muted, fontSize = spx(14), fontWeight = FontWeight.SemiBold)
-                    }
-                }
+            Spacer(Modifier.height(dpx(10)))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(18)), contentPadding = PaddingValues(vertical = dpx(10))) {
+                items(mine.take(12), key = { "my" + it.key }) { g -> GameTile(g, hub) }
             }
         }
-        if (liveMine.isNotEmpty()) item(key = "live") {
-            HubSectionTitle("Jetzt live", action = "Alle zeigen") { hub.goTab(1, null) }
-            Spacer(Modifier.height(dpx(8)))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(14)), contentPadding = PaddingValues(vertical = dpx(8))) {
-                items(liveMine.take(30), key = { it.key }) { g -> MatchCard(g, true) { hub.open(g) } }
-            }
-        }
-        if (upcoming.isNotEmpty()) item(key = "up") {
-            HubSectionTitle("Demnächst", action = "Spielplan") { hub.goTab(2, null) }
-            Spacer(Modifier.height(dpx(8)))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(14)), contentPadding = PaddingValues(vertical = dpx(8))) {
-                items(upcoming.take(30), key = { it.key }) { g -> MatchCard(g, g.key in m.withCh) { hub.open(g) } }
-            }
-        }
-        if (finals.isNotEmpty()) item(key = "fin") {
-            HubSectionTitle("Ergebnisse von heute")
-            Spacer(Modifier.height(dpx(8)))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(14)), contentPadding = PaddingValues(vertical = dpx(8))) {
-                items(finals.take(30), key = { it.key }) { g -> MatchCard(g, false) { hub.open(g) } }
-            }
+        val liveAll = games.filter { it.state == 1 }.sortedWith(compareBy({ if (it.key in m.withCh) 0 else 1 }, { if (SportHubFavs.isFavGame(it)) 0 else 1 }, { popularity(it) }))
+        if (liveAll.isNotEmpty()) item(key = "live") { GameTileRow("Live now", liveAll, hub) { hub.goTab(1, null) } }
+        bySport.forEach { (sp, l) ->
+            if (l.isNotEmpty()) item(key = "sp$sp") { GameTileRow(SportShowcase.title(sp), l, hub) { hub.goTab(1, sp) } }
         }
         if (popular.isNotEmpty()) item(key = "leagues") {
             HubSectionTitle("Beliebte Ligen", action = "Alle Ligen") { hub.goTab(3, null) }
