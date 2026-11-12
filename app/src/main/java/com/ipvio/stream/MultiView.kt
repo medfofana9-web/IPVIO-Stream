@@ -59,9 +59,10 @@ object MultiViewLogic {
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun MultiViewScreen(live: List<Item>, onClose: () -> Unit) {
-    val slots = remember { mutableStateListOf<Item>().also { it.addAll(MultiViewLogic.startChannels(live, Library.favs.toList(), History.ids.toList())) } }
-    var layout by remember { mutableIntStateOf(MultiViewLogic.GRID) }
+fun MultiViewScreen(live: List<Item>, start: List<Item>? = null, onClose: () -> Unit) {
+    // [start]: channels picked by the caller (sports: one per live game); 3 or 4 open the 2 x 2 layout
+    val slots = remember { mutableStateListOf<Item>().also { it.addAll(start?.take(4) ?: MultiViewLogic.startChannels(live, Library.favs.toList(), History.ids.toList())) } }
+    var layout by remember { mutableIntStateOf(if ((start?.size ?: 0) > 2) MultiViewLogic.QUAD else MultiViewLogic.GRID) }
     var audio by remember { mutableIntStateOf(0) }
     var picking by remember { mutableIntStateOf(-1) }
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {

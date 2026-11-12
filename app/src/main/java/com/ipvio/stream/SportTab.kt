@@ -424,7 +424,7 @@ private fun GameTeam(t: SportData.Team, state: Int) {
             fontSize = spx(18), fontWeight = if (t.winner) FontWeight.ExtraBold else FontWeight.SemiBold,
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
         )
-        if (state != 0 && t.score != null) Text(raw = true, text = t.score, color = Color.White, fontSize = spx(22), fontWeight = FontWeight.ExtraBold)
+        if (state != 0 && t.score != null && !SportPrefs.hideScores) Text(raw = true, text = t.score, color = Color.White, fontSize = spx(22), fontWeight = FontWeight.ExtraBold)
     }
 }
 

@@ -85,7 +85,7 @@ internal fun teamColor(hex: String?): Color? = try {
 
 /** Score line "2 – 1", for upcoming games "vs". */
 internal fun scoreLine(g: SportData.Game): String =
-    if (g.state == 0 || (g.home.score == null && g.away.score == null)) "vs" else (g.home.score ?: "–") + " – " + (g.away.score ?: "–")
+    if (g.state == 0 || SportPrefs.hideScores || (g.home.score == null && g.away.score == null)) "vs" else (g.home.score ?: "–") + " – " + (g.away.score ?: "–")
 
 // ───────── Navigation inside the hub (pages above the tabs) ─────────
 
@@ -282,6 +282,11 @@ internal fun TeamName(t: SportData.Team, state: Int, modifier: Modifier, end: Bo
 @Composable
 internal fun MatchCard(g: SportData.Game, hasChan: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     HubCardBox(modifier.width(dpx(330)), onClick = onClick) {
+        // Fof TV: the two team colors as a thin band on top of the card
+        if (!g.solo) Row(Modifier.fillMaxWidth().height(dpx(4)).clip(RoundedCornerShape(50))) {
+            Box(Modifier.weight(1f).fillMaxHeight().background(teamColor(g.away)))
+            Box(Modifier.weight(1f).fillMaxHeight().background(teamColor(g.home)))
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.weight(1f)) { MatchStatus(g) }
             if (SportHubFavs.isFavGame(g)) AppIcon(AIcon.Star, DS.Gold, size = dpx(18))
@@ -300,8 +305,9 @@ internal fun MatchCard(g: SportData.Game, hasChan: Boolean, modifier: Modifier =
             if (g.field.isEmpty()) Text("Noch keine Ergebnisse", color = Muted, fontSize = spx(13))
         } else listOf(g.home, g.away).forEach { t ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
+                Box(Modifier.width(dpx(4)).height(dpx(26)).clip(RoundedCornerShape(50)).background(teamColor(t)))
                 TeamName(t, g.state, Modifier.weight(1f))
-                Text(raw = true, text = t.score ?: "", color = Tok.TextHi, fontSize = spx(if ((t.score?.length ?: 0) > 6) 13 else 20), fontWeight = FontWeight.ExtraBold, maxLines = 1)
+                Text(raw = true, text = if (SportPrefs.hideScores) "" else t.score ?: "", color = Tok.TextHi, fontSize = spx(if ((t.score?.length ?: 0) > 6) 13 else 20), fontWeight = FontWeight.ExtraBold, maxLines = 1)
             }
         }
         if (hasChan) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(6))) {
@@ -556,8 +562,8 @@ internal fun MatchHeader(g: SportData.Game, logo: Int = 96) {
             MatchStatus(g, big = true)
             val long = (g.home.score?.length ?: 0) > 6 || (g.away.score?.length ?: 0) > 6
             if (long) {
-                Text(raw = true, text = g.home.score ?: "", color = Tok.TextHi, fontSize = spx(20), fontWeight = FontWeight.ExtraBold)
-                Text(raw = true, text = g.away.score ?: "", color = Tok.TextHi, fontSize = spx(20), fontWeight = FontWeight.ExtraBold)
+                Text(raw = true, text = if (SportPrefs.hideScores) "" else g.home.score ?: "", color = Tok.TextHi, fontSize = spx(20), fontWeight = FontWeight.ExtraBold)
+                Text(raw = true, text = if (SportPrefs.hideScores) "" else g.away.score ?: "", color = Tok.TextHi, fontSize = spx(20), fontWeight = FontWeight.ExtraBold)
             } else Text(raw = true, text = if (g.state == 0) hhmm(g.start) else scoreLine(g), color = Tok.TextHi, fontSize = spx(54), fontWeight = FontWeight.ExtraBold)
             val info = listOf(if (g.state == 0) dayLabel(g.start) else "", g.venue).filter { it.isNotBlank() }.joinToString(" · ")
             if (info.isNotBlank()) Text(raw = true, text = info, color = Muted, fontSize = spx(15), maxLines = 1)

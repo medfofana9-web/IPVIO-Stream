@@ -130,6 +130,11 @@ object General {
         // New font list (round 17): own key. Whoever had chosen another system font than "Default" before keeps it.
         fontIdx = if (p.contains("font2")) p.getInt("font2", 0).coerceIn(0, FONTS.lastIndex)
             else p.getInt("font", 0).let { old -> if (old in 1..4) old + 2 else 0 }
+        // Fof premium (once): Inter with all its weights instead of Outfit (which only has regular and bold)
+        if (!p.getBoolean("font_premium", false)) {
+            if (fontIdx == 0) fontIdx = 1
+            p.edit().putBoolean("font_premium", true).putInt("font2", fontIdx).apply()
+        }
         textScaleIdx = p.getInt("text_scale", 1).coerceIn(0, TEXT_SCALES.lastIndex)
         defaultAspect = p.getInt("aspect", 0).coerceIn(0, ASPECT_NAMES.lastIndex)
         heroSec = p.getInt("hero_sec", 9).coerceIn(0, 60)

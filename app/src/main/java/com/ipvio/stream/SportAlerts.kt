@@ -36,7 +36,8 @@ import kotlinx.coroutines.coroutineScope
  * The delay holds notifications back in case you watch the game itself with a delay (IPTV often lags 20–60 s).
  */
 object SportAlerts {
-    class Alert(val title: String, val text: String)
+    /** [game] set = OK in the player switches to it (close-game popup). */
+    class Alert(val title: String, val text: String, val game: SportData.Game? = null)
 
     var current by mutableStateOf<Alert?>(null)
     var enabled by mutableStateOf(true)
@@ -171,6 +172,7 @@ fun SportAlertHost() {
         ) {
             Text(a.title, color = Accent2, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
             Text(raw = true, text = a.text, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (a.game != null && SportSession.watching != null) Text(raw = true, text = "Press OK to watch", color = Color(0xFFB0B0B8), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         }
     }
     val games = SportAlerts.live

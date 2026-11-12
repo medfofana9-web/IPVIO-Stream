@@ -87,10 +87,10 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
                         // Channel lookups are built off the main thread (big playlists), then the game starts
                         val chans = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { SportWatch.prewarm(live); SportWatch.channels(g, live) }
                         if (chans.isNotEmpty()) {
-                            // Score box in the corner while watching: pin this game and switch the mini score window on
-                            if (!SportAlerts.isPinned(g)) SportAlerts.togglePin(ctx, g)
-                            if (!SportAlerts.miniOn) SportAlerts.setMini(ctx, on = true)
-                            ZapContext.list = chans; ZapContext.key = null; onOpen(chans[0])
+                            // The score bug of the player shows this game's score (SportSession)
+                            SportSession.start(g, chans, live)
+                            val l = SportSession.zapList().ifEmpty { chans }
+                            ZapContext.list = l; ZapContext.key = null; onOpen(SportSession.firstChannel() ?: chans[0])
                         } else onSports()
                     }
                 }

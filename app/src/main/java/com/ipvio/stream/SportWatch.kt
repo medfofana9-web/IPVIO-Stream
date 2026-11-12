@@ -222,7 +222,7 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
             "ESPN liefert keine Streams. Gesucht wird in deinem TV-Guide und in deinen Sendernamen. Du kannst den Sender auch selbst zuordnen; die App merkt sich das für dieses Spiel."
         ) else LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(bottom = dpx(30)), verticalArrangement = Arrangement.spacedBy(dpx(4))) {
             itemsIndexed(hits, key = { _, h -> h.ch.id }) { _, h ->
-                FRow({ hub.play(h.ch, hits.map { it.ch }) }) {
+                FRow({ hub.watchOn(g, h.ch, hits.map { it.ch }) }) {
                     TeamLogo(h.ch.logo, h.ch.title.take(2), dpx(44))
                     Column(Modifier.weight(1f)) {
                         Text(raw = true, text = h.ch.title, color = Tok.TextHi, fontSize = spx(18), fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -237,8 +237,10 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
                         Text(raw = true, text = why, color = Muted, fontSize = spx(14), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     val dead = DeadLinks.isDead(h.ch.url)
+                    val verified = !dead && SportSession.isVerified(ctx, h.ch.id)
                     Box(Modifier.size(dpx(10)).clip(RoundedCornerShape(50)).background(if (dead) DS.Gold else Accent2))
-                    Text(if (dead) "Gestört" else "Verfügbar", color = if (dead) DS.Gold else Accent2, fontSize = spx(15), fontWeight = FontWeight.SemiBold)
+                    if (verified) Text(raw = true, text = "Verified", color = Accent2, fontSize = spx(15), fontWeight = FontWeight.Bold)
+                    else Text(if (dead) "Gestört" else "Verfügbar", color = if (dead) DS.Gold else Accent2, fontSize = spx(15), fontWeight = FontWeight.SemiBold)
                 }
             }
         }

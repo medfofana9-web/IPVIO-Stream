@@ -28,7 +28,8 @@ object Look {
     const val DEFAULT_BG = 0
 
     val ACCENTS = listOf(
-        AccentPreset("Fof Coral", BRAND_GREEN, BRAND_GREEN_HI),
+        // Fof TV premium (Netflix-style red on true black); the earlier coral is kept as the last preset
+        AccentPreset("Fof Premium", 0xE50914, 0xFF7078),
         AccentPreset("Violett & Türkis", 0x7C5CFF, 0x00D4C8),
         AccentPreset("Ozean", 0x2F6FE0, 0x5CD6FF),
         AccentPreset("Smaragd", 0x0A7F58, 0x4ADE80),
@@ -39,7 +40,8 @@ object Look {
         AccentPreset("Eisblau", 0x0E7490, 0x67E8F9),
         AccentPreset("Limette", 0x4D7C0F, 0xBEF264),
         AccentPreset("Purpur", 0x7E22CE, 0xE879F9),
-        AccentPreset("Schiefer", 0x475569, 0xE2E8F0)
+        AccentPreset("Schiefer", 0x475569, 0xE2E8F0),
+        AccentPreset("Fof Coral", BRAND_GREEN, BRAND_GREEN_HI)
     )
     /** Color swatches for the custom color (2 rows of 10). */
     val SWATCHES = listOf(
@@ -50,7 +52,7 @@ object Look {
     val CUSTOM get() = ACCENTS.size
 
     val BGS = listOf(
-        BgPreset("Fof Black", BRAND_NAVY, 0x141418, 0x1E1E24),
+        BgPreset("Fof Black", 0x000000, 0x121214, 0x1C1C20),
         BgPreset("Mitternacht", 0x07080C, 0x12141C, 0x1B1E2A),
         BgPreset("OLED-Schwarz", 0x000000, 0x0B0C10, 0x15171E),
         BgPreset("Graphit", 0x121316, 0x1C1E24, 0x272A32),

@@ -355,7 +355,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.overviewItems(g: Spor
                 FRow {
                     TeamName(t, g.state, Modifier.weight(1f), logoSize = 24)
                     (0 until n).forEach { i -> Text(raw = true, text = ls.getOrElse(i) { "" }, color = Tok.TextHi, fontSize = spx(16), textAlign = TextAlign.Center, modifier = Modifier.width(dpx(56))) }
-                    Text(raw = true, text = t.score ?: "", color = Accent2, fontSize = spx(17), fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center, modifier = Modifier.width(dpx(80)))
+                    Text(raw = true, text = if (SportPrefs.hideScores) "" else t.score ?: "", color = Accent2, fontSize = spx(17), fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center, modifier = Modifier.width(dpx(80)))
                 }
             }
         }

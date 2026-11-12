@@ -43,7 +43,7 @@ class MainActivity : ComponentActivity() {
         if (!pick) AppSettings.init(this)
         General.init(this)
         Boomer.init(this)
-        HomeLayout.init(this); BoomerLayout.init(this); FofPrefs.init(this)
+        HomeLayout.init(this); BoomerLayout.init(this); FofPrefs.init(this); SportSession.init(this)
         // Fof TV: the settings website is always reachable on the local network (address: phone icon in the menu)
         RemoteHub.start(this)
         SidebarPrefs.init(this)
@@ -160,7 +160,7 @@ fun App(pick: Boolean = false) {
         else {
             LaunchedEffect(Unit) { delay(10_000); runCatching { SportAlerts.run(c.applicationContext) } }   // after the start: the playlist and the home screen come first
             LaunchedEffect(Unit) { delay(15_000); runCatching { GameDay.run(c.applicationContext) } }   // Fof Game Day: reminders and close-game alerts
-            Box(Modifier.fillMaxSize()) { AppContent(); SportAlertHost() }
+            Box(Modifier.fillMaxSize()) { AppContent(); SportPlayerOverlay(); SportAlertHost() }
         }
         // New version available: dialog with one button (above every screen)
         UpdatePromptHost()

@@ -90,8 +90,10 @@ http://h/x
     }
 
     @Test fun farben_firmenfarbenSindStandard() {
-        assertEquals(Look.BRAND_GREEN, Look.ACCENTS[0].fill)
-        assertEquals(0x0A0A0C, Look.BGS[0].bg)
+        // Fof premium: red on true black is the default; the coral stays available as the last preset
+        assertEquals(0xE50914, Look.ACCENTS[0].fill)
+        assertEquals(0x000000, Look.BGS[0].bg)
+        assertEquals(Look.BRAND_GREEN, Look.ACCENTS.last().fill)
         // Fof coral gets dark text, dark surfaces still get white
         assertEquals(ThemeMath.INK, ThemeMath.onAccent(Look.BRAND_GREEN))
         assertEquals(0xFFFFFF, ThemeMath.onAccent(0x7C5CFF))

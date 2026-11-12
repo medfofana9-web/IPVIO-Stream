@@ -85,7 +85,16 @@ class HubCtx(val nav: HubNav, val live: List<Item>, private val onPlay: (Item, L
     /** Watch Live: start the best channel directly, otherwise show the Watch Live page (assign by hand). */
     fun watch(g: SportData.Game) {
         val c = chans(g)
-        if (c.isNotEmpty()) play(c[0], c) else nav.open(HubPage.Watch(g))
+        if (c.isEmpty()) { nav.open(HubPage.Watch(g)); return }
+        // One press: best channel (verified ones first); failover, game switching and score bug come from the session
+        SportSession.start(g, c, live)
+        val first = SportSession.firstChannel() ?: c[0]
+        play(first, SportSession.zapList().ifEmpty { c })
+    }
+    /** A channel picked on the Watch Live page: same session, starting on that channel. */
+    fun watchOn(g: SportData.Game, ch: Item, c: List<Item>) {
+        SportSession.start(g, listOf(ch) + c.filter { it.id != ch.id }, live)
+        play(ch, SportSession.zapList().ifEmpty { c })
     }
     fun open(g: SportData.Game) = nav.open(HubPage.Match(g))
 }
@@ -278,6 +287,22 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
             }
             else -> item(key = "empty") { HubEmpty(AIcon.Info, "Heute keine Spiele gefunden.", "In deinen Ligen ist heute nichts angesetzt. Im Spielplan siehst du die nächsten Tage.", "Spielplan öffnen") { hub.goTab(2, null) } }
         }
+        // Fof TV: My Teams first – your teams' games with a countdown, and auto-tune at the start
+        val mine = games.filter { SportFavs.isFavGame(it) && it.state != 2 }.sortedBy { if (it.state == 1) 0L else it.start }
+        if (mine.isNotEmpty()) item(key = "myteams") {
+            GameDay.init(ctx)
+            var auto by remember { mutableStateOf(GameDay.autoTeams) }
+            HubSectionTitle("My teams", raw = true, action = if (auto) "Auto-tune: on" else "Auto-tune: off") { auto = !auto; GameDay.setAutoTeams(ctx, auto) }
+            Spacer(Modifier.height(dpx(8)))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(14)), contentPadding = PaddingValues(vertical = dpx(8))) {
+                items(mine.take(12), key = { "my" + it.key }) { g ->
+                    Column(verticalArrangement = Arrangement.spacedBy(dpx(6))) {
+                        MatchCard(g, hub.chans(g).isNotEmpty()) { if (g.state == 1) hub.watch(g) else hub.open(g) }
+                        Text(raw = true, text = countdown(g), color = if (g.state == 1) Accent2 else Muted, fontSize = spx(14), fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
         if (liveMine.isNotEmpty()) item(key = "live") {
             HubSectionTitle("Jetzt live", action = "Alle zeigen") { hub.goTab(1, null) }
             Spacer(Modifier.height(dpx(8)))
@@ -353,6 +378,18 @@ private fun FeaturedPanel(g: SportData.Game, hub: HubCtx) {
 
 private fun sportMatch(g: SportData.Game, sport: String?) = sport == null || SportData.sportOf(g) == sport
 
+/** "Live now", "Starts in 2h 14m", "Tomorrow" for the My Teams row. */
+private fun countdown(g: SportData.Game): String {
+    if (g.state == 1) return "Live now  ·  OK to watch"
+    val s = g.start - System.currentTimeMillis() / 1000
+    return when {
+        s <= 0 -> "Starting"
+        s < 3600 -> "Starts in " + (s / 60) + " min"
+        s < 86400 -> "Starts in " + (s / 3600) + "h " + (s % 3600 / 60) + "m"
+        else -> "In " + (s / 86400) + (if (s / 86400 == 1L) " day" else " days")
+    }
+}
+
 /** Games grouped by competition: header with logo, LIVE marker and count, then one row per game. */
 private fun LazyListScope.groupedGames(games: List<SportData.Game>, hub: HubCtx, timeFirst: Boolean) {
     games.groupBy { it.groupName }.forEach { (name, list) ->
@@ -379,9 +416,17 @@ private fun HubLive(feed: SportFeed.State, hub: HubCtx, sport: String?, sportReq
     Column(Modifier.fillMaxSize()) {
         SportFilter(sport, counts, sportReq, compReq) { onSport(it); comp = null }
         // Fof TV: no row of competition chips (the list is grouped by competition already), only "Favorites only"
-        LazyRow(contentPadding = PaddingValues(horizontal = DS.PageX, vertical = dpx(4))) {
+        var multi by remember { mutableStateOf<List<Item>?>(null) }
+        LazyRow(contentPadding = PaddingValues(horizontal = DS.PageX, vertical = dpx(4)), horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
             item(key = "fav") { FilterPill("Nur Favoriten", favOnly, Modifier.trackFocus(compReq).focusProperties { up = sportReq }, aicon = if (favOnly) AIcon.Star else AIcon.StarOutline) { favOnly = !favOnly } }
+            // Fof TV: up to four live games at once, the first channel of each
+            if (shown.size >= 2) item(key = "multi") {
+                FilterPill("Multiview", false, Modifier.trackFocus().focusProperties { up = sportReq }, aicon = AIcon.Grid) {
+                    multi = shown.mapNotNull { hub.chans(it).firstOrNull() }.distinctBy { it.id }.take(4)
+                }
+            }
         }
+        multi?.let { m -> MultiViewScreen(hub.live, start = m) { multi = null } }
         LazyColumn(contentPadding = PaddingValues(horizontal = DS.PageX, vertical = dpx(8)), verticalArrangement = Arrangement.spacedBy(dpx(4))) {
             when {
                 feed.loading -> item(key = "load") { HubLoading("Lade Spiele …") }

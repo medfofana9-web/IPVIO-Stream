@@ -38,6 +38,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -351,7 +352,27 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         bannerTick++
     }
 
+    // Fof TV sports: the stream of a game did not start: try the next channel that carries it
+    val sportT = remember { longArrayOf(0L) }
+    fun sportFailover(): Boolean {
+        val n = SportSession.next(cur.itemId) ?: return false
+        sportT[0] = System.currentTimeMillis()
+        notice = "Stream didn't start – trying " + n.title
+        switchTo(n, SportSession.zapList())
+        return true
+    }
+
     fun zap(d: Int) {
+        // Sports game: Up/Down goes through the live games, one channel per game
+        if (SportSession.owns(cur.itemId)) {
+            val l = SportSession.zapList()
+            if (l.size >= 2) {
+                val i = l.indexOfFirst { it.id == cur.itemId }.coerceAtLeast(0)
+                SportSession.switchedAt = System.currentTimeMillis()
+                switchTo(l[(i + d + l.size) % l.size], l)
+                return
+            }
+        }
         if (zapSrc.size < 2) return
         val i = if (curIdx < 0) 0 else curIdx
         switchTo(zapSrc[(i + d + zapSrc.size) % zapSrc.size], zapSrc)
@@ -682,6 +703,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             override fun run() {
                 saveProgress()
                 val nowT = System.currentTimeMillis()
+                if (cur.live && cur.archive == null && !readyOnce && SportSession.owns(cur.itemId) && sportT[0] > 0 && nowT - sportT[0] > 9_000L) sportFailover()
                 if (player.playbackState == Player.STATE_BUFFERING && player.playWhenReady && !pError) {
                     if (bufSince == 0L) bufSince = nowT
                     else if (nowT - bufSince > (if (cur.live) 15_000L else 30_000L) && (cur.live || wdTries < 2)) {
@@ -736,6 +758,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 // Chosen audio track cannot be decoded on this device/output: do not give up, switch the track
                 // and keep playing (picture and position stay). Never discard the whole source just because the audio fails.
                 if (decoder && audioFallback()) return
+                if (cur.live && cur.archive == null && !readyOnce && sportFailover()) return
                 val liveNow = cur.live && cur.archive == null
                 if (retries < (if (liveNow) 50 else 3) && !isPermanentHttp(status) && !decoder) {
                     retries++
@@ -758,7 +781,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 if (state == Player.STATE_READY) {
                     msg = null; retries = 0; boomerFail = false
                     if (player.duration > 0 && player.currentPosition < player.duration - 3000) endGuard = ""
-                    if (!readyOnce) { readyOnce = true; DeadLinks.ok(ctx, cur.url) }
+                    if (!readyOnce) { readyOnce = true; DeadLinks.ok(ctx, cur.url); SportSession.started(ctx, cur.itemId) }
                 }
                 // Stutter: rebuffering in the middle of playback, not right after seeking
                 if (state == Player.STATE_BUFFERING && readyOnce && player.playWhenReady &&
@@ -871,6 +894,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     }
 
     LaunchedEffect(cur.url) {
+        sportT[0] = System.currentTimeMillis()
+        SportSession.watching = cur.itemId
         readyOnce = false; stalls = emptyList()
         retries = 0; msg = null; boomerFail = false; buffering = true; segs = emptyList(); pos = 0; dur = 0; buffered = 0
         infoFor = ""; info = null; badges = emptyList(); nextDismissed = false
@@ -1038,6 +1063,10 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         if (digitBuf.isNotEmpty()) { delay(1800); commitDigits() }
     }
     LaunchedEffect(flash) { if (flash != null) { delay(900); flash = null } }
+    // Sports overlays (score bug, ticker) step aside while menus are open; gone when the player closes
+    SideEffect { SportSession.busy = controls || panel != Panel.NONE || showChannels || showGuide }
+    DisposableEffect(Unit) { onDispose { SportSession.watching = null; SportSession.busy = false } }
+
     LaunchedEffect(info) { if (info != null) { delay(6000); info = null } }
     LaunchedEffect(bannerTick) { if (bannerTick > 0 && !controls) { banner = true; delay(4000); banner = false } }
     LaunchedEffect(miniTick) { if (miniTick > 0) { delay(1800); miniBar = false } }
@@ -1101,6 +1130,15 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                         true
                     }
                     cur.live && digitBuf.isNotEmpty() && (k == Key.DirectionCenter || k == Key.Enter) -> { commitDigits(); true }
+                    // Close-game popup: OK switches to that game
+                    (k == Key.DirectionCenter || k == Key.Enter) && !controls && panel == Panel.NONE && !showChannels && !showGuide &&
+                        SportAlerts.current?.game != null -> {
+                        val g = SportAlerts.current?.game
+                        SportAlerts.current = null
+                        val ch = g?.let { SportSession.channelOf(it) } ?: g?.let { SportWatch.channels(it, liveAll).firstOrNull() }
+                        if (ch != null) { SportSession.switchedAt = System.currentTimeMillis(); switchTo(ch, if (SportSession.owns(ch.id)) SportSession.zapList() else zapSrc) }
+                        true
+                    }
                     controls || panel != Panel.NONE || showChannels || showGuide -> false
                     else -> when (k) {
                         Key.DirectionLeft -> { if (cur.live) openChannels() else stepSeek(-1); true }

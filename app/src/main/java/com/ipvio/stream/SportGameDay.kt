@@ -46,6 +46,11 @@ object GameDay {
     val reminders = mutableStateListOf<String>()
     @Volatile var closeAlerts = true
         private set
+    /** Fof TV: switch to every game of your teams when it starts (not only games with a reminder). */
+    @Volatile var autoTeams = false
+        private set
+    private val tuned = HashSet<String>()
+    fun setAutoTeams(c: Context, on: Boolean) { autoTeams = on; prefs(c).edit().putBoolean("auto_teams", on).apply() }
     private var inited = false
     private fun prefs(c: Context) = c.applicationContext.getSharedPreferences("fof_gameday", Context.MODE_PRIVATE)
 
@@ -54,6 +59,7 @@ object GameDay {
         inited = true
         val p = prefs(c)
         closeAlerts = p.getBoolean("close", true)
+        autoTeams = p.getBoolean("auto_teams", false)
         reminders.addAll((p.getString("rem", "") ?: "").split("\n").filter { it.isNotBlank() })
     }
 
@@ -81,17 +87,20 @@ object GameDay {
     }
 
     suspend fun run(c: Context) {
-        init(c); SportLeagues.init(c); SportFix.init(c); SportLearn.init(c); SportPrefs.init(c)
+        init(c); SportLeagues.init(c); SportFix.init(c); SportLearn.init(c); SportPrefs.init(c); SportFavs.init(c)
         val alerted = HashSet<String>()
         while (true) {
-            if (reminders.isNotEmpty() || closeAlerts) {
+            if (reminders.isNotEmpty() || closeAlerts || autoTeams) {
                 val ymd = SportData.ymd(0, General.zone())
                 val wanted = reminders.map { it.substringBefore('|') }.toSet()
                 val leagues = SportData.LEAGUES.filter { it.kind == SportData.KIND_TEAM && SportLeagues.on(it) &&
-                    (it.name in wanted || (closeAlerts && it.name in LEAGUES)) }
+                    (it.name in wanted || ((closeAlerts || autoTeams) && it.name in LEAGUES)) }
                 val games = leagues.flatMap { l -> runCatching { SportData.fetch(l, ymd, 40_000) }.getOrDefault(emptyList()) }
                 SportFeed.put(games)
                 val now = System.currentTimeMillis() / 1000
+                // My teams with auto-tune on count like a reminder, once per game, only right at the start (not mid-game)
+                if (autoTeams) for (g in games) if (SportFavs.isFavGame(g) && g.key !in tuned && g.key !in reminders &&
+                    (g.state == 0 && g.start - now in 0..60 || g.state == 1 && now - g.start < 600)) { tuned.add(g.key); reminders.add(g.key) }
                 val due = games.any { it.key in reminders && (it.state == 1 || it.start - now <= 60) }
                 val live = if (!due) emptyList() else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                     PlaylistStore.channels.filter { it.kind == Kind.LIVE }.also { SportWatch.prewarm(it) }
@@ -101,7 +110,8 @@ object GameDay {
                     reminders.remove(g.key); save(c)
                     val ch = SportWatch.channels(g, live).firstOrNull()
                     if (ch != null) {
-                        ZapContext.list = SportWatch.channels(g, live); ZapContext.key = null
+                        SportSession.start(g, SportWatch.channels(g, live), live)
+                        ZapContext.list = SportSession.zapList().ifEmpty { SportWatch.channels(g, live) }; ZapContext.key = null
                         RemoteHub.playReq = RemoteHub.Play(ch.id, 0, 0)
                         show(SportAlerts.Alert("Game time", g.away.short + " at " + g.home.short + "  ·  " + ch.title))
                     } else show(SportAlerts.Alert("Game time", g.away.short + " at " + g.home.short + " is starting. No channel found: open Live sports to pick one."))
@@ -109,7 +119,7 @@ object GameDay {
                 // Close games in the last minutes (once per game)
                 if (closeAlerts) for (g in games) if (g.key !in alerted && GameDayLogic.isClose(g)) {
                     alerted.add(g.key)
-                    show(SportAlerts.Alert("Close game", line(g)))
+                    show(SportAlerts.Alert(if (g.statusName.contains("OVERTIME") || g.detail.contains("OT")) "Overtime" else "Close game", line(g), g))
                 }
             }
             delay(if (reminders.isNotEmpty() || closeAlerts) 45_000L else 120_000L)
