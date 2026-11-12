@@ -57,8 +57,8 @@ jobs:
         with:
           api-level: 31
           arch: x86_64
-          target: google_apis
-          profile: pixel_5
+          target: android-tv
+          profile: tv_1080p
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           script: |
@@ -66,10 +66,14 @@ jobs:
             adb shell am start -W -n com.fof.tv/com.ipvio.stream.MainActivity --es fof_test_playlist http://10.0.2.2:8000/test.m3u | tee start.txt
             sleep 75
             adb exec-out screencap -p > p0_start.png
+            adb shell uiautomator dump /sdcard/ui0.xml >/dev/null 2>&1; adb pull /sdcard/ui0.xml ui0.xml >/dev/null 2>&1
+            echo "== screen texts after start"; grep -o 'text="[^"]\+"' ui0.xml | head -40 || true
             adb shell dumpsys gfxinfo com.fof.tv reset > /dev/null
             adb shell 'for i in 1 2 3; do input keyevent 20; sleep 0.6; done'
             adb shell 'for i in $(seq 1 25); do input keyevent 22; sleep 0.15; done'
             adb exec-out screencap -p > p1_home_right.png
+            adb shell uiautomator dump /sdcard/ui1.xml >/dev/null 2>&1; adb pull /sdcard/ui1.xml ui1.xml >/dev/null 2>&1
+            echo "== screen texts after Right x25"; grep -o 'text="[^"]\+"' ui1.xml | head -30 || true
             adb shell 'for i in $(seq 1 6); do input keyevent 20; sleep 0.4; done'
             adb shell 'for i in $(seq 1 6); do input keyevent 19; sleep 0.4; done'
             adb exec-out screencap -p > p2_home_updown.png
@@ -77,6 +81,9 @@ jobs:
             adb shell dumpsys gfxinfo com.fof.tv reset > /dev/null
             adb shell 'input keyevent 22; sleep 1; input keyevent 23; sleep 3'
             adb exec-out screencap -p > p3_detail.png
+            adb shell uiautomator dump /sdcard/ui3.xml >/dev/null 2>&1; adb pull /sdcard/ui3.xml ui3.xml >/dev/null 2>&1
+            echo "== screen texts on the title page"; grep -o 'text="[^"]\+"' ui3.xml | head -30 || true
+            adb logcat -d | grep -iE "PlaylistStore|fof|AndroidRuntime" | tail -20 || true
             adb shell 'input keyevent 4; sleep 2'
             adb exec-out screencap -p > p4_back.png
             adb shell dumpsys gfxinfo com.fof.tv > gfx_detail.txt

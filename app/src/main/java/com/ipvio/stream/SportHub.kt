@@ -318,6 +318,21 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
             val open = l.filter { it.state != 2 }
             if (open.isNotEmpty()) item(key = "sp$sp") { GameTileRow(SportShowcase.title(sp), open, hub) { hub.goTab(1, sp) } }
         }
+        // Your provider's sports channels (favorites first), for watching without a specific game
+        item(key = "sportch") {
+            val chs by produceState(emptyList<Item>(), hub.live) {
+                value = withContext(Dispatchers.Default) {
+                    hub.live.filter { SportLogic.isSportChannel(it) }.sortedBy { if (Library.isFav(it.id)) 0 else 1 }.take(30)
+                }
+            }
+            if (chs.isNotEmpty()) Column {
+                HubSectionTitle("Sports channels", raw = true, action = "See all") { hub.goTab(6, null) }
+                Spacer(Modifier.height(dpx(10)))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(18)), contentPadding = PaddingValues(vertical = dpx(10))) {
+                    items(chs, key = { "ch" + it.id }) { ch -> ChannelNowCard(ch, Modifier.width(dpx(300)).trackFocus()) { hub.play(ch, chs) } }
+                }
+            }
+        }
         val done = games.filter { it.state == 2 }.sortedByDescending { it.start }
         if (done.isNotEmpty()) item(key = "done") { GameTileRow("Today's results", done, hub, null) }
         if (popular.isNotEmpty()) item(key = "leagues") {
