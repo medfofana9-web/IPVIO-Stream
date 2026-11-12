@@ -31,7 +31,8 @@ object Stremio {
         Cat(CINEMETA, "movie", "top", "Popular movies", "Cinemeta"),
         Cat(CINEMETA, "series", "top", "Popular series", "Cinemeta")
     )
-    data class Source(val addon: String, val label: String, val url: String, val q: Int)
+    /** A stream: a direct [url], or a torrent ([hash], optional [file] name) that Real-Debrid turns into a link. */
+    data class Source(val addon: String, val label: String, val url: String, val q: Int, val hash: String? = null, val file: String? = null)
 
     private const val PREFS = "fof_stremio"
     private val http by lazy { Net.withTimeouts(10, 20) }
@@ -43,6 +44,7 @@ object Stremio {
     private fun prefs(c: Context) = c.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     fun ensure(c: Context) {
+        Debrid.init(c)
         if (loaded) return
         loaded = true
         val raw = prefs(c).getString("addons", null) ?: return
@@ -208,7 +210,8 @@ object Stremio {
             async(Dispatchers.IO) {
                 runCatching { parse(a.name, get(StremioLogic.streamUrl(a.base, kind, imdb, season, ep))) }.getOrDefault(emptyList())
             }
-        }.awaitAll().flatten().distinctBy { it.url }.sortedByDescending { it.q }
+        }.awaitAll().flatten().distinctBy { it.url.ifEmpty { "h:" + it.hash + "|" + it.file } }
+            .sortedWith(compareByDescending<Source> { it.q }.thenBy { if (it.hash != null) 1 else 0 })
     }
 
     private fun parse(addon: String, body: String): List<Source> {
@@ -217,13 +220,17 @@ object Stremio {
         for (i in 0 until arr.length()) {
             val s = arr.optJSONObject(i) ?: continue
             val url = s.optString("url")
-            if (!url.startsWith("http")) continue
+            val hash = s.optString("infoHash").takeIf { it.length >= 32 }
+            // Torrent result: playable through Real-Debrid when a token is saved, otherwise skipped
+            if (!url.startsWith("http") && (hash == null || !Debrid.on)) continue
             // Streams that only work with extra request headers cannot be played by address alone
             val headers = s.optJSONObject("behaviorHints")?.optJSONObject("proxyHeaders")?.optJSONObject("request")
             if (headers != null && headers.length() > 0) continue
             val title = s.optString("title").ifBlank { s.optString("description") }
             val name = s.optString("name").ifBlank { addon }
-            out.add(Source(addon, StremioLogic.label(name, title), url, StremioLogic.quality("$name $title")))
+            if (url.startsWith("http")) out.add(Source(addon, StremioLogic.label(name, title), url, StremioLogic.quality("$name $title")))
+            else out.add(Source(addon, "RD · " + StremioLogic.label(name, title), "", StremioLogic.quality("$name $title"), hash,
+                s.optJSONObject("behaviorHints")?.optString("filename")?.takeIf { it.isNotBlank() }))
         }
         return out
     }

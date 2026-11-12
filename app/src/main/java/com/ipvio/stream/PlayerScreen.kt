@@ -443,7 +443,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         scope.launch {
             val probe = Item("probe", if (series) Kind.SERIES else Kind.MOVIE, base, null, "", null, "")
             val id = Stremio.imdbFor(probe, null)
-            val list = if (id == null) emptyList() else Stremio.streams(probe.kind, id, cur.season.coerceAtLeast(1), cur.episode.coerceAtLeast(1))
+            val list = (if (id == null) emptyList() else Stremio.streams(probe.kind, id, cur.season.coerceAtLeast(1), cur.episode.coerceAtLeast(1)))
+                .filter { it.url.isNotBlank() }
             val s = list.firstOrNull { it.url !in triedUrls && it.url != failed }
             if (s == null) { msg = "No working source in your playlist or your Stremio addons.  " + Lang.tr("Zurück mit der Zurück-Taste."); return@launch }
             triedUrls.add(failed)

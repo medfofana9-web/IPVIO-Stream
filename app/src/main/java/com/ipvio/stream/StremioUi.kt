@@ -40,6 +40,9 @@ fun StremioSourcesPopup(
     var imdb by remember { mutableStateOf<String?>(null) }
     var noId by remember { mutableStateOf(false) }
     var sources by remember { mutableStateOf<List<Stremio.Source>?>(null) }
+    var resolving by remember { mutableStateOf(false) }
+    var rdError by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
     val first = remember { FocusRequester() }
     val stepFocus = remember { FocusRequester() }
 
@@ -72,6 +75,10 @@ fun StremioSourcesPopup(
                     StepRow("Episode", "$ep", { if (ep > 1) ep-- }, { ep++ })
                 }
             }
+            if (resolving) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Spinner(Accent2, Modifier.size(22.dp)); Text("Getting the link from Real-Debrid…", color = Muted, fontSize = 15.sp)
+            }
+            rdError?.let { Text(it, color = DS.Gold, fontSize = 15.sp, raw = true) }
             val list = sources
             when {
                 noId -> Text("Couldn't match this title on IMDb. Adding a free TMDB key (Settings > API keys) makes matching more reliable.", color = Muted, fontSize = 16.sp)
@@ -84,8 +91,15 @@ fun StremioSourcesPopup(
                     itemsIndexed(list) { i, s ->
                         SourceRow(s, if (i == 0) Modifier.focusRequester(first) else Modifier) {
                             val title = item.title + if (series) " S${season}E$ep" else ""
-                            onDismiss()
-                            onPlay(s.url, title, 0L)
+                            if (s.hash == null) { onDismiss(); onPlay(s.url, title, 0L) }
+                            else if (!resolving) {
+                                resolving = true; rdError = null
+                                scope.launch {
+                                    val r = runCatching { Debrid.resolve(s.hash, s.file) }
+                                    resolving = false
+                                    r.onSuccess { u -> onDismiss(); onPlay(u, title, 0L) }.onFailure { e -> rdError = e.message ?: "Real-Debrid error" }
+                                }
+                            }
                         }
                     }
                 }
@@ -155,7 +169,20 @@ internal fun StremioPage(ctx: Context) {
             ConfirmPill("Remove") { Stremio.remove(ctx, a.base) }
         }
     }
-    Hint("Only streams with a direct link play. Torrent-only addons need a debrid service (such as Real-Debrid) configured inside the addon.")
+    SectionTitle("Real-Debrid")
+    Debrid.init(ctx)
+    var rd by remember { mutableStateOf("") }
+    var rdStatus by remember { mutableStateOf(if (Debrid.on) "Connected (token " + Debrid.masked() + ")" else "") }
+    Hint("With your Real-Debrid token, torrent results from your addons play too (marked RD). Get the token at real-debrid.com/apitoken. It stays encrypted on this TV.")
+    Field(rd, { rd = it; rdStatus = "" }, if (Debrid.on) "Paste a new token to replace it" else "Real-Debrid API token", password = true)
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        PillButton("Save token", light = true, icon = AIcon.Check) {
+            scope.launch { val r = Debrid.save(ctx, rd); rd = ""; rdStatus = if (r.startsWith("!")) r.drop(1) else "Connected as $r" }
+        }
+        if (Debrid.on) ConfirmPill("Remove token") { scope.launch { Debrid.save(ctx, ""); rdStatus = "Removed" } }
+        if (rdStatus.isNotBlank()) Text(rdStatus, color = if (rdStatus.startsWith("Connected")) Accent2 else Muted, fontSize = 16.sp, raw = true)
+    }
+    Hint("Without Real-Debrid, only streams with a direct link play.")
 }
 
 /**
