@@ -15,13 +15,18 @@ import androidx.compose.ui.input.key.type
 @Composable
 fun Modifier.favKeys(onFav: () -> Unit): Modifier {
     var longDone by remember { mutableStateOf(false) }
+    var downAt by remember { mutableStateOf(0L) }
     return this.onPreviewKeyEvent { e ->
+        val ok = e.key == Key.DirectionCenter || e.key == Key.Enter || e.key == Key.NumPadEnter
         when {
             e.key == Key.Menu && e.type == KeyEventType.KeyDown -> { onFav(); true }
+            // Fire TV remotes send no repeat events while OK is held: measure the time instead (held 0.6 s = long press)
+            ok && e.type == KeyEventType.KeyDown && e.nativeKeyEvent.repeatCount == 0 && !e.nativeKeyEvent.isLongPress -> { downAt = System.currentTimeMillis(); false }
+            ok && e.type == KeyEventType.KeyUp && !longDone && downAt > 0 && System.currentTimeMillis() - downAt >= 600 -> { downAt = 0; onFav(); true }
             // Long OK: trigger only on release. If the action opens a menu, that menu would otherwise receive the release
             // as a click on the first entry.
-            e.key == Key.DirectionCenter && e.type == KeyEventType.KeyDown && (longDone || e.nativeKeyEvent.isLongPress) -> { longDone = true; true }
-            e.key == Key.DirectionCenter && e.type == KeyEventType.KeyUp && longDone -> { longDone = false; onFav(); true }
+            ok && e.type == KeyEventType.KeyDown && (longDone || e.nativeKeyEvent.isLongPress) -> { longDone = true; true }
+            ok && e.type == KeyEventType.KeyUp && longDone -> { longDone = false; downAt = 0; onFav(); true }
             else -> false
         }
     }

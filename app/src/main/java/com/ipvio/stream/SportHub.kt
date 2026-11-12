@@ -167,7 +167,6 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
             contentPadding = PaddingValues(horizontal = DS.PageX, vertical = dpx(10)),
             horizontalArrangement = Arrangement.spacedBy(dpx(10))
         ) {
-            item(key = "scoreov") { FilterPill("Score-Overlay", SportAlerts.miniOn, aicon = AIcon.Live) { scoreDlg = true } }
             itemsIndexed(HUB_TABS) { i, t ->
                 // The chosen tab is where the focus lands when coming from the sidebar (the channel tab has its own target)
                 val base = if (i == tab && tab != 6) Modifier.focusRequester(ContentFocus.req) else Modifier.trackFocus()
@@ -176,6 +175,8 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     tab = i; HubMemory.tab = i
                 }
             }
+            // Score box setting at the end of the bar (not first)
+            item(key = "scoreov") { FilterPill("Score box", SportAlerts.miniOn, aicon = AIcon.Live, raw = true) { scoreDlg = true } }
         }
         if (!General.sportLive && tab != 6) {
             HubEmpty(AIcon.Live, "Live-Ergebnisse sind aus", "Ergebnisse, Tabellen und Spielpläne kommen von ESPN (inoffizielle Quelle). Schalte sie ein, um den Sports Hub zu nutzen.",

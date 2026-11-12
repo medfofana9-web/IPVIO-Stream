@@ -378,7 +378,11 @@ internal fun SportFilter(
     val dn = if (down != null) Modifier.focusProperties { this.down = down } else Modifier
     LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(10)), contentPadding = PaddingValues(horizontal = DS.PageX, vertical = dpx(4))) {
         item(key = "all") { FilterPill("Alle", sel == null, (if (firstReq != null) Modifier.trackFocus(firstReq) else Modifier.trackFocus()).then(dn)) { onSel(null) } }
-        items(SportData.SPORTS, key = { it.key }) { s ->
+        // Fof TV: only sports with games right now (plus the chosen one), and none whose leagues are all switched off
+        val shownSports = SportData.SPORTS.filter { sp ->
+            sp.key == sel || ((counts == null || (counts[sp.key] ?: 0) > 0) && SportData.LEAGUES.any { it.sport == sp.key && SportLeagues.on(it) })
+        }
+        items(shownSports, key = { it.key }) { s ->
             val n = counts?.get(s.key)
             FilterPill(Lang.tr(s.label) + (if (n != null && n > 0) "  $n" else ""), sel == s.key, Modifier.trackFocus().then(dn), raw = true) { onSel(if (sel == s.key) null else s.key) }
         }
