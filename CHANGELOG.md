@@ -1,5 +1,10 @@
 # Changelog
 
+## Fof TV 1.3.44 (November 2026)
+**Sports**
+- The sports page shows the games first and adds the channel matches afterwards: matching every game to the playlist took seconds on a big playlist, and meanwhile the page showed "No games found today"
+- "No games found today" only when the feed itself has no games
+
 ## Fof TV 1.3.43 (November 2026)
 **Updates**
 - The update is written into the installer off the main thread (the screen froze for a moment), with a note that Fof TV closes briefly

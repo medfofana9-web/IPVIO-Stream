@@ -272,10 +272,11 @@ private class HubOverviewModel(
     val counts: Map<String, Int>
 )
 
-private fun buildOverview(raw: List<SportData.Game>, hub: HubCtx): HubOverviewModel {
+private fun buildOverview(raw: List<SportData.Game>, hub: HubCtx, matchChannels: Boolean = true): HubOverviewModel {
     val games = current(raw)
     val hasCh = HashMap<String, Boolean>()
-    fun ch(g: SportData.Game): Boolean = hasCh.getOrPut(g.key) { hub.chans(g).isNotEmpty() }
+    // Matching games to channels needs the playlist index (seconds on a big playlist the first time): the first pass skips it
+    fun ch(g: SportData.Game): Boolean = matchChannels && hasCh.getOrPut(g.key) { hub.chans(g).isNotEmpty() }
     val liveG = games.filter { it.state == 1 }.sortedWith(compareBy({ if (SportHubFavs.isFavGame(it)) 0 else 1 }, { popularity(it) }))
     val liveMine = liveG.filter { ch(it) }
     val upcoming = games.filter { it.state == 0 && statusKind(it) == 0 }.sortedBy { it.start }
@@ -292,6 +293,8 @@ private fun buildOverview(raw: List<SportData.Game>, hub: HubCtx): HubOverviewMo
 private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit) {
     val ctx = LocalContext.current
     val model by produceState<HubOverviewModel?>(null, feed.games) {
+        // Games at once, then the same page with the channel matches (which channel shows which game)
+        value = withContext(Dispatchers.Default) { buildOverview(feed.games, hub, matchChannels = false) }
         value = withContext(Dispatchers.Default) { buildOverview(feed.games, hub) }
     }
     val m = model
@@ -318,7 +321,8 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
     val nba = fresh(ahead.nba)
     LazyColumn(contentPadding = PaddingValues(horizontal = DS.PageX, vertical = dpx(8)), verticalArrangement = Arrangement.spacedBy(dpx(26))) {
         when {
-            games.isNotEmpty() || soccer.isNotEmpty() || nba.isNotEmpty() -> {}
+            // feed.games too: the page model can lag a moment behind the feed, and must never show "no games" meanwhile
+            games.isNotEmpty() || feed.games.isNotEmpty() || soccer.isNotEmpty() || nba.isNotEmpty() -> {}
             // Still waiting for leagues: never say "no games" before every league has answered
             feed.loading || feed.done < feed.total -> item(key = "load") { HubLoading("Lade Spiele …") }
             feed.failed -> item(key = "err") {
