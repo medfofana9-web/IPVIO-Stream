@@ -64,9 +64,10 @@ class PlayerLogicTest {
 
     @Test fun turbo_sprungweite() {
         assertEquals(10_000L, turboStepMs(0, 10_000L, 7_200_000L))
-        assertEquals(120_000L, turboStepMs(1, 10_000L, 7_200_000L))       // 1/60 of 2 h
-        assertEquals(480_000L, turboStepMs(3, 10_000L, 7_200_000L))       // 1/15 of 2 h
-        assertEquals(900_000L, turboStepMs(4, 10_000L, 7_200_000L))       // 1/8 of 2 h
+        assertEquals(25_000L, turboStepMs(1, 10_000L, 7_200_000L))        // gentle 2.5x first
+        assertEquals(120_000L, turboStepMs(2, 10_000L, 7_200_000L))       // 1/60 of 2 h
+        assertEquals(240_000L, turboStepMs(3, 10_000L, 7_200_000L))       // 1/30 of 2 h
+        assertEquals(480_000L, turboStepMs(4, 10_000L, 7_200_000L))       // 1/15 of 2 h
         assertTrue(turboStepMs(1, 10_000L, 60_000L) >= 20_000L)            // never smaller than a multiple of the base
         assertTrue(turboStepMs(2, 10_000L, 0L) > 0)                        // unknown length
     }

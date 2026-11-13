@@ -238,6 +238,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     var badges by remember { mutableStateOf<List<String>>(emptyList()) }
     var retries by remember { mutableIntStateOf(0) }
     var scrubTarget by remember { mutableLongStateOf(-1L) }
+    // Seeking pauses the picture (like Netflix); playback goes on from the new spot when the seek is applied
+    var resumeAfterScrub by remember { mutableStateOf(false) }
     var scrubStart by remember { mutableLongStateOf(0L) }
     var scrubStamp by remember { mutableLongStateOf(0L) }
     var lastStepT by remember { mutableLongStateOf(0L) }
@@ -309,7 +311,13 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     }
 
     // Lambdas for timelines etc.: read only when drawing, not when composing.
-    val posNow: () -> Long = { if (scrubTarget >= 0) scrubTarget else pos }
+    // While seeking the marker glides to each new target instead of jumping; during playback it follows the position directly
+    val scrubGlide by androidx.compose.animation.core.animateFloatAsState(
+        if (scrubTarget >= 0) scrubTarget.toFloat() else pos.toFloat(),
+        if (scrubTarget >= 0) androidx.compose.animation.core.tween(170, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+        else androidx.compose.animation.core.snap(), label = "scrub"
+    )
+    val posNow: () -> Long = { if (scrubTarget >= 0) scrubGlide.toLong() else pos }
     val durNow: () -> Long = { dur }
     val bufNow: () -> Long = { buffered }
     val segsNow: () -> List<Seg> = { segs }
@@ -326,7 +334,11 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     fun stepSeek(d: Int, amount: Long = step, fromBar: Boolean = true) {
         val dd = player.duration
         val base = if (scrubTarget >= 0) scrubTarget else player.currentPosition
-        if (scrubTarget < 0) scrubStart = base
+        if (scrubTarget < 0) {
+            scrubStart = base
+            resumeAfterScrub = player.isPlaying
+            if (player.isPlaying) player.pause()
+        }
         var t = (base + d * amount).coerceAtLeast(0L)
         if (dd > 0) t = t.coerceAtMost((dd - 1000).coerceAtLeast(0L))
         scrubTarget = t
@@ -701,7 +713,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         if (now - lastBackAt < 350) return
         lastBackAt = now
         when {
-            scrubTarget >= 0 -> scrubTarget = -1L
+            scrubTarget >= 0 -> { scrubTarget = -1L; if (resumeAfterScrub) { resumeAfterScrub = false; player.play() } }
             panel != Panel.NONE -> closePanel()
             // Guide: own back step (show → channel → category → close)
             showGuide -> GuideBack.handler?.invoke() ?: run { showGuide = false }
@@ -926,7 +938,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         retries = 0; msg = null; boomerFail = false; buffering = true; segs = emptyList(); pos = 0; dur = 0; buffered = 0
         infoFor = ""; info = null; badges = emptyList(); nextDismissed = false
         if (cur.live) bannerTick++
-        scrubTarget = -1L
+        scrubTarget = -1L; resumeAfterScrub = false
         liveEnds = 0
         // Recording of another channel keeps running: this needs a second connection to the provider
         if (cur.live && Recorder.active.any { it.running && it.channelId != cur.itemId }) notice = "Aufnahme läuft weiter – dafür braucht dein Anbieter 2 gleichzeitige Verbindungen"
@@ -970,6 +982,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             if (t >= 0) { player.seekTo(t); pos = t }
             scrubTarget = -1L
             turbo = 0
+            if (resumeAfterScrub) { resumeAfterScrub = false; player.play() }
         }
     }
     LaunchedEffect(cur.url, hasDur) {
@@ -1201,7 +1214,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             else if (scrubTarget >= 0) {
                                 val t = scrubTarget
                                 player.seekTo(t); pos = t
-                                scrubTarget = -1L; turbo = 0
+                                scrubTarget = -1L; turbo = 0; resumeAfterScrub = false
                                 player.play()
                                 true
                             }
@@ -1325,7 +1338,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             }
         }
         if (!cur.live) {
-            ScrubCard({ scrubTarget }, { scrubStart }, { turbo }, Modifier.align(Alignment.Center))
+            ScrubCard({ scrubTarget }, { scrubStart }, { turbo }, { dur }, Modifier.align(Alignment.Center))
         }
         if (AppSettings.showInfo && !showGuide && !cur.live && !controls) {
             info?.let {
@@ -1956,10 +1969,11 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
 
 /** Centered seek display: only direction and the time actually queued ("+0:30"), without a counter. */
 @Composable
-private fun ScrubCard(target: () -> Long, start: () -> Long, turbo: () -> Int, modifier: Modifier) {
+private fun ScrubCard(target: () -> Long, start: () -> Long, turbo: () -> Int, total: () -> Long, modifier: Modifier) {
     val t = target()
     if (t < 0) return
     val delta = t - start()
+    val d = total()
     val shape = RoundedCornerShape(DS.RadiusL)
     Row(
         modifier.clip(shape).background(Color(0xE612141C)).border(1.dp, Color(0x1FFFFFFF), shape)
@@ -1969,9 +1983,11 @@ private fun ScrubCard(target: () -> Long, start: () -> Long, turbo: () -> Int, m
     ) {
         PlayerIcon(if (delta >= 0) PIcon.Forward else PIcon.Replay, Color.White, size = 32.dp)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(fmtDelta(delta), color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, style = TNUM, maxLines = 1)
+            // Where playback will continue, big; the jump and the speed level small underneath
+            Text(fmtTime(t) + (if (d > 0) "  /  " + fmtTime(d) else ""), color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, style = TNUM, maxLines = 1)
             val lv = turbo()
-            if (lv > 0) Text("Schnell " + "»".repeat(lv), color = Accent2, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            Text(fmtDelta(delta) + (if (lv > 0) "   " + "›".repeat(lv + 1) else ""), color = if (lv > 0) Accent2 else Color(0xB3FFFFFF),
+                fontSize = 15.sp, fontWeight = FontWeight.Bold, style = TNUM, maxLines = 1, raw = true)
         }
     }
 }

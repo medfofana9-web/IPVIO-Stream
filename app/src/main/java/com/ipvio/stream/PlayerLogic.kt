@@ -45,12 +45,16 @@ fun turboLevel(holdMs: Long): Int = when {
     else -> 4
 }
 
-/** Jump size per step: level 0 = configured size, higher levels = fraction of the total length (e.g. 1/15). */
+/**
+ * Jump size per step while holding: level 0 = configured size; level 1 a gentle 2.5x (fine positioning stays easy),
+ * then growing fractions of the total length (1/60, 1/30, 1/15) for crossing a whole movie quickly.
+ */
 fun turboStepMs(level: Int, stepMs: Long, durMs: Long): Long {
     if (level <= 0) return stepMs
+    if (level == 1) return stepMs * 5 / 2
     val d = if (durMs > 0) durMs else 3_600_000L
-    val frac = when (level) { 1 -> d / 60; 2 -> d / 30; 3 -> d / 15; else -> d / 8 }
-    return maxOf(stepMs * (level + 1), frac)
+    val frac = when (level) { 2 -> d / 60; 3 -> d / 30; else -> d / 15 }
+    return maxOf(stepMs * (level + 2), frac)
 }
 
 /** Clock time (seconds since 1970) at which the movie ends at the current speed. */

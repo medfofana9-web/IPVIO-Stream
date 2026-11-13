@@ -1,5 +1,12 @@
 # Changelog
 
+## Fof TV 1.3.46 (November 2026)
+**Player seeking**
+- The picture holds while seeking and continues from the new spot (as on Netflix); Back cancels and keeps playing
+- The timeline marker glides to each new position instead of jumping
+- The seek card shows the exact time you land on ("1:12:30 / 2:05:00"), the jump size underneath
+- Holding left/right starts with a gentle 2.5x step before the big jumps
+
 ## Fof TV 1.3.45 (November 2026)
 - When no addon stream plays, the sources window lists what each addon answered (not responding, timed out, HTTP error, no links, only links this app cannot play)
 
