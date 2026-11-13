@@ -255,7 +255,7 @@ private fun ListMode(
                             }
                                 .then(if (i == restoreIdx && i != 0) Modifier.focusRequester(restoreReq) else Modifier)
                                 .then(if (i == 0) Modifier.focusRequester(firstPreview) else Modifier),
-                            overlay = if (i % cols >= cols / 2) 2 else 1
+                            overlay0 = if (i % cols >= cols / 2) 2 else 1
                         ) { CatMemory.restore[title] = true; onOpen(item) }
                     }
                 }

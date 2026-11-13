@@ -503,7 +503,7 @@ fun PosterTile(item: Item, modifier: Modifier, onClick: () -> Unit) {
     val s by animateFloatAsState(if (f) focusScale(1.07f) else 1f, label = "ptile")
     val shape = RoundedCornerShape(dpx(8))
     val rowF = LocalRowFocus.current
-    val dimA by animateFloatAsState(if (rowF && !f && !clean) 0.5f else 1f, tween(if (Look.motion == 0) 0 else 320), label = "dim")
+    val dimA by animateFloatAsState(if (rowF && !f && !FofPrefs.cleanLook) 0.5f else 1f, tween(if (Look.motion == 0) 0 else 320), label = "dim")
     val img: String? = when {
         item.kind == Kind.LIVE -> item.logo
         item.id.startsWith("stremio:") && item.logo != null -> item.logo
@@ -537,7 +537,7 @@ fun LandscapeCard(item: Item, modifier: Modifier, onClick: () -> Unit) {
     val s by animateFloatAsState(if (f) focusScale(1.07f) else 1f, label = "land")
     val shape = RoundedCornerShape(dpx(8))
     val rowF = LocalRowFocus.current
-    val dimA by animateFloatAsState(if (rowF && !f) 0.5f else 1f, tween(if (Look.motion == 0) 0 else 320), label = "dim")
+    val dimA by animateFloatAsState(if (rowF && !f && !clean) 0.5f else 1f, tween(if (Look.motion == 0) 0 else 320), label = "dim")
     val img = m?.backdrop?.let { cardBackdrop(it) } ?: m?.poster?.let { cardPoster(it) } ?: item.logo
     Box(
         modifier.aspectRatio(1.3f).graphicsLayer { scaleX = s; scaleY = s }.focusGlow(f, shape).clip(shape)
@@ -725,7 +725,7 @@ fun RowPosterCard(item: Item, baseW: Dp, modifier: Modifier, overlay0: Int = 0, 
         if (clean) tween(150) else androidx.compose.animation.core.spring(), label = "ps")
     // 17b: in the selected row the other cards step back
     val rowF = LocalRowFocus.current
-    val dimA by animateFloatAsState(if (rowF && !f) 0.5f else 1f, tween(if (Look.motion == 0) 0 else 320), label = "dim")
+    val dimA by animateFloatAsState(if (rowF && !f && !clean) 0.5f else 1f, tween(if (Look.motion == 0) 0 else 320), label = "dim")
     val shape = RoundedCornerShape(dpx(10))
     // The expanded scene image draws its own frame
     // Image only. The focus sits on the poster slot (bottom), not on the wide card: otherwise Right/Left skips
