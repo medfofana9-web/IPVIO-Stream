@@ -91,6 +91,8 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.SubtitleView
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -200,6 +202,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     var second by remember { mutableStateOf<Item?>(null) }
     // Multiview straight from the player: the channel on screen becomes tile 1
     var multiStart by remember { mutableStateOf<List<Item>?>(null) }
+    // Other streams of the same game (sports): the game and its channels while the picker is open
+    var streamPick by remember { mutableStateOf<Pair<String, List<Item>>?>(null) }
     var pickSecond by remember { mutableStateOf(false) }
     // Quick access to the score overlay (switch off, corner, arrangement) without leaving the stream
     var scoreDlg by remember { mutableStateOf(false) }
@@ -1085,6 +1089,15 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         if (digitBuf.isNotEmpty()) { delay(1800); commitDigits() }
     }
     LaunchedEffect(flash) { if (flash != null) { delay(900); flash = null } }
+    streamPick?.let { (title, list) ->
+        GameStreamPicker(title, list, cur.itemId, onPick = { ch ->
+            streamPick = null
+            if (ch.id != cur.itemId) {
+                SportSession.choose(ch)
+                switchTo(ch, if (SportSession.owns(ch.id)) SportSession.zapList() else zapSrc)
+            }
+        }, onClose = { streamPick = null })
+    }
     multiStart?.let { ms ->
         MultiViewScreen(liveAll, start = ms, onExit = { sel ->
             multiStart = null
@@ -1539,6 +1552,34 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                                 if (second == null) { pickSecond = true; controls = false; openChannels() } else openPanel(Panel.MENU)
                             }) {
                                 AppIcon(AIcon.Layers, it, size = 26.dp)
+                            }
+                            // Same game on another channel: every stream found for the game being watched
+                            if (cur.live && cur.archive == null) PRoundButton(label = "Other streams", onLabel = setLabel, onClick = {
+                                val here = curItem
+                                scope.launch {
+                                    var list = SportSession.streams(cur.itemId)
+                                    var g = SportSession.game(cur.itemId)
+                                    if (list.size < 2 && here != null) {
+                                        // Not started from a game: find the live game this channel is showing
+                                        val found = withContext(Dispatchers.Default) {
+                                            runCatching {
+                                                SportWatch.prewarm(liveAll)
+                                                SportFeed.latest.values.filter { it.state == 1 }.firstNotNullOfOrNull { lg ->
+                                                    SportWatch.channels(lg, liveAll).takeIf { cs -> cs.any { it.id == here.id } }?.let { lg to it }
+                                                }
+                                            }.getOrNull()
+                                        }
+                                        if (found != null) {
+                                            g = found.first
+                                            list = (listOf(here) + found.second).distinctBy { it.id }
+                                            SportSession.start(found.first, list, liveAll)
+                                        }
+                                    }
+                                    if (list.size < 2) notice = "No other streams found for this game"
+                                    else { controls = false; streamPick = ((g?.let { x -> if (x.solo || x.away.name.isBlank()) x.title else x.away.name + " vs " + x.home.name } ?: here?.title ?: "This game") to list) }
+                                }
+                            }) {
+                                AppIcon(AIcon.Lists, it, size = 26.dp)
                             }
                             // Multiview from here (also with the Fast-forward key on live TV)
                             if (cur.live && cur.archive == null) PRoundButton(label = "Multiview", onLabel = setLabel, onClick = {

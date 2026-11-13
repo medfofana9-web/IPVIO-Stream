@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -140,6 +143,12 @@ object SportSession {
 
     fun channelOf(g: SportData.Game): Item? = pick[g.key]
 
+    /** Every stream found for the game that [chId] belongs to (channels that worked before first). */
+    fun streams(chId: String?): List<Item> = chId?.let { gameOfCh[it] }?.let { cands[it] }.orEmpty()
+
+    /** [ch] becomes the game's stream: Up/Down and the ticker come back to it. */
+    fun choose(ch: Item) { gameOfCh[ch.id]?.let { k -> pick[k] = ch; failed.remove(ch.id) } }
+
     /** Next channel for the same game after [chId] did not start; null when none is left. */
     fun next(chId: String): Item? {
         val k = gameOfCh[chId] ?: return null
@@ -226,6 +235,40 @@ private fun Ticker(games: List<SportData.Game>, current: String) {
                         Text(raw = true, text = line, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(raw = true, text = g.detail, color = if (on) Color.White else Color(0xFF9A9AA2), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
+                }
+            }
+        }
+    }
+}
+
+/** Other streams of the game being watched; OK switches, Back closes. */
+@Composable
+fun GameStreamPicker(title: String, streams: List<Item>, currentId: String?, onPick: (Item) -> Unit, onClose: () -> Unit) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.ui.window.Popup(
+        alignment = Alignment.Center, onDismissRequest = onClose,
+        properties = androidx.compose.ui.window.PopupProperties(focusable = true)
+    ) {
+        val fr = remember { androidx.compose.ui.focus.FocusRequester() }
+        LaunchedEffect(Unit) { runCatching { fr.requestFocus() } }
+        val start = streams.indexOfFirst { it.id == currentId }.coerceAtLeast(0)
+        val shape = RoundedCornerShape(16.dp)
+        Column(
+            Modifier.width(520.dp).heightIn(max = 460.dp).clip(shape).background(Color(0xF2141418))
+                .border(1.dp, Color(0x33FFFFFF), shape).padding(14.dp)
+        ) {
+            Text(title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, raw = true, modifier = Modifier.padding(start = 6.dp, bottom = 4.dp))
+            Text("Streams found for this game", color = Color(0x99FFFFFF), fontSize = 14.sp, raw = true, modifier = Modifier.padding(start = 6.dp, bottom = 10.dp))
+            androidx.compose.foundation.lazy.LazyColumn(state = androidx.compose.foundation.lazy.rememberLazyListState(maxOf(start - 2, 0))) {
+                items(streams.size) { i ->
+                    val ch = streams[i]
+                    val note = when {
+                        ch.id == currentId -> "  ·  playing"
+                        SportSession.isVerified(ctx, ch.id) -> "  ·  worked before"
+                        else -> ""
+                    }
+                    OptionRow(ch.title + note, ch.id == currentId,
+                        if (i == start) Modifier.focusRequester(fr) else Modifier) { onPick(ch) }
                 }
             }
         }

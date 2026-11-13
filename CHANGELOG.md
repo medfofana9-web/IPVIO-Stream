@@ -1,5 +1,8 @@
 # Changelog
 
+## Fof TV 1.3.39 (November 2026)
+- Player: "Other streams" button on live channels lists every channel found for the game being watched (channels that worked before are marked); also works for a channel opened directly, by finding the live game it shows
+
 ## Fof TV 1.3.38 (November 2026)
 **Speed**
 - The compile profile now covers the app's own code (the rule had a syntax error, so only libraries were listed)
