@@ -22,6 +22,9 @@ object LazySeries {
     fun isStremioSeries(i: Item): Boolean = i.kind == Kind.SERIES && i.episodes.isEmpty() && i.id.startsWith("stremio:")
 
     /** Seasons and episodes of a Stremio series. The episodes have no address: playing one opens the addon streams. */
+    /** Episode info from Cinemeta (title, description, picture, date) per series id and season, for the title page without TMDB. */
+    val cmEpisodes = java.util.concurrent.ConcurrentHashMap<String, Map<Int, List<EpMeta>>>()
+
     private fun cinemeta(imdb: String): List<Episode>? = runCatching {
         val req = okhttp3.Request.Builder().url("https://v3-cinemeta.strem.io/meta/series/$imdb.json").build()
         val body = Net.base.newCall(req).execute().use { r -> if (r.isSuccessful) r.body?.string() else null } ?: return null
@@ -31,7 +34,19 @@ object LazySeries {
             val s = v.optInt("season", -1); val n = v.optInt("episode", v.optInt("number", -1))
             if (s < 1 || n < 1) return@mapNotNull null // season 0 = specials
             Episode(s, n, v.optString("name").ifBlank { v.optString("title") }.ifBlank { EpTitles.of(n) }, "")
-        }.distinctBy { it.season * 10000 + it.num }.sortedWith(compareBy({ it.season }, { it.num }))
+        }.distinctBy { it.season * 10000 + it.num }.sortedWith(compareBy({ it.season }, { it.num })).also {
+            val metas = HashMap<Int, MutableList<EpMeta>>()
+            for (k in 0 until vs.length()) {
+                val v = vs.optJSONObject(k) ?: continue
+                val s = v.optInt("season", -1); val n = v.optInt("episode", v.optInt("number", -1))
+                if (s < 1 || n < 1) continue
+                metas.getOrPut(s) { ArrayList() }.add(EpMeta(n, v.optString("name").ifBlank { null },
+                    v.optString("overview").ifBlank { v.optString("description") }.ifBlank { null },
+                    v.optString("thumbnail").takeIf { it.startsWith("http") }, null, null, null,
+                    v.optString("released").take(10).ifBlank { v.optString("firstAired").take(10) }.ifBlank { null }))
+            }
+            cmEpisodes["stremio:$imdb"] = metas.mapValues { (_, l) -> l.distinctBy { e -> e.num }.sortedBy { e -> e.num } }
+        }
     }.getOrNull()
 
     /** The series with its real episodes if already loaded; otherwise the series itself. */

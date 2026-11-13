@@ -294,7 +294,8 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
     LazyColumn(contentPadding = PaddingValues(horizontal = DS.PageX, vertical = dpx(8)), verticalArrangement = Arrangement.spacedBy(dpx(26))) {
         when {
             games.isNotEmpty() -> {}
-            feed.loading -> item(key = "load") { HubLoading("Lade Spiele …") }
+            // Still waiting for leagues: never say "no games" before every league has answered
+            feed.loading || feed.done < feed.total -> item(key = "load") { HubLoading("Lade Spiele …") }
             feed.failed -> item(key = "err") {
                 HubEmpty(AIcon.Warning, "Daten konnten nicht geladen werden", "ESPN antwortet gerade nicht. Prüfe die Internetverbindung und versuche es erneut.", "Erneut versuchen") { onRetry() }
             }

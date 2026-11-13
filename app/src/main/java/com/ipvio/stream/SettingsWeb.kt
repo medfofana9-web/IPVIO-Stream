@@ -18,7 +18,7 @@ object SettingsWeb {
             "{\"id\":${q(b.id)},\"t\":${q(Lang.tr(b.title))},\"d\":${q(Lang.tr(b.sub))},\"on\":${HomeLayout.shown(b.id)}}"
         }
         val ads = Stremio.addons.joinToString(",") { a -> "{\"b\":${q(a.base)},\"n\":${q(a.name)}}" }
-        return "{\"rows\":[$rows],\"oneclick\":${FofPrefs.oneClick},\"pvod\":${FofPrefs.providerVod},\"hero\":${General.heroSec},\"addons\":[$ads]}"
+        return "{\"rows\":[$rows],\"oneclick\":${FofPrefs.oneClick},\"tmdb\":${Config.tmdbOwn || Config.TMDB_KEY.isNotBlank()},\"pvod\":${FofPrefs.providerVod},\"hero\":${General.heroSec},\"addons\":[$ads]}"
     }
 
     /** Applies one change; runs the state change on the main thread. */
@@ -29,6 +29,7 @@ object SettingsWeb {
             "pvod" -> main.post { FofPrefs.setProviderVod(c, v == "1") }
             "hero" -> v.toIntOrNull()?.let { s -> main.post { General.setHeroSec(c, s) } }
             "addonrm" -> main.post { Stremio.remove(c, id) }
+            "tmdb" -> { Config.init(c); Config.save(c, id.trim(), if (Config.omdbOwn) Config.OMDB_KEY else "") }
             "upd" -> {
                 // Manual update check from the phone; a find shows in the TV's bell and here
                 val r = kotlinx.coroutines.runBlocking { AppUpdate.check(c) }
@@ -56,6 +57,8 @@ button{background:#e50914;color:#fff;border:0;border-radius:10px;padding:12px 16
 <h2>Playback</h2><div class="c"><div class="r"><div>One-click play<small>Play starts the best stream at once</small></div><label class="t"><input type="checkbox" id="oc"><span></span></label></div>
 <div class="r"><div>Provider movies &amp; series in search<small>Off: movies and shows come only from your Stremio addons</small></div><label class="t"><input type="checkbox" id="pv"><span></span></label></div>
 <div class="r"><div>Big picture changes every<small>0 = stays on one title</small></div><select id="hero" style="width:110px"><option>0</option><option>6</option><option>9</option><option>12</option><option>20</option></select></div></div>
+<h2>TMDB key</h2><div class="c"><div class="r"><div>Descriptions, ratings, cast and episode pictures<small id="tk">From themoviedb.org (free account &gt; Settings &gt; API)</small></div></div></div>
+<div style="display:flex;gap:8px;margin-top:10px"><input type="text" id="tki" placeholder="Paste your TMDB API key (v3)"><button onclick="tmdb()">Save</button></div>
 <h2>App updates</h2><div class="c"><div class="r"><div>Check for a new version<small id="updv">The TV also checks by itself every hour</small></div><button class="g" onclick="upd()">Check now</button></div></div>
 <h2>Home rows</h2><div class="c" id="rows"></div>
 <h2>Stremio addons</h2><div class="c" id="ads"></div>
@@ -71,12 +74,14 @@ function set(k,id,v){return api('cfgset',{k:k,id:id,v:v}).then(function(){toast(
 function load(){document.getElementById('rl').href='/r?code='+encodeURIComponent(code);api('cfg').then(function(s){try{sessionStorage.setItem('ipvio_code',code)}catch(e){}
 var oc=document.getElementById('oc');oc.checked=s.oneclick;oc.onchange=function(){set('oneclick','',oc.checked?1:0)};
 var pv=document.getElementById('pv');pv.checked=s.pvod;pv.onchange=function(){set('pvod','',pv.checked?1:0)};
+document.getElementById('tk').textContent=s.tmdb?'Key is set ✓':'No key yet: title pages show less information';
 var h=document.getElementById('hero');h.value=String(s.hero);h.onchange=function(){set('hero','',h.value)};
 document.getElementById('rows').innerHTML=s.rows.map(function(r){return '<div class="r"><div>'+esc(r.t)+'<small>'+esc(r.d)+'</small></div><label class="t"><input type="checkbox" data-id="'+esc(r.id)+'"'+(r.on?' checked':'')+'><span></span></label></div>'}).join('');
 Array.prototype.forEach.call(document.querySelectorAll('#rows input'),function(i){i.onchange=function(){set('row',i.getAttribute('data-id'),i.checked?1:0)}});
 document.getElementById('ads').innerHTML=s.addons.length?s.addons.map(function(a){return '<div class="r"><div>'+esc(a.n)+'<small>'+esc(a.b)+'</small></div><button class="g" data-b="'+esc(a.b)+'">Remove</button></div>'}).join(''):'<div class="r"><div>No addons yet</div></div>';
 Array.prototype.forEach.call(document.querySelectorAll('#ads button'),function(b){b.onclick=function(){set('addonrm',b.getAttribute('data-b'),'').then(function(){setTimeout(load,400)})}})
 }).catch(function(){})}
+function tmdb(){var k=document.getElementById('tki').value.trim();if(!k)return;api('cfgset',{k:'tmdb',id:k,v:''}).then(function(){toast('Saved');document.getElementById('tki').value='';setTimeout(load,300)}).catch(function(){})}
 function upd(){toast('Checking...');api('cfgset',{k:'upd',id:'',v:''}).then(function(r){document.getElementById('updv').textContent=r.msg||'';toast(r.msg||'Done')}).catch(function(){})}
 function add(){var u=document.getElementById('au').value.trim();if(!u)return;toast('Adding...');api('addon',{u:u}).then(function(r){if(r.err)toast(r.err);else{toast('Added');document.getElementById('au').value='';setTimeout(load,400)}}).catch(function(){toast('Not added')})}
 load()</script></body></html>"""

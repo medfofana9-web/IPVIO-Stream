@@ -140,7 +140,8 @@ private fun DetailScreenFull(
         if (heroFocused) repeat(4) { delay(70); listState.scrollToItem(0) }
     }
     BackHandler(enabled = !embedded, onBack = onBack)
-    var meta by remember(item.id) { mutableStateOf(MetaRepo.cached(item)) }
+    // Catalog titles bring Cinemeta's picture and text, so the page is complete even without a TMDB key
+    var meta by remember(item.id) { mutableStateOf(MetaRepo.cached(item) ?: Catalog.meta(item)) }
     var metaDone by remember(item.id) { mutableStateOf(!MetaRepo.usable(item) || item.kind == Kind.LIVE) }
     LaunchedEffect(item.id) {
         MetaRepo.extended(ctx, item)?.let { meta = it }
@@ -258,7 +259,7 @@ private fun DetailScreenFull(
             epLoading = false
         }
     }
-    val epMetas = epCache[metaSeason] ?: emptyList()
+    val epMetas = epCache[metaSeason]?.takeIf { it.isNotEmpty() } ?: LazySeries.cmEpisodes[item.id]?.get(season) ?: emptyList()
     fun metaOf(ep: Episode): EpMeta? {
         val g = group ?: return null
         if (g.tmdbSeason < 0) return null
