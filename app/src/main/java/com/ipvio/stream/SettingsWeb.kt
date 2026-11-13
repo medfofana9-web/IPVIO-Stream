@@ -29,6 +29,13 @@ object SettingsWeb {
             "pvod" -> main.post { FofPrefs.setProviderVod(c, v == "1") }
             "hero" -> v.toIntOrNull()?.let { s -> main.post { General.setHeroSec(c, s) } }
             "addonrm" -> main.post { Stremio.remove(c, id) }
+            "upd" -> {
+                // Manual update check from the phone; a find shows in the TV's bell and here
+                val r = kotlinx.coroutines.runBlocking { AppUpdate.check(c) }
+                return r.fold({ u -> if (u == null) "{\"ok\":true,\"msg\":\"You have the newest version (" + AppUpdate.currentName(c) + ").\"}"
+                    else "{\"ok\":true,\"msg\":\"New version " + u.name + " – open the bell on the TV to install.\"}" },
+                    { "{\"ok\":true,\"msg\":\"Could not reach GitHub. Try again in a minute.\"}" })
+            }
             else -> return "{\"err\":\"unknown\"}"
         }
         return "{\"ok\":true}"
@@ -49,6 +56,7 @@ button{background:#e50914;color:#fff;border:0;border-radius:10px;padding:12px 16
 <h2>Playback</h2><div class="c"><div class="r"><div>One-click play<small>Play starts the best stream at once</small></div><label class="t"><input type="checkbox" id="oc"><span></span></label></div>
 <div class="r"><div>Provider movies &amp; series in search<small>Off: movies and shows come only from your Stremio addons</small></div><label class="t"><input type="checkbox" id="pv"><span></span></label></div>
 <div class="r"><div>Big picture changes every<small>0 = stays on one title</small></div><select id="hero" style="width:110px"><option>0</option><option>6</option><option>9</option><option>12</option><option>20</option></select></div></div>
+<h2>App updates</h2><div class="c"><div class="r"><div>Check for a new version<small id="updv">The TV also checks by itself every hour</small></div><button class="g" onclick="upd()">Check now</button></div></div>
 <h2>Home rows</h2><div class="c" id="rows"></div>
 <h2>Stremio addons</h2><div class="c" id="ads"></div>
 <div style="display:flex;gap:8px;margin-top:10px"><input type="text" id="au" placeholder="Paste addon link (manifest.json)"><button onclick="add()">Add</button></div>
@@ -69,6 +77,7 @@ Array.prototype.forEach.call(document.querySelectorAll('#rows input'),function(i
 document.getElementById('ads').innerHTML=s.addons.length?s.addons.map(function(a){return '<div class="r"><div>'+esc(a.n)+'<small>'+esc(a.b)+'</small></div><button class="g" data-b="'+esc(a.b)+'">Remove</button></div>'}).join(''):'<div class="r"><div>No addons yet</div></div>';
 Array.prototype.forEach.call(document.querySelectorAll('#ads button'),function(b){b.onclick=function(){set('addonrm',b.getAttribute('data-b'),'').then(function(){setTimeout(load,400)})}})
 }).catch(function(){})}
+function upd(){toast('Checking...');api('cfgset',{k:'upd',id:'',v:''}).then(function(r){document.getElementById('updv').textContent=r.msg||'';toast(r.msg||'Done')}).catch(function(){})}
 function add(){var u=document.getElementById('au').value.trim();if(!u)return;toast('Adding...');api('addon',{u:u}).then(function(r){if(r.err)toast(r.err);else{toast('Added');document.getElementById('au').value='';setTimeout(load,400)}}).catch(function(){toast('Not added')})}
 load()</script></body></html>"""
 }

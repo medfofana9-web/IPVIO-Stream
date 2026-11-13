@@ -226,9 +226,23 @@ private fun AppContent() {
     )
 
     // New app version on GitHub? Check silently once a day; a find appears in the bell at the top right.
+    // Fof TV: also every hour while the app stays open, and each time it comes back to the front (Fire TV keeps apps in memory)
     LaunchedEffect(Unit) {
         delay(3_000)   // only after the start, the playlist takes priority
         runCatching { AppUpdate.startCheck(ctx) }
+        while (true) {
+            delay(60 * 60_000L)
+            runCatching { AppUpdate.startCheck(ctx) }
+        }
+    }
+    val updScope = rememberCoroutineScope()
+    val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) updScope.launch { runCatching { AppUpdate.startCheck(ctx) } }
+        }
+        lifecycle.addObserver(obs)
+        onDispose { lifecycle.removeObserver(obs) }
     }
 
     LaunchedEffect(Unit) {
