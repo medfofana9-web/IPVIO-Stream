@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -120,7 +121,67 @@ fun SearchScreen(
     // The same movie in several versions only once (the source is chosen on the detail page)
     val rmAll: List<Item> = remember(rm0) { PlaylistLogic.firstPerKey(rm0) { it.mk + "|" + it.lang } }
     val rm = if ((fl == 0 || fl == 1) && FofPrefs.providerVod) rmAll else emptyList()
-    val firstKey = when { rm.isNotEmpty() -> "rm"; rs.isNotEmpty() -> "rs"; rl.isNotEmpty() -> "rl"; else -> "" }
+    // Fof TV: one search over everything – catalog movies and shows (Cinemeta), people, games, teams and leagues (ESPN),
+    // channels and what is on TV. Each source loads on its own after a short typing pause; a slow one never holds up the rest.
+    SportLeagues.init(ctx); SportFavs.init(ctx); SportPrefs.init(ctx)
+    val live = remember(all) { all.filter { it.kind == Kind.LIVE } }
+    LaunchedEffect(Unit) { Stremio.ensure(ctx); launch(Dispatchers.IO) { runCatching { SearchSports.games() } } }
+    val cm by produceState(q to (emptyList<Item>() to emptyList<Item>()), q) {
+        if (q.length < 2) { value = q to (emptyList<Item>() to emptyList()); return@produceState }
+        delay(300)
+        val r = kotlinx.coroutines.coroutineScope {
+            val m = async { Catalog.search(Kind.MOVIE, q) }
+            val s = async { Catalog.search(Kind.SERIES, q) }
+            m.await() to s.await()
+        }
+        value = q to r
+    }
+    val person by produceState<Pair<String, List<Item>>?>(null, q) {
+        value = null
+        if (q.length < 3) return@produceState
+        delay(450)
+        value = TmdbExtra.person(q)
+    }
+    val sport by produceState(Triple(emptyList<SportData.Game>(), emptyList<Pair<SportData.League, SportData.Team>>(), emptyList<SportData.League>()), q) {
+        value = Triple(emptyList(), emptyList(), emptyList())
+        if (q.length < 2) return@produceState
+        delay(300)
+        value = withContext(Dispatchers.Default) {
+            val g = SearchSports.games()
+            Triple(SearchSports.findGames(g, q), SearchSports.findTeams(g, q), SearchSports.findLeagues(q))
+        }
+    }
+    val shows by produceState(emptyList<GuideSearchLogic.Hit>(), q, live) {
+        value = emptyList()
+        if (q.length < 3) return@produceState
+        delay(350)
+        value = withContext(Dispatchers.Default) { runCatching { SearchGuide.shows(live, q) }.getOrDefault(emptyList()) }
+    }
+    val cmReady = q.length >= 2 && cm.first == q
+    val cmM = if ((fl == 0 || fl == 1) && cmReady) cm.second.first else emptyList()
+    val cmS = if ((fl == 0 || fl == 2) && cmReady) cm.second.second else emptyList()
+    val per = person?.takeIf { fl == 0 || fl == 1 || fl == 2 }
+    val (sg, st, sl) = if (fl == 0 || fl == 4) sport else Triple(emptyList(), emptyList(), emptyList())
+    val sh = if (fl == 0 || fl == 3) shows else emptyList()
+    // Live games play at once on the best matching channel (failover and score bug from the sports session);
+    // other games open their page in the sports area
+    val onGame: (SportData.Game) -> Unit = { g ->
+        AppSettings.addSearch(ctx, q)
+        scope.launch {
+            val chans = if (g.state == 1) withContext(Dispatchers.Default) { SportWatch.prewarm(live); SportWatch.channels(g, live) } else emptyList()
+            if (chans.isNotEmpty()) {
+                SportSession.start(g, chans, live)
+                ZapContext.list = SportSession.zapList().ifEmpty { chans }; ZapContext.key = null
+                onOpen(SportSession.firstChannel() ?: chans[0])
+            } else { openInHub(HubPage.Match(g)); onTab(MenuLogic.SPORT) }
+        }
+    }
+    val firstKey = when {
+        sg.any { it.state == 1 } -> "games"; cmM.isNotEmpty() -> "cmm"; cmS.isNotEmpty() -> "cms"; per != null -> "person"
+        sg.isNotEmpty() -> "games"; st.isNotEmpty() || sl.isNotEmpty() -> "teams"
+        rm.isNotEmpty() -> "rm"; rs.isNotEmpty() -> "rs"; rl.isNotEmpty() -> "rl"; sh.isNotEmpty() -> "shows"; else -> ""
+    }
+    fun fr(k: String) = if (firstKey == k) firstRes else null
     // Back: in the search field (keyboard already closed) first to the recent searches or hits, otherwise into the sidebar
     BackHandler(enabled = !inSidebar) {
         val target = when {
@@ -159,7 +220,7 @@ fun SearchScreen(
                     }
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    SEARCH_FILTERS.forEachIndexed { i, name -> MiniChip(name, SearchState.filter == i) { SearchState.filter = i } }
+                    SEARCH_FILTERS.forEachIndexed { i, name -> MiniChip(name, SearchState.filter == i, raw = true) { SearchState.filter = i } }
                 }
                 if (AppSettings.systemKeyboard) {
                     // The device's own keyboard (e.g. Gboard) in a normal text field: OK or a tap opens it
@@ -191,7 +252,7 @@ fun SearchScreen(
             }
             // Right: info panel of the highlighted title on top, the hits below
             Column(Modifier.weight(1f).fillMaxHeight()) {
-                val preview = focusItem ?: (rm.firstOrNull() ?: rs.firstOrNull() ?: rl.firstOrNull() ?: hist.firstOrNull())
+                val preview = focusItem ?: (cmM.firstOrNull() ?: cmS.firstOrNull() ?: rm.firstOrNull() ?: rs.firstOrNull() ?: rl.firstOrNull() ?: hist.firstOrNull())
                 SearchInfoPanel(preview, Modifier.fillMaxWidth().height(190.dp).padding(start = 24.dp, end = DS.PageX, top = 16.dp))
                 CompositionLocalProvider(LocalSearchFocus provides { focusItem = it }) {
                     LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = state, contentPadding = PaddingValues(bottom = 48.dp)) {
@@ -223,10 +284,21 @@ fun SearchScreen(
                     val openS: (Item) -> Unit = { i -> AppSettings.addSearch(ctx, q); onOpen(i) }
                     if (searching) item {
                         Text("Suche …", color = Muted, fontSize = 16.sp, modifier = Modifier.padding(horizontal = DS.PageX, vertical = 16.dp))
-                    } else if (rm.isEmpty() && rs.isEmpty() && rl.isEmpty() && Stremio.addons.none { it.streams }) item {
+                    } else if (cmReady && rm.isEmpty() && rs.isEmpty() && rl.isEmpty() && cmM.isEmpty() && cmS.isEmpty() && per == null && sg.isEmpty() && st.isEmpty() && sl.isEmpty() && sh.isEmpty()) item {
                         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                             EmptyState(AIcon.Info, "Keine Treffer", "Prüfe die Schreibweise oder suche nach einem Teil des Titels. Kleine Tippfehler findet die Suche trotzdem.")
                         }
+                    }
+                    val report: (Item) -> Unit = { focusItem = it }
+                    if (sg.any { it.state == 1 }) item(key = "games") { SearchGameRow(sg, fr("games"), onGame) }
+                    if (cmM.isNotEmpty()) item(key = "cmm") { SearchTitleRow("Movies", cmM, cardW, fr("cmm"), report, openS) }
+                    if (cmS.isNotEmpty()) item(key = "cms") { SearchTitleRow("Shows", cmS, cardW, fr("cms"), report, openS) }
+                    if (per != null) item(key = "person") { SearchTitleRow(per.first, per.second, cardW, fr("person"), report, openS) }
+                    if (sg.isNotEmpty() && sg.none { it.state == 1 }) item(key = "games") { SearchGameRow(sg, fr("games"), onGame) }
+                    if (st.isNotEmpty() || sl.isNotEmpty()) item(key = "teams") {
+                        SearchTeamRow(st, sl, fr("teams"),
+                            onTeam = { l, t -> AppSettings.addSearch(ctx, q); openInHub(HubPage.Team(l, t)); onTab(MenuLogic.SPORT) },
+                            onLeague = { l -> AppSettings.addSearch(ctx, q); openInHub(HubPage.League(l)); onTab(MenuLogic.SPORT) })
                     }
                     if (rm.isNotEmpty()) item(key = "rm") {
                         SearchRow("Filme", rm, cardW, openS, if (firstKey == "rm") firstRes else null) {
@@ -238,12 +310,12 @@ fun SearchScreen(
                             AppSettings.addSearch(ctx, q); onBrowse(BrowseReq("Suche „$q“ · Serien", rs, S_SORT_AZ))
                         }
                     }
-                    if (!searching) item(key = "stremio") { StremioSearchRow(q, (rm + rs).map { it.title }, openS) }
                     if (rl.isNotEmpty()) item(key = "rl") {
                         SearchRow("Live TV", rl, cardW, openS, if (firstKey == "rl") firstRes else null) {
                             AppSettings.addSearch(ctx, q); onBrowse(BrowseReq("Suche „$q“ · Live TV", rl, S_SORT_AZ))
                         }
                     }
+                    if (sh.isNotEmpty()) item(key = "shows") { SearchShowRow(sh, fr("shows")) { ch -> AppSettings.addSearch(ctx, q); onOpen(ch) } }
                 }
                     }
                 }
@@ -372,12 +444,12 @@ private fun QueryBox(text: String, modifier: Modifier) {
         modifier.height(62.dp).clip(shape).background(Surf).border(DS.Border, Surf2, shape).padding(horizontal = 20.dp),
         contentAlignment = Alignment.CenterStart
     ) {
-        if (text.isEmpty()) Text("Filme, Serien oder Sender suchen…", color = Muted, fontSize = 20.sp, maxLines = 1)
+        if (text.isEmpty()) Text("Movies, shows, games, teams, channels…", color = Muted, fontSize = 20.sp, maxLines = 1, raw = true)
         else Text(text, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, raw = true)
     }
 }
 
-private val SEARCH_FILTERS = listOf("Alle", "Filme", "Serien", "Live TV", "Sport")
+private val SEARCH_FILTERS = listOf("All", "Movies", "Shows", "Live TV", "Sports")
 
 /** Heuristic for the sports hub filter: channel name or category looks like sports. */
 internal object SearchSport {

@@ -1,5 +1,11 @@
 # Changelog
 
+## Fof TV 1.3.33 (November 2026)
+**Search**
+- One search finds everything: movies and shows (Cinemeta), titles of a person (TMDB, e.g. an actor's name), live and upcoming games, teams and leagues (ESPN, next three days), live channels and shows on TV now or later today
+- Live games play at once on the best matching channel; other games, teams and leagues open their page in the sports area
+- Search is shown in the menu right below Home (one-time menu update); filters: All, Movies, Shows, Live TV, Sports
+
 ## Fof TV 1.3.15 – 1.3.20 (November 2026)
 **Catalog**
 - One catalog for Home, Movies, Series, the big picture and the top buttons: Cinemeta (popular now, new this year, genres, top rated), kept on disk for instant rows (`Catalog.kt`)

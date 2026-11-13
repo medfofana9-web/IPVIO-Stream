@@ -13,6 +13,10 @@ Checks run: Gradle build and unit tests in CI; emulator launch test (`launch-tes
 settings website on a phone, multiview with the provider's connection limit.
 Next step: device test with the maintainer, then fix what it finds.
 
+## Latest (1.3.33)
+- Search over everything: `SearchAll.kt` (new), `SearchScreen.kt`, `Catalog.search`, `TmdbExtra.person`, `openInHub` in `SportHub.kt`, menu migration `menu_ver` 3 in `Store.kt`, `MenuLogic.DEFAULT_HIDDEN` = "6"
+- Test: `SearchAllLogicTest` (runs in CI). Not checked on a device yet.
+
 ## Current task
 
 **T-009 Xtream backup servers** (see `docs/tasks/T-009-xtream-backup-servers.md`): merged into `main` through #37 (#3 rebased with the review fixes from #35, without the commit of #2; #3 and #35 closed). CI passed. Device test PENDING before the next release.

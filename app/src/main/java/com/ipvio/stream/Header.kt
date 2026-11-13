@@ -115,7 +115,7 @@ private fun SearchPill(w: Int, onClick: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(dpx(14))
     ) {
         MenuIcon(4, if (f) DS.FocusInk else Color(0xFFD0D0D6), Modifier.size(dpx(22)))
-        Text("Suche nach Sendern, Filmen, Serien …", color = if (f) DS.FocusInk else Tok.TextLow, fontSize = spx(16), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(raw = true, text = "Search movies, shows, games, channels…", color = if (f) DS.FocusInk else Tok.TextLow, fontSize = spx(16), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

@@ -168,6 +168,40 @@ object TmdbExtra {
         return (0 until a.length()).mapNotNull { a.optJSONObject(it) }
     }
 
+    private val people = ConcurrentHashMap<String, Pair<String, List<Item>>>()
+
+    /**
+     * People search: the best-known person whose name matches [q] and the titles they are known for (most popular first).
+     * Null when no person's name matches the query, so a title search does not show unrelated people.
+     */
+    suspend fun person(q: String): Pair<String, List<Item>>? {
+        if (!enabled() || q.trim().length < 3) return null
+        val key = q.trim().lowercase()
+        people[key]?.let { return it.takeIf { p -> p.second.isNotEmpty() } }
+        val got = runCatching {
+            withContext(Dispatchers.IO) {
+                val tk = SearchAllLogic.tokens(q)
+                val p = results(http(url("search/person?query=" + java.net.URLEncoder.encode(q.trim(), "UTF-8"))))
+                    .firstOrNull { SearchAllLogic.matches(it.optString("name"), tk) && it.optDouble("popularity", 0.0) >= 2.0 }
+                    ?: return@withContext null
+                val cr = http(url("person/" + p.optInt("id") + "/combined_credits"))
+                val all = listOf("cast", "crew").flatMap { f -> cr?.optJSONArray(f)?.let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it) } }.orEmpty() }
+                // Talk, news and reality appearances are not what a person is known for
+                val skip = setOf(10763, 10764, 10767)
+                val picks = all.filter { o ->
+                    val mt = o.optString("media_type")
+                    val g = o.optJSONArray("genre_ids")
+                    (mt == "movie" || mt == "tv") && (g == null || (0 until g.length()).none { g.optInt(it) in skip })
+                }.distinctBy { it.optString("media_type") + it.optInt("id") }
+                    .sortedByDescending { it.optDouble("vote_count", 0.0) }
+                p.optString("name") to toItems(picks, null)
+            }
+        }.getOrNull()
+        if (people.size > 100) people.clear()
+        people[key] = got ?: ("" to emptyList())
+        return got?.takeIf { it.second.isNotEmpty() }
+    }
+
     /** "Because you watched [seed]": TMDB recommendations for the title (found by its IMDb id). */
     suspend fun because(seed: Item): List<Item> {
         val tt = seed.id.removePrefix("stremio:").takeIf { StremioLogic.isImdb(it) } ?: return emptyList()

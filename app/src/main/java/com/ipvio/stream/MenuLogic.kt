@@ -20,11 +20,11 @@ object MenuLogic {
     /** As in the draft: Home, Live TV, movies, series, EPG, favorites, "Meine Liste", (search), settings. */
     val DEFAULT_ORDER = listOf(0, 3, 1, 2, SPORT, EPG, FAVS, MYLIST, VERLAUF, SEARCH, 5)
     /**
-     * Search sits at the top in the header, not in the sidebar: hidden by default.
+     * Fof TV: Search is shown in the sidebar (it finds movies, shows, games, teams and channels).
      * EPG (round 14, user's wish): also hidden – the TV guide is reachable via Live TV.
      * Both can be shown again under Settings > Menu.
      */
-    const val DEFAULT_HIDDEN = "4,6"
+    const val DEFAULT_HIDDEN = "6"
 
     fun parseOrder(raw: String?): List<Int> {
         val order = (raw ?: DEFAULT_ORDER.joinToString(",")).split(",").mapNotNull { it.trim().toIntOrNull() }

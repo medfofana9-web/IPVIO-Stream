@@ -100,6 +100,9 @@ class HubCtx(val nav: HubNav, val live: List<Item>, private val onPlay: (Item, L
     fun open(g: SportData.Game) = nav.open(HubPage.Match(g))
 }
 
+/** Opens [p] (a game, team or league page) the next time the sports area is shown, e.g. from the search. */
+internal fun openInHub(p: HubPage) { HubMemory.keep = listOf(p) }
+
 /** Tab and filters survive leaving the hub (e.g. after Watch Live and back from the player). */
 private object HubMemory {
     /** Pages that were open when a live stream started (restored when the hub comes back). */

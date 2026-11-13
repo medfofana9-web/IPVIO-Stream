@@ -521,7 +521,7 @@ private fun AppContent() {
                     }
                 }
             )
-            tab == 4 && all.isNotEmpty() -> Box(Modifier.fillMaxSize().screenEnter()) { SearchScreen(
+            tab == 4 -> Box(Modifier.fillMaxSize().screenEnter()) { SearchScreen(
                 tab = tab, state = states[4],
                 onOpen = open,
                 onBrowse = { browse = BrowseState(it) },

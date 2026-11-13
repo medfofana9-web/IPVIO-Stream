@@ -183,6 +183,18 @@ object Catalog {
         }
     }.getOrDefault(emptyList())
 
+    private val found = ConcurrentHashMap<String, Pair<Long, List<Item>>>()
+
+    /** Catalog search (Cinemeta) for movies or series; the same query is answered from memory for 10 minutes. */
+    suspend fun search(k: Kind, q: String): List<Item> {
+        val key = type(k) + "|" + q.lowercase()
+        found[key]?.let { if (System.currentTimeMillis() - it.first < 600_000L) return it.second }
+        val got = withContext(Dispatchers.IO) { fetch(StremioLogic.searchUrl(k, q), k == Kind.SERIES) }.take(30)
+        if (found.size > 200) found.clear()
+        if (got.isNotEmpty()) found[key] = System.currentTimeMillis() to got
+        return got
+    }
+
     /** Genre name → titles, for the "Categories" button. */
     suspend fun genreMap(k: Kind): Map<String, List<Item>> = coroutineScope {
         (listOf(newest(k), popular(k), featured(k)) + genres(k)).map { s -> async { s.title to items(s, 2) } }.awaitAll()

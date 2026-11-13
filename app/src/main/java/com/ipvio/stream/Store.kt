@@ -132,6 +132,12 @@ object AppSettings {
             if (MenuLogic.EPG !in menuHidden) menuHidden.add(MenuLogic.EPG)
             p.edit().putInt("menu_ver", 2).putString("menu_hidden", menuHidden.joinToString(",")).apply()
         }
+        // One-time (Fof TV): Search finds everything (movies, shows, games, teams, channels), so it sits in the menu right below Home
+        if (p.getInt("menu_ver", 1) < 3) {
+            menuHidden.remove(MenuLogic.SEARCH)
+            menuOrder.remove(MenuLogic.SEARCH); menuOrder.add((menuOrder.indexOf(MenuLogic.HOME) + 1).coerceIn(0, menuOrder.size), MenuLogic.SEARCH)
+            p.edit().putInt("menu_ver", 3).putString("menu_order", menuOrder.joinToString(",")).putString("menu_hidden", menuHidden.joinToString(",")).apply()
+        }
         searchHistory.clear()
         searchHistory.addAll((p.getString("search_hist", "") ?: "").split("\n").filter { it.isNotBlank() })
         if (p.getInt("look_ver", 1) < 2) {
