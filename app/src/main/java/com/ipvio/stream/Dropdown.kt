@@ -1,5 +1,10 @@
 package com.ipvio.stream
 
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.Key
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -94,8 +99,16 @@ fun OptionPopup(options: List<String>, selected: Int, onDismiss: () -> Unit, ico
         val state = rememberLazyListState(maxOf(selected - 2, 0))
         LaunchedEffect(Unit) { runCatching { fr.requestFocus() } }
         val shape = RoundedCornerShape(DS.RadiusM)
+        // Opened by a long press: the OK button is still held. Its repeats and its release must not pick the first
+        // option (the menu would close at once); only a fresh press inside the menu counts.
+        var armed by remember { mutableStateOf(false) }
         Column(
-            Modifier.width(300.dp).heightIn(max = 340.dp).clip(shape)
+            Modifier.onPreviewKeyEvent { e ->
+                val ok = e.key == Key.DirectionCenter || e.key == Key.Enter || e.key == Key.NumPadEnter
+                if (!ok || armed) false
+                else if (e.type == KeyEventType.KeyDown && e.nativeKeyEvent.repeatCount == 0) { armed = true; false }
+                else true
+            }.width(300.dp).heightIn(max = 340.dp).clip(shape)
                 .background(Surf.copy(alpha = 0.97f)).border(1.dp, DS.Overlay3, shape).padding(8.dp)
         ) {
             LazyColumn(state = state) {

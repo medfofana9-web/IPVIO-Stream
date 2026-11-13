@@ -1,5 +1,8 @@
 # Changelog
 
+## Fof TV 1.3.37 (November 2026)
+- Menus opened with a long press (Multiview tiles, profiles) no longer close the moment the OK button is released; only a new press picks an option
+
 ## Fof TV 1.3.36 (November 2026)
 **Sports**
 - Soccer and NBA lead the sports page: their games of the coming week, live first
