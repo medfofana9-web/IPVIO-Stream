@@ -189,8 +189,8 @@ object Catalog {
             .filter { it.second.isNotEmpty() }.toMap(LinkedHashMap())
     }
 
-    private var ixOf: List<Item>? = null
-    private var ix: Map<String, List<Item>> = emptyMap()
+    @Volatile private var ixOf: List<Item>? = null
+    @Volatile private var ix: Map<String, List<Item>> = emptyMap()
     private val ixLock = Any()
     // Own lock: building the index for a big playlist must not hold up the catalog's disk cache
     private fun index(all: List<Item>): Map<String, List<Item>> = synchronized(ixLock) { indexLocked(all) }
@@ -208,11 +208,17 @@ object Catalog {
 
     suspend fun warm(all: List<Item>) { withContext(Dispatchers.Default) { index(all) } }
 
-    /** A Cinemeta title opens as the playlist's own copy when the provider has it (same name, year ±1). */
-    suspend fun resolve(i: Item, all: List<Item>): Item {
+    /**
+     * A Cinemeta title opens as the playlist's own copy when the provider has it (same name, year ±1).
+     * [wait] = false never blocks: while the index of a big playlist is still being built the catalog title is returned
+     * as it is (opening a title must never wait for that; it used to hang for seconds on large playlists).
+     */
+    suspend fun resolve(i: Item, all: List<Item>, wait: Boolean = true): Item {
         if (!i.id.startsWith("stremio:")) return i
+        if (!wait && ixOf !== all) return i
         return withContext(Dispatchers.Default) {
-            val c = index(all)[i.kind.name + TmdbRows.key(i.title)]
+            val ixNow = if (wait) index(all) else ix.takeIf { ixOf === all } ?: return@withContext null
+            val c = ixNow[i.kind.name + TmdbRows.key(i.title)]
                 ?.filter { c -> val y = c.year; i.year == null || y == null || kotlin.math.abs(y - i.year) <= 1 }
             // Several copies (languages, years of remakes, qualities): English first, then the exact year, then 1080p
             c?.minWithOrNull(compareBy<Item>(

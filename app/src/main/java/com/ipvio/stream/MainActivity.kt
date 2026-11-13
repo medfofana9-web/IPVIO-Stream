@@ -345,12 +345,15 @@ private fun AppContent() {
     val open: (Item) -> Unit = { i ->
         if (!i.id.startsWith("stremio:")) openNow(i)
         else openScope.launch {
-            val quick = kotlinx.coroutines.withTimeoutOrNull(250) { Catalog.resolve(i, all) }
+            // Instant: only an index that is already built is used; otherwise the title opens as it is right away
+            val quick = Catalog.resolve(i, all, wait = false)
+            openNow(quick)
             // Back from the title page returns the focus to the catalog card that was pressed
-            if (quick != null) { openNow(quick); LastFocus.pending = i.id; return@launch }
-            openNow(i)
-            val r = Catalog.resolve(i, all)
-            if (r !== i && (top as? Item)?.id == i.id) top = r
+            LastFocus.pending = i.id
+            if (quick === i) {
+                val r = Catalog.resolve(i, all)
+                if (r !== i && (top as? Item)?.id == i.id) top = r
+            }
         }
     }
     // Match index for catalog titles, built in the background whenever the playlist changes (opening stays instant)
@@ -518,7 +521,7 @@ private fun AppContent() {
                 tab = tab, onTab = { goTab(it) }, states = states,
                 onOpen = open,
                 onPlayNow = { i0 -> openScope.launch {
-                    val i = kotlinx.coroutines.withTimeoutOrNull(400) { Catalog.resolve(i0, all) } ?: i0
+                    val i = Catalog.resolve(i0, all, wait = false)
                     LastFocus.pending = i.id
                     // Not in the playlist: the detail page offers the addon streams
                     if (i.kind == Kind.SERIES || i.url.isBlank()) pushTop(i) else { if (i.kind != Kind.LIVE && !i.id.startsWith("rec:")) pushTop(i); start(i, i.title, i.url) }
