@@ -1,5 +1,9 @@
 # Changelog
 
+## Fof TV 1.3.34 (November 2026)
+**Profiles**
+- Manage Profiles > a profile > Change avatar: a gallery of 22 modern illustrated avatars, among them Black men and Black women in several looks; the choice is kept per profile and cleared when the profile is deleted
+
 ## Fof TV 1.3.33 (November 2026)
 **Search**
 - One search finds everything: movies and shows (Cinemeta), titles of a person (TMDB, e.g. an actor's name), live and upcoming games, teams and leagues (ESPN, next three days), live channels and shows on TV now or later today

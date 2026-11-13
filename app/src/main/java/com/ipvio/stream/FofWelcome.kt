@@ -27,8 +27,6 @@ import kotlinx.coroutines.delay
 /** Avatar ring colors per profile (by id), calm tones that sit well on black. */
 private val AVATAR = listOf(Color(0xFF7A3B55), Color(0xFF2F6F6A), Color(0xFF3E4A9E), Color(0xFF8A6A1E), Color(0xFF7C2F4E), Color(0xFF4E7A2A))
 
-/** Illustrated avatar per profile name (DiceBear, free); the initial shows until it has loaded or when offline. */
-private fun avatarUrl(name: String) = "https://api.dicebear.com/9.x/avataaars/png?size=256&seed=" + java.net.URLEncoder.encode(name.ifBlank { "Fof" }, "UTF-8")
 
 /**
  * "Who's watching?" (Nuvio style): warm glow, Fof TV mark, round avatars with names and a lock for protected profiles,
@@ -38,6 +36,7 @@ private fun avatarUrl(name: String) = "https://api.dicebear.com/9.x/avataaars/pn
 fun FofWelcome(onPick: (Int) -> Unit) {
     val ctx = LocalContext.current
     var naming by remember { mutableStateOf<Int?>(null) }
+    var picking by remember { mutableStateOf<Int?>(null) }
     var name by remember { mutableStateOf("") }
     var manage by remember { mutableStateOf(false) }
     // Master profile (the first one): only it may manage profiles; with its PIN set, managing asks for it
@@ -46,8 +45,8 @@ fun FofWelcome(onPick: (Int) -> Unit) {
     var options by remember { mutableStateOf<Int?>(null) }
     val first = remember { FocusRequester() }
     val startIdx = remember { Profiles.list.indexOfFirst { it.id == Profiles.active }.coerceAtLeast(0) }
-    LaunchedEffect(naming) {
-        if (naming != null) return@LaunchedEffect
+    LaunchedEffect(naming, picking) {
+        if (naming != null || picking != null) return@LaunchedEffect
         delay(120)
         repeat(8) { if (runCatching { first.requestFocus() }.getOrDefault(false)) return@LaunchedEffect; delay(80) }
     }
@@ -77,8 +76,9 @@ fun FofWelcome(onPick: (Int) -> Unit) {
                             else {
                                 val p = Profiles.list[i]
                                 val nm = Profiles.displayName(p)
+                                val av = remember(p.id, nm, ProfileAvatars.version) { ProfileAvatars.urlFor(ctx, p.id, nm) }
                                 ProfileTile(
-                                    nm, AVATAR[p.id % AVATAR.size], Parental.profileLocked(ctx, p.id), manage, p.id == 0, big,
+                                    nm, av, AVATAR[p.id % AVATAR.size], Parental.profileLocked(ctx, p.id), manage, p.id == 0, big,
                                     if (i == startIdx) Modifier.focusRequester(first) else Modifier
                                 ) { if (manage) options = p.id else onPick(p.id) }
                             }
@@ -101,15 +101,17 @@ fun FofWelcome(onPick: (Int) -> Unit) {
             }
         }
         options?.let { id ->
-            val acts = if (id == 0) listOf("Rename") else listOf("Rename", "Delete profile")
+            val acts = if (id == 0) listOf("Change avatar", "Rename") else listOf("Change avatar", "Rename", "Delete profile")
             OptionPopup(acts, -1, { options = null }) { a ->
                 options = null
                 when (a) {
-                    0 -> { naming = id; name = Profiles.list.firstOrNull { it.id == id }?.let { Profiles.displayName(it) } ?: "" }
-                    1 -> Profiles.remove(ctx, id)
+                    0 -> picking = id
+                    1 -> { naming = id; name = Profiles.list.firstOrNull { it.id == id }?.let { Profiles.displayName(it) } ?: "" }
+                    2 -> if (Profiles.remove(ctx, id)) ProfileAvatars.set(ctx, id, null)
                 }
             }
         }
+        picking?.let { id -> AvatarPicker(id) { picking = null } }
         naming?.let { id ->
             Box(Modifier.fillMaxSize().background(Color(0xCC000000)), contentAlignment = Alignment.Center) {
                 Column(
@@ -129,7 +131,7 @@ fun FofWelcome(onPick: (Int) -> Unit) {
 }
 
 @Composable
-private fun ProfileTile(name: String, ring: Color, locked: Boolean, manage: Boolean, master: Boolean, small: Boolean, modifier: Modifier, onClick: () -> Unit) {
+private fun ProfileTile(name: String, avatar: String, ring: Color, locked: Boolean, manage: Boolean, master: Boolean, small: Boolean, modifier: Modifier, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     val s by animateFloatAsState(if (f) 1.08f else 1f, androidx.compose.animation.core.tween(160), label = "pt")
     Column(
@@ -144,7 +146,7 @@ private fun ProfileTile(name: String, ring: Color, locked: Boolean, manage: Bool
                 contentAlignment = Alignment.Center
             ) {
                 Text(name.take(1).uppercase(), color = Color.White, fontSize = 56.sp, fontWeight = FontWeight.ExtraBold, raw = true)
-                coil.compose.AsyncImage(avatarUrl(name), null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                coil.compose.AsyncImage(avatar, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
             }
             if (locked || manage) Box(
                 Modifier.align(Alignment.BottomEnd).size(40.dp).clip(CircleShape).background(Color(0xFF1C1C20)).border(2.dp, Color.Black, CircleShape),
