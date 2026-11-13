@@ -1,5 +1,10 @@
 # Changelog
 
+## Fof TV 1.3.42 (November 2026)
+**Sports**
+- The last ESPN answers are saved on the device: after a restart or an update the sports page opens with the last known games at once and refreshes them
+- Today's games of all leagues load in the background 2.5 seconds after the app starts, before Sports is opened
+
 ## Fof TV 1.3.40 (November 2026)
 **Sports**
 - Games ESPN has no live data for (smaller cups and leagues) no longer stay "Upcoming" after kickoff: they show "Started", and drop off three hours later

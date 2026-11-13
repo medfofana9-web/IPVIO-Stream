@@ -135,6 +135,31 @@ object SportData {
 
     private val cache = HashMap<String, Pair<Long, List<Game>>>()
 
+    /** Folder for the last ESPN answers: after a restart or an update the sports pages show them at once, then refresh. */
+    @Volatile private var diskDir: java.io.File? = null
+
+    fun initDisk(c: Context) { diskDir = java.io.File(c.cacheDir, "espn").apply { mkdirs() } }
+
+    private fun diskFile(key: String): java.io.File? = diskDir?.let { java.io.File(it, Integer.toHexString(key.hashCode()) + ".json") }
+
+    /** Last saved answer of [l] for [ymd] (at most 12 hours old), parsed; it counts as stale, so the next fetch replaces it. */
+    fun peekDisk(l: League, ymd: String): List<Game>? = runCatching {
+        val dayParam = l.kind == KIND_TEAM
+        val key = l.path + "|" + (if (dayParam) ymd else "now")
+        val f = diskFile(key)?.takeIf { it.exists() && System.currentTimeMillis() - it.lastModified() < 12 * 3600_000L } ?: return null
+        val g = parse(f.readText(), l)
+        synchronized(cache) { if (!cache.containsKey(key)) cache[key] = 0L to g }
+        if (dayParam) g else g.filter { onDay(it, ymd, General.zone()) }
+    }.getOrNull()
+
+    /** Loads today's games of every switched-on league in the background (app start), so Sports opens with data. */
+    suspend fun warmUp(leagues: List<League>) = withContext(Dispatchers.IO) {
+        val today = ymd(0, General.zone())
+        kotlinx.coroutines.coroutineScope {
+            leagues.forEach { l -> launch { runCatching { fetch(l, today, 60_000) } } }
+        }
+    }
+
     /** Drop loaded scoreboards (after switching spoiler-free mode, so scores disappear or come back right away). */
     fun clearCache() { synchronized(cache) { cache.clear() } }
 
@@ -465,7 +490,9 @@ object SportData {
             val req = Request.Builder().url(urlFor(l, ymd)).header("User-Agent", "IPVIO-Stream").build()
             Net.withTimeouts(8, 12).newCall(req).execute().use { r ->
                 if (!r.isSuccessful) { lastOk = false; return hit?.second ?: emptyList() }
-                val g = parse(r.body?.string().orEmpty(), l)
+                val body = r.body?.string().orEmpty()
+                val g = parse(body, l)
+                runCatching { diskFile(key)?.writeText(body) }
                 synchronized(cache) {
                     if (cache.size > 300) cache.clear()
                     cache[key] = now to g

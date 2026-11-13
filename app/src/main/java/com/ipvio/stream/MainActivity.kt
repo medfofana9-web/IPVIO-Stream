@@ -53,6 +53,13 @@ class MainActivity : ComponentActivity() {
         General.init(this)
         Boomer.init(this)
         HomeLayout.init(this); BoomerLayout.init(this); FofPrefs.init(this); SportSession.init(this)
+        // Sports scores load in the background shortly after start, so the sports page opens with games instead of waiting
+        SportData.initDisk(this)
+        if (General.sportLive) kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+            kotlinx.coroutines.delay(2500)
+            SportLeagues.init(this@MainActivity)
+            SportData.warmUp(SportLeagues.enabled())
+        }
         Catalog.init(this); Catalog.preload()
         CatalogItems.init(this); TmdbExtra.init(this)
         // Fof TV: the settings website is always reachable on the local network (address: phone icon in the menu)

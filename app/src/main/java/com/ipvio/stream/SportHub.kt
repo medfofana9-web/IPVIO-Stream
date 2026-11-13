@@ -145,7 +145,8 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
         val m = HashMap<String, List<SportData.Game>>()
         // Opening the hub again: the last loaded games appear at once (no "Loading games" wait), fresh ones replace them as they arrive
         val today = SportData.ymd(0, General.zone())
-        for (l in ls) SportData.peek(l, today)?.let { m[l.path] = it }
+        // Memory first, else the answer saved on the device (after a restart or an update)
+        withContext(Dispatchers.IO) { for (l in ls) (SportData.peek(l, today) ?: SportData.peekDisk(l, today))?.let { m[l.path] = it } }
         val cached = m.values.flatten()
         // Only answers from this visit count as "done": an old empty cache must not show "No games today" while live games load
         val fresh = HashSet<String>()
