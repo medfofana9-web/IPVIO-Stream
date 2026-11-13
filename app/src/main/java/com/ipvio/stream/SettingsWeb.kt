@@ -26,7 +26,7 @@ object SettingsWeb {
             Triple("close_alerts", "Close-game alerts" to "Pop-up when a game is close at the end", GameDay.closeAlerts),
             Triple("auto_teams", "Auto-tune my teams" to "Switch to your teams' games when they start", GameDay.autoTeams),
             Triple("motion", "Animations" to "Off makes moving around the fastest on slow devices", Look.motion > 0),
-            Triple("auto_update", "Check for updates automatically" to "At start and every hour", AppUpdate.auto(c))
+            Triple("auto_update", "Check for updates automatically" to "At start, every 15 minutes and when the app comes back", AppUpdate.auto(c))
         )
     }
 

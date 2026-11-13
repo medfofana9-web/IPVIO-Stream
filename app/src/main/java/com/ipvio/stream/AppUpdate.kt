@@ -39,6 +39,8 @@ object AppUpdate {
 
     /** "Später" tapped in the start dialog: stays hidden until the app is started again. */
     var promptDismissed by mutableStateOf(false)
+    /** Version whose prompt was closed with "Later" (a newer one shows again). */
+    var dismissedFor by mutableStateOf<String?>(null)
 
     private fun prefs(c: Context) = c.getSharedPreferences("ipvio_upd", Context.MODE_PRIVATE)
     fun url(c: Context) = prefs(c).getString("url", "").orEmpty().ifBlank { DEFAULT_URL }

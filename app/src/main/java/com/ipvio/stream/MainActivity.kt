@@ -232,7 +232,7 @@ private fun AppContent() {
         delay(3_000)   // only after the start, the playlist takes priority
         runCatching { AppUpdate.startCheck(ctx) }
         while (true) {
-            delay(60 * 60_000L)
+            delay(15 * 60_000L)
             runCatching { AppUpdate.startCheck(ctx) }
         }
     }

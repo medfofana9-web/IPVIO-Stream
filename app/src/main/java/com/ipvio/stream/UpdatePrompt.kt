@@ -28,14 +28,16 @@ import kotlinx.coroutines.launch
 fun UpdatePromptHost() {
     val ctx = LocalContext.current
     val upd = AppUpdate.available
-    if (upd == null || AppUpdate.promptDismissed) return
+    // Fof TV: appears by itself as soon as a new version is found (checked every 15 minutes and whenever the app comes back),
+    // "Later" hides only that version, and it waits while something is playing
+    if (upd == null || AppUpdate.dismissedFor == upd.name || SportSession.watching != null) return
     val scope = rememberCoroutineScope()
     var status by remember(upd) { mutableStateOf("") }
     var busy by remember(upd) { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
     LaunchedEffect(upd) { delay(150); runCatching { focus.requestFocus() } }
     Dialog(
-        onDismissRequest = { if (!busy) AppUpdate.promptDismissed = true },
+        onDismissRequest = { if (!busy) AppUpdate.dismissedFor = upd.name },
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Box(Modifier.fillMaxSize().background(Color(0xE6000000)), contentAlignment = Alignment.Center) {
@@ -60,7 +62,7 @@ fun UpdatePromptHost() {
                             busy = false
                         }
                     }
-                    PillButton("Später") { if (!busy) AppUpdate.promptDismissed = true }
+                    PillButton("Später") { if (!busy) AppUpdate.dismissedFor = upd.name }
                 }
             }
         }
