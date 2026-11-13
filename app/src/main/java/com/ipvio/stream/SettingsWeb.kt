@@ -13,12 +13,44 @@ object SettingsWeb {
 
     private fun q(s: String) = RemoteLogic.q(s)
 
-    fun state(): String {
+    /** Switches shown on the page: key, title, description, current value. */
+    private fun flags(c: Context): List<Triple<String, Pair<String, String>, Boolean>> {
+        SportPrefs.init(c); GameDay.init(c)
+        return listOf(
+            Triple("spoiler_pics", "Blur unwatched episodes" to "Pictures stay blurred until you watch the episode", FofPrefs.spoilerPics),
+            Triple("spoiler_text", "Hide unwatched descriptions" to "Episode text shows after you watch it", FofPrefs.spoilerText),
+            Triple("auto_next", "Play next episode automatically" to "At the end of an episode", AppSettings.autoNext),
+            Triple("auto_skip_intro", "Skip intros automatically" to "When intro times are known", AppSettings.autoSkipIntro),
+            Triple("hide_scores", "Hide sports scores" to "Spoiler-free sports", SportPrefs.hideScores),
+            Triple("close_alerts", "Close-game alerts" to "Pop-up when a game is close at the end", GameDay.closeAlerts),
+            Triple("auto_teams", "Auto-tune my teams" to "Switch to your teams' games when they start", GameDay.autoTeams),
+            Triple("motion", "Animations" to "Off makes moving around the fastest on slow devices", Look.motion > 0),
+            Triple("auto_update", "Check for updates automatically" to "At start and every hour", AppUpdate.auto(c))
+        )
+    }
+
+    private fun setFlag(c: Context, k: String, on: Boolean): Boolean {
+        when (k) {
+            "spoiler_pics", "spoiler_text" -> FofPrefs.setFlag(c, k, on)
+            "auto_next" -> AppSettings.setPlayerExtra(c, on, AppSettings.hideSec, AppSettings.showEndTime, AppSettings.autoSkipIntro)
+            "auto_skip_intro" -> AppSettings.setPlayerExtra(c, AppSettings.autoNext, AppSettings.hideSec, AppSettings.showEndTime, on)
+            "hide_scores" -> SportPrefs.setHideScores(c, on)
+            "close_alerts" -> GameDay.setCloseAlerts(c, on)
+            "auto_teams" -> GameDay.setAutoTeams(c, on)
+            "motion" -> AppSettings.setLook(c, Look.accentIdx, Look.custom, Look.bgIdx, if (on) 2 else 0, Look.uiScale)
+            "auto_update" -> AppUpdate.setAuto(c, on)
+            else -> return false
+        }
+        return true
+    }
+
+    fun state(c: Context): String {
+        val fl = flags(c).joinToString(",") { (k, td, on) -> "{\"k\":${q(k)},\"t\":${q(td.first)},\"d\":${q(td.second)},\"on\":$on}" }
         val rows = HomeLayout.blocks.filter { !it.fixed }.joinToString(",") { b ->
             "{\"id\":${q(b.id)},\"t\":${q(Lang.tr(b.title))},\"d\":${q(Lang.tr(b.sub))},\"on\":${HomeLayout.shown(b.id)}}"
         }
         val ads = Stremio.addons.joinToString(",") { a -> "{\"b\":${q(a.base)},\"n\":${q(a.name)}}" }
-        return "{\"rows\":[$rows],\"oneclick\":${FofPrefs.oneClick},\"tmdb\":${Config.tmdbOwn || Config.TMDB_KEY.isNotBlank()},\"pvod\":${FofPrefs.providerVod},\"hero\":${General.heroSec},\"addons\":[$ads]}"
+        return "{\"flags\":[$fl],\"rows\":[$rows],\"oneclick\":${FofPrefs.oneClick},\"tmdb\":${Config.tmdbOwn || Config.TMDB_KEY.isNotBlank()},\"pvod\":${FofPrefs.providerVod},\"hero\":${General.heroSec},\"addons\":[$ads]}"
     }
 
     /** Applies one change; runs the state change on the main thread. */
@@ -27,6 +59,7 @@ object SettingsWeb {
             "row" -> if (HomeLayout.block(id) != null) main.post { HomeLayout.setShown(c, id, v == "1") }
             "oneclick" -> main.post { FofPrefs.setOneClick(c, v == "1") }
             "pvod" -> main.post { FofPrefs.setProviderVod(c, v == "1") }
+            "flag" -> main.post { setFlag(c, id, v == "1") }
             "hero" -> v.toIntOrNull()?.let { s -> main.post { General.setHeroSec(c, s) } }
             "addonrm" -> main.post { Stremio.remove(c, id) }
             "tmdb" -> { Config.init(c); Config.save(c, id.trim(), if (Config.omdbOwn) Config.OMDB_KEY else "") }
@@ -60,6 +93,7 @@ button{background:#e50914;color:#fff;border:0;border-radius:10px;padding:12px 16
 <h2>TMDB key</h2><div class="c"><div class="r"><div>Descriptions, ratings, cast and episode pictures<small id="tk">From themoviedb.org (free account &gt; Settings &gt; API)</small></div></div></div>
 <div style="display:flex;gap:8px;margin-top:10px"><input type="text" id="tki" placeholder="Paste your TMDB API key (v3)"><button onclick="tmdb()">Save</button></div>
 <h2>App updates</h2><div class="c"><div class="r"><div>Check for a new version<small id="updv">The TV also checks by itself every hour</small></div><button class="g" onclick="upd()">Check now</button></div></div>
+<h2>Viewing</h2><div class="c" id="flags"></div>
 <h2>Home rows</h2><div class="c" id="rows"></div>
 <h2>Stremio addons</h2><div class="c" id="ads"></div>
 <div style="display:flex;gap:8px;margin-top:10px"><input type="text" id="au" placeholder="Paste addon link (manifest.json)"><button onclick="add()">Add</button></div>
@@ -76,6 +110,8 @@ var oc=document.getElementById('oc');oc.checked=s.oneclick;oc.onchange=function(
 var pv=document.getElementById('pv');pv.checked=s.pvod;pv.onchange=function(){set('pvod','',pv.checked?1:0)};
 document.getElementById('tk').textContent=s.tmdb?'Key is set ✓':'No key yet: title pages show less information';
 var h=document.getElementById('hero');h.value=String(s.hero);h.onchange=function(){set('hero','',h.value)};
+document.getElementById('flags').innerHTML=s.flags.map(function(r){return '<div class="r"><div>'+esc(r.t)+'<small>'+esc(r.d)+'</small></div><label class="t"><input type="checkbox" data-k="'+esc(r.k)+'"'+(r.on?' checked':'')+'><span></span></label></div>'}).join('');
+Array.prototype.forEach.call(document.querySelectorAll('#flags input'),function(i){i.onchange=function(){set('flag',i.getAttribute('data-k'),i.checked?1:0)}});
 document.getElementById('rows').innerHTML=s.rows.map(function(r){return '<div class="r"><div>'+esc(r.t)+'<small>'+esc(r.d)+'</small></div><label class="t"><input type="checkbox" data-id="'+esc(r.id)+'"'+(r.on?' checked':'')+'><span></span></label></div>'}).join('');
 Array.prototype.forEach.call(document.querySelectorAll('#rows input'),function(i){i.onchange=function(){set('row',i.getAttribute('data-id'),i.checked?1:0)}});
 document.getElementById('ads').innerHTML=s.addons.length?s.addons.map(function(a){return '<div class="r"><div>'+esc(a.n)+'<small>'+esc(a.b)+'</small></div><button class="g" data-b="'+esc(a.b)+'">Remove</button></div>'}).join(''):'<div class="r"><div>No addons yet</div></div>';

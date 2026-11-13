@@ -16,8 +16,28 @@ object FofPrefs {
     var providerVod by mutableStateOf(false)
         private set
 
+    /** Pictures of episodes not watched yet are blurred (no spoilers); they become sharp once watched. */
+    var spoilerPics by mutableStateOf(true)
+        private set
+    /** Descriptions of episodes not watched yet are hidden. */
+    var spoilerText by mutableStateOf(false)
+        private set
+
+    fun setFlag(c: Context, key: String, on: Boolean) {
+        when (key) {
+            "spoiler_pics" -> spoilerPics = on
+            "spoiler_text" -> spoilerText = on
+            "provider_vod" -> providerVod = on
+            "one_click" -> oneClick = on
+            else -> return
+        }
+        c.applicationContext.getSharedPreferences(NAME, Context.MODE_PRIVATE).edit().putBoolean(key, on).apply()
+    }
+
     fun init(c: Context) {
         val p = c.applicationContext.getSharedPreferences(NAME, Context.MODE_PRIVATE)
+        spoilerPics = p.getBoolean("spoiler_pics", true)
+        spoilerText = p.getBoolean("spoiler_text", false)
         oneClick = p.getBoolean("one_click", true)
         providerVod = p.getBoolean("provider_vod", false)
     }

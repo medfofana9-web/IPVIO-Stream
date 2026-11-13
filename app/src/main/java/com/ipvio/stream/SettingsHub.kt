@@ -655,6 +655,12 @@ private fun PlayerPage(ctx: Context) {
     ToggleRow("Endzeit anzeigen", "Zeigt, um wie viel Uhr der Film voraussichtlich endet.", AppSettings.showEndTime) {
         AppSettings.setPlayerExtra(ctx, AppSettings.autoNext, AppSettings.hideSec, it, AppSettings.autoSkipIntro)
     }
+    SectionTitle("Spoilers")
+    ToggleRow("Blur unwatched episodes", "Episode pictures stay blurred until you have watched the episode.", FofPrefs.spoilerPics) { FofPrefs.setFlag(ctx, "spoiler_pics", it) }
+    ToggleRow("Hide descriptions of unwatched episodes", "The text of an episode shows once you have watched it.", FofPrefs.spoilerText) { FofPrefs.setFlag(ctx, "spoiler_text", it) }
+    SportPrefs.init(ctx)
+    var hs by remember { mutableStateOf(SportPrefs.hideScores) }
+    ToggleRow("Hide sports scores", "Scores stay hidden on game cards, in the player and in alerts.", hs) { hs = it; SportPrefs.setHideScores(ctx, it) }
     SectionTitle("Intro und nächste Folge")
     ToggleRow("Intro überspringen anbieten", "Zeigt bei Serien einen Knopf „Intro überspringen“, wenn Intro-Zeiten bekannt sind.", AppSettings.skipIntro) {
         AppSettings.setPlayer(ctx, it, AppSettings.showInfo, AppSettings.seekStep)

@@ -463,7 +463,10 @@ private fun AppContent() {
                 key(p) {
                     PlayerScreen(p, zap, liveAll, seriesItem) {
                         // Live: back in Live TV on the last watched channel (also after switching in the player)
-                        if (p.live || p.archive != null) LastFocus.pending = History.ids.firstOrNull { id -> liveAll.any { it.id == id } }
+                        // Sports game: back on the game tile that started it (not on some channel)
+                        val tile = SportSession.returnKey?.takeIf { SportSession.owns(p.itemId) }
+                        if (tile != null) LastFocus.pending = tile
+                        else if (p.live || p.archive != null) LastFocus.pending = History.ids.firstOrNull { id -> liveAll.any { it.id == id } }
                         playing = null
                     }
                 }

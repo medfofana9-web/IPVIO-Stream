@@ -96,7 +96,8 @@ internal fun GameTileCard(g: SportData.Game, modifier: Modifier = Modifier, onCl
                 .border(if (f) 2.dp else 1.dp, if (f) Color.White else Color(0x1AFFFFFF), shape)
                 .onFocusChanged { f = it.isFocused }
                 .trackFocus()
-                .clickable(onClick = onClick)
+                .restoreFocus("game:" + g.key)
+                .clickable { SportSession.lastTile = "game:" + g.key; onClick() }
         ) {
             // Soft shade at the bottom, like a poster
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color.Transparent, 0.55f to Color.Transparent, 1f to Color(0x99000000))))

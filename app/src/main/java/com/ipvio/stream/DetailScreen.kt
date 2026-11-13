@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
@@ -775,7 +776,16 @@ private fun EpisodeRow(ep: Episode, em: EpMeta?, v: Variant, prog: ResumeLogic.E
                 .background(Brush.linearGradient(listOf(lerp(Surf2, Accent1, 0.22f), Surf2))),
             contentAlignment = Alignment.Center
         ) {
-            if (em?.still != null) AsyncImage(em.still, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            if (em?.still != null) {
+                // No spoilers: an episode not watched yet shows a blurred picture (tiny image scaled up, works on every
+                // Android version; real blur on Android 12+), sharp again once watched
+                val hide = FofPrefs.spoilerPics && prog?.done != true
+                if (hide) {
+                    val ctxI = androidx.compose.ui.platform.LocalContext.current
+                    val req = remember(em.still) { coil.request.ImageRequest.Builder(ctxI).data(em.still).size(32, 18).build() }
+                    AsyncImage(req, null, Modifier.fillMaxSize().blur(14.dp), contentScale = ContentScale.Crop)
+                } else AsyncImage(em.still, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            }
             else Text("E${ep.num}", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
             // Selected: round play button in the middle
             if (f) Box(Modifier.align(Alignment.Center).size(dpx(58)).clip(RoundedCornerShape(50)).background(Color(0xEBF4F6FB)), contentAlignment = Alignment.Center) {
@@ -797,7 +807,7 @@ private fun EpisodeRow(ep: Episode, em: EpMeta?, v: Variant, prog: ResumeLogic.E
                 em?.runtime?.let { Badge("$it Min") }
             }
             em?.air?.let { Text(raw = true, text = it, color = Muted, fontSize = spx(16)) }
-            em?.overview?.let { Text(raw = true, text = it, color = if (f) Tok.TextMid else Tok.TextLow, fontSize = spx(18), lineHeight = spx(25), maxLines = 3, overflow = TextOverflow.Ellipsis) }
+            em?.overview?.takeIf { !(FofPrefs.spoilerText && prog?.done != true) }?.let { Text(raw = true, text = it, color = if (f) Tok.TextMid else Tok.TextLow, fontSize = spx(18), lineHeight = spx(25), maxLines = 3, overflow = TextOverflow.Ellipsis) }
             // (Hint "hold OK = mark as watched" removed: marking stays available by holding OK and under "More")
         }
     }
