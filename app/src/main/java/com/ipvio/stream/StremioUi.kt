@@ -104,7 +104,11 @@ fun StremioSourcesPopup(
                     Spinner(Accent2, Modifier.size(28.dp))
                     Text("Asking your addons…", color = Muted, fontSize = 16.sp)
                 }
-                list.isEmpty() -> Text("No playable streams found. Torrent-only results are skipped; addons set up with a debrid service return playable links.", color = Muted, fontSize = 16.sp)
+                list.isEmpty() -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("No playable streams found.", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    // Per addon: down, no links, or only links this app cannot play – tells whether to wait or fix an addon
+                    Stremio.lastReport.forEach { Text(it, color = Muted, fontSize = 15.sp, raw = true) }
+                }
                 else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     itemsIndexed(list) { i, s ->
                         SourceRow(s, if (i == 0) Modifier.focusRequester(first) else Modifier) { choose(s) }

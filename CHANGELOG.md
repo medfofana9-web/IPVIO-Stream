@@ -1,5 +1,8 @@
 # Changelog
 
+## Fof TV 1.3.45 (November 2026)
+- When no addon stream plays, the sources window lists what each addon answered (not responding, timed out, HTTP error, no links, only links this app cannot play)
+
 ## Fof TV 1.3.44 (November 2026)
 **Sports**
 - The sports page shows the games first and adds the channel matches afterwards: matching every game to the playlist took seconds on a big playlist, and meanwhile the page showed "No games found today"

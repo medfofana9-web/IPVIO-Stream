@@ -222,13 +222,33 @@ object Stremio {
         return direct.firstOrNull() ?: l.first()
     }
 
+    /** What each addon answered on the last stream lookup ("DragonStreams: not responding"), shown when nothing plays. */
+    @Volatile var lastReport: List<String> = emptyList()
+        private set
+
     /** Streams from all addons at once; addons that fail or time out are left out. Best quality first. */
     private suspend fun streamsNow(kind: Kind, imdb: String, season: Int, ep: Int): List<Source> = coroutineScope {
-        addons.filter { it.streams }.map { a ->
+        val stream = addons.filter { it.streams }
+        if (stream.isEmpty()) lastReport = listOf("No stream addon is installed (Settings > Stremio addons).")
+        val res = stream.map { a ->
             async(Dispatchers.IO) {
-                runCatching { parse(a.name, get(StremioLogic.streamUrl(a.base, kind, imdb, season, ep))) }.getOrDefault(emptyList())
+                val body = runCatching { get(StremioLogic.streamUrl(a.base, kind, imdb, season, ep)) }
+                body.fold({ b ->
+                    val raw = runCatching { JSONObject(b).optJSONArray("streams")?.length() ?: 0 }.getOrDefault(0)
+                    val l = runCatching { parse(a.name, b) }.getOrDefault(emptyList())
+                    l to (a.name + ": " + when {
+                        l.isNotEmpty() -> "${l.size} playable"
+                        raw == 0 -> "no links for this title"
+                        else -> "$raw links, none playable here (torrent-only or special headers)"
+                    })
+                }, { e ->
+                    val why = e.message?.takeIf { it.startsWith("HTTP") } ?: if (e is java.net.SocketTimeoutException) "timed out" else "not responding"
+                    emptyList<Source>() to (a.name + ": " + why)
+                })
             }
-        }.awaitAll().flatten().distinctBy { it.url.ifEmpty { "h:" + it.hash + "|" + it.file } }
+        }.awaitAll()
+        if (stream.isNotEmpty()) lastReport = res.map { it.second }
+        res.flatMap { it.first }.distinctBy { it.url.ifEmpty { "h:" + it.hash + "|" + it.file } }
             .sortedWith(compareByDescending<Source> { it.q }.thenBy { if (it.hash != null) 1 else 0 })
     }
 
