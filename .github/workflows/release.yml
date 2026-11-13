@@ -35,10 +35,13 @@ jobs:
         run: |
           ./gradlew --no-daemon assembleRelease
           cp app/build/outputs/apk/release/*.apk FofTV.apk
+      - name: Release notes
+        # The update dialog shows these: the first line of the commit message, in plain words (no build hashes)
+        run: git log -1 --format=%s | cut -c1-300 > notes.txt
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.3.${{ github.run_number }}
           name: Fof TV 1.3.${{ github.run_number }}
-          body: Automatic build of ${{ github.sha }}
+          body_path: notes.txt
           make_latest: true
           files: FofTV.apk

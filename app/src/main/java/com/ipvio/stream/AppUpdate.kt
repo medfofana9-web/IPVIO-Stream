@@ -86,7 +86,7 @@ object AppUpdate {
             assets.add(o.optString("name") to o.optString("browser_download_url"))
         }
         val apk = UpdateLogic.pickApk(assets) ?: return null
-        val notes = j.optString("body").lineSequence().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }.take(4).joinToString(" · ")
+        val notes = j.optString("body").lineSequence().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") && !Regex("(?i)^automatic build of [0-9a-f]{7,}").containsMatchIn(it) }.take(4).joinToString(" · ")
         return UpdateInfo(0L, tag.trimStart('v', 'V'), apk, notes.take(300))
     }
 
@@ -139,7 +139,7 @@ object AppUpdate {
     /** Download and open the installer; [status] gets progress and result as text. */
     suspend fun downloadAndInstall(c: Context, u: UpdateInfo, status: (String) -> Unit) {
         download(c, u) { p -> status(if (p >= 0) "Lade … $p %" else "Lade …") }
-            .onSuccess { f -> status(if (install(c, f)) "Installation gestartet" else "Erlaube der App einmal „Apps installieren“ und tippe dann erneut.") }
+            .onSuccess { f -> status(if (install(c, f)) "Installation gestartet" else INSTALL_HELP) }
             .onFailure { status(it.message ?: "Fehler") }
     }
 
@@ -173,6 +173,10 @@ object AppUpdate {
     }
 
     /** Opens the system installer. If the "Apps from unknown sources" permission is missing, its setting opens instead. */
+    /** Fire TV has no per-app permission screen: the switch is in the developer options. */
+    const val INSTALL_HELP = "One-time step: on the Fire TV open Settings > My Fire TV > Developer options > Install unknown apps, " +
+        "switch Fof TV on, then press Update now again."
+
     fun install(c: Context, apk: File): Boolean {
         if (android.os.Build.VERSION.SDK_INT >= 26 && !c.packageManager.canRequestPackageInstalls()) {
             runCatching {
