@@ -77,7 +77,12 @@ private fun accentBrush(away: Color, home: Color): Brush {
 }
 
 @Composable
-internal fun GameTile(g: SportData.Game, hub: HubCtx, modifier: Modifier = Modifier) {
+internal fun GameTile(g: SportData.Game, hub: HubCtx, modifier: Modifier = Modifier) =
+    GameTileCard(g, modifier) { if (g.state == 1 && hub.chans(g).isNotEmpty()) hub.watch(g) else hub.open(g) }
+
+/** The matchup tile itself (also used by the Live sports row on the home screen). */
+@Composable
+internal fun GameTileCard(g: SportData.Game, modifier: Modifier = Modifier, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     val sc by animateFloatAsState(if (f) focusScale(1.04f) else 1f, androidx.compose.animation.core.tween(150), label = "gametile")
     val shape = RoundedCornerShape(dpx(14))
@@ -91,7 +96,7 @@ internal fun GameTile(g: SportData.Game, hub: HubCtx, modifier: Modifier = Modif
                 .border(if (f) 2.dp else 1.dp, if (f) Color.White else Color(0x1AFFFFFF), shape)
                 .onFocusChanged { f = it.isFocused }
                 .trackFocus()
-                .clickable { if (live && hub.chans(g).isNotEmpty()) hub.watch(g) else hub.open(g) }
+                .clickable(onClick = onClick)
         ) {
             // Soft shade at the bottom, like a poster
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color.Transparent, 0.55f to Color.Transparent, 1f to Color(0x99000000))))

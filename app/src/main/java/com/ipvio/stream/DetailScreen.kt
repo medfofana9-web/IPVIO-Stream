@@ -668,10 +668,8 @@ private fun DetailScreenFull(
                             Modifier.padding(bottom = dpx(6)),
                             horizontalArrangement = Arrangement.spacedBy(dpx(16)), verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                if (epLoading) "lade Infos …" else "Rechts = nächste Staffel  ·  Links = Staffeln",
-                                color = Muted, fontSize = spx(14)
-                            )
+                            // Fof TV: no permanent remote hints (clutter); only a short note while episode info loads
+                            if (epLoading) Text("lade Infos …", color = Muted, fontSize = spx(14))
                             if (item.episodes.size > EpisodeLogic.LONG) DetailPill("Zu Folge springen", icon = AIcon.Down) { jumpOpen = !jumpOpen }
                         }
                         // Long season: sections (TMDB seasons or blocks of 50 episodes) instead of an endless list
@@ -800,7 +798,7 @@ private fun EpisodeRow(ep: Episode, em: EpMeta?, v: Variant, prog: ResumeLogic.E
             }
             em?.air?.let { Text(raw = true, text = it, color = Muted, fontSize = spx(16)) }
             em?.overview?.let { Text(raw = true, text = it, color = if (f) Tok.TextMid else Tok.TextLow, fontSize = spx(18), lineHeight = spx(25), maxLines = 3, overflow = TextOverflow.Ellipsis) }
-            if (f) Text(if (prog?.done == true) "OK lange drücken = als ungesehen markieren" else "OK lange drücken = als gesehen markieren", color = Muted, fontSize = spx(14))
+            // (Hint "hold OK = mark as watched" removed: marking stays available by holding OK and under "More")
         }
     }
 }

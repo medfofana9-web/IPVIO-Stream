@@ -80,9 +80,10 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
     if (games.isEmpty()) return
     Column(Modifier.padding(top = dpx(10)), verticalArrangement = Arrangement.spacedBy(dpx(10))) {
         Text("Live sports", color = Color.White, fontSize = spx(24), fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = RowPadX))
-        LazyRow(contentPadding = PaddingValues(horizontal = RowPadX), horizontalArrangement = Arrangement.spacedBy(dpx(14))) {
+        // Same matchup tiles as the sports area (one look everywhere)
+        LazyRow(contentPadding = PaddingValues(horizontal = RowPadX, vertical = dpx(10)), horizontalArrangement = Arrangement.spacedBy(dpx(18))) {
             items(games, key = { it.key }) { g ->
-                LiveGameCard(g) {
+                GameTileCard(g) {
                     scope.launch {
                         // Channel lookups are built off the main thread (big playlists), then the game starts
                         val chans = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { SportWatch.prewarm(live); SportWatch.channels(g, live) }
