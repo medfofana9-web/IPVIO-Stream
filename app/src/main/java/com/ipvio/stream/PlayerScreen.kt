@@ -626,6 +626,22 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         ping()
     }
 
+    /** 24/7 show channel: the next episode (in order or shuffled) with a fresh addon link. */
+    fun marathonNext() {
+        saveProgress()
+        val id = cur.itemId
+        scope.launch {
+            val p = Marathon.next()
+            if (!Marathon.owns(id)) return@launch
+            if (p == null) { msg = "No more episodes would play.  " + Lang.tr("Zurück mit der Zurück-Taste."); buffering = false; return@launch }
+            stremioTried = false; triedUrls.clear()
+            val q = { n: Int -> when (n) { 3 -> "4K"; 2 -> "FHD"; 1 -> "HD"; else -> null } }
+            cur = PlayReq(p.title, p.url, id, false, 0L, cur.tmdbId, p.season, p.ep,
+                alts = p.alts.map { Variant(it.url, it.label, q(it.q), null) })
+            flash = Flash(null, (if (Marathon.shuffle) "24/7 shuffle · " else "24/7 · ") + "S" + p.season + "E" + p.ep)
+        }
+    }
+
     // ---------------------------------------------------------------- Archive (catchup)
     // Schedule of the channel whose archive show is currently playing (for "Previous/Next show" and continued playback)
     var archProg by remember { mutableStateOf<List<EpgEntry>>(emptyList()) }
@@ -669,7 +685,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 // Archive: continue seamlessly with the next show, otherwise back to the live picture
                 val nx = archNext
                 if (nx != null) playArchive(ch, nx) else backToLive()
-            } else if (!cur.live && hasNext && AppSettings.autoNext && !nextDismissed) playEpisode(epList[epIdx + 1])
+            } else if (Marathon.owns(cur.itemId)) marathonNext()
+            else if (!cur.live && hasNext && AppSettings.autoNext && !nextDismissed) playEpisode(epList[epIdx + 1])
         }
     })
 
@@ -771,6 +788,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     // Finally failed: remember the link (only if the link is the cause) and try another source
                     if (cur.archive == null && DeadLinkLogic.counts(status, decoder, DeviceCaps.online(ctx))) DeadLinks.fail(ctx, cur.url, DeadLinkLogic.permanent(status))
                     if (switchSource(if (decoder) "Format nicht abspielbar" else "Quelle gestört", sameFirst = !decoder)) { pError = false; msg = null }
+                    else if (Marathon.owns(cur.itemId)) { msg = "This episode will not play – next episode …"; marathonNext() }
                     else if (stremioFallback()) { msg = "Looking for another source in your Stremio addons …" }
                     else if (cur.archive != null) msg = "Diese Sendung ist im Archiv des Anbieters nicht abrufbar.  Zurück = Live-Sender."
                     else { msg = Lang.tr(playbackErrorText(e.errorCode, status, cur.live, TlsFallback.isHostMismatch(e))) + "  " + Lang.tr("Zurück mit der Zurück-Taste."); if (Boomer.enabled) boomerFail = true }
@@ -1077,7 +1095,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     }
     // Sports overlays (score bug, ticker) step aside while menus are open; gone when the player closes
     SideEffect { SportSession.busy = controls || panel != Panel.NONE || showChannels || showGuide }
-    DisposableEffect(Unit) { onDispose { SportSession.watching = null; SportSession.busy = false } }
+    DisposableEffect(Unit) { onDispose { SportSession.watching = null; SportSession.busy = false; Marathon.stop() } }
 
     LaunchedEffect(info) { if (info != null) { delay(6000); info = null } }
     LaunchedEffect(bannerTick) { if (bannerTick > 0 && !controls) { banner = true; delay(4000); banner = false } }
@@ -1129,6 +1147,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     k == Key.MediaPrevious && cur.live -> { zap(-1); true }
                     k == Key.MediaNext && cur.archive != null -> { val ch = curItem; val nx = archNext; if (ch != null && nx != null) playArchive(ch, nx) else backToLive(); true }
                     k == Key.MediaPrevious && cur.archive != null -> { val ch = curItem; val pv = archPrev; if (ch != null && pv != null) playArchive(ch, pv); true }
+                    k == Key.MediaNext && Marathon.owns(cur.itemId) -> { marathonNext(); true }
                     k == Key.MediaNext && !cur.live && hasNext -> { playEpisode(epList[epIdx + 1]); true }
                     k == Key.MediaPrevious && !cur.live && hasPrev -> { playEpisode(epList[epIdx - 1]); true }
                     cur.live && panel == Panel.NONE && !showChannels && !showGuide && digitOf(k) >= 0 -> {

@@ -1,5 +1,10 @@
 # Changelog
 
+## Fof TV 1.3.35 (November 2026)
+**24/7 shows**
+- New "24/7" button on a show's page: the show plays without end, in order (from the episode last watched) or shuffled; each episode gets a fresh addon link, an episode that will not play is skipped, at the end it starts over
+- Next key on the remote skips to the next episode of the channel
+
 ## Fof TV 1.3.34 (November 2026)
 **Profiles**
 - Manage Profiles > a profile > Change avatar: a gallery of 22 modern illustrated avatars, among them Black men and Black women in several looks; the choice is kept per profile and cleared when the profile is deleted

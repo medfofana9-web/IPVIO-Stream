@@ -209,6 +209,8 @@ private fun DetailScreenFull(
     // Play / episode pressed (not the "Stremio" button): one-click play may start the best stream at once
     var stremioAuto by remember(item.id) { mutableStateOf(false) }
     var showMore by remember(item.id) { mutableStateOf(false) }
+    var show247 by remember(item.id) { mutableStateOf(false) }
+    var busy247 by remember(item.id) { mutableStateOf(false) }
     LaunchedEffect(item.id) {
         if (AppNav.autoStream == item.id) {
             AppNav.autoStream = null
@@ -537,6 +539,8 @@ private fun DetailScreenFull(
                                 val inList = Library.isWatch(item.id)
                                 HeroButton(if (inList) "In Meiner Liste" else "Meine Liste", if (inList) AIcon.Check else AIcon.Plus, false, Modifier, bh) { Library.toggleWatch(ctx, item.id) }
                                 HeroButton("Trailer", AIcon.Play, false, Modifier, bh) { openTrailer(ctx, meta?.trailerKey, item.title) }
+                                // 24/7: the show plays without end, in order or shuffled (addon shows)
+                                if (item.kind == Kind.SERIES && item.id.startsWith("stremio:")) HeroButton(if (busy247) "Starting …" else "24/7", AIcon.Live, false, Modifier, bh) { if (!busy247) show247 = true }
                                 HeroButton("More", AIcon.Gear, false, Modifier, bh) { showMore = true }
                             }
                             if (showStremio) {
@@ -553,6 +557,16 @@ private fun DetailScreenFull(
                                         onPlay(u, t, if (ms > 0) ms else saved ?: 0L)
                                     }, { showStremio = false; stremioAt = null }, auto = stremioAuto
                                 )
+                            }
+                            if (show247) OptionPopup(listOf("Play in order", "Shuffle episodes"), -1, { show247 = false }) { a ->
+                                show247 = false
+                                busy247 = true
+                                scope.launch {
+                                    val p = Marathon.start(ctx, item, shuffle = a == 1)
+                                    busy247 = false
+                                    if (p != null) onPlay(p.url, p.title, 0L)
+                                    else android.widget.Toast.makeText(ctx, "No episode of this show would play right now.", android.widget.Toast.LENGTH_LONG).show()
+                                }
                             }
                             if (showMore) {
                                 // A finished resume point would otherwise keep offering "Continue"
