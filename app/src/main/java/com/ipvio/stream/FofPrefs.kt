@@ -36,11 +36,11 @@ object FofPrefs {
             "one_click" -> oneClick = on
             else -> return
         }
-        c.applicationContext.getSharedPreferences(NAME, Context.MODE_PRIVATE).edit().putBoolean(key, on).apply()
+        Profiles.sp(c, NAME).edit().putBoolean(key, on).apply()
     }
 
     fun init(c: Context) {
-        val p = c.applicationContext.getSharedPreferences(NAME, Context.MODE_PRIVATE)
+        val p = Profiles.sp(c, NAME)
         spoilerPics = p.getBoolean("spoiler_pics", true)
         cleanLook = p.getBoolean("clean_look", true)
         spoilerText = p.getBoolean("spoiler_text", false)
@@ -50,11 +50,11 @@ object FofPrefs {
 
     fun setProviderVod(c: Context, on: Boolean) {
         providerVod = on
-        c.applicationContext.getSharedPreferences(NAME, Context.MODE_PRIVATE).edit().putBoolean("provider_vod", on).apply()
+        Profiles.sp(c, NAME).edit().putBoolean("provider_vod", on).apply()
     }
 
     fun setOneClick(c: Context, on: Boolean) {
         oneClick = on
-        c.applicationContext.getSharedPreferences(NAME, Context.MODE_PRIVATE).edit().putBoolean("one_click", on).apply()
+        Profiles.sp(c, NAME).edit().putBoolean("one_click", on).apply()
     }
 }

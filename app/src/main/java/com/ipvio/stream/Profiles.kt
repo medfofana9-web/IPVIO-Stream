@@ -46,14 +46,16 @@ class Profile(val id: Int, val name: String)
  * Profile 0 uses the previous file names so existing data is preserved.
  */
 object Profiles {
-    const val MAX = 5
+    const val MAX = 10
     const val META = "ipvio_profiles"
 
     /** Files that are separate per profile. */
     private val SCOPED = listOf(
         "ipvio_settings", "ipvio_lib", "ipvio_quality", "ipvio_hist", "ipvio_watch", "ipvio_catfavs",
         "ipvio_variants", "ipvio_guide", "ipvio_browse", "ipvio_cat", "ipvio_general", "ipvio_lang",
-        "ipvio_chlists", "ipvio_tracks", "ipvio_eprog"
+        "ipvio_chlists", "ipvio_tracks", "ipvio_eprog",
+        // Fof TV per-profile stores (deleted with the profile)
+        "ipvio_sportfavs", "ipvio_sportleagues", "ipvio_sporthub", "fof_flags", "fof_gameday", "fof_sport", "fof_catalog_items"
     )
 
     val list = mutableStateListOf<Profile>()

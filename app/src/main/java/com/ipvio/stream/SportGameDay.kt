@@ -52,7 +52,7 @@ object GameDay {
     private val tuned = HashSet<String>()
     fun setAutoTeams(c: Context, on: Boolean) { autoTeams = on; prefs(c).edit().putBoolean("auto_teams", on).apply() }
     private var inited = false
-    private fun prefs(c: Context) = c.applicationContext.getSharedPreferences("fof_gameday", Context.MODE_PRIVATE)
+    private fun prefs(c: Context) = Profiles.sp(c, "fof_gameday")
 
     fun init(c: Context) {
         if (inited) return

@@ -198,6 +198,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     var showChannels by remember { mutableStateOf(false) }
     // Second stream (round 22): live player with a second picture; splitMode 0 = picture-in-picture, 1 = split
     var second by remember { mutableStateOf<Item?>(null) }
+    // Multiview straight from the player: the channel on screen becomes tile 1
+    var multiStart by remember { mutableStateOf<List<Item>?>(null) }
     var pickSecond by remember { mutableStateOf(false) }
     // Quick access to the score overlay (switch off, corner, arrangement) without leaving the stream
     var scoreDlg by remember { mutableStateOf(false) }
@@ -1065,6 +1067,14 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         if (digitBuf.isNotEmpty()) { delay(1800); commitDigits() }
     }
     LaunchedEffect(flash) { if (flash != null) { delay(900); flash = null } }
+    multiStart?.let { ms ->
+        MultiViewScreen(liveAll, start = ms, onExit = { sel ->
+            multiStart = null
+            // Leaving Multiview: the game with the sound keeps playing here
+            if (sel != null && sel.id != cur.itemId) switchTo(sel, if (SportSession.owns(sel.id)) SportSession.zapList() else zapSrc)
+            else { player.prepare(); player.play() }
+        })
+    }
     // Sports overlays (score bug, ticker) step aside while menus are open; gone when the player closes
     SideEffect { SportSession.busy = controls || panel != Panel.NONE || showChannels || showGuide }
     DisposableEffect(Unit) { onDispose { SportSession.watching = null; SportSession.busy = false } }
@@ -1111,6 +1121,10 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     // Live with buffer: seek keys jump within the buffer (not beyond the live picture)
                     k == Key.MediaRewind && cur.live && LiveTimeshift.active -> { LiveTimeshift.seekBy(player, -step); flash = Flash(PIcon.Replay, "−" + step / 1000 + " s"); true }
                     k == Key.MediaFastForward && cur.live && LiveTimeshift.active -> { LiveTimeshift.seekBy(player, step); flash = Flash(PIcon.Forward, "+" + step / 1000 + " s"); true }
+                    // Fast-forward on live TV (nothing to skip): open Multiview with this channel as tile 1
+                    k == Key.MediaFastForward && cur.live && cur.archive == null -> {
+                        curItem?.let { ci -> second = null; controls = false; player.stop(); multiStart = listOf(ci) }; true
+                    }
                     k == Key.MediaNext && cur.live -> { zap(1); true }
                     k == Key.MediaPrevious && cur.live -> { zap(-1); true }
                     k == Key.MediaNext && cur.archive != null -> { val ch = curItem; val nx = archNext; if (ch != null && nx != null) playArchive(ch, nx) else backToLive(); true }
@@ -1506,6 +1520,12 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                                 if (second == null) { pickSecond = true; controls = false; openChannels() } else openPanel(Panel.MENU)
                             }) {
                                 AppIcon(AIcon.Layers, it, size = 26.dp)
+                            }
+                            // Multiview from here (also with the Fast-forward key on live TV)
+                            if (cur.live && cur.archive == null) PRoundButton(label = "Multiview", onLabel = setLabel, onClick = {
+                                curItem?.let { ci -> second = null; controls = false; player.stop(); multiStart = listOf(ci) }
+                            }) {
+                                AppIcon(AIcon.Grid, it, size = 26.dp)
                             }
                             // Live channel with several qualities: pick the stream (4K / Full HD / HD / SD)
                             if (cur.live && liveAlts.size > 1) PRoundButton(label = "Qualität", onLabel = setLabel, onClick = { openPanel(Panel.QUALITY) }) {

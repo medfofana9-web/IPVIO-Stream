@@ -33,7 +33,7 @@ object SportPrefs {
     var version by mutableIntStateOf(0)
         private set
     private var inited = false
-    private fun prefs(c: Context) = c.applicationContext.getSharedPreferences("fof_sport", Context.MODE_PRIVATE)
+    private fun prefs(c: Context) = Profiles.sp(c, "fof_sport")
 
     fun init(c: Context) {
         if (inited) return

@@ -19,14 +19,14 @@ import java.util.TimeZone
  * data or shows an error state. Fetched only while the sports area is open (and by the score alerts).
  */
 object SportData {
-    class Team(val name: String, val short: String, val abbr: String, val logo: String?, val score: String?, val winner: Boolean,
+    data class Team(val name: String, val short: String, val abbr: String, val logo: String?, val score: String?, val winner: Boolean,
         val record: String? = null, val color: String? = null, val id: String = "")
 
     /** One entrant of a field event (F1 session, golf tournament): position, name, flag, main value, extra info. */
     class Entrant(val pos: String, val name: String, val flag: String?, val value: String, val extra: String, val id: String = "")
 
     /** [state]: 0 = not started yet, 1 = running, 2 = finished. [detail] e.g. "2nd half 67'" or "Q3 4:12". */
-    class Game(
+    data class Game(
         val id: String, val league: String, val catName: String, val start: Long, val state: Int, val detail: String,
         val home: Team, val away: Team,
         /** ESPN status name (e.g. STATUS_POSTPONED), game clock, period, score per period, venue, note (e.g. "World Series - Game 5"), TV (US). */

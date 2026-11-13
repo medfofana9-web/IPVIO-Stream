@@ -40,6 +40,10 @@ fun FofWelcome(onPick: (Int) -> Unit) {
     var naming by remember { mutableStateOf<Int?>(null) }
     var name by remember { mutableStateOf("") }
     var manage by remember { mutableStateOf(false) }
+    // Master profile (the first one): only it may manage profiles; with its PIN set, managing asks for it
+    var askPin by remember { mutableStateOf(false) }
+    var pinErr by remember { mutableStateOf<String?>(null) }
+    var options by remember { mutableStateOf<Int?>(null) }
     val first = remember { FocusRequester() }
     val startIdx = remember { Profiles.list.indexOfFirst { it.id == Profiles.active }.coerceAtLeast(0) }
     LaunchedEffect(naming) {
@@ -62,20 +66,49 @@ fun FofWelcome(onPick: (Int) -> Unit) {
             Spacer(Modifier.height(30.dp))
             Text(if (manage) "Manage profiles" else "Who's watching?", color = Color.White, fontSize = 44.sp, fontWeight = FontWeight.Bold, raw = true)
             Spacer(Modifier.height(48.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(44.dp), verticalAlignment = Alignment.Top) {
-                Profiles.list.forEachIndexed { i, p ->
-                    val nm = Profiles.displayName(p)
-                    ProfileTile(
-                        nm, AVATAR[p.id % AVATAR.size], Parental.profileLocked(ctx, p.id), manage,
-                        if (i == startIdx) Modifier.focusRequester(first) else Modifier
-                    ) { if (manage) { naming = p.id; name = nm } else onPick(p.id) }
-                }
-                if (manage && Profiles.list.size < Profiles.MAX) AddTile {
-                    if (Profiles.add(ctx)) { naming = Profiles.list.last().id; name = "" }
+            // Up to 10 profiles: one row up to 5, then two rows
+            val tiles: List<Int?> = Profiles.list.indices.toList() + (if (manage && Profiles.list.size < Profiles.MAX) listOf(null) else emptyList())
+            val big = tiles.size > 5
+            Column(verticalArrangement = Arrangement.spacedBy(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                tiles.chunked(if (big) (tiles.size + 1) / 2 else 5).forEach { rowTiles ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(if (big) 30.dp else 44.dp), verticalAlignment = Alignment.Top) {
+                        rowTiles.forEach { i ->
+                            if (i == null) AddTile(big) { if (Profiles.add(ctx)) { naming = Profiles.list.last().id; name = "" } }
+                            else {
+                                val p = Profiles.list[i]
+                                val nm = Profiles.displayName(p)
+                                ProfileTile(
+                                    nm, AVATAR[p.id % AVATAR.size], Parental.profileLocked(ctx, p.id), manage, p.id == 0, big,
+                                    if (i == startIdx) Modifier.focusRequester(first) else Modifier
+                                ) { if (manage) options = p.id else onPick(p.id) }
+                            }
+                        }
+                    }
                 }
             }
-            Spacer(Modifier.height(56.dp))
-            OutlinePill(if (manage) "Done" else "Manage Profiles") { manage = !manage }
+            Spacer(Modifier.height(if (big) 36.dp else 56.dp))
+            OutlinePill(if (manage) "Done" else "Manage Profiles") {
+                if (manage) manage = false
+                else if (Parental.profileLocked(ctx, 0)) { askPin = true; pinErr = null }
+                else manage = true
+            }
+        }
+        if (askPin) Box(Modifier.fillMaxSize().background(Color(0xE6000000)), contentAlignment = Alignment.Center) {
+            Box(Modifier.width(420.dp)) {
+                PinPad("Master PIN", "Only the master profile can manage profiles.", pinErr,
+                    { if (Parental.verifyFor(ctx, 0, it)) { askPin = false; manage = true } else pinErr = Parental.pinError() },
+                    { askPin = false })
+            }
+        }
+        options?.let { id ->
+            val acts = if (id == 0) listOf("Rename") else listOf("Rename", "Delete profile")
+            OptionPopup(acts, -1, { options = null }) { a ->
+                options = null
+                when (a) {
+                    0 -> { naming = id; name = Profiles.list.firstOrNull { it.id == id }?.let { Profiles.displayName(it) } ?: "" }
+                    1 -> Profiles.remove(ctx, id)
+                }
+            }
         }
         naming?.let { id ->
             Box(Modifier.fillMaxSize().background(Color(0xCC000000)), contentAlignment = Alignment.Center) {
@@ -96,14 +129,14 @@ fun FofWelcome(onPick: (Int) -> Unit) {
 }
 
 @Composable
-private fun ProfileTile(name: String, ring: Color, locked: Boolean, manage: Boolean, modifier: Modifier, onClick: () -> Unit) {
+private fun ProfileTile(name: String, ring: Color, locked: Boolean, manage: Boolean, master: Boolean, small: Boolean, modifier: Modifier, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     val s by animateFloatAsState(if (f) 1.08f else 1f, androidx.compose.animation.core.tween(160), label = "pt")
     Column(
         modifier.onFocusChanged { f = it.isFocused }.clickable(onClick = onClick).graphicsLayer { scaleX = s; scaleY = s },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(Modifier.size(148.dp)) {
+        Box(Modifier.size(if (small) 118.dp else 148.dp)) {
             Box(
                 Modifier.fillMaxSize().clip(CircleShape).background(ring)
                     .border(4.dp, if (f) Color.White else ring.copy(alpha = 0.5f), CircleShape).padding(8.dp).clip(CircleShape)
@@ -119,12 +152,14 @@ private fun ProfileTile(name: String, ring: Color, locked: Boolean, manage: Bool
             ) { AppIcon(if (manage) AIcon.Edit else AIcon.Lock, Color(0xFFB0B0B8), size = 18.dp) }
         }
         Spacer(Modifier.height(18.dp))
-        Text(name, color = if (f) Color.White else Color(0xE6FFFFFF), fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, raw = true)
+        Text(name, color = if (f) Color.White else Color(0xE6FFFFFF), fontSize = if (small) 19.sp else 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, raw = true)
+        // Subtle master mark
+        if (master) Text("MASTER", color = Color(0x80FFFFFF), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp, raw = true)
     }
 }
 
 @Composable
-private fun AddTile(onClick: () -> Unit) {
+private fun AddTile(small: Boolean, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     val s by animateFloatAsState(if (f) 1.08f else 1f, androidx.compose.animation.core.tween(160), label = "pa")
     Column(
@@ -132,7 +167,7 @@ private fun AddTile(onClick: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            Modifier.size(148.dp).clip(CircleShape).background(Color(0x14FFFFFF))
+            Modifier.size(if (small) 118.dp else 148.dp).clip(CircleShape).background(Color(0x14FFFFFF))
                 .border(3.dp, if (f) Color.White else Color(0x33FFFFFF), CircleShape),
             contentAlignment = Alignment.Center
         ) { Text("+", color = Color.White, fontSize = 64.sp, fontWeight = FontWeight.Light, raw = true) }

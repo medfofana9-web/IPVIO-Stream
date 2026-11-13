@@ -91,7 +91,7 @@ internal fun GameTileCard(g: SportData.Game, modifier: Modifier = Modifier, onCl
     val a = deep(teamColor(g.away)); val b = deep(teamColor(g.home))
     Column(modifier.width(w), verticalArrangement = Arrangement.spacedBy(dpx(10))) {
         Box(
-            Modifier.size(w, h).graphicsLayer { scaleX = sc; scaleY = sc }.focusGlow(f, shape).clip(shape)
+            Modifier.size(w, h).graphicsLayer { scaleX = sc; scaleY = sc }.clip(shape)
                 .background(if (g.solo) Brush.linearGradient(listOf(Color(0xFF1B2638), Color(0xFF0B0F17))) else accentBrush(a, b))
                 .border(if (f) 2.dp else 1.dp, if (f) Color.White else Color(0x1AFFFFFF), shape)
                 .onFocusChanged { f = it.isFocused }

@@ -162,11 +162,19 @@ internal fun HubPageFrame(
 // ───────── Small parts ─────────
 
 /** Logo or flag; while it loads (or if it is missing) the abbreviation is shown. */
-@Composable
+/** ESPN logos come as 500 px PNGs: ask ESPN's image service for the size on screen (much less to download and decode). */
+private fun sizedLogo(url: String, size: Dp): String {
+    val i = url.indexOf("espncdn.com/i/")
+    if (i < 0 || url.contains("combiner")) return url
+    val px = (size.value * 2).toInt().coerceIn(48, 200)
+    return "https://a.espncdn.com/combiner/i?img=" + url.substring(i + "espncdn.com".length) + "&w=$px&h=$px"
+}
+
+@androidx.compose.runtime.Composable
 internal fun TeamLogo(url: String?, fallback: String, size: Dp) {
     Box(Modifier.size(size), contentAlignment = Alignment.Center) {
         if (fallback.isNotBlank()) Text(raw = true, text = fallback.take(3).uppercase(), color = Tok.TextMid, fontSize = spx(13), fontWeight = FontWeight.Bold, maxLines = 1)
-        if (url != null) AsyncImage(url, null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+        if (url != null) AsyncImage(sizedLogo(url, size), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
     }
 }
 
