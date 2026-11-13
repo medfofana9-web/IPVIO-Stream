@@ -260,7 +260,7 @@ fun StremioSearchRow(q: String, have: List<String>, onOpen: (Item) -> Unit) {
         value = Stremio.search(q).filter { StremioLogic.cleanTitle(it.name).lowercase() !in own }
     }
     if (metas.isEmpty()) return
-    StremioMetaRow("From your Stremio addons", metas, raw = false, onOpen = onOpen)
+    StremioMetaRow("Movies & shows", metas, raw = true, onOpen = onOpen)
 }
 
 

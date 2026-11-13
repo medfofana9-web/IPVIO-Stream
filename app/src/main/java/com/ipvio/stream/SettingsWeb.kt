@@ -18,7 +18,7 @@ object SettingsWeb {
             "{\"id\":${q(b.id)},\"t\":${q(Lang.tr(b.title))},\"d\":${q(Lang.tr(b.sub))},\"on\":${HomeLayout.shown(b.id)}}"
         }
         val ads = Stremio.addons.joinToString(",") { a -> "{\"b\":${q(a.base)},\"n\":${q(a.name)}}" }
-        return "{\"rows\":[$rows],\"oneclick\":${FofPrefs.oneClick},\"hero\":${General.heroSec},\"addons\":[$ads]}"
+        return "{\"rows\":[$rows],\"oneclick\":${FofPrefs.oneClick},\"pvod\":${FofPrefs.providerVod},\"hero\":${General.heroSec},\"addons\":[$ads]}"
     }
 
     /** Applies one change; runs the state change on the main thread. */
@@ -26,6 +26,7 @@ object SettingsWeb {
         when (k) {
             "row" -> if (HomeLayout.block(id) != null) main.post { HomeLayout.setShown(c, id, v == "1") }
             "oneclick" -> main.post { FofPrefs.setOneClick(c, v == "1") }
+            "pvod" -> main.post { FofPrefs.setProviderVod(c, v == "1") }
             "hero" -> v.toIntOrNull()?.let { s -> main.post { General.setHeroSec(c, s) } }
             "addonrm" -> main.post { Stremio.remove(c, id) }
             else -> return "{\"err\":\"unknown\"}"
@@ -46,6 +47,7 @@ button{background:#e50914;color:#fff;border:0;border-radius:10px;padding:12px 16
 #msg{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#fff;color:#000;padding:10px 16px;border-radius:20px;display:none}a{color:#e50914}
 </style></head><body><main><h1>Fof TV</h1><div style="color:#8a8a92">Changes show on the TV right away. <a id="rl" href="/r">Phone remote</a></div>
 <h2>Playback</h2><div class="c"><div class="r"><div>One-click play<small>Play starts the best stream at once</small></div><label class="t"><input type="checkbox" id="oc"><span></span></label></div>
+<div class="r"><div>Provider movies &amp; series in search<small>Off: movies and shows come only from your Stremio addons</small></div><label class="t"><input type="checkbox" id="pv"><span></span></label></div>
 <div class="r"><div>Big picture changes every<small>0 = stays on one title</small></div><select id="hero" style="width:110px"><option>0</option><option>6</option><option>9</option><option>12</option><option>20</option></select></div></div>
 <h2>Home rows</h2><div class="c" id="rows"></div>
 <h2>Stremio addons</h2><div class="c" id="ads"></div>
@@ -60,6 +62,7 @@ function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;
 function set(k,id,v){return api('cfgset',{k:k,id:id,v:v}).then(function(){toast('Saved')}).catch(function(e){if(e)toast('Not saved')})}
 function load(){document.getElementById('rl').href='/r?code='+encodeURIComponent(code);api('cfg').then(function(s){try{sessionStorage.setItem('ipvio_code',code)}catch(e){}
 var oc=document.getElementById('oc');oc.checked=s.oneclick;oc.onchange=function(){set('oneclick','',oc.checked?1:0)};
+var pv=document.getElementById('pv');pv.checked=s.pvod;pv.onchange=function(){set('pvod','',pv.checked?1:0)};
 var h=document.getElementById('hero');h.value=String(s.hero);h.onchange=function(){set('hero','',h.value)};
 document.getElementById('rows').innerHTML=s.rows.map(function(r){return '<div class="r"><div>'+esc(r.t)+'<small>'+esc(r.d)+'</small></div><label class="t"><input type="checkbox" data-id="'+esc(r.id)+'"'+(r.on?' checked':'')+'><span></span></label></div>'}).join('');
 Array.prototype.forEach.call(document.querySelectorAll('#rows input'),function(i){i.onchange=function(){set('row',i.getAttribute('data-id'),i.checked?1:0)}});

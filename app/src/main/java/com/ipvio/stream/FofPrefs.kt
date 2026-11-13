@@ -12,7 +12,20 @@ object FofPrefs {
     var oneClick by mutableStateOf(true)
         private set
 
-    fun init(c: Context) { oneClick = c.applicationContext.getSharedPreferences(NAME, Context.MODE_PRIVATE).getBoolean("one_click", true) }
+    /** Movies and series from the IPTV provider in search (off: the Stremio addons are the only source for them). */
+    var providerVod by mutableStateOf(false)
+        private set
+
+    fun init(c: Context) {
+        val p = c.applicationContext.getSharedPreferences(NAME, Context.MODE_PRIVATE)
+        oneClick = p.getBoolean("one_click", true)
+        providerVod = p.getBoolean("provider_vod", false)
+    }
+
+    fun setProviderVod(c: Context, on: Boolean) {
+        providerVod = on
+        c.applicationContext.getSharedPreferences(NAME, Context.MODE_PRIVATE).edit().putBoolean("provider_vod", on).apply()
+    }
 
     fun setOneClick(c: Context, on: Boolean) {
         oneClick = on

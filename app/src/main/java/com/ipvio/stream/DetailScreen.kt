@@ -207,6 +207,12 @@ private fun DetailScreenFull(
     // Play / episode pressed (not the "Stremio" button): one-click play may start the best stream at once
     var stremioAuto by remember(item.id) { mutableStateOf(false) }
     var showMore by remember(item.id) { mutableStateOf(false) }
+    LaunchedEffect(item.id) {
+        if (AppNav.autoStream == item.id) {
+            AppNav.autoStream = null
+            if (Stremio.addons.isNotEmpty()) { stremioAuto = true; showStremio = true }
+        }
+    }
     val isTv = meta?.isTv == true
     // Long seasons (One Piece & co.): fetch TMDB seasons to use them as sections
     val needTmdbSeasons = remember(item) {

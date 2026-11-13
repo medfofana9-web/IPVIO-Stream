@@ -340,24 +340,9 @@ private fun AppContent() {
         LastFocus.pending = i.id
         if (i.kind == Kind.LIVE) start(i, i.title, i.url) else pushTop(i)
     }
-    // Fof TV: a catalog title (Cinemeta) opens as the provider's copy when the playlist has it, otherwise with addon streams
-    // The title page opens at once; when the provider's copy is found it takes the catalog title's place
-    val open: (Item) -> Unit = { i ->
-        if (!i.id.startsWith("stremio:")) openNow(i)
-        else openScope.launch {
-            // Instant: only an index that is already built is used; otherwise the title opens as it is right away
-            val quick = Catalog.resolve(i, all, wait = false)
-            openNow(quick)
-            // Back from the title page returns the focus to the catalog card that was pressed
-            LastFocus.pending = i.id
-            if (quick === i) {
-                val r = Catalog.resolve(i, all)
-                if (r !== i && (top as? Item)?.id == i.id) top = r
-            }
-        }
-    }
-    // Match index for catalog titles, built in the background whenever the playlist changes (opening stays instant)
-    LaunchedEffect(all) { Catalog.warm(all) }
+    // Fof TV: movies and series come from the Stremio addons (DragonStreams, Pengu …); the IPTV provider is for Live TV and sports.
+    // A catalog title therefore opens as it is – it is not matched to a copy in the provider's playlist.
+    val open: (Item) -> Unit = { i -> openNow(i) }
 
     // Launch test: play a test stream like a live channel
     LaunchedEffect(AppNav.testUrl) {
@@ -520,9 +505,10 @@ private fun AppContent() {
             else -> Box(Modifier.fillMaxSize().screenEnter(tab)) { HomeScreen(
                 tab = tab, onTab = { goTab(it) }, states = states,
                 onOpen = open,
-                onPlayNow = { i0 -> openScope.launch {
-                    val i = Catalog.resolve(i0, all, wait = false)
+                onPlayNow = { i -> openScope.launch {
                     LastFocus.pending = i.id
+                    // Catalog title: the title page opens and starts the best addon stream at once (one-click play)
+                    if (i.id.startsWith("stremio:")) AppNav.autoStream = i.id
                     // Not in the playlist: the detail page offers the addon streams
                     if (i.kind == Kind.SERIES || i.url.isBlank()) pushTop(i) else { if (i.kind != Kind.LIVE && !i.id.startsWith("rec:")) pushTop(i); start(i, i.title, i.url) }
                 } },

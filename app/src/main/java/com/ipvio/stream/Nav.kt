@@ -76,6 +76,8 @@ object AppNav {
     var testUrl by androidx.compose.runtime.mutableStateOf<String?>(null)
     /** Performance test only ("-test" builds): playlist address loaded at the start without the setup screens. */
     var testPlaylist: String? = null
+    /** "Watch now" on a catalog title: its title page starts the best addon stream right away. */
+    var autoStream: String? = null
     var homeSignal by androidx.compose.runtime.mutableIntStateOf(0)
     /** The View settings ask the movie area to open its categories screen (counts up). */
     var openCatsSignal by androidx.compose.runtime.mutableIntStateOf(0)

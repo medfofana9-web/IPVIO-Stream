@@ -116,10 +116,10 @@ fun SearchScreen(
     val sugg = remember(SearchState.query, suggestIdx) { suggestIdx?.suggest(WordSuggest.lastWord(SearchState.query)).orEmpty() }
     // Sports hub filter: live channels that look like sports channels (the hub itself opens with the button)
     val rl = when (fl) { 0, 3 -> rl0; 4 -> rl0.filter { SearchSport.isSport(it) }; else -> emptyList() }
-    val rs = if (fl == 0 || fl == 2) rs0 else emptyList()
+    val rs = if ((fl == 0 || fl == 2) && FofPrefs.providerVod) rs0 else emptyList()
     // The same movie in several versions only once (the source is chosen on the detail page)
     val rmAll: List<Item> = remember(rm0) { PlaylistLogic.firstPerKey(rm0) { it.mk + "|" + it.lang } }
-    val rm = if (fl == 0 || fl == 1) rmAll else emptyList()
+    val rm = if ((fl == 0 || fl == 1) && FofPrefs.providerVod) rmAll else emptyList()
     val firstKey = when { rm.isNotEmpty() -> "rm"; rs.isNotEmpty() -> "rs"; rl.isNotEmpty() -> "rl"; else -> "" }
     // Back: in the search field (keyboard already closed) first to the recent searches or hits, otherwise into the sidebar
     BackHandler(enabled = !inSidebar) {
@@ -223,7 +223,7 @@ fun SearchScreen(
                     val openS: (Item) -> Unit = { i -> AppSettings.addSearch(ctx, q); onOpen(i) }
                     if (searching) item {
                         Text("Suche …", color = Muted, fontSize = 16.sp, modifier = Modifier.padding(horizontal = DS.PageX, vertical = 16.dp))
-                    } else if (rm.isEmpty() && rs.isEmpty() && rl.isEmpty()) item {
+                    } else if (rm.isEmpty() && rs.isEmpty() && rl.isEmpty() && Stremio.addons.none { it.streams }) item {
                         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                             EmptyState(AIcon.Info, "Keine Treffer", "Prüfe die Schreibweise oder suche nach einem Teil des Titels. Kleine Tippfehler findet die Suche trotzdem.")
                         }
@@ -238,12 +238,12 @@ fun SearchScreen(
                             AppSettings.addSearch(ctx, q); onBrowse(BrowseReq("Suche „$q“ · Serien", rs, S_SORT_AZ))
                         }
                     }
+                    if (!searching) item(key = "stremio") { StremioSearchRow(q, (rm + rs).map { it.title }, openS) }
                     if (rl.isNotEmpty()) item(key = "rl") {
                         SearchRow("Live TV", rl, cardW, openS, if (firstKey == "rl") firstRes else null) {
                             AppSettings.addSearch(ctx, q); onBrowse(BrowseReq("Suche „$q“ · Live TV", rl, S_SORT_AZ))
                         }
                     }
-                    if (!searching) item(key = "stremio") { StremioSearchRow(q, (rm + rs).map { it.title }, openS) }
                 }
                     }
                 }
