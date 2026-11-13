@@ -186,6 +186,14 @@ object AppUpdate {
             }
             return false
         }
+        // Installer session first: it can hand the app's compile profile to the system (base.dm), so the new version is
+        // compiled during the install and runs smooth right away. If anything goes wrong the system installer opens as before.
+        if (UpdateSession.start(c, apk)) return true
+        return viewInstall(c, apk)
+    }
+
+    /** The system installer screen for [apk] (the way updates were always installed). */
+    fun viewInstall(c: Context, apk: File): Boolean {
         val uri = FileProvider.getUriForFile(c, c.packageName + ".fileprovider", apk)
         return runCatching {
             c.startActivity(

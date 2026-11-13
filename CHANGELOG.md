@@ -1,5 +1,10 @@
 # Changelog
 
+## Fof TV 1.3.38 (November 2026)
+**Speed**
+- The compile profile now covers the app's own code (the rule had a syntax error, so only libraries were listed)
+- Updates install through an installer session that hands the profile to the system (base.dm): the new version is compiled during the install instead of running uncompiled until the device compiles it while idle. Falls back to the installer screen if the session fails
+
 ## Fof TV 1.3.37 (November 2026)
 - Menus opened with a long press (Multiview tiles, profiles) no longer close the moment the OK button is released; only a new press picks an option
 
