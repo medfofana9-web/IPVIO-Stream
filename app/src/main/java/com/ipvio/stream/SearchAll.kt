@@ -25,6 +25,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /** Pure matching rules of the search over everything (no Android, testable). */
@@ -51,18 +52,30 @@ object SearchSports {
     private const val MAX_AGE = 5 * 60_000L
 
     /** Games of all switched-on leagues: today and the next days, plus the current events of event sports. */
-    suspend fun games(): List<SportData.Game> = withContext(Dispatchers.IO) {
+    @Volatile private var memo: Pair<Long, List<SportData.Game>>? = null
+    private val lock = kotlinx.coroutines.sync.Mutex()
+
+    suspend fun games(): List<SportData.Game> = lock.withLock {
+        memo?.let { if (System.currentTimeMillis() - it.first < 3 * 60_000L) return@withLock it.second }
+        val r = load()
+        memo = System.currentTimeMillis() to r
+        r
+    }
+
+    private suspend fun load(): List<SportData.Game> = withContext(Dispatchers.IO) {
         val tz = General.zone()
+        val range = SportData.ymd(0, tz) + "-" + SportData.ymd(DAYS - 1, tz)
         val leagues = SportData.LEAGUES.filter { SportLeagues.on(it) }
         val fetched = runCatching {
             coroutineScope {
-                leagues.flatMap { l ->
-                    if (l.kind == SportData.KIND_TEAM) (0 until DAYS).map { d ->
-                        async { runCatching { SportData.fetch(l, SportData.ymd(d, tz), MAX_AGE) }.getOrDefault(emptyList()) }
-                    } else listOf(async { runCatching { SportData.fetchCurrent(l, MAX_AGE) }.getOrDefault(emptyList()) })
+                leagues.map { l ->
+                    async {
+                        runCatching { if (l.kind == SportData.KIND_TEAM) SportData.fetch(l, range, MAX_AGE) else SportData.fetchCurrent(l, MAX_AGE) }
+                            .getOrDefault(emptyList())
+                    }
                 }.awaitAll().flatten()
             }
-        }.getOrDefault(emptyList())
+        }.getOrDefault(emptyList()).distinctBy { it.key }
         // The shared score map is UI state: written and read on the main thread
         withContext(Dispatchers.Main) {
             SportFeed.put(fetched)
@@ -103,7 +116,8 @@ object SearchGuide {
     fun shows(live: List<Item>, q: String): List<GuideSearchLogic.Hit> {
         val now = System.currentTimeMillis() / 1000
         return GuideSearchLogic.search(live, q, now, limit = 40, maxChannels = 0)
-            .filter { it.entry != null && it.entry.end > now && it.entry.start < now + 12 * 3600 }.take(24)
+            .filter { it.entry != null && it.entry.end > now && it.entry.start < now + 12 * 3600 }
+            .distinctBy { it.channel.id + "|" + it.entry!!.start }.take(24)
     }
 }
 
@@ -127,7 +141,7 @@ internal fun SearchTitleRow(title: String, list: List<Item>, cardW: Int, first: 
     Column {
         ResultTitle(title)
         LazyRow(contentPadding = PaddingValues(horizontal = DS.PageX, vertical = 18.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-            itemsIndexed(list, key = { _, it -> title + it.id }) { i, x ->
+            itemsIndexed(list, key = { i, it -> "$i|" + it.id }) { i, x ->
                 RowPosterCard(x, cardW.dp, Modifier.first(i, first).restoreFocus(x.id).onFocusChanged { if (it.hasFocus) onFocus(x) }, expand = false) { onOpen(x) }
             }
         }
@@ -141,7 +155,7 @@ internal fun SearchGameRow(games: List<SportData.Game>, first: FocusRequester?, 
     Column {
         ResultTitle("Games")
         LazyRow(contentPadding = PaddingValues(horizontal = DS.PageX, vertical = 18.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-            itemsIndexed(games, key = { _, it -> "g" + it.key }) { i, g -> GameTileCard(g, Modifier.first(i, first)) { onGame(g) } }
+            itemsIndexed(games, key = { i, it -> "g$i|" + it.key }) { i, g -> GameTileCard(g, Modifier.first(i, first)) { onGame(g) } }
         }
     }
 }
@@ -156,10 +170,10 @@ internal fun SearchTeamRow(
     Column {
         ResultTitle(if (teams.isEmpty()) "Leagues" else if (leagues.isEmpty()) "Teams" else "Teams & leagues")
         LazyRow(contentPadding = PaddingValues(horizontal = DS.PageX, vertical = 18.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            itemsIndexed(teams, key = { _, it -> "t" + it.first.name + it.second.id + it.second.name }) { i, (l, t) ->
+            itemsIndexed(teams, key = { i, _ -> "t$i" }) { i, (l, t) ->
                 SearchChip(t.name, l.name, t.logo, t.abbr, Modifier.first(i, first)) { onTeam(l, t) }
             }
-            itemsIndexed(leagues, key = { _, it -> "l" + it.name }) { i, l ->
+            itemsIndexed(leagues, key = { i, _ -> "l$i" }) { i, l ->
                 SearchChip(l.name, l.catName, null, l.name, Modifier.first(if (teams.isEmpty()) i else 1, first)) { onLeague(l) }
             }
         }
@@ -174,7 +188,7 @@ internal fun SearchShowRow(hits: List<GuideSearchLogic.Hit>, first: FocusRequest
     Column {
         ResultTitle("On TV")
         LazyRow(contentPadding = PaddingValues(horizontal = DS.PageX, vertical = 18.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            itemsIndexed(hits, key = { _, it -> "e" + it.channel.id + it.entry!!.start }) { i, h ->
+            itemsIndexed(hits, key = { i, _ -> "e$i" }) { i, h ->
                 val e = h.entry!!
                 val sub = (if (e.start <= now) "Now" else hhmm(e.start)) + " · " + h.channel.title
                 SearchChip(e.title, sub, h.channel.logo, h.channel.title, Modifier.first(i, first), wide = true) { onPlay(h.channel) }

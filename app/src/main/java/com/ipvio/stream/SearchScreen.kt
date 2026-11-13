@@ -132,7 +132,7 @@ fun SearchScreen(
         val r = kotlinx.coroutines.coroutineScope {
             val m = async { Catalog.search(Kind.MOVIE, q) }
             val s = async { Catalog.search(Kind.SERIES, q) }
-            m.await() to s.await()
+            m.await().distinctBy { it.id } to s.await().distinctBy { it.id }
         }
         value = q to r
     }
@@ -140,7 +140,7 @@ fun SearchScreen(
         value = null
         if (q.length < 3) return@produceState
         delay(450)
-        value = TmdbExtra.person(q)
+        value = runCatching { TmdbExtra.person(q) }.getOrNull()?.let { (n, l) -> n to l.distinctBy { it.id } }
     }
     val sport by produceState(Triple(emptyList<SportData.Game>(), emptyList<Pair<SportData.League, SportData.Team>>(), emptyList<SportData.League>()), q) {
         value = Triple(emptyList(), emptyList(), emptyList())

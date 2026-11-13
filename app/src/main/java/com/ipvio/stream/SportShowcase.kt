@@ -36,6 +36,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 
 /**
  * Fof TV sports showcase (Nuvio style): wide game tiles in the two team colors with big logos and "VS"
@@ -164,5 +166,29 @@ internal fun GameTileRow(title: String, games: List<SportData.Game>, hub: HubCtx
         LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(18)), contentPadding = PaddingValues(vertical = dpx(10))) {
             items(games.take(30), key = { title + it.key }) { g -> GameTile(g, hub) }
         }
+    }
+}
+
+/** Soccer and NBA games of the coming week for the top of the sports page (ESPN date range: one request per league). */
+internal object SportAhead {
+    class Week(val soccer: List<SportData.Game>, val nba: List<SportData.Game>)
+
+    private const val MAX_AGE = 30 * 60_000L
+    @Volatile private var last = Week(emptyList(), emptyList())
+
+    fun cached(): Week = last
+
+    suspend fun load(): Week = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val tz = General.zone()
+        val range = SportData.ymd(0, tz) + "-" + SportData.ymd(7, tz)
+        val now = System.currentTimeMillis() / 1000
+        val ls = SportData.LEAGUES.filter { SportLeagues.on(it) && it.kind == SportData.KIND_TEAM && (it.sport == "soccer" || it.name == "NBA") }
+        val got = kotlinx.coroutines.coroutineScope {
+            ls.map { l -> async { l to runCatching { SportData.fetch(l, range, MAX_AGE) }.getOrDefault(emptyList()) } }.awaitAll()
+        }
+        fun keep(l: List<SportData.Game>) = l.filter { it.state == 1 || (it.state == 0 && it.start > now - 3 * 3600) }.distinctBy { it.key }
+        val w = Week(keep(got.filter { it.first.sport == "soccer" }.flatMap { it.second }), keep(got.filter { it.first.name == "NBA" }.flatMap { it.second }))
+        if (w.soccer.isNotEmpty() || w.nba.isNotEmpty()) last = w
+        w
     }
 }

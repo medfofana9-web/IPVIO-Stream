@@ -1,5 +1,13 @@
 # Changelog
 
+## Fof TV 1.3.36 (November 2026)
+**Sports**
+- Soccer and NBA lead the sports page: their games of the coming week, live first
+- Soccer covers 35 competitions: the big leagues, cups, women's leagues, Champions/Europa/Conference League, Libertadores, Concacaf, Nations League and international friendlies
+
+**Search**
+- Fixed a crash while typing (duplicate list keys from repeated catalog or guide entries); sports search now uses one request per league and keeps its result 3 minutes
+
 ## Fof TV 1.3.35 (November 2026)
 **24/7 shows**
 - New "24/7" button on a show's page: the show plays without end, in order (from the episode last watched) or shuffled; each episode gets a fresh addon link, an episode that will not play is skipped, at the end it starts over

@@ -294,9 +294,15 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
             .mapValues { (_, l) -> l.sortedWith(compareBy({ when (it.state) { 1 -> 0; 0 -> 1; else -> 2 } }, { if (SportHubFavs.isFavGame(it)) 0 else 1 }, { popularity(it) }, { it.start })) }
             .toList().sortedBy { (k, _) -> order.indexOf(k).let { if (it < 0) 99 else it } }
     }
+    // Soccer and the NBA lead the page: their games of the coming week (one request per league, refreshed every 30 minutes)
+    val ahead by produceState(SportAhead.cached(), SportLeagues.off.joinToString("|")) { value = SportAhead.load() }
+    fun fresh(l: List<SportData.Game>) = l.map { SportFeed.latest[it.key] ?: it }.filter { it.state != 2 }
+        .sortedWith(compareBy({ if (it.state == 1) 0 else 1 }, { if (SportHubFavs.isFavGame(it)) 0 else 1 }, { it.start }))
+    val soccer = fresh(ahead.soccer)
+    val nba = fresh(ahead.nba)
     LazyColumn(contentPadding = PaddingValues(horizontal = DS.PageX, vertical = dpx(8)), verticalArrangement = Arrangement.spacedBy(dpx(26))) {
         when {
-            games.isNotEmpty() -> {}
+            games.isNotEmpty() || soccer.isNotEmpty() || nba.isNotEmpty() -> {}
             // Still waiting for leagues: never say "no games" before every league has answered
             feed.loading || feed.done < feed.total -> item(key = "load") { HubLoading("Lade Spiele …") }
             feed.failed -> item(key = "err") {
@@ -314,13 +320,16 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
                 items(mine.take(12), key = { "my" + it.key }) { g -> GameTile(g, hub) }
             }
         }
+        if (soccer.isNotEmpty()) item(key = "ahead_soccer") { GameTileRow("Soccer", soccer.take(30), hub) { hub.goTab(2, "soccer") } }
+        if (nba.isNotEmpty()) item(key = "ahead_nba") { GameTileRow("NBA", nba.take(30), hub) { hub.goTab(2, "basketball") } }
         val liveAll = games.filter { it.state == 1 }.sortedWith(compareBy({ if (it.key in m.withCh) 0 else 1 }, { if (SportHubFavs.isFavGame(it)) 0 else 1 }, { popularity(it) }))
         if (liveAll.isNotEmpty()) item(key = "live") { GameTileRow("Live now", liveAll, hub) { hub.goTab(1, null) } }
         val soon = games.filter { it.state == 0 && statusKind(it) == 0 }.sortedWith(compareBy({ if (SportHubFavs.isFavGame(it)) 0 else 1 }, { it.start }))
         if (soon.isNotEmpty()) item(key = "soon") { GameTileRow("Upcoming", soon, hub) { hub.goTab(2, null) } }
         // One row per sport: live and upcoming games; finished games are collected in "Today's results"
         bySport.forEach { (sp, l) ->
-            val open = l.filter { it.state != 2 }
+            // Soccer and NBA already have their own rows at the top
+            val open = l.filter { it.state != 2 && sp != "soccer" && it.league != "NBA" }
             if (open.isNotEmpty()) item(key = "sp$sp") { GameTileRow(SportShowcase.title(sp), open, hub) { hub.goTab(1, sp) } }
         }
         // Your provider's sports channels (favorites first), for watching without a specific game

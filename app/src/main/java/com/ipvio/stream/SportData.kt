@@ -66,16 +66,42 @@ object SportData {
     )
 
     val LEAGUES = listOf(
-        League("Bundesliga", "soccer/ger.1", "Fußball"),
-        League("2. Bundesliga", "soccer/ger.2", "Fußball"),
+        // Fof TV (US): soccer first, the biggest competitions on top; national teams during international breaks
         League("Premier League", "soccer/eng.1", "Fußball"),
+        League("Champions League", "soccer/uefa.champions", "Fußball"),
+        League("MLS", "soccer/usa.1", "Fußball"),
         League("LaLiga", "soccer/esp.1", "Fußball"),
         League("Serie A", "soccer/ita.1", "Fußball"),
+        League("Bundesliga", "soccer/ger.1", "Fußball"),
         League("Ligue 1", "soccer/fra.1", "Fußball"),
-        League("Champions League", "soccer/uefa.champions", "Fußball"),
         League("Europa League", "soccer/uefa.europa", "Fußball"),
-        League("MLS", "soccer/usa.1", "Fußball"),
         League("Liga MX", "soccer/mex.1", "Fußball"),
+        League("Nations League", "soccer/uefa.nations", "Fußball"),
+        League("Concacaf Nations League", "soccer/concacaf.nations.league", "Fußball"),
+        League("International Friendlies", "soccer/fifa.friendly", "Fußball"),
+        League("2. Bundesliga", "soccer/ger.2", "Fußball"),
+        League("Conference League", "soccer/uefa.europa.conf", "Fußball"),
+        League("Club World Cup", "soccer/fifa.cwc", "Fußball"),
+        League("Concacaf Champions Cup", "soccer/concacaf.champions", "Fußball"),
+        League("Copa Libertadores", "soccer/conmebol.libertadores", "Fußball"),
+        League("Championship", "soccer/eng.2", "Fußball"),
+        League("FA Cup", "soccer/eng.fa", "Fußball"),
+        League("Carabao Cup", "soccer/eng.league_cup", "Fußball"),
+        League("Copa del Rey", "soccer/esp.copa_del_rey", "Fußball"),
+        League("Coppa Italia", "soccer/ita.coppa_italia", "Fußball"),
+        League("DFB-Pokal", "soccer/ger.dfb_pokal", "Fußball"),
+        League("Coupe de France", "soccer/fra.coupe_de_france", "Fußball"),
+        League("Eredivisie", "soccer/ned.1", "Fußball"),
+        League("Liga Portugal", "soccer/por.1", "Fußball"),
+        League("Scottish Premiership", "soccer/sco.1", "Fußball"),
+        League("Süper Lig", "soccer/tur.1", "Fußball"),
+        League("Belgian Pro League", "soccer/bel.1", "Fußball"),
+        League("Saudi Pro League", "soccer/ksa.1", "Fußball"),
+        League("Brasileirão", "soccer/bra.1", "Fußball"),
+        League("Liga Profesional Argentina", "soccer/arg.1", "Fußball"),
+        League("NWSL", "soccer/usa.nwsl", "Fußball"),
+        League("Women's Super League", "soccer/eng.w.1", "Fußball"),
+        League("U.S. Open Cup", "soccer/usa.open", "Fußball"),
         League("NBA", "basketball/nba", "Basketball", "basketball"),
         League("WNBA", "basketball/wnba", "Basketball", "basketball"),
         League("College Basketball", "basketball/mens-college-basketball", "Basketball", "basketball"),
@@ -93,7 +119,7 @@ object SportData {
     )
 
     /** Popular competitions for the overview (shown if active). */
-    val POPULAR = listOf("NBA", "NFL", "College Football", "College Basketball", "NHL", "MLB", "WNBA", "MLS", "Premier League", "Champions League")
+    val POPULAR = listOf("Premier League", "Champions League", "MLS", "NBA", "NFL", "College Football", "College Basketball", "NHL", "MLB", "WNBA")
 
     fun league(name: String): League? = LEAGUES.firstOrNull { it.name == name }
     fun leagueOf(g: Game): League? = league(g.league)
