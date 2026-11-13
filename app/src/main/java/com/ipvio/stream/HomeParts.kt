@@ -537,7 +537,7 @@ fun LandscapeCard(item: Item, modifier: Modifier, onClick: () -> Unit) {
     val s by animateFloatAsState(if (f) focusScale(1.07f) else 1f, label = "land")
     val shape = RoundedCornerShape(dpx(8))
     val rowF = LocalRowFocus.current
-    val dimA by animateFloatAsState(if (rowF && !f && !clean) 0.5f else 1f, tween(if (Look.motion == 0) 0 else 320), label = "dim")
+    val dimA by animateFloatAsState(if (rowF && !f && !FofPrefs.cleanLook) 0.5f else 1f, tween(if (Look.motion == 0) 0 else 320), label = "dim")
     val img = m?.backdrop?.let { cardBackdrop(it) } ?: m?.poster?.let { cardPoster(it) } ?: item.logo
     Box(
         modifier.aspectRatio(1.3f).graphicsLayer { scaleX = s; scaleY = s }.focusGlow(f, shape).clip(shape)
