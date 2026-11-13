@@ -214,8 +214,11 @@ fun HomeScreen(
     val cardW = AppSettings.cardW
     // derivedStateOf: the lists are rebuilt only when history / favorites / My list really change, not on every
     // recomposition; the same list object lets the rows below skip instead of recomposing all their cards
-    val hist by remember(byId) { derivedStateOf { History.ids.mapNotNull { byId[it] } } }
-    val watchList by remember(byId) { derivedStateOf { Library.watch.mapNotNull { byId[it] } } }
+    // Catalog titles (addons) are not in the playlist: they come from CatalogItems
+    remember { CatalogItems.init(ctx) }
+    val lk: (String) -> Item? = { id -> byId[id] ?: CatalogItems.get(id) }
+    val hist by remember(byId) { derivedStateOf { History.ids.mapNotNull { lk(it) } } }
+    val watchList by remember(byId) { derivedStateOf { Library.watch.mapNotNull { lk(it) } } }
     val favLive by remember(byId) { derivedStateOf { Library.favs.mapNotNull { byId[it] }.filter { it.kind == Kind.LIVE } } }
     // Row lists that were built anew inside the rows on every recomposition
     val newMovies = remember(movies) { movies.takeLast(40).reversed() }
@@ -348,7 +351,7 @@ fun HomeScreen(
     val nowChannels = remember(favLive, hist, live) {
         (favLive + hist.filter { it.kind == Kind.LIVE }).distinctBy { it.id }.ifEmpty { live.take(20) }
     }
-    val favVod by remember(byId) { derivedStateOf { Library.favs.mapNotNull { byId[it] }.filter { it.kind != Kind.LIVE } } }
+    val favVod by remember(byId) { derivedStateOf { Library.favs.mapNotNull { lk(it) }.filter { it.kind != Kind.LIVE } } }
     val tileImg by produceState(emptyMap<Int, String>(), topM.size, topS.size, favVod.size, watchList.size) {
         val used = HashSet<String>()
         val out = HashMap<Int, String>()
@@ -468,7 +471,7 @@ fun HomeScreen(
         else { lastBack = now; android.widget.Toast.makeText(ctx, Lang.tr("Noch einmal Zurück drücken zum Beenden"), android.widget.Toast.LENGTH_SHORT).show() }
     }
 
-    val resumeList by remember(byId) { derivedStateOf { WatchStore.entries.mapNotNull { e -> byId[e.itemId]?.let { e to it } } } }
+    val resumeList by remember(byId) { derivedStateOf { WatchStore.entries.mapNotNull { e -> lk(e.itemId)?.let { e to it } } } }
     // Movies/series tab: the same lists filtered by kind, kept between recompositions
     val vodKind = if (tab == 1) Kind.MOVIE else Kind.SERIES
     val resumeK = remember(resumeList, vodKind) { resumeList.filter { it.second.kind == vodKind } }
@@ -595,7 +598,17 @@ fun HomeScreen(
                                     "tiles" -> { item(key = "tiles") { QuickTiles(tiles) } }
                                     "stremio" -> {
                                         val topIds = trendTop.mapTo(HashSet()) { it.id }
+                                        // "Because you watched …": the last catalog title you watched
+                                        val seed = History.ids.firstNotNullOfOrNull { id -> CatalogItems.get(id) }
+                                        if (seed != null) item(key = "because" + seed.id) {
+                                            ExtraRow("Because you watched " + seed.title, "because:" + seed.id.removePrefix("stremio:"), cardW, onOpen, onBrowse) { TmdbExtra.because(seed) }
+                                        }
                                         Catalog.home().forEach { sp -> item(key = "cm" + sp.title) { CatalogRow(sp, cardW, onOpen, onBrowse, topIds) } }
+                                        // What just came out on the big streaming services
+                                        TmdbExtra.SERVICES.take(4).forEach { sv ->
+                                            item(key = "new" + sv.id) { ExtraRow("New on " + sv.name, "new:" + sv.id, cardW, onOpen, onBrowse) { TmdbExtra.newOn(sv) } }
+                                        }
+                                        item(key = "collections") { CollectionsRow(onBrowse) }
                                     }
                                     "sportlive" -> { item(key = "sportlive") { LiveSportsRow(live, onOpen) { onTab(MenuLogic.SPORT) } } }
                                     "clock" -> { item(key = "clock") { ClockWidget() } }
@@ -653,8 +666,8 @@ fun HomeScreen(
                         }
                         MenuLogic.FAVS -> {
                             // Round 14: besides channels also movies and series (detail page > "Add to favorites")
-                            val favM = Library.favs.mapNotNull { byId[it] }.filter { it.kind == Kind.MOVIE }
-                            val favS = Library.favs.mapNotNull { byId[it] }.filter { it.kind == Kind.SERIES }
+                            val favM = Library.favs.mapNotNull { lk(it) }.filter { it.kind == Kind.MOVIE }
+                            val favS = Library.favs.mapNotNull { lk(it) }.filter { it.kind == Kind.SERIES }
                             item(key = "favtop") { header(Modifier) }
                             if (favLive.isEmpty() && favM.isEmpty() && favS.isEmpty()) {
                                 item(key = "favh") { RowTitle("Favoriten", null, null, onAll = null) }
@@ -760,6 +773,43 @@ private fun EmptyHint(text: String) {
 
 object PillMemory {
     var key: String? = null
+}
+
+/** A row from TMDB (needs the TMDB key); left out while empty, so it never leaves a gap. */
+@Composable
+private fun ExtraRow(title: String, key: String, cardW: Int, onOpen: (Item) -> Unit, onBrowse: (BrowseReq) -> Unit, load: suspend () -> List<Item>) {
+    val list by produceState(TmdbExtra.cached(key), key) { value = load() }
+    if (list.size < 3) return
+    ItemsRow(title, list, cardW, onOpen) { onBrowse(BrowseReq(title, list, SORT_PLAYLIST)) }
+}
+
+/** Collections (sagas): wide picture cards; OK opens the movies in order. */
+@Composable
+private fun CollectionsRow(onBrowse: (BrowseReq) -> Unit) {
+    if (!TmdbExtra.enabled()) return
+    val scope = rememberCoroutineScope()
+    Column {
+        Text(raw = true, text = "Collections", color = Tok.TextHi, fontSize = spx(24), fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = RowPadX, bottom = dpx(10)))
+        LazyRow(contentPadding = PaddingValues(horizontal = RowPadX, vertical = dpx(10)), horizontalArrangement = Arrangement.spacedBy(dpx(18))) {
+            items(TmdbExtra.COLLECTIONS, key = { "coll" + it.id }) { c ->
+                val art by produceState<String?>(null, c.id) { value = TmdbExtra.collectionArt(c) }
+                var f by remember { mutableStateOf(false) }
+                val sc by animateFloatAsState(if (f) focusScale(1.05f) else 1f, tween(150), label = "coll")
+                val shape = RoundedCornerShape(dpx(12))
+                Box(
+                    Modifier.size(dpx(380), dpx(214)).graphicsLayer { scaleX = sc; scaleY = sc }.focusGlow(f, shape).clip(shape)
+                        .background(Color(0xFF16161A)).border(if (f) 2.dp else 1.dp, if (f) Color.White else Color(0x1AFFFFFF), shape)
+                        .onFocusChanged { f = it.isFocused }.restoreFocus("coll" + c.id)
+                        .clickable { scope.launch { val l = TmdbExtra.collection(c); if (l.isNotEmpty()) onBrowse(BrowseReq(c.name, l, SORT_PLAYLIST)) } }
+                ) {
+                    if (art != null) AsyncImage(art, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color.Transparent, 0.5f to Color.Transparent, 1f to Color(0xCC000000))))
+                    Text(raw = true, text = c.name, color = Color.White, fontSize = spx(22), fontWeight = FontWeight.Bold, maxLines = 1,
+                        modifier = Modifier.align(Alignment.BottomStart).padding(dpx(16)))
+                }
+            }
+        }
+    }
 }
 
 /** One catalog row: shown at once from the saved list, refreshed in the background; keeps its height while loading. */

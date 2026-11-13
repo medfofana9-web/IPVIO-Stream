@@ -212,6 +212,7 @@ private fun DetailScreenFull(
     LaunchedEffect(item.id) {
         if (AppNav.autoStream == item.id) {
             AppNav.autoStream = null
+            AppNav.autoResume?.let { (s, e, _) -> if (item.kind == Kind.SERIES && s > 0 && e > 0) stremioAt = s to e }
             if (Stremio.addons.isNotEmpty()) { stremioAuto = true; showStremio = true }
         }
     }
@@ -543,7 +544,14 @@ private fun DetailScreenFull(
                                 StremioSourcesPopup(
                                     item, imdbId ?: item.id.removePrefix("stremio:").takeIf { StremioLogic.isImdb(it) },
                                     stremioAt?.first ?: season, stremioAt?.second ?: rs?.second ?: eps.firstOrNull()?.num ?: 1,
-                                    onPlay, { showStremio = false; stremioAt = null }, auto = stremioAuto
+                                    { u, t, ms ->
+                                        // Addon stream of a title with a saved spot: start there (the link itself is new)
+                                        val saved = AppNav.autoResume?.third?.takeIf { it > 0 }
+                                            ?: WatchStore.entries.firstOrNull { it.itemId == item.id && (item.kind != Kind.SERIES || t.contains("S" + it.season + "E" + it.ep)) }
+                                                ?.takeIf { !ResumeLogic.finished(it.pos, it.dur) }?.pos
+                                        AppNav.autoResume = null
+                                        onPlay(u, t, if (ms > 0) ms else saved ?: 0L)
+                                    }, { showStremio = false; stremioAt = null }, auto = stremioAuto
                                 )
                             }
                             if (showMore) {

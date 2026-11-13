@@ -78,6 +78,8 @@ object AppNav {
     var testPlaylist: String? = null
     /** "Watch now" on a catalog title: its title page starts the best addon stream right away. */
     var autoStream: String? = null
+    /** Resume of a catalog title: season, episode, position in ms (used with [autoStream]). */
+    var autoResume: Triple<Int, Int, Long>? = null
     var homeSignal by androidx.compose.runtime.mutableIntStateOf(0)
     /** The View settings ask the movie area to open its categories screen (counts up). */
     var openCatsSignal by androidx.compose.runtime.mutableIntStateOf(0)

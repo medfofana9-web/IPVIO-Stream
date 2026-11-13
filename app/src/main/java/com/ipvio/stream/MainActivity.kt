@@ -54,6 +54,7 @@ class MainActivity : ComponentActivity() {
         Boomer.init(this)
         HomeLayout.init(this); BoomerLayout.init(this); FofPrefs.init(this); SportSession.init(this)
         Catalog.init(this); Catalog.preload()
+        CatalogItems.init(this); TmdbExtra.init(this)
         // Fof TV: the settings website is always reachable on the local network (address: phone icon in the menu)
         RemoteHub.start(this)
         SidebarPrefs.init(this)
@@ -350,6 +351,7 @@ private fun AppContent() {
 
     val openScope = rememberCoroutineScope()
     val openNow: (Item) -> Unit = { i ->
+        CatalogItems.put(ctx, i)
         if (i.kind == Kind.SERIES) NewEpisodes.dismiss(ctx, i.id)
         LastFocus.pending = i.id
         if (i.kind == Kind.LIVE) start(i, i.title, i.url) else pushTop(i)
@@ -509,8 +511,14 @@ private fun AppContent() {
                 onResume = { e, i ->
                     LastFocus.pending = i.id
                     pushTop(i)
-                    val t = WatchStore.target(ctx, i, e)
-                    start(i, t.first, t.second, e.pos)
+                    if (i.id.startsWith("stremio:")) {
+                        // Addon links expire: the title page finds a fresh stream for that episode and starts at the saved spot
+                        AppNav.autoStream = i.id
+                        AppNav.autoResume = Triple(e.season, e.ep, e.pos)
+                    } else {
+                        val t = WatchStore.target(ctx, i, e)
+                        start(i, t.first, t.second, e.pos)
+                    }
                 }
             )
             tab == 4 && all.isNotEmpty() -> Box(Modifier.fillMaxSize().screenEnter()) { SearchScreen(
@@ -523,6 +531,7 @@ private fun AppContent() {
                 tab = tab, onTab = { goTab(it) }, states = states,
                 onOpen = open,
                 onPlayNow = { i -> openScope.launch {
+                    CatalogItems.put(ctx, i)
                     LastFocus.pending = i.id
                     // Catalog title: the title page opens and starts the best addon stream at once (one-click play)
                     if (i.id.startsWith("stremio:")) AppNav.autoStream = i.id
