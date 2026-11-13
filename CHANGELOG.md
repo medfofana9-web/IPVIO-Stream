@@ -2,6 +2,7 @@
 
 ## Fof TV 1.3.40 (November 2026)
 **Sports**
+- Games ESPN has no live data for (smaller cups and leagues) no longer stay "Upcoming" after kickoff: they show "Started", and drop off three hours later
 - Opening Sports no longer shows "No games found today" while leagues are still loading (an old empty cache counted as an answer)
 - League answers are collected and the page is updated at most every 400 ms instead of after every single league (dozens of rebuilds in the first seconds)
 

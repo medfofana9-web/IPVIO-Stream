@@ -107,7 +107,8 @@ internal fun GameTileCard(g: SportData.Game, modifier: Modifier = Modifier, onCl
                 if (live) {
                     Box(Modifier.size(dpx(8)).clip(RoundedCornerShape(50)).background(Color(0xFFFF3B30)))
                     Text(raw = true, text = "LIVE", color = Color.White, fontSize = spx(13), fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = dpx(6)))
-                } else if (g.state == 2) Text(raw = true, text = "FINAL", color = Color(0xCCFFFFFF), fontSize = spx(13), fontWeight = FontWeight.Bold)
+                } else if (statusKind(g) == 5) Text(raw = true, text = "STARTED", color = Color(0xE6FFFFFF), fontSize = spx(13), fontWeight = FontWeight.Bold)
+                else if (g.state == 2) Text(raw = true, text = "FINAL", color = Color(0xCCFFFFFF), fontSize = spx(13), fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))
                 Text(raw = true, text = SportShowcase.time(g.start).uppercase(), color = Color(0xE6FFFFFF), fontSize = spx(13), fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))

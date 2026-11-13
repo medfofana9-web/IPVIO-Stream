@@ -63,6 +63,11 @@ internal fun statusKind(g: SportData.Game): Int = when {
     g.statusName.contains("CANCEL", true) || g.statusName.contains("ABANDON", true) || g.statusName.contains("FORFEIT", true) -> 4
     g.state == 1 -> 1
     g.state == 2 -> 2
+    // ESPN has no live data for many smaller games (lower cups, minor leagues): they stay "scheduled" after kickoff.
+    // Past kickoff they are "started" (5), three hours later "no result" (6), never "upcoming" again.
+    g.solo || g.start <= 0 || SportData.kindOf(g) != SportData.KIND_TEAM -> 0
+    System.currentTimeMillis() / 1000 > g.start + 3 * 3600 -> 6
+    System.currentTimeMillis() / 1000 > g.start + 300 -> 5
     else -> 0
 }
 
@@ -72,6 +77,8 @@ internal fun statusText(g: SportData.Game): String = when (statusKind(g)) {
     4 -> Lang.tr("Abgesagt")
     1 -> g.detail.ifBlank { g.clock }.ifBlank { "LIVE" }
     2 -> if (g.detail.isNotBlank() && SportData.kindOf(g) != SportData.KIND_TEAM) g.detail else Lang.tr("Beendet")
+    5 -> "Started " + hhmm(g.start)
+    6 -> "No result yet"
     else -> hhmm(g.start)
 }
 

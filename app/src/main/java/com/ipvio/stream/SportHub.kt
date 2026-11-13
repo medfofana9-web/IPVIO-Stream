@@ -311,7 +311,7 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
     }
     // Soccer and the NBA lead the page: their games of the coming week (one request per league, refreshed every 30 minutes)
     val ahead by produceState(SportAhead.cached(), SportLeagues.off.joinToString("|")) { value = SportAhead.load() }
-    fun fresh(l: List<SportData.Game>) = l.map { SportFeed.latest[it.key] ?: it }.filter { it.state != 2 }
+    fun fresh(l: List<SportData.Game>) = l.map { SportFeed.latest[it.key] ?: it }.filter { it.state != 2 && statusKind(it) != 6 }
         .sortedWith(compareBy({ if (it.state == 1) 0 else 1 }, { if (SportHubFavs.isFavGame(it)) 0 else 1 }, { it.start }))
     val soccer = fresh(ahead.soccer)
     val nba = fresh(ahead.nba)
@@ -344,7 +344,7 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
         // One row per sport: live and upcoming games; finished games are collected in "Today's results"
         bySport.forEach { (sp, l) ->
             // Soccer and NBA already have their own rows at the top
-            val open = l.filter { it.state != 2 && sp != "soccer" && it.league != "NBA" }
+            val open = l.filter { it.state != 2 && statusKind(it) != 6 && sp != "soccer" && it.league != "NBA" }
             if (open.isNotEmpty()) item(key = "sp$sp") { GameTileRow(SportShowcase.title(sp), open, hub) { hub.goTab(1, sp) } }
         }
         // Your provider's sports channels (favorites first), for watching without a specific game
