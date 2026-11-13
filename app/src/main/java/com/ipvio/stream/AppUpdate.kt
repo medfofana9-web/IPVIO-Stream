@@ -141,7 +141,12 @@ object AppUpdate {
     /** Download and open the installer; [status] gets progress and result as text. */
     suspend fun downloadAndInstall(c: Context, u: UpdateInfo, status: (String) -> Unit) {
         download(c, u) { p -> status(if (p >= 0) "Lade … $p %" else "Lade …") }
-            .onSuccess { f -> status(if (install(c, f)) "Installation gestartet" else INSTALL_HELP) }
+            .onSuccess { f ->
+                status("Installing – Fof TV closes for a moment and opens again with the new version")
+                // Writing the file into the installer takes a moment: off the main thread, so the screen does not freeze
+                val ok = withContext(Dispatchers.IO) { install(c, f) }
+                if (!ok) status(INSTALL_HELP)
+            }
             .onFailure { status(it.message ?: "Fehler") }
     }
 

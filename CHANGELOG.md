@@ -1,5 +1,10 @@
 # Changelog
 
+## Fof TV 1.3.43 (November 2026)
+**Updates**
+- The update is written into the installer off the main thread (the screen froze for a moment), with a note that Fof TV closes briefly
+- After an update the app opens itself again with the new version (where the system allows it)
+
 ## Fof TV 1.3.42 (November 2026)
 **Sports**
 - The last ESPN answers are saved on the device: after a restart or an update the sports page opens with the last known games at once and refreshes them

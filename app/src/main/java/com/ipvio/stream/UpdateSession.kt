@@ -77,6 +77,19 @@ object UpdateSession {
     }
 }
 
+/**
+ * After an update the system closes the app to replace it; this brings it back on the screen with the new version
+ * (best effort: some systems do not allow an app to open itself from the background).
+ */
+class UpdatedReceiver : BroadcastReceiver() {
+    override fun onReceive(c: Context, i: Intent) {
+        if (i.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
+        runCatching {
+            c.startActivity(Intent(c, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
+        }
+    }
+}
+
 /** Result of the installer session: asks for confirmation when the system wants it; on failure the old way. */
 class UpdateResultReceiver : BroadcastReceiver() {
     override fun onReceive(c: Context, i: Intent) {
