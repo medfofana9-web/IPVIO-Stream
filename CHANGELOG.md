@@ -1,5 +1,10 @@
 # Changelog
 
+## Fof TV 1.3.40 (November 2026)
+**Sports**
+- Opening Sports no longer shows "No games found today" while leagues are still loading (an old empty cache counted as an answer)
+- League answers are collected and the page is updated at most every 400 ms instead of after every single league (dozens of rebuilds in the first seconds)
+
 ## Fof TV 1.3.39 (November 2026)
 - Player: "Other streams" button on live channels lists every channel found for the game being watched (channels that worked before are marked); also works for a channel opened directly, by finding the live game it shows
 

@@ -147,16 +147,31 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
         val today = SportData.ymd(0, General.zone())
         for (l in ls) SportData.peek(l, today)?.let { m[l.path] = it }
         val cached = m.values.flatten()
-        value = SportFeed.State(cached, if (cached.isEmpty()) 0 else m.size, ls.size, false)
+        // Only answers from this visit count as "done": an old empty cache must not show "No games today" while live games load
+        val fresh = HashSet<String>()
+        value = SportFeed.State(cached, 0, ls.size, false)
         coroutineScope {
+            // With dozens of leagues, publishing after every single answer rebuilt the page dozens of times in the first
+            // seconds (the stutter on opening Sports). Answers are collected and published together, at most every 400 ms.
+            val pending = ArrayList<SportData.Game>()
+            var dirty = false
+            fun publish() {
+                if (pending.isNotEmpty()) { SportFeed.put(pending.toList()); pending.clear() }
+                val all = m.values.flatten()
+                value = SportFeed.State(all, fresh.size, ls.size, fresh.size == ls.size && all.isEmpty() && !SportData.lastOk)
+                dirty = false
+            }
+            launch { while (true) { delay(400); if (dirty) publish() } }
             ls.forEach { l ->
                 launch {
                     while (true) {
                         val r = SportData.fetch(l, SportData.ymd(0, General.zone()), 15_000)
                         m[l.path] = r
-                        SportFeed.put(r)
-                        val all = m.values.flatten()
-                        value = SportFeed.State(all, m.size, ls.size, m.size == ls.size && all.isEmpty() && !SportData.lastOk)
+                        fresh.add(l.path)
+                        pending.addAll(r)
+                        dirty = true
+                        // The last league answered: show the full picture at once
+                        if (fresh.size == ls.size && value.done < ls.size) publish()
                         delay(SportFeed.interval(l, r))
                     }
                 }
