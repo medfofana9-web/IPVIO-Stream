@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -491,7 +492,7 @@ fun HomeScreen(
     val noBb = remember { setOf("hero", "top", "tiles", "resume", "chnow", "hero1", "hero2", "top1", "top2", "res1", "res2", "wl1", "wl2", "hr1", "hr2", "hint1", "hint2") }
     val bbOnState = remember(tab) {
         derivedStateOf {
-            if (!bbTab || !Billboard.cardFocus || Billboard.focused == null) return@derivedStateOf false
+            if (!bbTab || FofPrefs.cleanLook || !Billboard.cardFocus || Billboard.focused == null) return@derivedStateOf false
             val co = Billboard.focusCo
             if (co == null || !co.isAttached) return@derivedStateOf false
             val li = bbState.layoutInfo
@@ -521,9 +522,10 @@ fun HomeScreen(
     }
     // Read only in draw / layer lambdas and in BillboardLayer (no recomposition per animation frame)
     val bbA: () -> Float = remember(bbAnim) { { bbAnim.value } }
-    val pivotSpec = remember(tab) { PivotSpec(0.5f) { states[tab.coerceIn(0, states.lastIndex)] } }
+    // Clean look: the selected row settles in the upper third (like Nuvio); billboard mode keeps it in the middle
+    val pivotSpec = remember(tab, FofPrefs.cleanLook) { PivotSpec(if (FofPrefs.cleanLook) 0.3f else 0.5f) { states[tab.coerceIn(0, states.lastIndex)] } }
     Box(Modifier.fillMaxSize()) {
-        if (bbTab) BillboardLayer(bbA, bbItemState, Modifier.padding(start = SideStart + dpx(56), top = dpx(64) + (if (SidebarPrefs.pos == SidebarPrefs.TOP) TopBarH else 0.dp)))
+        if (bbTab && !FofPrefs.cleanLook) BillboardLayer(bbA, bbItemState, Modifier.padding(start = SideStart + dpx(56), top = dpx(64) + (if (SidebarPrefs.pos == SidebarPrefs.TOP) TopBarH else 0.dp)))
         BoxWithConstraints(Modifier.fillMaxSize().sidebarPad()) {
             // Card widths and height of the big picture from the available space (as in the design: everything at a glance)
             val grid = remember(maxWidth, Design.k, General.cardSize) { cardGrid(maxWidth - RowPadX * 2) }
@@ -563,7 +565,7 @@ fun HomeScreen(
                     androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides (if (bbTab) pivotSpec else SmoothSpec)
                 ) { LazyColumn(Modifier.fillMaxSize().onGloballyPositioned { listTop[0] = it.positionInRoot().y }.drawWithContent {
                     // While the info is at the top (also while fading out): everything above the selected row is gone, the big picture always.
-                    val ct = if (bbTab && bbA() > 0.01f) {
+                    val ct = if (bbTab && !FofPrefs.cleanLook && bbA() > 0.01f) {
                         val li = states[tab].layoutInfo
                         val co = Billboard.focusCo
                         var edge = size.height * 0.5f - dpx(140).toPx()
@@ -855,7 +857,6 @@ private fun ResumeRow(list: List<Pair<Entry, Item>>, cardW: Int, onResume: (Entr
         val g = LocalCardGrid.current
         Row(Modifier.padding(start = dpx(29), top = dpx(26), end = dpx(28)), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(dpx(16))) {
             Text("Weiterschauen", color = Color.White, fontSize = spx(23), fontWeight = FontWeight.Bold)
-            Text("OK lange drücken = entfernen", color = Muted, fontSize = spx(13), modifier = Modifier.padding(bottom = dpx(3)))
         }
         LazyRow(
             state = RowStates.get("${NavState.tab}|resume"),
@@ -874,14 +875,70 @@ private fun ResumeRow(list: List<Pair<Entry, Item>>, cardW: Int, onResume: (Entr
                     epText != null -> epText
                     else -> e.title.removePrefix(item.title).trim()
                 }
-                WideCard(
-                    item, sub, if (e.dur > 0) (e.pos.toFloat() / e.dur).coerceIn(0f, 1f) else 0f,
+                val badge = when {
+                    item.kind == Kind.SERIES && NewEpisodes.list.any { it.id == item.id } -> "New Episode"
+                    e.next -> "Next Up"
+                    else -> null
+                }
+                ResumeCard(
+                    item, se, badge, sub, if (e.next || e.dur <= 0) 0f else (e.pos.toFloat() / e.dur).coerceIn(0f, 1f),
                     Modifier.width(g.wide).restoreFocus(item.id).favKeys {
                         WatchStore.remove(ctx, e.itemId)
                         android.widget.Toast.makeText(ctx, Lang.tr("Aus „Weiterschauen“ entfernt"), android.widget.Toast.LENGTH_SHORT).show()
                     }
                 ) { onResume(e, item) }
             }
+        }
+    }
+}
+
+/**
+ * Continue watching card (Nuvio style): the episode's own picture (or the movie's scene image), "S2 E9", the show in bold
+ * and the episode title, a "Next Up" / "New Episode" badge, a thin progress line. Episode pictures are blurred while
+ * spoiler protection is on and the episode is not watched yet.
+ */
+@Composable
+private fun ResumeCard(item: Item, se: Pair<Int, Int>?, badge: String?, sub: String, progress: Float, modifier: Modifier, onClick: () -> Unit) {
+    val ctx = LocalContext.current
+    val m = rememberMeta(item)
+    // Episode picture and title: Cinemeta for catalog series (loaded once per series)
+    val ep by produceState<EpMeta?>(null, item.id, se) {
+        if (item.kind != Kind.SERIES || se == null) return@produceState
+        var map = LazySeries.cmEpisodes[item.id]
+        if (map == null && item.id.startsWith("stremio:")) { runCatching { LazySeries.load(ctx, item) }; map = LazySeries.cmEpisodes[item.id] }
+        value = map?.get(se.first)?.firstOrNull { it.num == se.second }
+    }
+    var f by remember { mutableStateOf(false) }
+    val clean = FofPrefs.cleanLook
+    val sc by animateFloatAsState(if (f) focusScale(if (clean) 1.04f else 1.06f) else 1f, tween(150), label = "res")
+    val shape = RoundedCornerShape(DS.RadiusM)
+    val still = ep?.still
+    val img = still ?: m?.backdrop ?: m?.poster ?: item.logo
+    Box(
+        modifier.graphicsLayer { scaleX = sc; scaleY = sc }.billboardFocus(item) { f = it }.clickable(onClick = onClick)
+            .aspectRatio(16f / 9f).clip(shape).background(Color(0xFF16161A))
+            .border(if (f) 3.dp else 1.dp, if (f) Color.White else Color(0x14FFFFFF), shape)
+    ) {
+        if (img != null) {
+            val blur = still != null && FofPrefs.spoilerPics && badge != null
+            if (blur) {
+                val req = remember(still) { coil.request.ImageRequest.Builder(ctx).data(still).size(32, 18).build() }
+                AsyncImage(req, item.title, Modifier.fillMaxSize().blur(14.dp), contentScale = ContentScale.Crop)
+            } else AsyncImage(img, item.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        }
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.35f to Color.Transparent, 1f to Color(0xE6000000))))
+        if (badge != null) Box(
+            Modifier.align(Alignment.TopEnd).padding(dpx(10)).clip(RoundedCornerShape(6.dp))
+                .background(if (badge == "New Episode") Color(0xFF2563EB) else Color(0xCC000000)).padding(horizontal = 8.dp, vertical = 3.dp)
+        ) { Text(raw = true, text = badge, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+        Column(Modifier.align(Alignment.BottomStart).padding(start = dpx(14), end = dpx(14), bottom = dpx(if (progress > 0f) 16 else 12))) {
+            if (se != null && item.kind == Kind.SERIES) Text(raw = true, text = "S${se.first} E${se.second}", color = Color(0xCCFFFFFF), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text(raw = true, text = item.title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val line = if (item.kind == Kind.SERIES) ep?.name ?: sub else sub
+            Text(raw = true, text = line, color = Color(0xB3FFFFFF), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        if (progress > 0f) Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Color(0x40FFFFFF))) {
+            Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Color(0xFFE50914)))
         }
     }
 }

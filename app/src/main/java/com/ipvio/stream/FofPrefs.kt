@@ -23,8 +23,13 @@ object FofPrefs {
     var spoilerText by mutableStateOf(false)
         private set
 
+    /** Clean look (Nuvio style): no full-screen background per card, no dimming or preview, title and year under posters. */
+    var cleanLook by mutableStateOf(true)
+        private set
+
     fun setFlag(c: Context, key: String, on: Boolean) {
         when (key) {
+            "clean_look" -> cleanLook = on
             "spoiler_pics" -> spoilerPics = on
             "spoiler_text" -> spoilerText = on
             "provider_vod" -> providerVod = on
@@ -37,6 +42,7 @@ object FofPrefs {
     fun init(c: Context) {
         val p = c.applicationContext.getSharedPreferences(NAME, Context.MODE_PRIVATE)
         spoilerPics = p.getBoolean("spoiler_pics", true)
+        cleanLook = p.getBoolean("clean_look", true)
         spoilerText = p.getBoolean("spoiler_text", false)
         oneClick = p.getBoolean("one_click", true)
         providerVod = p.getBoolean("provider_vod", false)

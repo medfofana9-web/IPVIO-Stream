@@ -372,7 +372,7 @@ var restoreIdx by remember { mutableIntStateOf(state.focused) }
                             when {
                                 item.kind == Kind.LIVE -> PosterCard(item, { onOpen(item) }, Modifier.width(cardW).then(mod), fixedPosterHeight = cardW * 1.5f - 42.dp)
                                 land -> LandscapeCard(item, Modifier.width(cardW).then(mod)) { onOpen(item) }
-                                else -> RowPosterCard(item, cardW, mod, overlay = if (idx % ncols >= ncols / 2) 2 else 1) { onOpen(item) }
+                                else -> RowPosterCard(item, cardW, mod, overlay0 = if (idx % ncols >= ncols / 2) 2 else 1) { onOpen(item) }
                             }
                         }
                     }
@@ -463,7 +463,7 @@ private fun CinemaView(
                         }
                         .onFocusChanged { st -> if (st.hasFocus) { cur = idx; state.focused = idx; if (open) open = false } }
                         .then(if (idx == cur) Modifier.focusRequester(posterReq) else Modifier)
-                    RowPosterCard(item, baseW, mod, overlay = 0, aspect = aspect, expand = false) {
+                    RowPosterCard(item, baseW, mod, overlay0 = 0, aspect = aspect, expand = false) {
                         // OK: push the detail up, focus on "Play" (another OK starts)
                         shown = item; open = true
                     }

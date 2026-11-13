@@ -82,8 +82,9 @@ open class BlockLayout(private val prefName: String, val blocks: List<LayoutBloc
 
 private val HOME_BLOCKS = listOf(
     LayoutBlock("hero", "Große Slideshow", "Großes Bild oben mit aktuellen Filmen und Serien", fixed = true),
-    LayoutBlock("sportlive", "Live sports", "Games on now: one click plays the right channel"),
+    // Fof TV (Nuvio order): Continue watching right under the big picture, then live sports
     LayoutBlock("resume", "Weiterschauen", "Dort weitermachen, wo du aufgehört hast"),
+    LayoutBlock("sportlive", "Live sports", "Games on now: one click plays the right channel"),
     LayoutBlock("trend", "Top 10 heute", "Die beliebtesten Titel des Tages"),
     LayoutBlock("stremio", "From your Stremio addons", "Popular movies and series, plus your addons' catalogs"),
     LayoutBlock("because", "Weil du etwas geschaut hast", "Ähnliche Titel zu deinem letzten Film oder deiner letzten Serie"),

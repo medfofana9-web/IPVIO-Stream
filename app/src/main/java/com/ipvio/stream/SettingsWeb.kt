@@ -17,6 +17,7 @@ object SettingsWeb {
     private fun flags(c: Context): List<Triple<String, Pair<String, String>, Boolean>> {
         SportPrefs.init(c); GameDay.init(c)
         return listOf(
+            Triple("clean_look", "Clean look (Nuvio style)" to "Calm focus, titles under posters, no changing background", FofPrefs.cleanLook),
             Triple("spoiler_pics", "Blur unwatched episodes" to "Pictures stay blurred until you watch the episode", FofPrefs.spoilerPics),
             Triple("spoiler_text", "Hide unwatched descriptions" to "Episode text shows after you watch it", FofPrefs.spoilerText),
             Triple("auto_next", "Play next episode automatically" to "At the end of an episode", AppSettings.autoNext),
@@ -31,7 +32,7 @@ object SettingsWeb {
 
     private fun setFlag(c: Context, k: String, on: Boolean): Boolean {
         when (k) {
-            "spoiler_pics", "spoiler_text" -> FofPrefs.setFlag(c, k, on)
+            "spoiler_pics", "spoiler_text", "clean_look" -> FofPrefs.setFlag(c, k, on)
             "auto_next" -> AppSettings.setPlayerExtra(c, on, AppSettings.hideSec, AppSettings.showEndTime, AppSettings.autoSkipIntro)
             "auto_skip_intro" -> AppSettings.setPlayerExtra(c, AppSettings.autoNext, AppSettings.hideSec, AppSettings.showEndTime, on)
             "hide_scores" -> SportPrefs.setHideScores(c, on)

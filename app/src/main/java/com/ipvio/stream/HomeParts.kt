@@ -503,7 +503,7 @@ fun PosterTile(item: Item, modifier: Modifier, onClick: () -> Unit) {
     val s by animateFloatAsState(if (f) focusScale(1.07f) else 1f, label = "ptile")
     val shape = RoundedCornerShape(dpx(8))
     val rowF = LocalRowFocus.current
-    val dimA by animateFloatAsState(if (rowF && !f) 0.5f else 1f, tween(if (Look.motion == 0) 0 else 320), label = "dim")
+    val dimA by animateFloatAsState(if (rowF && !f && !clean) 0.5f else 1f, tween(if (Look.motion == 0) 0 else 320), label = "dim")
     val img: String? = when {
         item.kind == Kind.LIVE -> item.logo
         item.id.startsWith("stremio:") && item.logo != null -> item.logo
@@ -619,7 +619,7 @@ fun CardRow(
                     it.kind == Kind.LIVE -> ChannelNowCard(it, track.width(g.chan).then(fr)) { onOpen(it) }
                     style == CARD_LAND -> LandscapeCard(it, track.width(g.land).restoreFocus(it.id).then(fr)) { onOpen(it) }
                     // 17c: on the home screen no preview expands (the info is already shown large at the top), Top 10 without numbers
-                    else -> RowPosterCard(it, g.poster, track.restoreFocus(it.id).then(fr), overlay = 0, expand = false) { onOpen(it) }
+                    else -> RowPosterCard(it, g.poster, track.restoreFocus(it.id).then(fr), overlay0 = 0, expand = false) { onOpen(it) }
                 }
             }
         }
@@ -677,7 +677,10 @@ fun CenterFollow(state: LazyListState, cur: Int) {
  */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun RowPosterCard(item: Item, baseW: Dp, modifier: Modifier, overlay: Int = 0, aspect: Float = 1.5f, expand: Boolean = true, onClick: () -> Unit) {
+fun RowPosterCard(item: Item, baseW: Dp, modifier: Modifier, overlay0: Int = 0, aspect: Float = 1.5f, expand: Boolean = true, onClick: () -> Unit) {
+    // Clean look (Nuvio style): calm focus (small scale, white frame), no dimming, no preview; title and year under the poster
+    val clean = FofPrefs.cleanLook
+    val overlay = if (clean) 0 else overlay0
     val st = rememberMetaState(item)
     val m = st.meta
     var f by remember { mutableStateOf(false) }
@@ -690,7 +693,7 @@ fun RowPosterCard(item: Item, baseW: Dp, modifier: Modifier, overlay: Int = 0, a
     // Even with animation "Off" the preview expands (then without motion, see snap below)
     // Preview style (View > Preview on highlight): info on the poster (default) or wide scene image
     val wide = General.previewStyle == 1
-    val canOpen = expand && (if (wide) m?.backdrop != null else m != null)
+    val canOpen = expand && !clean && (if (wide) m?.backdrop != null else m != null)
     // View settings live preview: one card shows its highlighted state so the preview style can be judged on a real title
     val demo = ViewLive.active && ViewLive.tab == 0 && ViewLive.demoId == item.id
     val fx = f || demo
@@ -718,7 +721,8 @@ fun RowPosterCard(item: Item, baseW: Dp, modifier: Modifier, overlay: Int = 0, a
         label = "pp"
     )
     val w = if (wide) baseW + (h * (16f / 9f) - baseW) * p else baseW
-    val s by animateFloatAsState(if (fx && (!open || !wide)) focusScale(if (wide) 1.05f else 1.12f) else 1f, label = "ps")
+    val s by animateFloatAsState(if (fx && (!open || !wide)) focusScale(if (wide) 1.05f else if (clean) 1.06f else 1.12f) else 1f,
+        if (clean) tween(150) else androidx.compose.animation.core.spring(), label = "ps")
     // 17b: in the selected row the other cards step back
     val rowF = LocalRowFocus.current
     val dimA by animateFloatAsState(if (rowF && !f) 0.5f else 1f, tween(if (Look.motion == 0) 0 else 320), label = "dim")
@@ -728,9 +732,9 @@ fun RowPosterCard(item: Item, baseW: Dp, modifier: Modifier, overlay: Int = 0, a
     // the covered neighbor (bug "jumps 2 titles").
     val visual: @Composable (Modifier) -> Unit = { mod ->
     Box(
-        mod.graphicsLayer { scaleX = s; scaleY = s }.focusGlow(f, shape).clip(shape)
+        mod.graphicsLayer { scaleX = s; scaleY = s }.then(if (clean) Modifier else Modifier.focusGlow(f, shape)).clip(shape)
             .background(Brush.linearGradient(listOf(colorFor(item).copy(alpha = .75f), Surf2)))
-            .border(1.dp, if (f) Color(0x40FFFFFF) else CardLine, shape)
+            .border(if (clean && f) 3.dp else 1.dp, if (f) (if (clean) Color.White else Color(0x40FFFFFF)) else CardLine, shape)
     ) {
         // Poster at the bottom, the scene image fades in above it with the progress (no crossfade switch)
         val img: String? = when {
@@ -771,7 +775,16 @@ fun RowPosterCard(item: Item, baseW: Dp, modifier: Modifier, overlay: Int = 0, a
     // Position only for the View settings live preview (otherwise this ran for every card on every scroll frame)
     val focusMod = (if (ViewLive.active) Modifier.onGloballyPositioned { c -> geo[0] = (c.positionInRoot().x + c.size.width / 2f) / viewW.width.coerceAtLeast(1); geo[1] = c.positionInRoot().y } else Modifier)
         .billboardFocus(item) { f = it }.trackFocus().clickable(onClick = onClick)
-    if (overlay == 0) Box(modifier.width(w).height(h).then(focusMod)) { visual(Modifier.fillMaxSize()) }
+    if (clean) Column(modifier.width(w)) {
+        Box(Modifier.width(w).height(h).then(focusMod)) { visual(Modifier.fillMaxSize()) }
+        Spacer(Modifier.height(dpx(10)))
+        Text(raw = true, text = item.title, color = if (f) Color.White else Color(0xE6FFFFFF), fontSize = spx(15), fontWeight = FontWeight.SemiBold,
+            maxLines = 1, overflow = TextOverflow.Ellipsis)
+        (item.year ?: m?.year?.take(4)?.toIntOrNull())?.let { y ->
+            Text(raw = true, text = y.toString(), color = Color(0x80FFFFFF), fontSize = spx(13), maxLines = 1)
+        }
+    }
+    else if (overlay == 0) Box(modifier.width(w).height(h).then(focusMod)) { visual(Modifier.fillMaxSize()) }
     else {
         // In the layout the card always takes only its own space (nothing shifts) and expands over it: middle to both
         // sides, left columns to the right, right ones to the left. (requiredWidth always centers, hence wrapContentSize.)
