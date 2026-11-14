@@ -9,6 +9,9 @@ except Exception as e:
     print(f"FOCUS[{label}]: no dump ({e})")
     sys.exit(0)
 hits = [n for n in root.iter("node") if n.get("focused") == "true"]
+# Which window was dumped: the first texts on screen (a game page opens as its own window)
+shown = [x.get("text") for x in root.iter("node") if (x.get("text") or "").strip()][:4]
+print(f"SCREEN[{label}]: " + " | ".join(shown))
 if not hits:
     print(f"FOCUS[{label}]: nothing focused")
     sys.exit(0)

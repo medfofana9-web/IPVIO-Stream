@@ -539,7 +539,7 @@ private fun DetailScreenFull(
                                 // Fof TV: one calm row – Play, My List, Trailer, More. Everything used rarely is in "More"
                                 val inList = Library.isWatch(item.id)
                                 HeroButton(if (inList) "In Meiner Liste" else "Meine Liste", if (inList) AIcon.Check else AIcon.Plus, false, Modifier, bh) { Library.toggleWatch(ctx, item.id) }
-                                HeroButton("Trailer", AIcon.Play, false, Modifier, bh) { openTrailer(ctx, meta?.trailerKey, item.title) }
+                                // Trailer lives in More: the row keeps Play as the clear first action
                                 // 24/7: the show plays without end, in order or shuffled (addon shows)
                                 if (item.kind == Kind.SERIES && item.id.startsWith("stremio:")) HeroButton(if (busy247) "Starting …" else "24/7", AIcon.Live, false, Modifier, bh) { if (!busy247) show247 = true }
                                 HeroButton("More", AIcon.Gear, false, Modifier, bh) { showMore = true }
@@ -578,6 +578,7 @@ private fun DetailScreenFull(
                                 }
                                 val acts = ArrayList<Triple<String, AIcon?, () -> Unit>>()
                                 if (Stremio.addons.isNotEmpty() && item.kind != Kind.LIVE) acts.add(Triple("Choose a stream", AIcon.Globe) { stremioAuto = false; showStremio = true })
+                                acts.add(Triple("Trailer", AIcon.Play) { openTrailer(ctx, meta?.trailerKey, item.title) })
                                 val fav = Library.isFav(item.id)
                                 acts.add(Triple(if (fav) "Aus Favoriten entfernen" else "Zu Favoriten", if (fav) AIcon.HeartFilled else AIcon.Heart) { Library.toggleFav(ctx, item.id) })
                                 if (!playUrl.isNullOrBlank()) acts.add(Triple("Extern", AIcon.External) { playUrl?.let { openExternal(ctx, it, item.title) } })

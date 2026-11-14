@@ -258,7 +258,7 @@ fun RowTitle(
         Modifier.fillMaxWidth().padding(start = dpx(29), end = dpx(28), top = dpx(28)),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(title, color = Color.White, fontSize = spx(25), fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+        Text(title, color = Color.White, fontSize = spx(DS.SectionTitleSp), fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f), raw = raw)
         if (onAll != null) {
             var f by remember { mutableStateOf(false) }

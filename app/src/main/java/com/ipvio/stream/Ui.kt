@@ -97,6 +97,8 @@ object Tok {
  *  - List and settings rows: lighter surface plus frame in the highlight color ([RowFocus]).
  */
 object DS {
+    /** Section titles above rows on every screen (Home, Sports, Search), scaled with spx(). */
+    const val SectionTitleSp = 24
     // Spacing (dp)
     val SpaceXs = 4.dp
     /** Side margin of the content (TV-safe area). */

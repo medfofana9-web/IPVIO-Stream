@@ -741,6 +741,16 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 if (cur.live && cur.archive == null && !readyOnce && SportSession.owns(cur.itemId) && sportT[0] > 0 && nowT - sportT[0] > 9_000L) sportFailover()
                 if (player.playbackState == Player.STATE_BUFFERING && player.playWhenReady && !pError) {
                     if (bufSince == 0L) bufSince = nowT
+                    // Movie/episode that never showed a picture, or still hanging after two reconnects: reloading the same
+                    // link rarely helps, so the next source is tried (other quality, next addon stream, next 24/7 episode).
+                    // Before this the spinner could stay forever.
+                    else if (!cur.live && ((!readyOnce && nowT - bufSince > 20_000L) || (wdTries >= 2 && nowT - bufSince > 30_000L))) {
+                        bufSince = nowT; wdTries = 0
+                        if (switchSource("Quelle startet nicht", sameFirst = false)) msg = null
+                        else if (Marathon.owns(cur.itemId)) { msg = "This episode will not start – next episode …"; marathonNext() }
+                        else if (stremioFallback()) msg = "Looking for another source in your Stremio addons …"
+                        else { msg = "This stream does not start. Choose another source on the title page, or press Back."; player.stop() }
+                    }
                     else if (nowT - bufSince > (if (cur.live) 15_000L else 30_000L) && (cur.live || wdTries < 2)) {
                         // Live: reconnect without limit (like a receiver), movie/series: twice
                         wdTries++; bufSince = nowT

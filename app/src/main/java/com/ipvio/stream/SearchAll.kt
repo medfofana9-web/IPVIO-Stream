@@ -127,11 +127,9 @@ private fun Modifier.first(i: Int, r: FocusRequester?): Modifier = if (i == 0 &&
 
 @Composable
 private fun ResultTitle(text: String) {
-    Row(Modifier.padding(start = DS.PageX, top = 22.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.width(4.dp).height(22.dp).clip(RoundedCornerShape(2.dp)).background(Accent1))
-        Spacer(Modifier.width(10.dp))
-        Text(text, color = Color.White, fontSize = spx(22), fontWeight = FontWeight.Bold, raw = true)
-    }
+    // Same section title as Home and Sports (no accent bar)
+    Text(text, color = Color.White, fontSize = spx(DS.SectionTitleSp), fontWeight = FontWeight.Bold, raw = true,
+        modifier = Modifier.padding(start = DS.PageX, top = 22.dp))
 }
 
 /** Catalog titles (movies or shows) as poster cards that open the title page. */

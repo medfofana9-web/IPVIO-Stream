@@ -1,5 +1,6 @@
 package com.ipvio.stream
 
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -91,18 +92,21 @@ internal fun GameTileCard(g: SportData.Game, modifier: Modifier = Modifier, onCl
     val live = g.state == 1
     val w = dpx(360); val h = dpx(202)
     val a = deep(teamColor(g.away)); val b = deep(teamColor(g.home))
+    // Background and bottom shade: built once per matchup and drawn in one pass (they were rebuilt on every redraw)
+    val bg = remember(a, b, g.solo) { if (g.solo) Brush.linearGradient(listOf(Color(0xFF1B2638), Color(0xFF0B0F17))) else accentBrush(a, b) }
     Column(modifier.width(w), verticalArrangement = Arrangement.spacedBy(dpx(10))) {
         Box(
             Modifier.size(w, h).graphicsLayer { scaleX = sc; scaleY = sc }.clip(shape)
-                .background(if (g.solo) Brush.linearGradient(listOf(Color(0xFF1B2638), Color(0xFF0B0F17))) else accentBrush(a, b))
+                .drawWithCache {
+                    val shade = Brush.verticalGradient(0f to Color.Transparent, 0.55f to Color.Transparent, 1f to Color(0x99000000))
+                    onDrawBehind { drawRect(bg); drawRect(shade) }
+                }
                 .border(if (f) 2.dp else 1.dp, if (f) Color.White else Color(0x1AFFFFFF), shape)
                 .onFocusChanged { f = it.isFocused }
                 .trackFocus()
                 .restoreFocus("game:" + g.key)
                 .clickable { SportSession.lastTile = "game:" + g.key; onClick() }
         ) {
-            // Soft shade at the bottom, like a poster
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color.Transparent, 0.55f to Color.Transparent, 1f to Color(0x99000000))))
             Row(Modifier.fillMaxWidth().padding(horizontal = dpx(16), vertical = dpx(12)), verticalAlignment = Alignment.CenterVertically) {
                 if (live) {
                     Box(Modifier.size(dpx(8)).clip(RoundedCornerShape(50)).background(Color(0xFFFF3B30)))

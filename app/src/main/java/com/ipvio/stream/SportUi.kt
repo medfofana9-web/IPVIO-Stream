@@ -211,7 +211,7 @@ internal fun MatchStatus(g: SportData.Game, big: Boolean = false) {
 @Composable
 internal fun HubSectionTitle(text: String, raw: Boolean = false, action: String? = null, onAction: (() -> Unit)? = null) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(text, color = Tok.TextHi, fontSize = spx(21), fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), raw = raw)
+        Text(text, color = Tok.TextHi, fontSize = spx(DS.SectionTitleSp), fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), raw = raw)
         if (action != null && onAction != null) FilterPill(action, false, Modifier.trackFocus(), aicon = AIcon.Right) { onAction() }
     }
 }

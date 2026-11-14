@@ -1,5 +1,6 @@
 package com.ipvio.stream
 
+import androidx.compose.foundation.basicMarquee
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -473,6 +474,7 @@ private fun CatRow(
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun ChannelLine(item: Item, modifier: Modifier, inList: ChList?, onNewList: () -> Unit, onFocus: () -> Unit = {}, variants: List<Item> = emptyList(), onVariant: (Item) -> Unit = {}, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
@@ -510,7 +512,10 @@ private fun ChannelLine(item: Item, modifier: Modifier, inList: ChList?, onNewLi
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(raw = true, text = item.title, color = Tok.TextHi, fontSize = 19.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                // Long names: the highlighted channel scrolls its full name, the others end with "…"
+                Text(raw = true, text = item.title, color = Tok.TextHi, fontSize = 19.sp, fontWeight = FontWeight.Bold, maxLines = 1,
+                    overflow = if (f) TextOverflow.Clip else TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false).then(if (f) Modifier.basicMarquee(iterations = 2, initialDelayMillis = 900) else Modifier))
                 val lq = remember(item.id) { LiveQuality.get(item.id) ?: item.quality }
                 if (lq != null) Box(Modifier.clip(RoundedCornerShape(DS.RadiusXs)).background(Color(0x26FFFFFF)).padding(horizontal = 6.dp, vertical = 1.dp)) {
                     Text(raw = true, text = lq, color = Accent2, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
