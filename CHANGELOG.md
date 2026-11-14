@@ -1,5 +1,9 @@
 # Changelog
 
+## Fof TV 1.3.59 (November 2026)
+**Fixed**
+- Games still found no channel when the provider names its channels by coast ("US: TNT East", "TBS (West)"): East/West feeds now count as the network. The usual networks of a competition are always added to what ESPN lists
+
 ## Fof TV 1.3.58 (November 2026)
 **Changed**
 - Live TV opens like TiviMate: the last watched channel plays in the corner above the TV guide (categories on the left, channels with their program grid below). Back once shows the channel full screen, Back again returns to where you were

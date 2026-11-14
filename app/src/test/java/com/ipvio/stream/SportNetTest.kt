@@ -54,6 +54,9 @@ class SportNetTest {
         assertTrue("TBS" in nets && "truTV" in nets)
         // The provider's channel name finds the network
         assertEquals(SportNet.key("TBS"), SportNet.key(SportNet.stripPrefix("US| TBS HD")))
+        // Coast feeds are the same network
+        assertEquals(SportNet.key("TNT"), SportNet.key(SportNet.stripPrefix("US: TNT East")))
+        assertEquals(SportNet.key("TBS"), SportNet.key(SportNet.stripPrefix("US: TBS (West) HD")))
         // South Alabama ("USA") in college basketball is not the national team
         val c = SportData.Game("2", "College Basketball", "Basketball", 0L, 1, "", t("South Alabama", "USA"), t("Troy", "TROY"))
         assertTrue(SportRights.usual(c).isEmpty())
