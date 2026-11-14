@@ -132,10 +132,10 @@ jobs:
             adb shell am broadcast -a com.fof.tv.TAB --ei tab 4 --es q lakers
             sleep 12
             adb exec-out screencap -p > p_search.png
-            adb shell uiautomator dump /sdcard/s.xml >/dev/null 2>&1; adb pull /sdcard/s.xml s.xml >/dev/null 2>&1; python3 .github/scripts/focused.py s.xml search-lakers | tee -a journey.txt
+            adb shell uiautomator dump /sdcard/s.xml >/dev/null 2>&1; adb pull /sdcard/s.xml s.xml >/dev/null 2>&1; python3 .github/scripts/focused.py s.xml search-lakers "On TV,Lakers,Games,Teams" | tee -a journey.txt
             adb shell am broadcast -a com.fof.tv.TAB --ei tab 4 --es q denzel
             sleep 12
-            adb shell uiautomator dump /sdcard/s.xml >/dev/null 2>&1; adb pull /sdcard/s.xml s.xml >/dev/null 2>&1; python3 .github/scripts/focused.py s.xml search-denzel | tee -a journey.txt
+            adb shell uiautomator dump /sdcard/s.xml >/dev/null 2>&1; adb pull /sdcard/s.xml s.xml >/dev/null 2>&1; python3 .github/scripts/focused.py s.xml search-denzel "Movies,Denzel Washington" | tee -a journey.txt
             adb shell input keyevent 22
             sleep 2
             (adb shell pidof com.fof.tv > /dev/null && echo "search: app still running" || echo "search: APP CLOSED") | tee -a journey.txt
