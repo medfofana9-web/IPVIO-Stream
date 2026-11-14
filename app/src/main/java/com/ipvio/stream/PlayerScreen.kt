@@ -472,7 +472,59 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
      * and continue at the same position. Their streams become the new alternatives, so later failures switch among them.
      */
     var stremioTried by remember { mutableStateOf(false) }
+    // ---------------------------------------------------------------- Addon sources of the exact title/episode playing
+    // The source picker hands over the list for this very movie/episode (NowSources); every switch below uses it, so a
+    // fallback can never land on another show of the same name.
+    var srcPanel by remember { mutableStateOf(false) }
+    var srcBusy by remember { mutableStateOf(false) }
+    /** Source to go back to when a newly chosen one does not start (url and position). */
+    var revertTo by remember { mutableStateOf<Pair<String, Long>?>(null) }
+    val addonContent = NowSources.owns(cur.itemId, cur.season, cur.episode)
+
+    fun playSource(s: Stremio.Source, why: String, revert: Boolean) {
+        val at = player.currentPosition.coerceAtLeast(0L)
+        val prev = cur.url
+        srcBusy = true
+        scope.launch {
+            val url = if (s.hash == null) s.url else runCatching { Debrid.resolve(s.hash, s.file) }.getOrNull()
+            srcBusy = false
+            if (url.isNullOrBlank()) { notice = "This source could not be opened"; return@launch }
+            revertTo = if (revert) prev to at else null
+            NowSources.currentKey = s.key
+            retries = 0; pError = false; msg = null
+            cur = cur.copy(url = url, startMs = if (at > 0) at else cur.startMs, note = null)
+            notice = why
+        }
+    }
+
+    /** Next source for the playing title: right content only (no mismatch, nothing reported wrong, nothing tried). */
+    fun nextAddonSource(): Stremio.Source? {
+        val w = NowSources.want ?: return null
+        val cid = NowSources.contentId
+        return Stremio.rank(NowSources.list, w, cid).firstOrNull {
+            it.key != NowSources.currentKey && (it.url.isEmpty() || it.url !in triedUrls) && it.url != cur.url &&
+                !SourceMemory.isWrong(cid, it.key) && Stremio.match(it, w) != StremioLogic.MISMATCH
+        }
+    }
+
+    /** "Wrong content": remember this source as wrong for this title/episode and play the next fitting one. */
+    fun wrongContent() {
+        val key = NowSources.currentKey
+        if (key != null) SourceMemory.reportWrong(ctx, NowSources.contentId, key)
+        triedUrls.add(cur.url)
+        val next = nextAddonSource()
+        if (next != null) playSource(next, "Reported – trying " + next.addon, revert = false)
+        else { notice = "Reported. No other fitting source – choose one or press Back"; srcPanel = true }
+    }
+
     fun stremioFallback(): Boolean {
+        // Addon title: the next source from its own list (same identity), as often as there are fitting sources
+        if (NowSources.owns(cur.itemId, cur.season, cur.episode)) {
+            triedUrls.add(cur.url)
+            val n = nextAddonSource() ?: return false
+            playSource(n, "Source failed – trying " + n.addon, revert = false)
+            return true
+        }
         if (stremioTried || cur.live || cur.archive != null || Stremio.addons.none { it.streams }) return false
         stremioTried = true
         val at = player.currentPosition.coerceAtLeast(0L)
@@ -482,8 +534,10 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         scope.launch {
             val probe = Item("probe", if (series) Kind.SERIES else Kind.MOVIE, base, null, "", null, "")
             val id = Stremio.imdbFor(probe, null)
+            // Playlist title without an IMDb id: found by name, so only streams whose file names confirm the title/episode
+            val want = Stremio.Want(series, base, null, cur.season.coerceAtLeast(1), cur.episode.coerceAtLeast(1))
             val list = (if (id == null) emptyList() else Stremio.streams(probe.kind, id, cur.season.coerceAtLeast(1), cur.episode.coerceAtLeast(1)))
-                .filter { it.url.isNotBlank() }
+                .filter { it.url.isNotBlank() && Stremio.match(it, want) == StremioLogic.VERIFIED }
             val s = list.firstOrNull { it.url !in triedUrls && it.url != failed }
             if (s == null) { msg = "No working source in your playlist or your Stremio addons.  " + Lang.tr("Zurück mit der Zurück-Taste."); return@launch }
             triedUrls.add(failed)
@@ -746,7 +800,9 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     // Before this the spinner could stay forever.
                     else if (!cur.live && ((!readyOnce && nowT - bufSince > 20_000L) || (wdTries >= 2 && nowT - bufSince > 30_000L))) {
                         bufSince = nowT; wdTries = 0
-                        if (switchSource("Quelle startet nicht", sameFirst = false)) msg = null
+                        val rv = revertTo
+                        if (rv != null && rv.first != cur.url) { revertTo = null; cur = cur.copy(url = rv.first, startMs = rv.second, note = null); notice = "That source did not start – back to the previous one" }
+                        else if (switchSource("Quelle startet nicht", sameFirst = false)) msg = null
                         else if (Marathon.owns(cur.itemId)) { msg = "This episode will not start – next episode …"; marathonNext() }
                         else if (stremioFallback()) msg = "Looking for another source in your Stremio addons …"
                         else { msg = "This stream does not start. Choose another source on the title page, or press Back."; player.stop() }
@@ -803,6 +859,15 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 // Chosen audio track cannot be decoded on this device/output: do not give up, switch the track
                 // and keep playing (picture and position stay). Never discard the whole source just because the audio fails.
                 if (decoder && audioFallback()) return
+                // A newly chosen source did not start: back to the one that was playing, at the same spot
+                revertTo?.let { (u, at) ->
+                    if (!readyOnce && u != cur.url) {
+                        revertTo = null; retries = 0; pError = false
+                        cur = cur.copy(url = u, startMs = at, note = null)
+                        notice = "That source did not play – back to the previous one"
+                        return
+                    }
+                }
                 if (cur.live && cur.archive == null && !readyOnce && sportFailover()) return
                 val liveNow = cur.live && cur.archive == null
                 if (retries < (if (liveNow) 50 else 3) && !isPermanentHttp(status) && !decoder) {
@@ -827,7 +892,11 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 if (state == Player.STATE_READY) {
                     msg = null; retries = 0; boomerFail = false
                     if (player.duration > 0 && player.currentPosition < player.duration - 3000) endGuard = ""
-                    if (!readyOnce) { readyOnce = true; DeadLinks.ok(ctx, cur.url); SportSession.started(ctx, cur.itemId) }
+                    if (!readyOnce) {
+                        readyOnce = true; DeadLinks.ok(ctx, cur.url); SportSession.started(ctx, cur.itemId); revertTo = null
+                        // Remember the source that played this title/episode (preferred next time)
+                        if (NowSources.owns(cur.itemId, cur.season, cur.episode)) NowSources.currentKey?.let { SourceMemory.played(ctx, NowSources.contentId, it) }
+                    }
                 }
                 // Stutter: rebuffering in the middle of playback, not right after seeking
                 if (state == Player.STATE_BUFFERING && readyOnce && player.playWhenReady &&
@@ -1114,6 +1183,17 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         if (digitBuf.isNotEmpty()) { delay(1800); commitDigits() }
     }
     LaunchedEffect(flash) { if (flash != null) { delay(900); flash = null } }
+    if (srcPanel) {
+        val w = NowSources.want
+        if (w == null) srcPanel = false
+        else PlayerSourcePicker(
+            Stremio.rank(NowSources.list, w, NowSources.contentId), w, NowSources.contentId, NowSources.currentKey, srcBusy,
+            onPick = { s -> srcPanel = false; if (s.key != NowSources.currentKey) playSource(s, "Switching to " + s.addon, revert = true) },
+            onWrong = { srcPanel = false; wrongContent() },
+            onRetry = { srcPanel = false; retries = 0; pError = false; msg = null; player.prepare(); player.play() },
+            onClose = { srcPanel = false }
+        )
+    }
     streamPick?.let { (title, list) ->
         GameStreamPicker(title, list, cur.itemId, onPick = { ch ->
             streamPick = null
@@ -1692,6 +1772,10 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                                     PRoundButton(Modifier.focusRequester(btn.getValue(Panel.TRACKS)), label = "Audio & Untertitel", onLabel = setLabel, onClick = { openPanel(Panel.TRACKS) }) {
                                         PlayerIcon(PIcon.AudioSubs, it)
                                     }
+                                    // Sources of exactly this movie/episode: addon streams, or the playlist's other qualities
+                                    if (addonContent || currentAlts().size > 1) PRoundButton(label = "Sources", onLabel = setLabel, onClick = {
+                                        if (addonContent) { controls = false; srcPanel = true } else openPanel(Panel.QUALITY)
+                                    }) { AppIcon(AIcon.Lists, it, size = 26.dp) }
                                     if (epList.size > 1) {
                                         PRoundButton(Modifier.focusRequester(btn.getValue(Panel.EPISODES)), label = "Folgen", onLabel = setLabel, onClick = { openPanel(Panel.EPISODES) }) {
                                             PlayerIcon(PIcon.Episodes, it)

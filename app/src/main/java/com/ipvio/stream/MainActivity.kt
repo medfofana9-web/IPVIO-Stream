@@ -542,7 +542,7 @@ private fun AppContent() {
                     if (i.id.startsWith("stremio:")) {
                         // Addon links expire: the title page finds a fresh stream for that episode and starts at the saved spot
                         AppNav.autoStream = i.id
-                        AppNav.autoResume = Triple(e.season, e.ep, e.pos)
+                        AppNav.autoResume = Triple(e.season, e.ep, e.pos); AppNav.autoResumeId = i.id
                     } else {
                         val t = WatchStore.target(ctx, i, e)
                         start(i, t.first, t.second, e.pos)
@@ -562,7 +562,7 @@ private fun AppContent() {
                     CatalogItems.put(ctx, i)
                     LastFocus.pending = i.id
                     // Catalog title: the title page opens and starts the best addon stream at once (one-click play)
-                    if (i.id.startsWith("stremio:")) AppNav.autoStream = i.id
+                    if (i.id.startsWith("stremio:")) { AppNav.autoStream = i.id; AppNav.autoResume = null; AppNav.autoResumeId = null }
                     // Not in the playlist: the detail page offers the addon streams
                     if (i.kind == Kind.SERIES || i.url.isBlank()) pushTop(i) else { if (i.kind != Kind.LIVE && !i.id.startsWith("rec:")) pushTop(i); start(i, i.title, i.url) }
                 } },

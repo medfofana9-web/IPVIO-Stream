@@ -82,6 +82,8 @@ object AppNav {
     var autoStream: String? = null
     /** Resume of a catalog title: season, episode, position in ms (used with [autoStream]). */
     var autoResume: Triple<Int, Int, Long>? = null
+    /** The title [autoResume] belongs to: it is only used on that title's page (a leftover must never pick the episode of another show). */
+    var autoResumeId: String? = null
     var homeSignal by androidx.compose.runtime.mutableIntStateOf(0)
     /** The View settings ask the movie area to open its categories screen (counts up). */
     var openCatsSignal by androidx.compose.runtime.mutableIntStateOf(0)

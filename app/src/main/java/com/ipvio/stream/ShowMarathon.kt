@@ -28,6 +28,7 @@ object Marathon {
         private set
     private var title = ""
     private var imdb = ""
+    private var year: Int? = null
     private var order: List<Pair<Int, Int>> = emptyList()
     private var idx = 0
 
@@ -41,7 +42,7 @@ object Marathon {
         val eps = (LazySeries.load(c, item) ?: item).episodes.map { it.season to it.num }
         if (eps.isEmpty()) return null
         this.shuffle = shuffle
-        title = item.title; imdb = id
+        title = item.title; imdb = id; year = item.year ?: Catalog.meta(item)?.year
         order = MarathonLogic.order(eps, shuffle, System.currentTimeMillis())
         val last = WatchStore.entries.firstOrNull { it.itemId == item.id && it.season > 0 }?.let { it.season to it.ep }
         idx = if (shuffle) 0 else MarathonLogic.startIndex(order, last)
@@ -69,8 +70,12 @@ object Marathon {
             }
             val (s, e) = order[idx]
             val list = runCatching { Stremio.streams(Kind.SERIES, imdb, s, e) }.getOrDefault(emptyList()).filter { it.url.isNotBlank() }
-            if (list.isNotEmpty() && showId == owner) {
-                val best = Stremio.best(list).takeIf { it.url.isNotBlank() } ?: list.first()
+            // Only a stream confirmed as this episode plays on its own; otherwise the episode is skipped (never a guess)
+            val want = Stremio.Want(true, title, year, s, e)
+            val cid = SourceMemory.contentId(imdb, true, s, e)
+            val best = if (showId == owner) Stremio.bestVerified(list, want, cid) else null
+            if (best != null) {
+                NowSources.set(owner ?: "", imdb, want, Stremio.rank(list, want, cid), best)
                 return Pick(best.url, "$title S${s}E$e", s, e, list)
             }
         }

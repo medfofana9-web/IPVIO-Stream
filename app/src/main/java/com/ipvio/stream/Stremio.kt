@@ -32,7 +32,11 @@ object Stremio {
         Cat(CINEMETA, "series", "top", "Popular series", "Cinemeta")
     )
     /** A stream: a direct [url], or a torrent ([hash], optional [file] name) that Real-Debrid turns into a link. */
-    data class Source(val addon: String, val label: String, val url: String, val q: Int, val hash: String? = null, val file: String? = null)
+    /** [info]: everything the addon says about the stream (name, title, description, file name) – used to check the match. */
+    data class Source(val addon: String, val label: String, val url: String, val q: Int, val hash: String? = null, val file: String? = null, val info: String = "") {
+        /** Stable identity of a stream across lookups (links can be re-signed): addon + label. */
+        val key: String get() = addon + "|" + label
+    }
 
     private const val PREFS = "fof_stremio"
     private val http by lazy { Net.withTimeouts(10, 20) }
@@ -207,13 +211,42 @@ object Stremio {
     private val streamCache = java.util.concurrent.ConcurrentHashMap<String, Pair<Long, List<Source>>>()
 
     /** Streams, kept 10 minutes: the detail page asks ahead, so Play has them at once. */
-    suspend fun streams(kind: Kind, imdb: String, season: Int, ep: Int): List<Source> {
+    /** [onPart]: called with everything found so far each time an addon answers (the list fills as answers arrive). */
+    suspend fun streams(kind: Kind, imdb: String, season: Int, ep: Int, onPart: ((List<Source>) -> Unit)? = null): List<Source> {
         val k = "$kind|$imdb|$season|$ep"
         streamCache[k]?.let { if (System.currentTimeMillis() - it.first < 10 * 60_000L) return it.second }
-        val l = streamsNow(kind, imdb, season, ep)
+        val l = streamsNow(kind, imdb, season, ep, onPart)
         if (l.isNotEmpty()) streamCache[k] = System.currentTimeMillis() to l
         return l
     }
+
+    /** Requested title for the match check: series or movie, name, year, season and episode. */
+    data class Want(val series: Boolean, val title: String, val year: Int?, val season: Int, val ep: Int) {
+        val key: String get() = title.lowercase() + "|" + year + "|" + (if (series) "$season|$ep" else "movie")
+    }
+
+    fun match(s: Source, w: Want): Int = StremioLogic.matchCheck(s.info.ifBlank { s.label }, w.series, w.title, w.year, w.season, w.ep)
+
+    /**
+     * Order for automatic play and for the source list: the right content first (verified, then unverified, mismatches
+     * last), sources reported as wrong at the very end, then the last source that played this title, then 1080p
+     * direct links (smooth on a Fire TV), 720p, 4K, unknown; Real-Debrid after direct links.
+     */
+    fun rank(l: List<Source>, w: Want, contentId: String): List<Source> {
+        val good = SourceMemory.lastGood(contentId)
+        val qOrder = mapOf(2 to 0, 1 to 1, 3 to 2, 0 to 3)
+        return l.sortedWith(compareBy<Source>(
+            { if (SourceMemory.isWrong(contentId, it.key)) 1 else 0 },
+            { -match(it, w) },
+            { if (it.key == good) 0 else 1 },
+            { if (it.hash != null) 1 else 0 },
+            { qOrder[it.q] ?: 4 }
+        ))
+    }
+
+    /** Automatic choice: only a verified match that was not reported wrong; null = let the viewer choose. */
+    fun bestVerified(l: List<Source>, w: Want, contentId: String): Source? =
+        rank(l, w, contentId).firstOrNull { match(it, w) == StremioLogic.VERIFIED && !SourceMemory.isWrong(contentId, it.key) }
 
     /** One-click choice: 1080p direct link first (smooth on a Fire TV), then 720p, 4K, unknown; Real-Debrid last. */
     fun best(l: List<Source>): Source {
@@ -227,7 +260,8 @@ object Stremio {
         private set
 
     /** Streams from all addons at once; addons that fail or time out are left out. Best quality first. */
-    private suspend fun streamsNow(kind: Kind, imdb: String, season: Int, ep: Int): List<Source> = coroutineScope {
+    private suspend fun streamsNow(kind: Kind, imdb: String, season: Int, ep: Int, onPart: ((List<Source>) -> Unit)? = null): List<Source> = coroutineScope {
+        val partial = java.util.Collections.synchronizedList(ArrayList<Source>())
         val stream = addons.filter { it.streams }
         if (stream.isEmpty()) lastReport = listOf("No stream addon is installed (Settings > Stremio addons).")
         val res = stream.map { a ->
@@ -236,6 +270,7 @@ object Stremio {
                 body.fold({ b ->
                     val raw = runCatching { JSONObject(b).optJSONArray("streams")?.length() ?: 0 }.getOrDefault(0)
                     val l = runCatching { parse(a.name, b) }.getOrDefault(emptyList())
+                    if (onPart != null && l.isNotEmpty()) { partial.addAll(l); val snap = synchronized(partial) { partial.toList() }; withContext(Dispatchers.Main) { onPart(snap) } }
                     l to (a.name + ": " + when {
                         l.isNotEmpty() -> "${l.size} playable"
                         raw == 0 -> "no links for this title"
@@ -266,9 +301,10 @@ object Stremio {
             if (headers != null && headers.length() > 0) continue
             val title = s.optString("title").ifBlank { s.optString("description") }
             val name = s.optString("name").ifBlank { addon }
-            if (url.startsWith("http")) out.add(Source(addon, StremioLogic.label(name, title), url, StremioLogic.quality("$name $title")))
-            else out.add(Source(addon, "RD · " + StremioLogic.label(name, title), "", StremioLogic.quality("$name $title"), hash,
-                s.optJSONObject("behaviorHints")?.optString("filename")?.takeIf { it.isNotBlank() }))
+            val fname = s.optJSONObject("behaviorHints")?.optString("filename")?.takeIf { it.isNotBlank() }
+            val info = listOf(name, s.optString("title"), s.optString("description"), fname.orEmpty()).filter { it.isNotBlank() }.joinToString("\n")
+            if (url.startsWith("http")) out.add(Source(addon, StremioLogic.label(name, title), url, StremioLogic.quality("$name $title"), info = info))
+            else out.add(Source(addon, "RD · " + StremioLogic.label(name, title), "", StremioLogic.quality("$name $title"), hash, fname, info))
         }
         return out
     }

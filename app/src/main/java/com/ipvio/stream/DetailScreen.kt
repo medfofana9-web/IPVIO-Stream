@@ -215,6 +215,8 @@ private fun DetailScreenFull(
     LaunchedEffect(item.id) {
         if (AppNav.autoStream == item.id) {
             AppNav.autoStream = null
+            // Only a resume point of this very title (never a leftover from another show)
+            if (AppNav.autoResumeId != item.id) { AppNav.autoResume = null; AppNav.autoResumeId = null }
             AppNav.autoResume?.let { (s, e, _) -> if (item.kind == Kind.SERIES && s > 0 && e > 0) stremioAt = s to e }
             if (Stremio.addons.isNotEmpty()) { stremioAuto = true; showStremio = true }
         }
@@ -551,10 +553,11 @@ private fun DetailScreenFull(
                                     stremioAt?.first ?: season, stremioAt?.second ?: rs?.second ?: eps.firstOrNull()?.num ?: 1,
                                     { u, t, ms ->
                                         // Addon stream of a title with a saved spot: start there (the link itself is new)
-                                        val saved = AppNav.autoResume?.third?.takeIf { it > 0 }
-                                            ?: WatchStore.entries.firstOrNull { it.itemId == item.id && (item.kind != Kind.SERIES || t.contains("S" + it.season + "E" + it.ep)) }
+                                        val saved = AppNav.autoResume?.takeIf { AppNav.autoResumeId == item.id }?.third?.takeIf { it > 0 }
+                                            // Exact episode ("S4E1" must not match "S4E10")
+                                            ?: WatchStore.entries.firstOrNull { it.itemId == item.id && (item.kind != Kind.SERIES || Regex("\\bS" + it.season + "E" + it.ep + "\\b").containsMatchIn(t)) }
                                                 ?.takeIf { !ResumeLogic.finished(it.pos, it.dur) }?.pos
-                                        AppNav.autoResume = null
+                                        AppNav.autoResume = null; AppNav.autoResumeId = null
                                         onPlay(u, t, if (ms > 0) ms else saved ?: 0L)
                                     }, { showStremio = false; stremioAt = null }, auto = stremioAuto
                                 )
