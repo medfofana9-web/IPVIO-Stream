@@ -65,6 +65,11 @@ jobs:
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           script: |
+            adb root || true
+            sleep 3
+            adb wait-for-device
+            adb shell setprop security.perf_harden 0 || true
+            echo "perf_harden=$(adb shell getprop security.perf_harden)"
             adb install -r app.apk
             adb shell am start -W -n com.fof.tv/com.ipvio.stream.MainActivity --es fof_test_playlist http://10.0.2.2:8000/test.m3u | tee start.txt
             sleep 60
