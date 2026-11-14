@@ -31,6 +31,16 @@ object MainSampler {
         } else { c.registerReceiver(r, IntentFilter(ACTION)); c.registerReceiver(t, IntentFilter("com.fof.tv.TAB")) }
     }
 
+    @Volatile private var cardMarked = false
+
+    /** Test builds: logs once how long after process start the first poster card was composed (home usable). */
+    fun firstCard() {
+        if (cardMarked || !BuildConfig.VERSION_NAME.endsWith("-test")) return
+        cardMarked = true
+        val ms = android.os.SystemClock.elapsedRealtime() - android.os.Process.getStartElapsedRealtime()
+        Log.i("FofProfile", "[start] first poster card composed after $ms ms")
+    }
+
     private fun key(e: StackTraceElement) = e.className.substringAfterLast('.') + "." + e.methodName + (if (e.lineNumber > 0) ":" + e.lineNumber else "")
 
     fun run(ms: Int, tag: String) = Thread {

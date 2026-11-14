@@ -712,6 +712,7 @@ fun CenterFollow(state: LazyListState, cur: Int) {
 fun RowPosterCard(item: Item, baseW: Dp, modifier: Modifier, overlay0: Int = 0, aspect: Float = 1.5f, expand: Boolean = true, onClick: () -> Unit) {
     // Clean look (Nuvio style): calm focus (small scale, white frame), no dimming, no preview; title and year under the poster
     val clean = FofPrefs.cleanLook
+    MainSampler.firstCard()
     val overlay = if (clean) 0 else overlay0
     val st = rememberMetaState(item)
     val m = st.meta

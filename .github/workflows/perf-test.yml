@@ -118,6 +118,14 @@ jobs:
             adb shell 'input keyevent 4; sleep 2'
             adb shell uiautomator dump /sdcard/f.xml >/dev/null 2>&1; adb pull /sdcard/f.xml f.xml >/dev/null 2>&1; python3 .github/scripts/focused.py f.xml sports-after-second-back | tee -a journey.txt
             adb shell dumpsys meminfo com.fof.tv | head -40 > meminfo.txt
+            adb logcat -c
+            adb shell am force-stop com.fof.tv
+            sleep 2
+            adb shell am start -W -n com.fof.tv/com.ipvio.stream.MainActivity --ei fof_profile_start 8000 | tee cold.txt
+            sleep 12
+            adb exec-out screencap -p > p6_cold.png
+            adb logcat -d -s FofProfile > cold_profile.txt
+            adb shell am start -W -n com.fof.tv/com.ipvio.stream.MainActivity | tee warm.txt
             adb logcat -d > logcat.txt
             (adb shell pidof com.fof.tv && echo RUNNING || echo NOT-RUNNING) | tee alive.txt
       - name: Summary
@@ -126,6 +134,8 @@ jobs:
           for f in gfx_home.txt gfx_detail.txt; do echo "== $f"; grep -E "Total frames rendered|Janky frames|50th percentile|90th percentile|95th percentile|99th percentile|Slow UI thread|Frame deadline missed" $f || true; done
           grep -E "TOTAL" meminfo.txt | head -3 || true
           echo "== journey"; cat journey.txt 2>/dev/null || true
+          echo "== cold start"; grep -E "TotalTime|WaitTime" cold.txt || true; echo "== warm start"; grep -E "TotalTime|WaitTime" warm.txt || true
+          echo "== cold start main thread"; sed 's/^.*FofProfile: //' cold_profile.txt | head -120 || true
           echo "== main thread samples"; grep "FofProfile" logcat.txt | sed 's/^.*FofProfile: //' || true
           grep -n "FATAL EXCEPTION" -A20 logcat.txt | head -40 || true
           grep -q RUNNING alive.txt && ! grep -q NOT-RUNNING alive.txt

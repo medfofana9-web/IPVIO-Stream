@@ -87,6 +87,7 @@ class MainActivity : ComponentActivity() {
         intent?.getStringExtra(Reminders.EXTRA_CH)?.let { AppNav.openChannel = it }
         if (BuildConfig.VERSION_NAME.endsWith("-test")) intent?.getStringExtra("fof_test_url")?.let { AppNav.testUrl = it }
         MainSampler.register(this)
+        if (BuildConfig.VERSION_NAME.endsWith("-test")) intent?.getIntExtra("fof_profile_start", 0)?.takeIf { it > 0 }?.let { MainSampler.run(it, "start") }
         // Stores read when a title page opens: loaded from disk in the background now, so the first open does not wait
         // on the disk (episode progress) or on the keystore (debrid token)
         run {
