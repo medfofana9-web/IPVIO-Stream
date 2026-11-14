@@ -1,5 +1,9 @@
 # Changelog
 
+## Fof TV 1.3.60 (November 2026)
+**Changed**
+- Search: smaller keyboard with the search text on top and suggestions or recent searches below it, so results get most of the screen. Results in sections: Top results (best matches), Movies, TV Shows, People, Live TV, games and teams, each only when it has hits and never the same title twice. All / Movies / TV Shows / Live TV filter above the results, switching keeps the search
+
 ## Fof TV 1.3.59 (November 2026)
 **Fixed**
 - Games still found no channel when the provider names its channels by coast ("US: TNT East", "TBS (West)"): East/West feeds now count as the network. The usual networks of a competition are always added to what ESPN lists
