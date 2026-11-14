@@ -1,5 +1,10 @@
 # Changelog
 
+## Fof TV 1.3.62 (November 2026)
+**Improved**
+- Search: Back from the results goes to the keyboard (then to the menu), never straight away; common short forms find the full title (GOT, HOTD, LOTR, TWD, TLOU, B99, SVU, BCS …); a search without any hit is tried again shorter (last letter or last word dropped), so a small typo still finds the title
+- Sports: the channel match waits until the leagues stop answering, so the page shows its games sooner instead of recomputing in a loop
+
 ## Fof TV 1.3.61 (November 2026)
 **Faster**
 - A list saved before Live-TV-only still held the provider's 290,000 movies and series and was read at every start; they are dropped once and the smaller list is saved
