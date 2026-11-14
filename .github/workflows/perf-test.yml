@@ -1,7 +1,7 @@
 name: Performance test
 
 # Fof TV: measures frame times while the remote is pressed through Home, Movies and Sports on an Android emulator
-# with a generated playlist (4,000 movies, 300 channels). The emulator renders on the CPU (swiftshader), so the
+# with a generated playlist (4,000 movies, 24,000 channels). The emulator renders on the CPU (swiftshader), so the
 # numbers are slower than a Fire TV in absolute terms; they are for comparing builds and finding spikes.
 on:
   workflow_dispatch:
@@ -39,7 +39,8 @@ jobs:
           random.seed(7)
           words = "Night Storm River City Shadow Last Silent Red Lost Iron Golden Broken Dark Wild Hidden Final Black Blue Empire Garden".split()
           out = ["#EXTM3U"]
-          for i in range(300):
+          # Real-world size: about 24,000 live channels (the maintainer's provider has 23,773)
+          for i in range(24000):
               out.append(f'#EXTINF:-1 tvg-id="ch{i}" group-title="{random.choice(["News","Sports","Kids","Movies HD","Music"])}",Channel {i}')
               out.append(f"http://10.0.2.2:8000/live/{i}.ts")
           for i in range(4000):
