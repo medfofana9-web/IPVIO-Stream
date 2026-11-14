@@ -1,5 +1,6 @@
 package com.ipvio.stream
 
+import kotlinx.coroutines.ensureActive
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -111,17 +112,36 @@ object SearchSports {
     }
 }
 
-/** Search over the TV guide: shows on now or later today on the playlist's channels. */
+/**
+ * Search over the TV guide: shows on now or later today on the playlist's channels.
+ * Built for big guides (20,000+ channels, ~80 shows each): no copy per title (case-insensitive contains on the original
+ * text), stops at once when a newer query starts (cooperative cancellation), and collects at most 200 hits.
+ * The first version normalized every title of the whole guide on each keystroke and kept running after the next
+ * keystroke; on a Fire TV that ran out of CPU and memory and Android closed the app.
+ */
 object SearchGuide {
-    fun shows(live: List<Item>, q: String): List<GuideSearchLogic.Hit> {
+    suspend fun shows(live: List<Item>, q: String): List<GuideSearchLogic.Hit> {
+        val words = SearchAllLogic.tokens(q).filter { it.length >= 2 }
+        if (words.isEmpty() || q.trim().length < 3) return emptyList()
         val now = System.currentTimeMillis() / 1000
-        return GuideSearchLogic.search(live, q, now, limit = 40, maxChannels = 0)
-            .filter { it.entry != null && it.entry.end > now && it.entry.start < now + 12 * 3600 }
-            .distinctBy { it.channel.id + "|" + it.entry!!.start }.take(24)
+        val until = now + 12 * 3600
+        val out = ArrayList<GuideSearchLogic.Hit>()
+        val seen = HashSet<String>()
+        for ((n, c) in live.withIndex()) {
+            if (n % 256 == 0) kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            val id = c.tvgId ?: continue
+            if (!seen.add(id.lowercase())) continue
+            for (e in Xmltv.forChannel(id)) {
+                if (e.end <= now || e.start >= until) continue
+                val t = e.title
+                if (words.all { t.contains(it, ignoreCase = true) }) out.add(GuideSearchLogic.Hit(c, e))
+            }
+            if (out.size >= 200) break
+        }
+        return out.sortedBy { it.entry!!.start }.take(24)
     }
 }
 
-/** Row title of the search results (same look as the other result rows). */
 /** The first card of a row takes the requester the keyboard jumps to. */
 private fun Modifier.first(i: Int, r: FocusRequester?): Modifier = if (i == 0 && r != null) focusRequester(r) else this
 

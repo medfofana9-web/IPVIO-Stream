@@ -38,18 +38,20 @@ import kotlinx.coroutines.withContext
 object GuideSearchLogic {
     class Hit(val channel: Item, val entry: EpgEntry?)
 
-    fun search(channels: List<Item>, query: String, nowSec: Long, limit: Int = 60, maxChannels: Int = 150): List<Hit> {
+    /** [active]: false stops the scan (a newer query started); the guide of a big playlist has millions of shows. */
+    fun search(channels: List<Item>, query: String, nowSec: Long, limit: Int = 60, maxChannels: Int = 150, active: () -> Boolean = { true }): List<Hit> {
         val q = ChannelSearch.norm(query)
         if (q.isEmpty()) return emptyList()
         val words = q.split(' ').filter { it.isNotEmpty() }
         val out = ArrayList<Hit>()
         for (c in ChannelSearch.filter(channels, query).take(maxChannels)) out.add(Hit(c, null))
         val shows = ArrayList<Hit>()
-        for (c in channels) {
+        for ((n, c) in channels.withIndex()) {
+            if (n % 256 == 0 && !active()) break
             for (e in Xmltv.forChannel(c.tvgId)) {
                 if (e.end <= nowSec - 3600) continue
-                val t = ChannelSearch.norm(e.title)
-                if (words.all { it in t }) shows.add(Hit(c, e))
+                // No normalized copy per title (millions of allocations on a big guide): case-insensitive contains
+                if (words.all { e.title.contains(it, ignoreCase = true) }) shows.add(Hit(c, e))
             }
             if (shows.size > 600) break
         }
@@ -68,7 +70,10 @@ fun GuideSearchDialog(channels: List<Item>, onPick: (Item) -> Unit, onClose: () 
     val hits by produceState(emptyList<GuideSearchLogic.Hit>(), q) {
         if (q.isBlank()) { value = emptyList(); return@produceState }
         delay(250)
-        value = withContext(Dispatchers.Default) { GuideSearchLogic.search(channels, q, System.currentTimeMillis() / 1000) }
+        value = withContext(Dispatchers.Default) {
+            val job = coroutineContext[kotlinx.coroutines.Job]
+            GuideSearchLogic.search(channels, q, System.currentTimeMillis() / 1000) { job?.isActive != false }
+        }
     }
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(

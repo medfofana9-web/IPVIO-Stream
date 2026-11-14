@@ -155,7 +155,9 @@ fun SearchScreen(
         value = emptyList()
         if (q.length < 3) return@produceState
         delay(350)
-        value = withContext(Dispatchers.Default) { runCatching { SearchGuide.shows(live, q) }.getOrDefault(emptyList()) }
+        value = withContext(Dispatchers.Default) {
+            try { SearchGuide.shows(live, q) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Throwable) { emptyList() }
+        }
     }
     val cmReady = q.length >= 2 && cm.first == q
     val cmM = if ((fl == 0 || fl == 1) && cmReady) cm.second.first else emptyList()

@@ -38,7 +38,7 @@ jobs:
           import random
           random.seed(7)
           words = "Night Storm River City Shadow Last Silent Red Lost Iron Golden Broken Dark Wild Hidden Final Black Blue Empire Garden".split()
-          out = ["#EXTM3U"]
+          out = ['#EXTM3U url-tvg="http://10.0.2.2:8000/epg.xml"']
           # Real-world size: about 24,000 live channels (the maintainer's provider has 23,773)
           for i in range(24000):
               out.append(f'#EXTINF:-1 tvg-id="ch{i}" group-title="{random.choice(["News","Sports","Kids","Movies HD","Music"])}",Channel {i}')
@@ -48,6 +48,20 @@ jobs:
               out.append(f'#EXTINF:-1 group-title="{random.choice(["Action","Drama","Comedy","Thriller","Family"])}",{t} ({random.randint(1980,2026)})')
               out.append(f"http://10.0.2.2:8000/movie/{i}.mp4")
           open("srv/test.m3u","w").write("\n".join(out)+"\n")
+          # TV guide at real scale: 24,000 channels x 10 shows (searching it crashed the app on a big guide)
+          import datetime
+          t0 = datetime.datetime.utcnow().replace(minute=0, second=0, microsecond=0) - datetime.timedelta(hours=1)
+          with open("srv/epg.xml", "w") as f:
+              f.write('<?xml version="1.0" encoding="UTF-8"?>\n<tv>\n')
+              for i in range(24000):
+                  f.write(f'<channel id="ch{i}"><display-name>Channel {i}</display-name></channel>\n')
+              for i in range(24000):
+                  for k in range(10):
+                      a = (t0 + datetime.timedelta(hours=k)).strftime("%Y%m%d%H%M%S +0000")
+                      b = (t0 + datetime.timedelta(hours=k + 1)).strftime("%Y%m%d%H%M%S +0000")
+                      title = " ".join(random.sample(words, 2)) + (" Lakers" if (i + k) % 997 == 0 else "")
+                      f.write(f'<programme start="{a}" stop="{b}" channel="ch{i}"><title>{title}</title><desc>Show {k}</desc></programme>\n')
+              f.write("</tv>\n")
           PY
           (cd srv && nohup python3 -m http.server 8000 >/dev/null 2>&1 &)
           sleep 2; curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8000/test.m3u
