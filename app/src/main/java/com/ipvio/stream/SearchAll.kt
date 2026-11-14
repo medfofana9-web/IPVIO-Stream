@@ -162,7 +162,7 @@ object SearchGuide {
 private fun Modifier.first(i: Int, r: FocusRequester?): Modifier = if (i == 0 && r != null) focusRequester(r) else this
 
 @Composable
-private fun ResultTitle(text: String) {
+internal fun ResultTitle(text: String) {
     // Same section title as Home and Sports (no accent bar)
     Text(text, color = Color.White, fontSize = spx(DS.SectionTitleSp), fontWeight = FontWeight.Bold, raw = true,
         modifier = Modifier.padding(start = DS.PageX, top = 22.dp))

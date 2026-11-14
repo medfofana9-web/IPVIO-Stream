@@ -121,8 +121,8 @@ fun SearchScreen(
     }
     val searching = q.length >= 2 && found.first != q
     val (rm0, rs0, rl0) = if (q.length < 2 || searching) none else found.second
-    // One result page for everything (the filter chips are gone); 0 = all
-    val fl = 0
+    // 0 all, 1 movies, 2 shows, 3 Live TV: switching only hides sections, the search itself keeps running
+    val fl = SearchState.filter.coerceIn(0, 3)
     // Word suggestions for the word being typed
     val sugg = remember(SearchState.query, suggestIdx) { suggestIdx?.suggest(WordSuggest.lastWord(SearchState.query)).orEmpty() }
     // Sports hub filter: live channels that look like sports channels (the hub itself opens with the button)
@@ -198,6 +198,10 @@ fun SearchScreen(
         if (value.isEmpty()) value = safely(emptyList()) { mix(Catalog.items(Catalog.popular(Kind.MOVIE)), Catalog.items(Catalog.popular(Kind.SERIES))) }
     }
     val openTop: (Item) -> Unit = { i -> onOpen(i) }
+    // Top results: the best matches (one grid row); the other movies and shows follow in their own rows, never twice
+    val topRes = remember(both) { both.take(6) }
+    val moreM = remember(both, cmM) { val t = topRes.map { it.id }.toSet(); cmM.filter { it.id !in t } }
+    val moreS = remember(both, cmS) { val t = topRes.map { it.id }.toSet(); cmS.filter { it.id !in t } }
     val firstKey = when {
         sg.any { it.state == 1 } -> "games"; cmM.isNotEmpty() || cmS.isNotEmpty() -> "cmm"; per != null -> "person"
         sg.isNotEmpty() -> "games"; st.isNotEmpty() || sl.isNotEmpty() -> "teams"
@@ -220,27 +224,9 @@ fun SearchScreen(
         Row(Modifier.fillMaxSize().sidebarPad()) {
             // Left: input, quick filters, suggestions and last searches above the keyboard, the keyboard at the bottom
             Column(
-                Modifier.width(430.dp).fillMaxHeight().padding(start = DS.PageX, top = 16.dp, bottom = 12.dp),
+                Modifier.width(340.dp).fillMaxHeight().padding(start = DS.PageX, top = 16.dp, bottom = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Spacer(Modifier.weight(1f))
-                // Everything sits directly above the keyboard and is fully visible (wraps into more rows instead of scrolling away)
-                val recent = if (q.isEmpty()) AppSettings.searchHistory.toList().take(6) else emptyList()
-                if (recent.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    recent.forEachIndexed { i, term ->
-                        // OK searches again, long OK / menu key removes just this entry
-                        MiniChip(term, false, (if (i == 0) Modifier.focusRequester(firstHistory) else Modifier)
-                            .menuKeys(onMenu = { AppSettings.removeSearch(ctx, term) }, onLong = { AppSettings.removeSearch(ctx, term) }), raw = true) { SearchState.query = term }
-                    }
-                    MiniChip("Verlauf löschen", false) { AppSettings.clearSearch(ctx) }
-                }
-                if (sugg.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    sugg.forEachIndexed { i, w ->
-                        MiniChip(w.replaceFirstChar { it.uppercase() }, false, if (i == 0) Modifier.focusRequester(firstSugg) else Modifier, raw = true) {
-                            SearchState.query = WordSuggest.apply(SearchState.query, w)
-                        }
-                    }
-                }
                 if (AppSettings.systemKeyboard) {
                     // The device's own keyboard (e.g. Gboard) in a normal text field: OK or a tap opens it
                     Field(
@@ -268,11 +254,31 @@ fun SearchScreen(
                     }
                 )
                 }
+                            // Below the keyboard (Netflix style): suggestions while typing, recent searches before
+                val recent = if (q.isEmpty()) AppSettings.searchHistory.toList().take(6) else emptyList()
+                if (recent.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    recent.forEachIndexed { i, term ->
+                        // OK searches again, long OK / menu key removes just this entry
+                        MiniChip(term, false, (if (i == 0) Modifier.focusRequester(firstHistory) else Modifier)
+                            .menuKeys(onMenu = { AppSettings.removeSearch(ctx, term) }, onLong = { AppSettings.removeSearch(ctx, term) }), raw = true) { SearchState.query = term }
+                    }
+                    MiniChip("Verlauf löschen", false) { AppSettings.clearSearch(ctx) }
+                }
+                if (sugg.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    sugg.forEachIndexed { i, w ->
+                        MiniChip(w.replaceFirstChar { it.uppercase() }, false, if (i == 0) Modifier.focusRequester(firstSugg) else Modifier, raw = true) {
+                            SearchState.query = WordSuggest.apply(SearchState.query, w)
+                        }
+                    }
+                }
             }
             // Right: info panel of the highlighted title on top, the hits below
             Column(Modifier.weight(1f).fillMaxHeight()) {
                 if (q.length < 2 && top.isNotEmpty()) Text("Top searches", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(start = 24.dp, top = 22.dp, bottom = 4.dp), raw = true)
+                if (q.length >= 2) Row(Modifier.padding(start = 24.dp, top = 18.dp, bottom = 2.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("All", "Movies", "TV Shows", "Live TV").forEachIndexed { i, n -> MiniChip(n, fl == i, raw = true) { SearchState.filter = i } }
+                }
                 CompositionLocalProvider(LocalSearchFocus provides { focusItem = it }) {
                     LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = state, contentPadding = PaddingValues(bottom = 48.dp)) {
                 if (fl == 4) item(key = "hubbtn") {
@@ -311,7 +317,9 @@ fun SearchScreen(
                     }
                     val report: (Item) -> Unit = { focusItem = it }
                     if (sg.any { it.state == 1 }) item(key = "games") { SearchGameRow(sg, fr("games"), onGame) }
-                    if (both.isNotEmpty()) item(key = "cmm") { SearchGrid(both, cardW, fr("cmm"), openS) }
+                    if (topRes.isNotEmpty()) item(key = "cmm") { ResultTitle("Top results"); SearchGrid(topRes, cardW, fr("cmm"), openS) }
+                    if (moreM.isNotEmpty()) item(key = "cmm2") { SearchTitleRow("Movies", moreM, cardW, null, report, openS) }
+                    if (moreS.isNotEmpty()) item(key = "cms2") { SearchTitleRow("TV Shows", moreS, cardW, null, report, openS) }
                     if (per != null) item(key = "person") { SearchTitleRow(per.first, per.second, cardW, fr("person"), report, openS) }
                     if (sg.isNotEmpty() && sg.none { it.state == 1 }) item(key = "games") { SearchGameRow(sg, fr("games"), onGame) }
                     if (st.isNotEmpty() || sl.isNotEmpty()) item(key = "teams") {
@@ -460,11 +468,11 @@ private fun SearchRow(
 private fun QueryBox(text: String, modifier: Modifier) {
     val shape = RoundedCornerShape(16.dp)
     Box(
-        modifier.height(62.dp).clip(shape).background(Surf).border(DS.Border, Surf2, shape).padding(horizontal = 20.dp),
+        modifier.height(50.dp).clip(shape).background(Surf).padding(horizontal = 16.dp),
         contentAlignment = Alignment.CenterStart
     ) {
-        if (text.isEmpty()) Text("Movies, shows, games, teams, channels…", color = Muted, fontSize = 20.sp, maxLines = 1, raw = true)
-        else Text(text, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, raw = true)
+        if (text.isEmpty()) Text("Search", color = Muted, fontSize = 18.sp, maxLines = 1, raw = true)
+        else Text(text, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, raw = true)
     }
 }
 
@@ -498,15 +506,16 @@ internal fun SearchKeyboard(
     var symbols by remember { mutableStateOf(false) }
     var special by remember { mutableStateOf(false) }
     val rows = if (symbols) KB_SYMBOLS else if (special) KB_SPECIAL else KB_LETTERS
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    // Compact keys (Netflix style): the keyboard is a tool, the results get the space
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         // Number row (always visible)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
             KB_DIGITS.forEachIndexed { c, k ->
                 KbKey(k.toString(), Modifier.weight(1f).then(if (c == 0) Modifier.focusRequester(firstKey) else Modifier), onFocusChange, if (c == KB_DIGITS.lastIndex) onRight else null) { onKey(k.toString()) }
             }
         }
         rows.forEachIndexed { r, row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
                 // Row 2 is indented half a key like on a real keyboard
                 if (r == 1 && !symbols) Spacer(Modifier.weight(0.5f))
                 if (r == 2) KbKey(if (symbols) "ABC" else "#+=", Modifier.weight(1.5f), onFocusChange, null) { symbols = !symbols; special = false }
@@ -517,7 +526,7 @@ internal fun SearchKeyboard(
                 if (r == 2) KbKey("⌫", Modifier.weight(1.5f), onFocusChange, onRight) { onDelete() }
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
             KbKey("Leer", Modifier.weight(if (onPhone == null) (if (onVoice != null) 3.9f else 4.5f) else if (onVoice != null) 2f else 2.6f), onFocusChange, null) { onSpace() }
             if (onPhone != null) KbKey("Handy", Modifier.weight(1.9f), onFocusChange, null, icon = AIcon.Phone) { onPhone() }
             if (onVoice != null) KbKey("", Modifier.weight(0.9f), onFocusChange, null, icon = AIcon.Mic) { onVoice() }
@@ -531,9 +540,9 @@ internal fun SearchKeyboard(
 private fun KbKey(label: String, modifier: Modifier, onFocusChange: (Boolean) -> Unit, onRight: (() -> Boolean)?, icon: AIcon? = null, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     val sc by animateFloatAsState(if (f) focusScale(1.08f) else 1f, label = "kbkey")
-    val shape = RoundedCornerShape(12.dp)
+    val shape = RoundedCornerShape(8.dp)
     Box(
-        modifier.height(42.dp).graphicsLayer { scaleX = sc; scaleY = sc }.clip(shape)
+        modifier.height(34.dp).graphicsLayer { scaleX = sc; scaleY = sc }.clip(shape)
             .background(if (f) DS.FocusFill else DS.Overlay2)
             .onPreviewKeyEvent { e ->
                 if (onRight != null && e.type == KeyEventType.KeyDown && e.key == Key.DirectionRight) onRight() else false
@@ -544,7 +553,7 @@ private fun KbKey(label: String, modifier: Modifier, onFocusChange: (Boolean) ->
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             if (icon != null) AppIcon(icon, if (f) DS.FocusInk else Color.White, size = 18.dp)
-            if (label.isNotEmpty()) Text(label, color = if (f) DS.FocusInk else Color.White, fontSize = if (label.length > 1) 15.sp else 20.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            if (label.isNotEmpty()) Text(label, color = if (f) DS.FocusInk else Color.White, fontSize = if (label.length > 1) 13.sp else 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
     }
 }
