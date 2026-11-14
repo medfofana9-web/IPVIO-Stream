@@ -38,15 +38,27 @@ object MainSampler {
     @Volatile private var cardMarked = false
 
     /** Test builds: logs a moment in the startup ("profile picked") with the time since process start. */
+    /** Speed of this run, seconds after process start, shown in Settings → diagnostics ("Speed"). */
+    val timings = java.util.concurrent.CopyOnWriteArrayList<String>()
+
+    private fun keep(what: String) {
+        if (timings.size >= 20 || timings.any { it.endsWith(what) }) return
+        val ms = android.os.SystemClock.elapsedRealtime() - android.os.Process.getStartElapsedRealtime()
+        timings.add(String.format(java.util.Locale.US, "%.1f s  ", ms / 1000.0) + what)
+    }
+
     fun mark(what: String) {
+        keep(what)
         if (!BuildConfig.VERSION_NAME.endsWith("-test")) return
         Log.i("FofProfile", "[start] $what after " + (android.os.SystemClock.elapsedRealtime() - android.os.Process.getStartElapsedRealtime()) + " ms")
     }
 
     /** Test builds: logs once how long after process start the first poster card was composed (home usable). */
     fun firstCard() {
-        if (cardMarked || !BuildConfig.VERSION_NAME.endsWith("-test")) return
+        if (cardMarked) return
         cardMarked = true
+        keep("home: first poster")
+        if (!BuildConfig.VERSION_NAME.endsWith("-test")) return
         val ms = android.os.SystemClock.elapsedRealtime() - android.os.Process.getStartElapsedRealtime()
         Log.i("FofProfile", "[start] first poster card composed after $ms ms")
     }

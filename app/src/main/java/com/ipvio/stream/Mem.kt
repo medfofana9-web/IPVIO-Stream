@@ -146,7 +146,7 @@ object CrashLog {
                 main.post { tick.compareAndSet(sent, -sent) }
                 Thread.sleep(2_000)
                 var waited = android.os.SystemClock.uptimeMillis() - at
-                while (tick.get() == sent && waited < 6_000) { Thread.sleep(500); waited = android.os.SystemClock.uptimeMillis() - at }
+                while (tick.get() == sent && waited < 4_000) { Thread.sleep(500); waited = android.os.SystemClock.uptimeMillis() - at }
                 if (tick.get() == sent && seen != sent) {
                     seen = sent
                     runCatching {
@@ -154,7 +154,7 @@ object CrashLog {
                         val own = st.filter { it.className.startsWith("com.ipvio") }.take(5).ifEmpty { st.take(4) }
                         val where = own.joinToString(" < ") { (it.fileName ?: it.className.substringAfterLast('.')) + ":" + it.lineNumber }
                         app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-                            .putString("last", "Freeze (screen stuck 6 s) · $where")
+                            .putString("last", "Freeze (screen stuck 4 s) · $where")
                             .putLong("at", System.currentTimeMillis()).putBoolean("shown", false).commit()
                     }
                     while (tick.get() == sent) Thread.sleep(500)

@@ -47,12 +47,18 @@ private const val S_SORT_PLAYLIST = 8
 
 /** Index of the current list – is kept when leaving and coming back. */
 internal object SearchCache {
-    private var idx: SearchIndex? = null
-    @Synchronized fun get(all: List<Item>): SearchIndex? = idx?.takeIf { it.all === all }
-    @Synchronized fun build(all: List<Item>): SearchIndex = get(all) ?: SearchIndex(all).also { idx = it }
+    // Reading never takes a lock: the screen used to call get() on the main thread while a background thread held the
+    // same lock for seconds building the index of a big playlist, so the first key press froze the app until Android
+    // closed it ("app not responding, input dispatching timed out")
+    @Volatile private var idx: SearchIndex? = null
+    private val idxLock = Any()
+    fun get(all: List<Item>): SearchIndex? = idx?.takeIf { it.all === all }
+    fun build(all: List<Item>): SearchIndex = get(all) ?: synchronized(idxLock) { get(all) ?: SearchIndex(all).also { idx = it; MainSampler.mark("search: index ready (" + all.size + " titles)") } }
 
-    private var sug: Pair<List<Item>, WordSuggest>? = null
-    @Synchronized fun suggest(all: List<Item>): WordSuggest = sug?.takeIf { it.first === all }?.second ?: WordSuggest(all).also { sug = all to it }
+    @Volatile private var sug: Pair<List<Item>, WordSuggest>? = null
+    private val sugLock = Any()
+    fun suggest(all: List<Item>): WordSuggest =
+        sug?.takeIf { it.first === all }?.second ?: synchronized(sugLock) { sug?.takeIf { it.first === all }?.second ?: WordSuggest(all).also { sug = all to it } }
 }
 
 /** Search (tab 4): "Recently watched" separated into movies, series and Live TV. */

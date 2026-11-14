@@ -124,6 +124,7 @@ private val HUB_TABS = listOf("Übersicht", "Live", "Spielplan", "Ligen", "Teams
 @Composable
 fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     SideEffect { ContentFocus.tab = MenuLogic.SPORT }
+    LaunchedEffect(Unit) { MainSampler.mark("sports: opened") }
     val ctx = LocalContext.current
     SportFavs.init(ctx)
     SportLeagues.init(ctx)
@@ -339,7 +340,12 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
         .sortedWith(compareBy({ if (it.state == 1) 0 else 1 }, { if (SportHubFavs.isFavGame(it)) 0 else 1 }, { it.start }))
     val soccer = fresh(ahead.soccer)
     val nba = fresh(ahead.nba)
-    LazyColumn(contentPadding = PaddingValues(horizontal = DS.PageX, vertical = dpx(8)), verticalArrangement = Arrangement.spacedBy(dpx(26))) {
+    // Live games arrive after the cached rows: the list keeps its place when rows are added above, so the new Live now row
+    // ended up above the screen. When the page has not been scrolled yet, it goes back to the top to show them.
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val hasLive = games.any { it.state == 1 }
+    LaunchedEffect(hasLive) { if (hasLive && listState.firstVisibleItemIndex <= 1) runCatching { listState.scrollToItem(0) } }
+    LazyColumn(state = listState, contentPadding = PaddingValues(horizontal = DS.PageX, vertical = dpx(8)), verticalArrangement = Arrangement.spacedBy(dpx(26))) {
         when {
             // feed.games too: the page model can lag a moment behind the feed, and must never show "no games" meanwhile
             games.isNotEmpty() || feed.games.isNotEmpty() || soccer.isNotEmpty() || nba.isNotEmpty() -> {}
@@ -351,7 +357,7 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
             else -> item(key = "empty") { HubEmpty(AIcon.Info, "Heute keine Spiele gefunden.", "In deinen Ligen ist heute nichts angesetzt. Im Spielplan siehst du die nächsten Tage.", "Spielplan öffnen") { hub.goTab(2, null) } }
         }
         // Live games are the first thing on the page
-        val liveAll = games.filter { it.state == 1 }.sortedWith(compareBy({ if (it.key in m.withCh) 0 else 1 }, { if (SportHubFavs.isFavGame(it)) 0 else 1 }, { popularity(it) }))
+        val liveAll = games.filter { it.state == 1 }.sortedWith(compareBy({ if (it.solo) 1 else 0 }, { if (it.key in m.withCh) 0 else 1 }, { if (SportHubFavs.isFavGame(it)) 0 else 1 }, { popularity(it) }))
         if (liveAll.isNotEmpty()) item(key = "live") {
             LaunchedEffect(Unit) { MainSampler.mark("sports: live row shown") }
             GameTileRow("Live now", liveAll, hub) { hub.goTab(1, null) }

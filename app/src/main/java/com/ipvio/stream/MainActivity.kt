@@ -61,6 +61,11 @@ class MainActivity : ComponentActivity() {
             SportLeagues.init(this@MainActivity)
             SportData.warmUp(SportLeagues.enabled())
         }
+        // Search index built once in the background after Home settled, so the first key press in Search finds it ready
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
+            kotlinx.coroutines.delay(12_000)
+            runCatching { PlaylistStore.channels.takeIf { it.isNotEmpty() }?.let { SearchCache.build(it); SearchCache.suggest(it) } }
+        }
         Catalog.init(this); Catalog.preload()
         CatalogItems.init(this); TmdbExtra.init(this)
         // Fof TV: the settings website is always reachable on the local network (address: phone icon in the menu)

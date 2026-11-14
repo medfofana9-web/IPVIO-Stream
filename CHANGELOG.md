@@ -1,5 +1,13 @@
 # Changelog
 
+## Fof TV 1.3.55 (November 2026)
+**Fixed**
+- Search froze and Android closed the app ("app not responding") on the first key press: the screen waited for a lock the background index build held for seconds on a big playlist. Reading no longer waits, and the index is built in the background 12 s after start
+- Sports: the Live now row appeared above the screen when live games arrived after the cached rows; the page now jumps to it if you have not scrolled. Golf-style events are listed after team games
+
+**Diagnostics**
+- Settings → diagnostics → Speed: how long this run took to show Home, open Sports, show live games and get Search ready
+
 ## Fof TV 1.3.53 (November 2026)
 **Fixed**
 - Search: a short query on a big provider matched tens of thousands of titles and every step after it paid for all of them; hits are now capped at 400 per kind, the heavy dedupe runs in the background, and a source that fails (network, bad data, memory) shows no hits instead of closing the app

@@ -889,6 +889,7 @@ private fun DiagPage(ctx: Context, reload: () -> Unit) {
                     (if (it.second == "aus") Lang.tr("aus") else Lang.tr("an") + it.second.removePrefix("an"))
             },
         "Weiterschauen" to (ResumeLog.also { it.init(ctx) }.lines.take(12).joinToString("\n").ifBlank { "noch nichts gemerkt" }),
+        "Speed" to (MainSampler.timings.joinToString("\n").ifBlank { "–" }),
         "Letzter Absturz" to (CrashLog.last(ctx)?.let { it.first + "  (" + DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(it.second)) + ")" } ?: "keiner")
     )
     lines.forEach { (k, v) ->
