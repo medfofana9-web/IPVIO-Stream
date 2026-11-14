@@ -74,7 +74,7 @@ jobs:
             adb shell uiautomator dump /sdcard/ui0.xml >/dev/null 2>&1; adb pull /sdcard/ui0.xml ui0.xml >/dev/null 2>&1
             echo "== screen texts after start"; grep -o 'text="[^"]\+"' ui0.xml | head -40 || true
             adb shell dumpsys gfxinfo com.fof.tv reset > /dev/null
-            adb shell 'simpleperf record -p $(pidof com.fof.tv) -g -f 2000 --duration 14 -o /data/local/tmp/home.data' > rec_home.txt 2>&1 &
+            adb shell 'simpleperf record -e cpu-clock -p $(pidof com.fof.tv) -g -f 2000 --duration 14 -o /data/local/tmp/home.data' > rec_home.txt 2>&1 &
             sleep 1
             adb shell 'for i in 1 2 3; do input keyevent 20; sleep 0.6; done'
             adb shell 'for i in $(seq 1 25); do input keyevent 22; sleep 0.15; done'
@@ -89,7 +89,7 @@ jobs:
             adb shell 'simpleperf report -i /data/local/tmp/home.data --tids $(pidof com.fof.tv) --sort symbol --percent-limit 0.4' > prof_home_self.txt 2>&1 || true
             adb shell 'simpleperf report -i /data/local/tmp/home.data --tids $(pidof com.fof.tv) --children --sort symbol --percent-limit 1.5' > prof_home_children.txt 2>&1 || true
             adb shell dumpsys gfxinfo com.fof.tv reset > /dev/null
-            adb shell 'simpleperf record -p $(pidof com.fof.tv) -g -f 2000 --duration 6 -o /data/local/tmp/detail.data' > /dev/null 2>&1 &
+            adb shell 'simpleperf record -e cpu-clock -p $(pidof com.fof.tv) -g -f 2000 --duration 6 -o /data/local/tmp/detail.data' > /dev/null 2>&1 &
             sleep 1
             adb shell 'input keyevent 22; sleep 1; input keyevent 23; sleep 3'
             sleep 2
