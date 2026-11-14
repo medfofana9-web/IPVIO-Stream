@@ -26,6 +26,9 @@ jobs:
         run: |
           chmod +x gradlew
           printf 'storeFile=signing/fof-tv.jks\nstorePassword=foftv-sign\nkeyAlias=foftv\nkeyPassword=foftv-sign\n' > keystore.properties
+          # Test build only: allow the shell profiler (simpleperf) to sample the app
+          sed -i 's#<application#<application xmlns:tools="http://schemas.android.com/tools"#' app/src/main/AndroidManifest.xml
+          sed -i 's#</application>#<profileable android:shell="true" /></application>#' app/src/main/AndroidManifest.xml
           ./gradlew --no-daemon assembleRelease
           cp app/build/outputs/apk/release/*.apk app.apk
       - name: Generate test playlist and serve it
@@ -71,6 +74,9 @@ jobs:
             adb shell uiautomator dump /sdcard/ui0.xml >/dev/null 2>&1; adb pull /sdcard/ui0.xml ui0.xml >/dev/null 2>&1
             echo "== screen texts after start"; grep -o 'text="[^"]\+"' ui0.xml | head -40 || true
             adb shell dumpsys gfxinfo com.fof.tv reset > /dev/null
+            PID=$(adb shell pidof com.fof.tv | tr -d '\r')
+            adb shell "simpleperf record -p $PID -g -f 2000 --duration 14 -o /data/local/tmp/home.data" > /dev/null 2>&1 &
+            sleep 1
             adb shell 'for i in 1 2 3; do input keyevent 20; sleep 0.6; done'
             adb shell 'for i in $(seq 1 25); do input keyevent 22; sleep 0.15; done'
             adb exec-out screencap -p > p1_home_right.png
@@ -80,8 +86,15 @@ jobs:
             adb shell 'for i in $(seq 1 6); do input keyevent 19; sleep 0.4; done'
             adb exec-out screencap -p > p2_home_updown.png
             adb shell dumpsys gfxinfo com.fof.tv > gfx_home.txt
+            sleep 4
+            adb shell "simpleperf report -i /data/local/tmp/home.data --tids $PID --sort symbol --percent-limit 0.4" > prof_home_self.txt 2>&1 || true
+            adb shell "simpleperf report -i /data/local/tmp/home.data --tids $PID --children --sort symbol --percent-limit 1.5" > prof_home_children.txt 2>&1 || true
             adb shell dumpsys gfxinfo com.fof.tv reset > /dev/null
+            adb shell "simpleperf record -p $PID -g -f 2000 --duration 6 -o /data/local/tmp/detail.data" > /dev/null 2>&1 &
+            sleep 1
             adb shell 'input keyevent 22; sleep 1; input keyevent 23; sleep 3'
+            sleep 2
+            adb shell "simpleperf report -i /data/local/tmp/detail.data --tids $PID --children --sort symbol --percent-limit 1.5" > prof_detail_children.txt 2>&1 || true
             adb exec-out screencap -p > p3_detail.png
             adb shell uiautomator dump /sdcard/ui3.xml >/dev/null 2>&1; adb pull /sdcard/ui3.xml ui3.xml >/dev/null 2>&1
             echo "== screen texts on the title page"; grep -o 'text="[^"]\+"' ui3.xml | head -30 || true
@@ -97,6 +110,7 @@ jobs:
         run: |
           for f in gfx_home.txt gfx_detail.txt; do echo "== $f"; grep -E "Total frames rendered|Janky frames|50th percentile|90th percentile|95th percentile|99th percentile|Slow UI thread|Frame deadline missed" $f || true; done
           grep -E "TOTAL" meminfo.txt | head -3 || true
+          for f in prof_home_self.txt prof_home_children.txt prof_detail_children.txt; do echo "== $f"; grep -E "ipvio|compose|coil|okio|Overhead|Samples" $f | head -60 || true; done
           grep -n "FATAL EXCEPTION" -A20 logcat.txt | head -40 || true
           grep -q RUNNING alive.txt && ! grep -q NOT-RUNNING alive.txt
       - uses: actions/upload-artifact@v4
@@ -106,5 +120,6 @@ jobs:
           path: |
             *.png
             gfx_*.txt
+            prof_*.txt
             meminfo.txt
             start.txt
