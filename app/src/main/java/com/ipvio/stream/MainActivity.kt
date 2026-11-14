@@ -56,7 +56,8 @@ class MainActivity : ComponentActivity() {
         // Sports scores load in the background shortly after start, so the sports page opens with games instead of waiting
         SportData.initDisk(this)
         if (General.sportLive) kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
-            kotlinx.coroutines.delay(2500)
+            // After Home's first seconds (its rows and posters come first); the stores are already read in the background
+            kotlinx.coroutines.delay(6000)
             SportLeagues.init(this@MainActivity)
             SportData.warmUp(SportLeagues.enabled())
         }
@@ -96,7 +97,8 @@ class MainActivity : ComponentActivity() {
                 runCatching {
                     // The profile list is UI state: set up on the main thread, then only file names are used here
                     val id = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { Profiles.init(app); Profiles.active }
-                    listOf("ipvio_eprog", "ipvio_watch", "ipvio_hist", "ipvio_lib", "fof_flags", "fof_catalog_items")
+                    listOf("ipvio_eprog", "ipvio_watch", "ipvio_hist", "ipvio_lib", "fof_flags", "fof_catalog_items",
+                        "ipvio_sportleagues", "ipvio_sportfavs", "ipvio_sportfix", "fof_sportlearn", "ipvio_sporthub", "fof_sport")
                         .forEach { app.getSharedPreferences(Profiles.scopedName(it, id), MODE_PRIVATE).all }
                     app.getSharedPreferences("fof_stremio", MODE_PRIVATE).all
                     Debrid.init(app)

@@ -1,5 +1,22 @@
 # Changelog
 
+## Fof TV 1.3.49 (November 2026)
+**Fixed**
+- Sports: a game on a streaming service (e.g. WSL on "Paramount+") was matched to a TV channel with the same base name ("US: Paramount Network"). "+" now stays part of the network name
+- Sports page: rows and enlarged tiles no longer slide over the tab bar
+- Title page: the episode list never spins forever; after 15 s the retry screen shows
+- Player: focus falls back to the first button when the button a panel came from is not on the bar
+
+**Improved**
+- Game tiles: one clear state label (live with match clock, started, final, postponed/canceled); a missing score shows VS, never 0 – 0
+- Live player bar: picture format, second picture, quality, score overlay and "open externally" moved to Settings; "Back to live" only shows when behind live; "Other streams" only while games are live
+- Posters: flat surface under the image in the clean look (no gradient painted under every poster)
+- Startup: sports stores are read in the background; the sports warm-up starts after 6 s instead of 2.5 s
+
+**Measured (emulator, Android TV API 30, CPU rendering, 24,000 channels + 4,000 movies)**
+- Cold start to first frame 1.41 s; profile picked to first poster 0.75 s
+- Journey: Home → title → Back and Sports → game → Back return to the same item
+
 ## Fof TV 1.3.47 (November 2026)
 **Smoothness**
 - Rows glide continuously: one follower per row moves the cards a share of the remaining distance each frame. Before, every press restarted a 230 ms animation from standstill, so held or quick presses stuttered and lagged behind the highlight
