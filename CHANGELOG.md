@@ -1,5 +1,11 @@
 # Changelog
 
+## Fof TV 1.3.47 (November 2026)
+**Smoothness**
+- Rows glide continuously: one follower per row moves the cards a share of the remaining distance each frame. Before, every press restarted a 230 ms animation from standstill, so held or quick presses stuttered and lagged behind the highlight
+- Opening a title no longer waits on the disk or the keystore: episode progress, history, watchlist, addons and the debrid token are loaded in the background at app start (measured: 21 main-thread samples on the first open, now none)
+- Performance test: main-thread sampler for test builds (tag FofProfile), triggered by the test; inactive in release builds
+
 ## Fof TV 1.3.46 (November 2026)
 **Player seeking**
 - The picture holds while seeking and continues from the new spot (as on Netflix); Back cancels and keeps playing
