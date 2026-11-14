@@ -48,3 +48,8 @@ Not run by the assistant (no Gradle). The maintainer runs `gradlew.bat assembleD
 ## Next step
 
 U-1: move the Media3-dependent code out of `PlayerLogic.kt` (see `docs/REFACTORING-PROGRESS.md`). T-004 and T-006 stay open.
+
+## 2026-11-14 – Fof TV 1.3.51 (search, stream accuracy, player sources)
+- Done: stream identity check (`StremioLogic.matchCheck`, `Stremio.rank/bestVerified`), `SourceMemory`/`NowSources`, in-player Sources panel with revert, Wrong content action, auto/ask setting on the TV Stremio page, resume tied to item id, search exact-title-first + dedupe.
+- Checks run: CI release build + unit tests (incl. `StreamMatchTest`, `SearchAllLogicTest`) passed; emulator journey test passed with no crash. Not run: real addon playback (no addons on the emulator).
+- Open: on-device test of source switching and Wrong content; source picker sort/filter; Supabase sync waits for URL + anon key.
