@@ -86,6 +86,7 @@ class MainActivity : ComponentActivity() {
         ScreenAwake.attach(this)
         intent?.getStringExtra(Reminders.EXTRA_CH)?.let { AppNav.openChannel = it }
         if (BuildConfig.VERSION_NAME.endsWith("-test")) intent?.getStringExtra("fof_test_url")?.let { AppNav.testUrl = it }
+        MainSampler.register(this)
         // Performance test: load the given playlist once, without the setup screens and without asking for languages
         if (BuildConfig.VERSION_NAME.endsWith("-test")) intent?.getStringExtra("fof_test_playlist")?.let { u ->
             val app = applicationContext
