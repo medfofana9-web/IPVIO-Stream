@@ -39,6 +39,9 @@ object FofPrefs {
         Profiles.sp(c, NAME).edit().putBoolean(key, on).apply()
     }
 
+    /** Provider movies/series wanted? Read straight from the settings (the playlist can load before [init]). */
+    fun vodStored(c: Context): Boolean = Profiles.sp(c, NAME).getBoolean("provider_vod", false)
+
     fun init(c: Context) {
         val p = Profiles.sp(c, NAME)
         spoilerPics = p.getBoolean("spoiler_pics", true)

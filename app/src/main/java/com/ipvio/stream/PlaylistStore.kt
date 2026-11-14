@@ -790,6 +790,7 @@ object PlaylistStore {
             }
         }
         phase = "Titel werden eingelesen …"
+        M3uParser.liveOnly = !FofPrefs.vodStored(c)
         val parsed = readFile(src, gz, cs, teeTo) { r -> M3uParser.parseStream(r, hidden, guard()) }
         return Built(parsed, hidden)
     }
@@ -1052,6 +1053,7 @@ object PlaylistStore {
     ): Boolean {
         if (!loadLock.tryLock()) return rawChannels.isNotEmpty()
         try {
+            M3uParser.liveOnly = !FofPrefs.vodStored(c)
             return loadInner(c, url, save, skipNetworkWhenCached, ask, resumed)
         } finally {
             loading = false   // also on cancel: otherwise the loading state (and the screen keep-awake) would stay stuck

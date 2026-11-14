@@ -218,8 +218,9 @@ class XtreamApi(private val client: OkHttpClient, private val ua: String) {
             fun job(file: java.io.File, work: (Writer) -> Int) = pool.submit<Int> {
                 file.bufferedWriter(Charsets.UTF_8).use { w -> work(w).also { w.flush() } }
             }
-            val vodJob = job(vodFile) { writeMovies(a, it) }
-            val serJob = job(serFile) { writeSeries(a, it) }
+            // Live TV only: the provider's movies and series are not downloaded at all
+            val vodJob = job(vodFile) { if (M3uParser.liveOnly) 0 else writeMovies(a, it) }
+            val serJob = job(serFile) { if (M3uParser.liveOnly) 0 else writeSeries(a, it) }
 
             onPhase("Sender werden geladen …")
             val liveCats = categories(a, "get_live_categories")

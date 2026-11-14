@@ -166,6 +166,12 @@ class StringPool {
 }
 
 object M3uParser {
+    /**
+     * Fof TV: the provider is used for live TV only (movies and shows come from the addons). With this on, its movies and
+     * series are skipped while reading: 290,000 titles nobody opens no longer cost start time, memory and search time.
+     */
+    @Volatile var liveOnly = false
+
     /** Language of an entry; the category is examined only once per name. */
     private class LangOf(private val pool: StringPool) {
         private val byGroup = HashMap<String, String>()
@@ -433,6 +439,7 @@ object M3uParser {
 
         entries(lines, check, onHeader = { header = it; headCu = CatchupLogic.fromInfo(it, "") }) { e ->
             val kd = classify(e, st, langOf) ?: return@entries
+            if (liveOnly && kd.kind != Kind.LIVE) return@entries
             if (kd.lang in hidden) return@entries
             val group = pool.of(e.group)
             val q = quality(e.name, e.group)

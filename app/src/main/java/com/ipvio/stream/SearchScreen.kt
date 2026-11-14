@@ -121,7 +121,8 @@ fun SearchScreen(
     }
     val searching = q.length >= 2 && found.first != q
     val (rm0, rs0, rl0) = if (q.length < 2 || searching) none else found.second
-    val fl = SearchState.filter
+    // One result page for everything (the filter chips are gone); 0 = all
+    val fl = 0
     // Word suggestions for the word being typed
     val sugg = remember(SearchState.query, suggestIdx) { suggestIdx?.suggest(WordSuggest.lastWord(SearchState.query)).orEmpty() }
     // Sports hub filter: live channels that look like sports channels (the hub itself opens with the button)
@@ -186,8 +187,19 @@ fun SearchScreen(
             } else { openInHub(HubPage.Match(g)); onTab(MenuLogic.SPORT) }
         }
     }
+    // Movies and shows in one grid, best match first (exact title, then title start), like Netflix
+    val both = remember(cmM, cmS, q) {
+        (cmM + cmS).withIndex().sortedWith(compareBy({ SearchAllLogic.titleRank(it.value.title, q) }, { it.index % 30 })).map { it.value }.take(30)
+    }
+    // Empty search: popular titles of the catalog instead of an empty page
+    val top by produceState(emptyList<Item>()) {
+        fun mix(m: List<Item>, s: List<Item>) = (0 until maxOf(m.size, s.size)).flatMap { listOfNotNull(m.getOrNull(it), s.getOrNull(it)) }.distinctBy { it.id }.take(20)
+        value = mix(Catalog.cached(Catalog.popular(Kind.MOVIE)), Catalog.cached(Catalog.popular(Kind.SERIES)))
+        if (value.isEmpty()) value = safely(emptyList()) { mix(Catalog.items(Catalog.popular(Kind.MOVIE)), Catalog.items(Catalog.popular(Kind.SERIES))) }
+    }
+    val openTop: (Item) -> Unit = { i -> onOpen(i) }
     val firstKey = when {
-        sg.any { it.state == 1 } -> "games"; cmM.isNotEmpty() -> "cmm"; cmS.isNotEmpty() -> "cms"; per != null -> "person"
+        sg.any { it.state == 1 } -> "games"; cmM.isNotEmpty() || cmS.isNotEmpty() -> "cmm"; per != null -> "person"
         sg.isNotEmpty() -> "games"; st.isNotEmpty() || sl.isNotEmpty() -> "teams"
         rm.isNotEmpty() -> "rm"; rs.isNotEmpty() -> "rs"; rl.isNotEmpty() -> "rl"; sh.isNotEmpty() -> "shows"; else -> ""
     }
@@ -213,7 +225,7 @@ fun SearchScreen(
             ) {
                 Spacer(Modifier.weight(1f))
                 // Everything sits directly above the keyboard and is fully visible (wraps into more rows instead of scrolling away)
-                val recent = AppSettings.searchHistory.toList().take(6)
+                val recent = if (q.isEmpty()) AppSettings.searchHistory.toList().take(6) else emptyList()
                 if (recent.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     recent.forEachIndexed { i, term ->
                         // OK searches again, long OK / menu key removes just this entry
@@ -228,9 +240,6 @@ fun SearchScreen(
                             SearchState.query = WordSuggest.apply(SearchState.query, w)
                         }
                     }
-                }
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    SEARCH_FILTERS.forEachIndexed { i, name -> MiniChip(name, SearchState.filter == i, raw = true) { SearchState.filter = i } }
                 }
                 if (AppSettings.systemKeyboard) {
                     // The device's own keyboard (e.g. Gboard) in a normal text field: OK or a tap opens it
@@ -262,8 +271,8 @@ fun SearchScreen(
             }
             // Right: info panel of the highlighted title on top, the hits below
             Column(Modifier.weight(1f).fillMaxHeight()) {
-                val preview = focusItem ?: (cmM.firstOrNull() ?: cmS.firstOrNull() ?: rm.firstOrNull() ?: rs.firstOrNull() ?: rl.firstOrNull() ?: hist.firstOrNull())
-                SearchInfoPanel(preview, Modifier.fillMaxWidth().height(190.dp).padding(start = 24.dp, end = DS.PageX, top = 16.dp))
+                if (q.length < 2 && top.isNotEmpty()) Text("Top searches", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(start = 24.dp, top = 22.dp, bottom = 4.dp), raw = true)
                 CompositionLocalProvider(LocalSearchFocus provides { focusItem = it }) {
                     LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = state, contentPadding = PaddingValues(bottom = 48.dp)) {
                 if (fl == 4) item(key = "hubbtn") {
@@ -272,6 +281,7 @@ fun SearchScreen(
                     }
                 }
                 if (q.length < 2) {
+                    if (top.isNotEmpty()) item(key = "top") { SearchGrid(top, cardW, firstRes.takeIf { firstKey == "" }, openTop) }
                     val hm = hist.filter { it.kind == Kind.MOVIE }
                     val hs = hist.filter { it.kind == Kind.SERIES }
                     val hl = hist.filter { it.kind == Kind.LIVE }
@@ -301,8 +311,7 @@ fun SearchScreen(
                     }
                     val report: (Item) -> Unit = { focusItem = it }
                     if (sg.any { it.state == 1 }) item(key = "games") { SearchGameRow(sg, fr("games"), onGame) }
-                    if (cmM.isNotEmpty()) item(key = "cmm") { SearchTitleRow("Movies", cmM, cardW, fr("cmm"), report, openS) }
-                    if (cmS.isNotEmpty()) item(key = "cms") { SearchTitleRow("Shows", cmS, cardW, fr("cms"), report, openS) }
+                    if (both.isNotEmpty()) item(key = "cmm") { SearchGrid(both, cardW, fr("cmm"), openS) }
                     if (per != null) item(key = "person") { SearchTitleRow(per.first, per.second, cardW, fr("person"), report, openS) }
                     if (sg.isNotEmpty() && sg.none { it.state == 1 }) item(key = "games") { SearchGameRow(sg, fr("games"), onGame) }
                     if (st.isNotEmpty() || sl.isNotEmpty()) item(key = "teams") {
@@ -627,3 +636,24 @@ private suspend fun <T> safely(fallback: T, block: suspend kotlinx.coroutines.Co
     try { withContext(Dispatchers.Default, block) }
     catch (e: kotlinx.coroutines.CancellationException) { throw e }
     catch (e: Throwable) { android.util.Log.w("FofSearch", "search source failed", e); fallback }
+
+/** Poster grid of the search (Netflix style): rows of cards that fill the width, no row titles. */
+@Composable
+private fun SearchGrid(list: List<Item>, cardW: Int, first: FocusRequester?, onOpen: (Item) -> Unit) {
+    val report = LocalSearchFocus.current
+    BoxWithConstraints(Modifier.fillMaxWidth().padding(start = 24.dp, end = DS.PageX)) {
+        val gap = 16
+        val cols = ((maxWidth.value + gap) / (cardW + gap)).toInt().coerceIn(3, 7)
+        val w = ((maxWidth.value - gap * (cols - 1)) / cols).dp
+        Column(Modifier.padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            list.chunked(cols).forEachIndexed { r, row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(gap.dp)) {
+                    row.forEachIndexed { c, x ->
+                        val m = if (r == 0 && c == 0 && first != null) Modifier.focusRequester(first) else Modifier
+                        RowPosterCard(x, w, m.restoreFocus(x.id).onFocusChanged { if (it.hasFocus) report(x) }, expand = false) { onOpen(x) }
+                    }
+                }
+            }
+        }
+    }
+}

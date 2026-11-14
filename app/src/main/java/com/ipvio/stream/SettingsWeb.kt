@@ -1,5 +1,6 @@
 package com.ipvio.stream
 
+import kotlinx.coroutines.launch
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
@@ -59,7 +60,16 @@ object SettingsWeb {
         when (k) {
             "row" -> if (HomeLayout.block(id) != null) main.post { HomeLayout.setShown(c, id, v == "1") }
             "oneclick" -> main.post { FofPrefs.setOneClick(c, v == "1") }
-            "pvod" -> main.post { FofPrefs.setProviderVod(c, v == "1") }
+            "pvod" -> main.post {
+                val on = v == "1"
+                if (on != FofPrefs.providerVod) {
+                    FofPrefs.setProviderVod(c, on)
+                    // Off: read the saved list again without movies/series. On: they were never downloaded, so load it anew
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                        if (on) PlaylistStore.savedUrl(c)?.let { PlaylistStore.load(c, it, save = false) } else PlaylistStore.reapplyLanguages(c)
+                    }
+                }
+            }
             "flag" -> main.post { setFlag(c, id, v == "1") }
             "hero" -> v.toIntOrNull()?.let { s -> main.post { General.setHeroSec(c, s) } }
             "addonrm" -> main.post { Stremio.remove(c, id) }
