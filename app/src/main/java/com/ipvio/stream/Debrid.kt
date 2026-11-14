@@ -26,15 +26,19 @@ object Debrid {
     var on by mutableStateOf(false)
         private set
     @Volatile private var token: String = ""
-    private var inited = false
+    @Volatile private var inited = false
     private fun prefs(c: Context) = c.applicationContext.getSharedPreferences("fof_debrid", Context.MODE_PRIVATE)
 
+    /** Reads the token once (keystore decryption: also run in the background at app start, see MainActivity). */
+    @Synchronized
     fun init(c: Context) {
         if (inited) return
+        val enc = prefs(c).getString("rd", null)
+        if (enc != null) {
+            token = Secrets.decrypt(enc).orEmpty()
+            on = token.isNotBlank()
+        }
         inited = true
-        val enc = prefs(c).getString("rd", null) ?: return
-        token = Secrets.decrypt(enc).orEmpty()
-        on = token.isNotBlank()
     }
 
     fun masked(): String = if (token.length > 6) "…" + token.takeLast(4) else ""

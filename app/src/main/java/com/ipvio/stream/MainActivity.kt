@@ -87,6 +87,21 @@ class MainActivity : ComponentActivity() {
         intent?.getStringExtra(Reminders.EXTRA_CH)?.let { AppNav.openChannel = it }
         if (BuildConfig.VERSION_NAME.endsWith("-test")) intent?.getStringExtra("fof_test_url")?.let { AppNav.testUrl = it }
         MainSampler.register(this)
+        // Stores read when a title page opens: loaded from disk in the background now, so the first open does not wait
+        // on the disk (episode progress) or on the keystore (debrid token)
+        run {
+            val app = applicationContext
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                runCatching {
+                    // The profile list is UI state: set up on the main thread, then only file names are used here
+                    val id = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { Profiles.init(app); Profiles.active }
+                    listOf("ipvio_eprog", "ipvio_watch", "ipvio_hist", "ipvio_lib", "fof_flags", "fof_catalog_items")
+                        .forEach { app.getSharedPreferences(Profiles.scopedName(it, id), MODE_PRIVATE).all }
+                    app.getSharedPreferences("fof_stremio", MODE_PRIVATE).all
+                    Debrid.init(app)
+                }
+            }
+        }
         // Performance test: load the given playlist once, without the setup screens and without asking for languages
         if (BuildConfig.VERSION_NAME.endsWith("-test")) intent?.getStringExtra("fof_test_playlist")?.let { u ->
             val app = applicationContext

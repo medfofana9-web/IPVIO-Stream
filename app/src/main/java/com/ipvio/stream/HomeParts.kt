@@ -1,5 +1,8 @@
 package com.ipvio.stream
 
+import kotlinx.coroutines.flow.first
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
@@ -639,18 +642,47 @@ val NoBringSpec = object : androidx.compose.foundation.gestures.BringIntoViewSpe
  */
 @Composable
 fun CenterGlide(state: LazyListState, cur: Int) {
-    LaunchedEffect(cur) {
-        if (cur < 0) return@LaunchedEffect
-        val info = state.layoutInfo
-        val x = info.visibleItemsInfo.firstOrNull { it.index == cur }
-        if (x == null) { state.scrollToItem(cur); return@LaunchedEffect }
-        // Netflix-style: the selected card always sits in the first slot of the row. Every row keeps its card in the same
-        // place, so Up/Down lands in the same column (centering put each row's card somewhere else)
-        val d = x.offset.toFloat()
-        if (kotlin.math.abs(d) < 1.5f) return@LaunchedEffect
-        if (Look.motion == 0) state.scrollBy(d)
-        else state.animateScrollBy(d, tween(230, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+    // Netflix-style: the selected card always sits in the first slot of the row. Every row keeps its card in the same
+    // place, so Up/Down lands in the same column.
+    // One follower for the row's whole life: each frame it covers a share of the remaining distance (time-based, so
+    // it is the same at any frame rate). A new press only moves the target – the motion carries on instead of
+    // restarting from standstill (restarting a tween on every press made held keys stutter and lag behind).
+    val target = rememberUpdatedState(cur)
+    LaunchedEffect(state) {
+        var stuckC = -1
+        var stuckD = 0f
+        while (true) {
+            snapshotFlow { target.value to glideDistance(state, target.value) }.first { (c, d) ->
+                c >= 0 && d != null && kotlin.math.abs(d) > 0.5f && !(c == stuckC && kotlin.math.abs(d - stuckD) < 1f)
+            }
+            var last = 0L
+            while (true) {
+                val c = target.value
+                val d = glideDistance(state, c) ?: break
+                if (c < 0 || kotlin.math.abs(d) <= 0.5f) break
+                if (Look.motion == 0) { state.scrollBy(d); stuckC = c; stuckD = glideDistance(state, c) ?: 0f; break }
+                val now = withFrameNanos { it }
+                val dt = if (last == 0L) 16f else ((now - last) / 1_000_000f).coerceIn(1f, 50f)
+                last = now
+                val k = 1f - kotlin.math.exp(-dt / 62f)
+                val step = if (kotlin.math.abs(d) < 2f) d else d * k
+                val used = state.scrollBy(step)
+                // Start or end of the row: it cannot move further, wait for the next press
+                if (kotlin.math.abs(used) < 0.25f) { stuckC = c; stuckD = d; break }
+            }
+        }
     }
+}
+
+/** Distance from the row's first slot to card [cur]; estimated from the nearest visible card while it is off screen. */
+private fun glideDistance(state: LazyListState, cur: Int): Float? {
+    if (cur < 0) return null
+    val info = state.layoutInfo
+    val v = info.visibleItemsInfo
+    if (v.isEmpty()) return null
+    v.firstOrNull { it.index == cur }?.let { return it.offset.toFloat() }
+    val near = if (cur > v.last().index) v.last() else v.first()
+    return near.offset + (cur - near.index).toFloat() * (near.size + info.mainAxisItemSpacing)
 }
 
 /**
