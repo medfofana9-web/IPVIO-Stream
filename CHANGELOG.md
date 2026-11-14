@@ -1,6 +1,13 @@
 # Changelog
 
-## Fof TV 1.3.55 (November 2026)
+## Fof TV 1.3.56 (November 2026)
+**Faster**
+- The provider is used for live TV only: its 125,000 movies and 166,000 series are no longer read at start or downloaded on refresh (movies and shows come from the addons). The app works with about 24,000 titles instead of 315,000: faster start, less memory, search ready much sooner. Turning "Provider movies/series" on in the phone settings loads them again
+
+**Changed**
+- Search in the Netflix style: one poster grid for movies and shows (best match first), "Top searches" when nothing is typed, recent searches only before typing, no filter chips or empty info box
+
+## Fof TV 1.3.54 (November 2026)
 **Fixed**
 - Search froze and Android closed the app ("app not responding") on the first key press: the screen waited for a lock the background index build held for seconds on a big playlist. Reading no longer waits, and the index is built in the background 12 s after start
 - Sports: the Live now row appeared above the screen when live games arrived after the cached rows; the page now jumps to it if you have not scrolled. Golf-style events are listed after team games
