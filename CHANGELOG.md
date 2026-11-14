@@ -1,5 +1,13 @@
 # Changelog
 
+## Fof TV 1.3.57 (November 2026)
+**Changed**
+- Sports follows soccer (all top leagues and cups), basketball (NBA, WNBA, college) and football (NFL, college) only: about 40 leagues instead of 60, so it loads faster
+- Clean overview: Live now, Starting soon (next 3 hours), My teams, then Soccer, Basketball and Football sections (today plus the coming week), and the channels at the end. Popular leagues, sport tiles and news moved off the overview
+- Flat game tiles without color gradients (cleaner, cheaper to draw), one name line under each tile
+- Sports channels: ESPN networks and NBA TV only (games still play on any matching channel)
+- Four tabs: Overview, Live, Schedule, Leagues
+
 ## Fof TV 1.3.56 (November 2026)
 **Faster**
 - The provider is used for live TV only: its 125,000 movies and 166,000 series are no longer read at start or downloaded on refresh (movies and shows come from the addons). The app works with about 24,000 titles instead of 315,000: faster start, less memory, search ready much sooner. Turning "Provider movies/series" on in the phone settings loads them again
