@@ -827,6 +827,7 @@ object PlaylistStore {
         langBytes = bytes
         shownHidden = hidden
         primaryItems = items; primaryUrl = u; primaryEpg = epg; primaryOrder = order
+        MainSampler.mark("playlist: ready (" + items.size + " titles)")
         rebuild(c)
     }
 
@@ -949,7 +950,7 @@ object PlaylistStore {
         if (!network) {
             val head = readHeader(c, u)
             if (head != null && (head.hidden == null || head.hidden == hidden)) {
-                readCache(c, u, hidden)?.let { if (it.items.isNotEmpty()) return Extra(it.items, it.epg, it.order) }
+                readCache(c, u, hidden)?.let { if (it.items.isNotEmpty()) return Extra(if (M3uParser.liveOnly) it.items.filter { i -> i.kind == Kind.LIVE } else it.items, it.epg, it.order) }
             }
             val gz = gzFile(c, u)
             if (gz.exists()) {
@@ -1003,6 +1004,7 @@ object PlaylistStore {
      * stored whole list, read in again ([allowGz]).
      */
     private suspend fun fromLocal(c: Context, u: String, allowGz: Boolean, ask: Boolean): Local {
+        M3uParser.liveOnly = !FofPrefs.vodStored(c)
         val hidden = LangFilter.hidden
         val head = readHeader(c, u)
         if (head != null) {
@@ -1011,7 +1013,14 @@ object PlaylistStore {
             if (!legacyTooBig && (head.hidden == null || head.hidden == hidden)) {
                 val cached = readCache(c, u, hidden)
                 if (cached != null && cached.counts.isNotEmpty()) {
-                    show(c, u, cached.items, cached.epg, cached.order, cached.counts, cached.bytes, hidden)
+                    // Live TV only: a list saved before still holds the provider's movies and series (300,000 titles were read
+                    // at every start). They are dropped and the smaller list is saved once, so later starts read only channels.
+                    var items = cached.items
+                    if (M3uParser.liveOnly && items.any { it.kind != Kind.LIVE }) {
+                        items = items.filter { it.kind == Kind.LIVE }
+                        writeCache(c, u, items, cached.epg, cached.order, cached.counts, cached.bytes, hidden)
+                    }
+                    show(c, u, items, cached.epg, cached.order, cached.counts, cached.bytes, hidden)
                     return Local.OK
                 }
             }

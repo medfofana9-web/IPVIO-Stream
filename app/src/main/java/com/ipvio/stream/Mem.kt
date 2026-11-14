@@ -153,6 +153,7 @@ object CrashLog {
                         val st = android.os.Looper.getMainLooper().thread.stackTrace
                         val own = st.filter { it.className.startsWith("com.ipvio") }.take(5).ifEmpty { st.take(4) }
                         val where = own.joinToString(" < ") { (it.fileName ?: it.className.substringAfterLast('.')) + ":" + it.lineNumber }
+                        android.util.Log.w("FofFreeze", "main thread stuck: $where")
                         app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
                             .putString("last", "Freeze (screen stuck 4 s) · $where")
                             .putLong("at", System.currentTimeMillis()).putBoolean("shown", false).commit()

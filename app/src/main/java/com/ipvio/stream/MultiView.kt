@@ -1,5 +1,6 @@
 package com.ipvio.stream
 
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -93,6 +94,20 @@ fun MultiViewScreen(live: List<Item>, start: List<Item>? = null, onExit: ((Item?
         }
     }
     val pickAt: (Int) -> Unit = { i -> if (liveGames.isNotEmpty()) gamePick = i else picking = i }
+    // A tile that cannot play moves on by itself to another channel showing the same game (not one already on screen
+    // or already tried), instead of staying on "Extra picture can't be played"
+    val tried = remember { HashMap<Int, MutableSet<String>>() }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    fun nextChannel(i: Int, ch: Item) {
+        val seen = tried.getOrPut(i) { HashSet() }.apply { add(ch.id) }
+        scope.launch {
+            val alt = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                val g = SportSession.game(ch.id) ?: SportFeed.latest.values.firstOrNull { it.state == 1 && runCatching { SportWatch.channels(it, live).any { c -> c.id == ch.id } }.getOrDefault(false) }
+                g?.let { game -> runCatching { SportWatch.channels(game, live) }.getOrDefault(emptyList()).firstOrNull { c -> c.id !in seen && slots.none { s -> s.id == c.id } } }
+            }
+            if (alt != null && slots.getOrNull(i)?.id == ch.id) slots[i] = alt
+        }
+    }
     Dialog(onDismissRequest = { if (full >= 0) full = -1 else close() }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Column(Modifier.fillMaxSize().background(Color.Black).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -119,7 +134,10 @@ fun MultiViewScreen(live: List<Item>, start: List<Item>? = null, onExit: ((Item?
                         .border(if (f) 4.dp else 0.dp, if (f) Color.White else Color.Transparent, RoundedCornerShape(10.dp))
                         .combinedClickable(onClick = { if (item != null) audio = i else pickAt(minOf(i, slots.size)) }, onLongClick = { if (item != null) menuFor = i else pickAt(minOf(i, slots.size)) })
                 ) {
-                    if (item != null) androidx.compose.runtime.key(item.id) { SecondStream(item, split = false, audioOn = audio == i, modifier = Modifier.fillMaxSize(), small = full != i) }
+                    if (item != null) androidx.compose.runtime.key(item.id) {
+                        SecondStream(item, split = false, audioOn = audio == i, modifier = Modifier.fillMaxSize(), small = full != i,
+                            onFailed = { nextChannel(i, item) })
+                    }
                     if (item != null && audio == i) Box(Modifier.align(Alignment.TopEnd).padding(10.dp).background(Color(0xCC000000), RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 4.dp)) {
                         Text(raw = true, text = "🔊", fontSize = 14.sp, color = Color.White)
                     }

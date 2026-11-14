@@ -47,7 +47,7 @@ import androidx.media3.ui.PlayerView
  * Note: many providers allow only one connection per login – then the second stream drops and the app reports it.
  */
 @Composable
-internal fun SecondStream(item: Item, split: Boolean, audioOn: Boolean, modifier: Modifier, small: Boolean = false) {
+internal fun SecondStream(item: Item, split: Boolean, audioOn: Boolean, modifier: Modifier, small: Boolean = false, onFailed: (() -> Unit)? = null) {
     val ctx = LocalContext.current
     var failed by remember { mutableStateOf(false) }
     // Hint for the user: why it failed and what to try (shown below the message)
@@ -103,6 +103,8 @@ internal fun SecondStream(item: Item, split: Boolean, audioOn: Boolean, modifier
         if (p == null || playUrl == null || !openStream(p, playUrl, C.TIME_UNSET)) failed = true
     }
     LaunchedEffect(audioOn) { runCatching { p?.volume = if (audioOn) 1f else 0f } }
+    // Given up after the retry: the caller may switch to another channel for the same game
+    LaunchedEffect(failed) { if (failed) onFailed?.invoke() }
     val shape = RoundedCornerShape(if (split) 0.dp else 10.dp)
     Box(modifier.clip(shape).background(Color.Black).border(if (split) 0.dp else 2.dp, if (audioOn) Accent2 else Color(0x66FFFFFF), shape)) {
         AndroidView(

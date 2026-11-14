@@ -195,7 +195,7 @@ fun HomeScreen(
     // When inputs change, the previous state stays visible until the new result (produceState keeps the value)
     val dataState = produceState(cached, all, order, wantIpvio, ver, trend) {
         value = HomeCache.get(all, order, wantIpvio, ver, trend)
-            ?: withContext(Dispatchers.Default) { buildHome(all, wantIpvio, trend) }.also { HomeCache.put(all, order, wantIpvio, ver, trend, it) }
+            ?: withContext(Dispatchers.Default) { buildHome(all, wantIpvio, trend) }.also { HomeCache.put(all, order, wantIpvio, ver, trend, it); MainSampler.mark("home: rows built") }
     }
     // While recomputing: show the previous state, the loading skeleton only the very first time
     val prev = HomeCache.last()

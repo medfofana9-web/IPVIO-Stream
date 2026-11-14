@@ -39,11 +39,22 @@ jobs:
           random.seed(7)
           words = "Night Storm River City Shadow Last Silent Red Lost Iron Golden Broken Dark Wild Hidden Final Black Blue Empire Garden".split()
           out = ['#EXTM3U url-tvg="http://10.0.2.2:8000/epg.xml"']
-          # Real-world size: about 24,000 live channels (the maintainer's provider has 23,773)
-          for i in range(24000):
-              out.append(f'#EXTINF:-1 tvg-id="ch{i}" group-title="{random.choice(["News","Sports","Kids","Movies HD","Music"])}",Channel {i}')
+          # Real-world shape of the maintainer's provider: 23,773 channels named like "US: TNT East", groups like
+          # "USA | Sports", plus a large movie and series catalog the app must skip (provider used for live TV only)
+          named = ["US: TNT East", "US: TNT West", "US: TBS (East) HD", "US: TBS (West)", "US: truTV East", "US: ESPN", "US: ESPN2",
+                   "US: ESPNU", "US: ESPNews", "US: NBA TV", "US: Universo", "US: Telemundo East", "US: FOX Sports 1", "US: CBS Sports Network",
+                   "US: USA Network East", "US: NBC", "US: ABC", "US: CBS", "US: FOX", "US: Peacock Event 01", "US: beIN Sports"]
+          groups = ["USA | Sports ⚽", "USA | Entertainment 📺", "USA | News", "USA | Documentary 📺", "UK | Sports", "Music", "Relaxation 🌴"]
+          for i in range(23773):
+              name = named[i] if i < len(named) else f"{random.choice(['US','UK','CA'])}: Channel {i}"
+              grp = "USA | Sports ⚽" if i < len(named) else random.choice(groups)
+              out.append(f'#EXTINF:-1 tvg-id="ch{i}" tvg-logo="" group-title="{grp}",{name}')
               out.append(f"http://10.0.2.2:8000/live/{i}.ts")
-          for i in range(40000):
+          for i in range(20000):
+              t = " ".join(random.sample(words, 2)) + f" {i}"
+              out.append(f'#EXTINF:-1 group-title="Series | Drama",{t} S01 E{(i % 10) + 1:02d}')
+              out.append(f"http://10.0.2.2:8000/series/{i}.mkv")
+          for i in range(100000):
               t = " ".join(random.sample(words, 2)) + f" {i}"
               out.append(f'#EXTINF:-1 group-title="{random.choice(["Action","Drama","Comedy","Thriller","Family"])}",{t} ({random.randint(1980,2026)})')
               out.append(f"http://10.0.2.2:8000/movie/{i}.mp4")
@@ -78,6 +89,9 @@ jobs:
           target: android-tv
           profile: tv_1080p
           disable-animations: false
+          # A Fire TV Stick class device: 2 GB of memory, small app heap
+          ram-size: 2048M
+          heap-size: 256M
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           script: |
             adb root || true
@@ -159,6 +173,13 @@ jobs:
             adb shell uiautomator dump /sdcard/f.xml >/dev/null 2>&1; adb pull /sdcard/f.xml f.xml >/dev/null 2>&1; python3 .github/scripts/focused.py f.xml sports-after-back | tee -a journey.txt
             adb shell 'input keyevent 4; sleep 2'
             adb shell uiautomator dump /sdcard/f.xml >/dev/null 2>&1; adb pull /sdcard/f.xml f.xml >/dev/null 2>&1; python3 .github/scripts/focused.py f.xml sports-after-second-back | tee -a journey.txt
+            # Live TV opens like TiviMate (guide over the playing channel); the app must stay up
+            adb shell am broadcast -a com.fof.tv.TAB --ei tab 3
+            sleep 10
+            adb shell uiautomator dump /sdcard/f.xml >/dev/null 2>&1; adb pull /sdcard/f.xml f.xml >/dev/null 2>&1; python3 .github/scripts/focused.py f.xml livetv-guide "USA | Sports" | tee -a journey.txt
+            (adb shell pidof com.fof.tv > /dev/null && echo "livetv: app still running" || echo "livetv: APP CLOSED") | tee -a journey.txt
+            adb shell 'input keyevent 4; sleep 2; input keyevent 4; sleep 2'
+            adb logcat -d -s FofProfile FofFreeze > marks.txt
             adb shell dumpsys meminfo com.fof.tv | head -40 > meminfo.txt
             adb logcat -c
             adb shell am force-stop com.fof.tv
@@ -183,7 +204,20 @@ jobs:
           echo "== cold start main thread"; sed 's/^.*FofProfile: //' cold_profile.txt | head -120 || true
           echo "== main thread samples"; grep "FofProfile" logcat.txt | sed 's/^.*FofProfile: //' || true
           grep -n "FATAL EXCEPTION" -A20 logcat.txt | head -40 || true
-          grep -q RUNNING alive.txt && ! grep -q NOT-RUNNING alive.txt
+          # Pass/fail checks: a build that fails any of them is not released
+          {
+            n=$(grep -o "index ready ([0-9]* titles)" marks.txt | head -1 | grep -o "[0-9]*")
+            if [ -n "$n" ] && [ "$n" -lt 30000 ]; then echo "CHECK PASS provider movies/series skipped ($n titles)"; else echo "CHECK FAIL provider movies/series skipped (${n:-no index})"; fi
+            if grep -q "FofFreeze" marks.txt logcat.txt 2>/dev/null; then echo "CHECK FAIL no frozen screen: $(grep -h FofFreeze marks.txt logcat.txt | head -2)"; else echo "CHECK PASS no frozen screen"; fi
+            if grep -q "APP CLOSED" journey.txt; then echo "CHECK FAIL app stays open (search, Live TV)"; else echo "CHECK PASS app stays open (search, Live TV)"; fi
+            if grep -q "FATAL EXCEPTION" logcat.txt crash_search.txt 2>/dev/null; then echo "CHECK FAIL no crash"; else echo "CHECK PASS no crash"; fi
+            fp=$(grep -o "first poster card composed after [0-9]* ms" cold_profile.txt logcat.txt 2>/dev/null | head -1 | grep -o "[0-9]* ms" | grep -o "[0-9]*")
+            if [ -n "$fp" ] && [ "$fp" -lt 15000 ]; then echo "CHECK PASS home posters after restart ($fp ms)"; else echo "CHECK FAIL home posters after restart (${fp:-none} ms)"; fi
+            grep -q "HAS\[livetv-guide\] USA | Sports: yes" journey.txt && echo "CHECK PASS Live TV guide shows categories" || echo "CHECK FAIL Live TV guide shows categories"
+            grep -q "HAS\[search-denzel\] Denzel Washington: yes" journey.txt && echo "CHECK PASS search finds a person" || echo "CHECK FAIL search finds a person"
+          } | tee checks.txt
+          echo "== sports and search timings"; grep -E "sports:|search:|first poster|profile picked" marks.txt | sed 's/^.*FofProfile: //' || true
+          grep -q RUNNING alive.txt && ! grep -q NOT-RUNNING alive.txt && ! grep -q "CHECK FAIL" checks.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:

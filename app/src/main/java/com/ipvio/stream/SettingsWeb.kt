@@ -52,7 +52,13 @@ object SettingsWeb {
             "{\"id\":${q(b.id)},\"t\":${q(Lang.tr(b.title))},\"d\":${q(Lang.tr(b.sub))},\"on\":${HomeLayout.shown(b.id)}}"
         }
         val ads = Stremio.addons.joinToString(",") { a -> "{\"b\":${q(a.base)},\"n\":${q(a.name)}}" }
-        return "{\"flags\":[$fl],\"rows\":[$rows],\"oneclick\":${FofPrefs.oneClick},\"tmdb\":${Config.tmdbOwn || Config.TMDB_KEY.isNotBlank()},\"pvod\":${FofPrefs.providerVod},\"hero\":${General.heroSec},\"addons\":[$ads]}"
+        // App health for the phone (no photos of the TV needed): version, what is loaded, speed of this run, last crash
+        val ch = PlaylistStore.channels
+        val content = "${ch.count { it.kind == Kind.LIVE }} channels" + ch.count { it.kind != Kind.LIVE }.let { if (it > 0) " · $it movies/series" else "" }
+        val crash = CrashLog.last(c)?.let { it.first + " (" + java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT).format(java.util.Date(it.second)) + ")" } ?: "none"
+        val speed = MainSampler.timings.joinToString(",") { q(it) }
+        val health = "\"health\":{\"ver\":${q(BuildConfig.VERSION_NAME)},\"content\":${q(content)},\"epg\":${q(Xmltv.channelCount.toString() + " channels with guide")},\"speed\":[$speed],\"crash\":${q(crash)}},"
+        return "{$health\"flags\":[$fl],\"rows\":[$rows],\"oneclick\":${FofPrefs.oneClick},\"tmdb\":${Config.tmdbOwn || Config.TMDB_KEY.isNotBlank()},\"pvod\":${FofPrefs.providerVod},\"hero\":${General.heroSec},\"addons\":[$ads]}"
     }
 
     /** Applies one change; runs the state change on the main thread. */
@@ -104,6 +110,7 @@ button{background:#e50914;color:#fff;border:0;border-radius:10px;padding:12px 16
 <h2>TMDB key</h2><div class="c"><div class="r"><div>Descriptions, ratings, cast and episode pictures<small id="tk">From themoviedb.org (free account &gt; Settings &gt; API)</small></div></div></div>
 <div style="display:flex;gap:8px;margin-top:10px"><input type="text" id="tki" placeholder="Paste your TMDB API key (v3)"><button onclick="tmdb()">Save</button></div>
 <h2>App updates</h2><div class="c"><div class="r"><div>Check for a new version<small id="updv">The TV also checks by itself every hour</small></div><button class="g" onclick="upd()">Check now</button></div></div>
+<h2>App health</h2><div class="c" id="health"></div>
 <h2>Viewing</h2><div class="c" id="flags"></div>
 <h2>Home rows</h2><div class="c" id="rows"></div>
 <h2>Stremio addons</h2><div class="c" id="ads"></div>
@@ -121,6 +128,7 @@ var oc=document.getElementById('oc');oc.checked=s.oneclick;oc.onchange=function(
 var pv=document.getElementById('pv');pv.checked=s.pvod;pv.onchange=function(){set('pvod','',pv.checked?1:0)};
 document.getElementById('tk').textContent=s.tmdb?'Key is set ✓':'No key yet: title pages show less information';
 var h=document.getElementById('hero');h.value=String(s.hero);h.onchange=function(){set('hero','',h.value)};
+var hh=s.health||{};document.getElementById('health').innerHTML='<div class="r"><div>Version<small>'+esc(hh.ver||'')+'</small></div></div><div class="r"><div>Loaded<small>'+esc(hh.content||'')+' · '+esc(hh.epg||'')+'</small></div></div><div class="r"><div>Speed of this run<small>'+((hh.speed||[]).map(esc).join('<br>')||'not measured yet')+'</small></div></div><div class="r"><div>Last crash<small>'+esc(hh.crash||'none')+'</small></div></div>';
 document.getElementById('flags').innerHTML=s.flags.map(function(r){return '<div class="r"><div>'+esc(r.t)+'<small>'+esc(r.d)+'</small></div><label class="t"><input type="checkbox" data-k="'+esc(r.k)+'"'+(r.on?' checked':'')+'><span></span></label></div>'}).join('');
 Array.prototype.forEach.call(document.querySelectorAll('#flags input'),function(i){i.onchange=function(){set('flag',i.getAttribute('data-k'),i.checked?1:0)}});
 document.getElementById('rows').innerHTML=s.rows.map(function(r){return '<div class="r"><div>'+esc(r.t)+'<small>'+esc(r.d)+'</small></div><label class="t"><input type="checkbox" data-id="'+esc(r.id)+'"'+(r.on?' checked':'')+'><span></span></label></div>'}).join('');
