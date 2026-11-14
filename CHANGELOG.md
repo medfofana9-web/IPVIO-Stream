@@ -1,6 +1,10 @@
 # Changelog
 
 ## Fof TV 1.3.57 (November 2026)
+**Fixed**
+- "No channel found" for games ESPN lists without TV networks (USA vs Haiti on TBS/truTV/Universo): the usual US networks of the competition are tried then (USMNT, Mexico, Premier League, Champions League, LaLiga, Bundesliga, Serie A, Ligue 1, Liga MX and more)
+
+## Fof TV 1.3.57 (November 2026)
 **Changed**
 - Sports follows soccer (all top leagues and cups), basketball (NBA, WNBA, college) and football (NFL, college) only: about 40 leagues instead of 60, so it loads faster
 - Clean overview: Live now, Starting soon (next 3 hours), My teams, then Soccer, Basketball and Football sections (today plus the coming week), and the channels at the end. Popular leagues, sport tiles and news moved off the overview

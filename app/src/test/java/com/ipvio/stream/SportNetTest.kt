@@ -46,4 +46,16 @@ class SportNetTest {
         assertTrue(SportNet.hasTag("USA | NBA Teams", SportNet.leagueTags("NBA")))
         assertTrue(SportNet.hasTag("USA | NCAAF", SportNet.leagueTags("College Football")))
     }
+
+    @Test fun gameWithoutTvDataUsesUsualNetworks() {
+        fun t(n: String, a: String) = SportData.Team(n, n, a, null, null, false)
+        val g = SportData.Game("1", "Concacaf Nations League", "Fußball", 0L, 1, "", t("United States", "USA"), t("Haiti", "HAI"))
+        val nets = SportRights.usual(g)
+        assertTrue("TBS" in nets && "truTV" in nets)
+        // The provider's channel name finds the network
+        assertEquals(SportNet.key("TBS"), SportNet.key(SportNet.stripPrefix("US| TBS HD")))
+        // South Alabama ("USA") in college basketball is not the national team
+        val c = SportData.Game("2", "College Basketball", "Basketball", 0L, 1, "", t("South Alabama", "USA"), t("Troy", "TROY"))
+        assertTrue(SportRights.usual(c).isEmpty())
+    }
 }
