@@ -48,7 +48,7 @@ import kotlinx.coroutines.awaitAll
 internal object SportShowcase {
     /** English row title per sport key. */
     fun title(sport: String): String = when (sport) {
-        "soccer" -> "Soccer"; "basketball" -> "Basketball"; "nfl" -> "American Football"; "nhl" -> "Hockey"
+        "soccer" -> "Soccer"; "basketball" -> "Basketball"; "nfl" -> "Football"; "nhl" -> "Hockey"
         "tennis" -> "Tennis"; "f1" -> "Formula 1"; "mlb" -> "Baseball"; "ufc" -> "UFC / MMA"
         "cricket" -> "Cricket"; "golf" -> "Golf"; else -> sport.replaceFirstChar { it.uppercase() }
     }
@@ -91,16 +91,11 @@ internal fun GameTileCard(g: SportData.Game, modifier: Modifier = Modifier, onCl
     val shape = RoundedCornerShape(dpx(14))
     val live = g.state == 1
     val w = dpx(360); val h = dpx(202)
-    val a = deep(teamColor(g.away)); val b = deep(teamColor(g.home))
-    // Background and bottom shade: built once per matchup and drawn in one pass (they were rebuilt on every redraw)
-    val bg = remember(a, b, g.solo) { if (g.solo) Brush.linearGradient(listOf(Color(0xFF1B2638), Color(0xFF0B0F17))) else accentBrush(a, b) }
     Column(modifier.width(w), verticalArrangement = Arrangement.spacedBy(dpx(10))) {
         Box(
+            // Flat card (no gradients): cleaner, and cheaper to draw on a TV
             Modifier.size(w, h).graphicsLayer { scaleX = sc; scaleY = sc }.clip(shape)
-                .drawWithCache {
-                    val shade = Brush.verticalGradient(0f to Color.Transparent, 0.55f to Color.Transparent, 1f to Color(0x99000000))
-                    onDrawBehind { drawRect(bg); drawRect(shade) }
-                }
+                .background(if (f) Color(0xFF23262E) else Color(0xFF16181D))
                 .border(if (f) 2.dp else 1.dp, if (f) Color.White else Color(0x1AFFFFFF), shape)
                 .onFocusChanged { f = it.isFocused }
                 .trackFocus()
@@ -149,13 +144,9 @@ internal fun GameTileCard(g: SportData.Game, modifier: Modifier = Modifier, onCl
             Text(raw = true, text = g.league.uppercase(), color = Color(0x99FFFFFF), fontSize = spx(10), fontWeight = FontWeight.Bold, letterSpacing = 2.sp,
                 maxLines = 1, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = dpx(12)))
         }
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = dpx(4))) {
-            if (live) Box(Modifier.size(dpx(12)).clip(RoundedCornerShape(50)).background(Color(0xFFFF3B30)))
-            Text(raw = true, text = (if (live) "LIVE: " else "") + SportShowcase.line(g), color = Tok.TextHi, fontSize = spx(19), fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = if (live) dpx(8) else 0.dp))
-        }
-        Text(raw = true, text = SportShowcase.sub(g), color = Muted, fontSize = spx(15), maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = dpx(4)))
+        // One line under the tile: the full matchup (the tile shortens long names); state and time are on the tile
+        Text(raw = true, text = SportShowcase.line(g), color = Tok.TextHi, fontSize = spx(17), fontWeight = FontWeight.Medium,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = dpx(4)))
     }
 }
 
@@ -183,10 +174,13 @@ internal fun GameTileRow(title: String, games: List<SportData.Game>, hub: HubCtx
 
 /** Soccer and NBA games of the coming week for the top of the sports page (ESPN date range: one request per league). */
 internal object SportAhead {
-    class Week(val soccer: List<SportData.Game>, val nba: List<SportData.Game>)
+    class Week(val soccer: List<SportData.Game>, val nba: List<SportData.Game>, val football: List<SportData.Game> = emptyList())
 
     private const val MAX_AGE = 30 * 60_000L
     @Volatile private var last = Week(emptyList(), emptyList())
+
+    /** Week ahead besides soccer: NBA and WNBA, NFL and college football (college basketball has too many games per day). */
+    private val AHEAD_OTHER = setOf("NBA", "WNBA", "NFL", "College Football")
 
     fun cached(): Week = last
 
@@ -194,13 +188,15 @@ internal object SportAhead {
         val tz = General.zone()
         val range = SportData.ymd(0, tz) + "-" + SportData.ymd(7, tz)
         val now = System.currentTimeMillis() / 1000
-        val ls = SportData.LEAGUES.filter { SportLeagues.on(it) && it.kind == SportData.KIND_TEAM && (it.sport == "soccer" || it.name == "NBA") }
+        val ls = SportData.LEAGUES.filter { SportLeagues.on(it) && it.kind == SportData.KIND_TEAM && (it.sport == "soccer" || it.name in AHEAD_OTHER) }
         val got = kotlinx.coroutines.coroutineScope {
             ls.map { l -> async { l to runCatching { SportData.fetch(l, range, MAX_AGE) }.getOrDefault(emptyList()) } }.awaitAll()
         }
         fun keep(l: List<SportData.Game>) = l.filter { it.state == 1 || (it.state == 0 && it.start > now - 3 * 3600) }.distinctBy { it.key }
-        val w = Week(keep(got.filter { it.first.sport == "soccer" }.flatMap { it.second }), keep(got.filter { it.first.name == "NBA" }.flatMap { it.second }))
-        if (w.soccer.isNotEmpty() || w.nba.isNotEmpty()) last = w
+        val w = Week(keep(got.filter { it.first.sport == "soccer" }.flatMap { it.second }),
+            keep(got.filter { it.first.sport == "basketball" }.flatMap { it.second }),
+            keep(got.filter { it.first.sport == "nfl" }.flatMap { it.second }))
+        if (w.soccer.isNotEmpty() || w.nba.isNotEmpty() || w.football.isNotEmpty()) last = w
         w
     }
 }

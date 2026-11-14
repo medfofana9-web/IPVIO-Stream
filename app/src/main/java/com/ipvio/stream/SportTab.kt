@@ -67,7 +67,8 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     val ctx = LocalContext.current
     SportFavs.init(ctx)
     SportLeagues.init(ctx)
-    val channels = remember(live) { live.filter { SportLogic.isSportChannel(it) } }
+    // ESPN and NBA TV only (Fof TV); the games themselves still match every channel of the playlist
+    val channels = remember(live) { live.filter { SportChannels.wanted(it) }.sortedBy { SportChannels.rank(it) } }
     var tick by remember { mutableLongStateOf(0L) }
     LaunchedEffect(Unit) { while (true) { delay(60_000); tick++ } }
     val slots by produceState<Pair<List<SportLogic.Slot>, List<SportLogic.Slot>>?>(null, live, tick, Xmltv.channelCount) {

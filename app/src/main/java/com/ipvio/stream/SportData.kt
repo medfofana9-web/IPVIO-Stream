@@ -61,12 +61,17 @@ object SportData {
     class Sport(val key: String, val label: String)
 
     val SPORTS = listOf(
-        Sport("soccer", "Fußball"), Sport("basketball", "Basketball"), Sport("nfl", "NFL"), Sport("nhl", "NHL"),
-        Sport("tennis", "Tennis"), Sport("f1", "Formel 1"), Sport("mlb", "MLB"), Sport("ufc", "UFC"),
-        Sport("cricket", "Cricket"), Sport("golf", "Golf")
+        Sport("soccer", "Fußball"), Sport("basketball", "Basketball"), Sport("nfl", "American Football")
     )
 
-    val LEAGUES = listOf(
+    /**
+     * Fof TV follows three sports only: soccer (all top leagues and cups), basketball (NBA, WNBA, college) and football
+     * (NFL, college). Fewer leagues = fewer requests, so the sports area loads fast. The other definitions stay for later.
+     */
+    private val FOLLOW = setOf("soccer", "basketball", "nfl")
+    val LEAGUES get() = ALL_LEAGUES_F
+
+    private val ALL_LEAGUES = listOf(
         // Fof TV (US): soccer first, the biggest competitions on top; national teams during international breaks
         League("Premier League", "soccer/eng.1", "Fußball"),
         League("Champions League", "soccer/uefa.champions", "Fußball"),
@@ -120,7 +125,9 @@ object SportData {
     )
 
     /** Popular competitions for the overview (shown if active). */
-    val POPULAR = listOf("Premier League", "Champions League", "MLS", "NBA", "NFL", "College Football", "College Basketball", "NHL", "MLB", "WNBA")
+    private val ALL_LEAGUES_F by lazy { ALL_LEAGUES.filter { it.sport in FOLLOW } }
+
+    val POPULAR = listOf("Premier League", "Champions League", "NBA", "NFL", "LaLiga", "MLS", "WNBA", "College Football", "College Basketball", "Serie A", "Bundesliga", "Ligue 1")
 
     fun league(name: String): League? = LEAGUES.firstOrNull { it.name == name }
     fun leagueOf(g: Game): League? = league(g.league)

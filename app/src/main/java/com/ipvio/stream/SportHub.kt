@@ -131,7 +131,7 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     SportHubFavs.init(ctx)
     SportFix.init(ctx)
     SportLearn.init(ctx)
-    var tab by remember { mutableIntStateOf(HubMemory.tab) }
+    var tab by remember { mutableIntStateOf(HubMemory.tab.takeIf { it <= 3 } ?: 0) }
     var sport by remember { mutableStateOf(HubMemory.sport) }
     var retry by remember { mutableIntStateOf(0) }
     var scoreDlg by remember { mutableStateOf(false) }
@@ -214,7 +214,8 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
             contentPadding = PaddingValues(horizontal = DS.PageX, vertical = dpx(10)),
             horizontalArrangement = Arrangement.spacedBy(dpx(10))
         ) {
-            itemsIndexed(HUB_TABS) { i, t ->
+            // Four tabs: Overview, Live, Schedule, Leagues (Teams, Favorites and Channels are still reached from inside)
+            itemsIndexed(HUB_TABS.take(4)) { i, t ->
                 // The chosen tab is where the focus lands when coming from the sidebar (the channel tab has its own target)
                 val base = if (i == tab && tab != 6) Modifier.focusRequester(ContentFocus.req) else Modifier.trackFocus()
                 // Live tab: Down goes to the sport filter first (not to the competition row below it)
@@ -328,18 +329,14 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
     val popular = m.popular
     val newsLeagues = m.newsLeagues
     // Fof TV (Nuvio style): wide game tiles in rows – My teams, Live now, then one row per sport
-    val bySport = remember(games) {
-        val order = listOf("soccer", "basketball", "nfl", "nhl", "mlb", "ufc", "tennis", "f1", "golf", "cricket")
-        games.groupBy { SportData.sportOf(it) }
-            .mapValues { (_, l) -> l.sortedWith(compareBy({ when (it.state) { 1 -> 0; 0 -> 1; else -> 2 } }, { if (SportHubFavs.isFavGame(it)) 0 else 1 }, { popularity(it) }, { it.start })) }
-            .toList().sortedBy { (k, _) -> order.indexOf(k).let { if (it < 0) 99 else it } }
+    // The coming week for the soccer, basketball and football sections; asked a moment later, so today's leagues (live
+    // games) get the network first
+    val ahead by produceState(SportAhead.cached(), SportLeagues.off.joinToString("|")) {
+        if (value.soccer.isEmpty()) delay(1_500)
+        value = SportAhead.load()
     }
-    // Soccer and the NBA lead the page: their games of the coming week (one request per league, refreshed every 30 minutes)
-    val ahead by produceState(SportAhead.cached(), SportLeagues.off.joinToString("|")) { value = SportAhead.load() }
     fun fresh(l: List<SportData.Game>) = l.map { SportFeed.latest[it.key] ?: it }.filter { it.state != 2 && statusKind(it) != 6 }
         .sortedWith(compareBy({ if (it.state == 1) 0 else 1 }, { if (SportHubFavs.isFavGame(it)) 0 else 1 }, { it.start }))
-    val soccer = fresh(ahead.soccer)
-    val nba = fresh(ahead.nba)
     // Live games arrive after the cached rows: the list keeps its place when rows are added above, so the new Live now row
     // ended up above the screen. When the page has not been scrolled yet, it goes back to the top to show them.
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
@@ -348,7 +345,7 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
     LazyColumn(state = listState, contentPadding = PaddingValues(horizontal = DS.PageX, vertical = dpx(8)), verticalArrangement = Arrangement.spacedBy(dpx(26))) {
         when {
             // feed.games too: the page model can lag a moment behind the feed, and must never show "no games" meanwhile
-            games.isNotEmpty() || feed.games.isNotEmpty() || soccer.isNotEmpty() || nba.isNotEmpty() -> {}
+            games.isNotEmpty() || feed.games.isNotEmpty() || ahead.soccer.isNotEmpty() || ahead.nba.isNotEmpty() || ahead.football.isNotEmpty() -> {}
             // Still waiting for leagues: never say "no games" before every league has answered
             feed.loading || feed.done < feed.total -> item(key = "load") { HubLoading("Lade Spiele …") }
             feed.failed -> item(key = "err") {
@@ -356,69 +353,43 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
             }
             else -> item(key = "empty") { HubEmpty(AIcon.Info, "Heute keine Spiele gefunden.", "In deinen Ligen ist heute nichts angesetzt. Im Spielplan siehst du die nächsten Tage.", "Spielplan öffnen") { hub.goTab(2, null) } }
         }
-        // Live games are the first thing on the page
+        // Clean overview, live first: Live now, Starting soon, My teams, then one section each for soccer, basketball and
+        // football, and the two sports channels at the end. Leagues, teams and news live in their own tabs.
+        val nowS = System.currentTimeMillis() / 1000
         val liveAll = games.filter { it.state == 1 }.sortedWith(compareBy({ if (it.solo) 1 else 0 }, { if (it.key in m.withCh) 0 else 1 }, { if (SportHubFavs.isFavGame(it)) 0 else 1 }, { popularity(it) }))
         if (liveAll.isNotEmpty()) item(key = "live") {
             LaunchedEffect(Unit) { MainSampler.mark("sports: live row shown") }
             GameTileRow("Live now", liveAll, hub) { hub.goTab(1, null) }
         }
-        val mine = games.filter { SportFavs.isFavGame(it) && it.state != 2 }.sortedBy { if (it.state == 1) 0L else it.start }
-        if (mine.isNotEmpty()) item(key = "myteams") {
-            GameDay.init(ctx)
-            var auto by remember { mutableStateOf(GameDay.autoTeams) }
-            HubSectionTitle("My teams", raw = true, action = if (auto) "Auto-tune: on" else "Auto-tune: off") { auto = !auto; GameDay.setAutoTeams(ctx, auto) }
-            Spacer(Modifier.height(dpx(10)))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(18)), contentPadding = PaddingValues(vertical = dpx(10))) {
-                items(mine.take(12), key = { "my" + it.key }) { g -> GameTile(g, hub) }
-            }
-        }
-        if (soccer.isNotEmpty()) item(key = "ahead_soccer") { GameTileRow("Soccer", soccer.take(30), hub) { hub.goTab(2, "soccer") } }
-        if (nba.isNotEmpty()) item(key = "ahead_nba") { GameTileRow("NBA", nba.take(30), hub) { hub.goTab(2, "basketball") } }
-        val soon = games.filter { it.state == 0 && statusKind(it) == 0 }.sortedWith(compareBy({ if (SportHubFavs.isFavGame(it)) 0 else 1 }, { it.start }))
-        if (soon.isNotEmpty()) item(key = "soon") { GameTileRow("Upcoming", soon, hub) { hub.goTab(2, null) } }
-        // One row per sport: live and upcoming games; finished games are collected in "Today's results"
-        bySport.forEach { (sp, l) ->
-            // Soccer and NBA already have their own rows at the top
-            val open = l.filter { it.state != 2 && statusKind(it) != 6 && sp != "soccer" && it.league != "NBA" }
-            if (open.isNotEmpty()) item(key = "sp$sp") { GameTileRow(SportShowcase.title(sp), open, hub) { hub.goTab(1, sp) } }
-        }
-        // Your provider's sports channels (favorites first), for watching without a specific game
+        val soon = games.filter { it.state == 0 && statusKind(it) == 0 && it.start in nowS..(nowS + 3 * 3600) }
+            .sortedWith(compareBy({ if (SportHubFavs.isFavGame(it)) 0 else 1 }, { it.start }))
+        if (soon.isNotEmpty()) item(key = "soon") { GameTileRow("Starting soon", soon, hub) { hub.goTab(2, null) } }
+        val mine = (games + ahead.soccer + ahead.nba + ahead.football).distinctBy { it.key }
+            .filter { SportFavs.isFavGame(it) && it.state != 2 }.sortedBy { if (it.state == 1) 0L else it.start }
+        if (mine.isNotEmpty()) item(key = "myteams") { GameTileRow("My teams", mine.take(12), hub, null) }
+        // Each sport: today's open games plus the coming week, live first, then by start time
+        val todayOpen = games.filter { it.state != 2 && statusKind(it) != 6 }
+        fun section(sp: String, week: List<SportData.Game>) = fresh(todayOpen.filter { SportData.sportOf(it) == sp } + week)
+            .distinctBy { it.key }.sortedWith(compareBy({ if (it.state == 1) 0 else 1 }, { if (SportHubFavs.isFavGame(it)) 0 else 1 }, { it.start })).take(30)
+        val socc = section("soccer", ahead.soccer)
+        val bask = section("basketball", ahead.nba)
+        val foot = section("nfl", ahead.football)
+        if (socc.isNotEmpty()) item(key = "s_soccer") { GameTileRow("Soccer", socc, hub) { hub.goTab(2, "soccer") } }
+        if (bask.isNotEmpty()) item(key = "s_basketball") { GameTileRow("Basketball", bask, hub) { hub.goTab(2, "basketball") } }
+        if (foot.isNotEmpty()) item(key = "s_football") { GameTileRow("Football", foot, hub) { hub.goTab(2, "nfl") } }
+        // Sports channels: ESPN and NBA TV only
         item(key = "sportch") {
             val chs by produceState(emptyList<Item>(), hub.live) {
-                value = withContext(Dispatchers.Default) {
-                    hub.live.filter { SportLogic.isSportChannel(it) }.sortedBy { if (Library.isFav(it.id)) 0 else 1 }.take(30)
-                }
+                value = withContext(Dispatchers.Default) { hub.live.filter { SportChannels.wanted(it) }.sortedWith(compareBy({ if (Library.isFav(it.id)) 0 else 1 }, { SportChannels.rank(it) })).take(20) }
             }
             if (chs.isNotEmpty()) Column {
-                HubSectionTitle("Sports channels", raw = true, action = "See all") { hub.goTab(6, null) }
+                HubSectionTitle("Channels", raw = true)
                 Spacer(Modifier.height(dpx(10)))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(18)), contentPadding = PaddingValues(vertical = dpx(10))) {
                     items(chs, key = { "ch" + it.id }) { ch -> ChannelNowCard(ch, Modifier.width(dpx(300)).trackFocus()) { hub.play(ch, chs) } }
                 }
             }
         }
-        if (popular.isNotEmpty()) item(key = "leagues") {
-            HubSectionTitle("Beliebte Ligen", action = "Alle Ligen") { hub.goTab(3, null) }
-            Spacer(Modifier.height(dpx(8)))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(14)), contentPadding = PaddingValues(vertical = dpx(8))) {
-                items(popular, key = { it.path }) { l ->
-                    LogoTile(l.name, SportData.leagueLogos[l.path], l.name, marked = SportHubFavs.leagues.contains(l.path)) { hub.nav.open(HubPage.League(l)) }
-                }
-            }
-        }
-        item(key = "sports") {
-            HubSectionTitle("Sportarten")
-            Spacer(Modifier.height(dpx(8)))
-            val counts = m.counts
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(14)), contentPadding = PaddingValues(vertical = dpx(8))) {
-                items(SportData.SPORTS, key = { it.key }) { s ->
-                    val logo = SportData.LEAGUES.firstOrNull { it.sport == s.key }?.let { SportData.leagueLogos[it.path] }
-                    val n = counts[s.key] ?: 0
-                    LogoTile(Lang.tr(s.label) + (if (n > 0) " ($n)" else ""), logo, s.label, marked = SportHubFavs.sports.contains(s.key)) { hub.goTab(1, s.key) }
-                }
-            }
-        }
-        if (newsLeagues.isNotEmpty()) item(key = "news") { HubNewsRow(newsLeagues) }
         if (!SportData.lastOk && games.isNotEmpty()) item(key = "stale") {
             Text("Hinweis: Die letzte Aktualisierung hat nicht geklappt. Angezeigt wird der letzte Stand.", color = Muted, fontSize = spx(14))
         }
@@ -555,5 +526,30 @@ private fun HubSchedule(hub: HubCtx, sport: String?, onSport: (String?) -> Unit)
                 else -> groupedGames(shown, hub, true)
             }
         }
+    }
+}
+
+/** The sports channels Fof TV shows: the ESPN networks and NBA TV (no pay-per-view or ESPN+ event feeds), US first. */
+internal object SportChannels {
+    private val ESPN = Regex("""\bespn(\s?[2u]|news|\s?deportes)?\b""", RegexOption.IGNORE_CASE)
+    private val NBATV = Regex("""\bnba\s?tv\b""", RegexOption.IGNORE_CASE)
+    private val SKIP = Regex("""espn\s?\+|espn\s?plus|\bppv\b|\bevent\b""", RegexOption.IGNORE_CASE)
+    private val US = Regex("""(^|[^a-z])(us|usa)([^a-z]|$)""", RegexOption.IGNORE_CASE)
+
+    fun wanted(i: Item): Boolean = i.kind == Kind.LIVE && !SKIP.containsMatchIn(i.title) && (ESPN.containsMatchIn(i.title) || NBATV.containsMatchIn(i.title))
+
+    /** US channels first, then ESPN, ESPN2, ESPNU, ESPNews, Deportes, NBA TV; HD before SD. */
+    fun rank(i: Item): Int {
+        val t = i.title.lowercase()
+        val us = if (US.containsMatchIn(i.title) || US.containsMatchIn(i.group)) 0 else 100
+        val which = when {
+            NBATV.containsMatchIn(t) -> 6
+            Regex("""espn\s?2""").containsMatchIn(t) -> 2
+            Regex("""espn\s?u\b""").containsMatchIn(t) -> 3
+            "news" in t -> 4
+            "deportes" in t -> 5
+            else -> 1
+        }
+        return us + which * 10 + (if ("hd" in t || "fhd" in t) 0 else 1)
     }
 }
