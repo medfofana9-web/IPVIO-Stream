@@ -13,6 +13,11 @@ class SportNetTest {
         assertEquals("fanduelsportsindiana", SportNet.key("FanDuel SN IN"))
         assertEquals("fanduelsportsindiana", SportNet.key("Bally Sports Indiana"))
         assertEquals("nbatv", SportNet.key("NBA TV"))
+        // Streaming services keep their "+": a WSL game on Paramount+ must not land on "US: Paramount Network"
+        assertEquals("paramountplus", SportNet.key("Paramount+"))
+        assertFalse(SportNet.channelIs("US: Paramount Network", SportNet.key("Paramount+")))
+        assertFalse(SportNet.channelIs("US: ESPN", SportNet.key("ESPN+")))
+        assertTrue(SportNet.looseKey("Paramount Network") != SportNet.looseKey("Paramount+"))
     }
 
     @Test fun channel_is_network() {

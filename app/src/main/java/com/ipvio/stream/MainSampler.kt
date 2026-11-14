@@ -21,8 +21,14 @@ object MainSampler {
         val r = object : BroadcastReceiver() {
             override fun onReceive(ctx: Context, i: Intent) { run(i.getIntExtra("ms", 10_000), i.getStringExtra("tag") ?: "run") }
         }
-        if (Build.VERSION.SDK_INT >= 33) c.registerReceiver(r, IntentFilter(ACTION), Context.RECEIVER_EXPORTED)
-        else c.registerReceiver(r, IntentFilter(ACTION))
+        // Journey test: open a tab directly (com.fof.tv.TAB --ei tab N)
+        val t = object : BroadcastReceiver() {
+            override fun onReceive(ctx: Context, i: Intent) { AppNav.testTab = i.getIntExtra("tab", -1) }
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            c.registerReceiver(r, IntentFilter(ACTION), Context.RECEIVER_EXPORTED)
+            c.registerReceiver(t, IntentFilter("com.fof.tv.TAB"), Context.RECEIVER_EXPORTED)
+        } else { c.registerReceiver(r, IntentFilter(ACTION)); c.registerReceiver(t, IntentFilter("com.fof.tv.TAB")) }
     }
 
     private fun key(e: StackTraceElement) = e.className.substringAfterLast('.') + "." + e.methodName + (if (e.lineNumber > 0) ":" + e.lineNumber else "")

@@ -94,7 +94,9 @@ jobs:
             adb shell dumpsys gfxinfo com.fof.tv reset > /dev/null
             adb shell am broadcast -a com.fof.tv.PROFILE --ei ms 5000 --es tag detail
             sleep 1
-            adb shell 'input keyevent 22; sleep 1; input keyevent 23; sleep 3'
+            adb shell 'input keyevent 22; sleep 1'
+            adb shell uiautomator dump /sdcard/f.xml >/dev/null 2>&1; adb pull /sdcard/f.xml f.xml >/dev/null 2>&1; python3 .github/scripts/focused.py f.xml home-before-open | tee -a journey.txt
+            adb shell 'input keyevent 23; sleep 3'
             sleep 2
             adb exec-out screencap -p > p3_detail.png
             adb shell uiautomator dump /sdcard/ui3.xml >/dev/null 2>&1; adb pull /sdcard/ui3.xml ui3.xml >/dev/null 2>&1
@@ -102,7 +104,19 @@ jobs:
             adb logcat -d | grep -iE "PlaylistStore|fof|AndroidRuntime" | tail -20 || true
             adb shell 'input keyevent 4; sleep 2'
             adb exec-out screencap -p > p4_back.png
+            adb shell uiautomator dump /sdcard/f.xml >/dev/null 2>&1; adb pull /sdcard/f.xml f.xml >/dev/null 2>&1; python3 .github/scripts/focused.py f.xml home-after-back | tee -a journey.txt
             adb shell dumpsys gfxinfo com.fof.tv > gfx_detail.txt
+            adb shell am broadcast -a com.fof.tv.TAB --ei tab 10
+            sleep 12
+            adb shell 'input keyevent 20; sleep 1; input keyevent 20; sleep 1; input keyevent 22; sleep 1'
+            adb shell uiautomator dump /sdcard/f.xml >/dev/null 2>&1; adb pull /sdcard/f.xml f.xml >/dev/null 2>&1; python3 .github/scripts/focused.py f.xml sports-before-open | tee -a journey.txt
+            adb exec-out screencap -p > p5_sports.png
+            adb shell 'input keyevent 23; sleep 3'
+            adb shell uiautomator dump /sdcard/f.xml >/dev/null 2>&1; adb pull /sdcard/f.xml f.xml >/dev/null 2>&1; python3 .github/scripts/focused.py f.xml sports-page-opened | tee -a journey.txt
+            adb shell 'input keyevent 4; sleep 3'
+            adb shell uiautomator dump /sdcard/f.xml >/dev/null 2>&1; adb pull /sdcard/f.xml f.xml >/dev/null 2>&1; python3 .github/scripts/focused.py f.xml sports-after-back | tee -a journey.txt
+            adb shell 'input keyevent 4; sleep 2'
+            adb shell uiautomator dump /sdcard/f.xml >/dev/null 2>&1; adb pull /sdcard/f.xml f.xml >/dev/null 2>&1; python3 .github/scripts/focused.py f.xml sports-after-second-back | tee -a journey.txt
             adb shell dumpsys meminfo com.fof.tv | head -40 > meminfo.txt
             adb logcat -d > logcat.txt
             (adb shell pidof com.fof.tv && echo RUNNING || echo NOT-RUNNING) | tee alive.txt
@@ -111,6 +125,7 @@ jobs:
         run: |
           for f in gfx_home.txt gfx_detail.txt; do echo "== $f"; grep -E "Total frames rendered|Janky frames|50th percentile|90th percentile|95th percentile|99th percentile|Slow UI thread|Frame deadline missed" $f || true; done
           grep -E "TOTAL" meminfo.txt | head -3 || true
+          echo "== journey"; cat journey.txt 2>/dev/null || true
           echo "== main thread samples"; grep "FofProfile" logcat.txt | sed 's/^.*FofProfile: //' || true
           grep -n "FATAL EXCEPTION" -A20 logcat.txt | head -40 || true
           grep -q RUNNING alive.txt && ! grep -q NOT-RUNNING alive.txt

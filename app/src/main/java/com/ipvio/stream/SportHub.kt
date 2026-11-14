@@ -1,5 +1,7 @@
 package com.ipvio.stream
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -207,6 +209,8 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
             // Score box setting at the end of the bar (not first)
             item(key = "scoreov") { FilterPill("Score box", SportAlerts.miniOn, aicon = AIcon.Live, raw = true) { scoreDlg = true } }
         }
+        // Content ends at the tab bar: rows and enlarged tiles never slide over the tabs
+        Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
         if (!General.sportLive && tab != 6) {
             HubEmpty(AIcon.Live, "Live-Ergebnisse sind aus", "Ergebnisse, Tabellen und Spielpläne kommen von ESPN (inoffizielle Quelle). Schalte sie ein, um den Sports Hub zu nutzen.",
                 "Einschalten") { General.setSportLive(ctx, true) }
@@ -218,6 +222,7 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
             4 -> HubTeams(hub)
             5 -> HubFavorites(feed, hub)
             else -> SportTab(live, onPlay)
+        }
         }
     }
     HubFocusRestore(nav)

@@ -765,7 +765,8 @@ fun RowPosterCard(item: Item, baseW: Dp, modifier: Modifier, overlay0: Int = 0, 
     val visual: @Composable (Modifier) -> Unit = { mod ->
     Box(
         mod.graphicsLayer { scaleX = s; scaleY = s }.then(if (clean) Modifier else Modifier.focusGlow(f, shape)).clip(shape)
-            .background(Brush.linearGradient(listOf(colorFor(item).copy(alpha = .75f), Surf2)))
+            // Clean look: a flat surface under the poster (the gradient was painted on every frame and then covered by the image)
+            .then(if (clean) Modifier.background(Surf2) else Modifier.background(Brush.linearGradient(listOf(colorFor(item).copy(alpha = .75f), Surf2))))
             .border(if (clean && f) 3.dp else 1.dp, if (f) (if (clean) Color.White else Color(0x40FFFFFF)) else CardLine, shape)
     ) {
         // Poster at the bottom, the scene image fades in above it with the progress (no crossfade switch)

@@ -96,7 +96,8 @@ fun DetailScreen(
     if (need && full == null) {
         LaunchedEffect(item.id, tryNo) {
             failed = false
-            val r = LazySeries.load(ctx, item)
+            // Never an endless spinner: after 15 s the retry screen shows
+            val r = kotlinx.coroutines.withTimeoutOrNull(15_000) { runCatching { LazySeries.load(ctx, item) }.getOrNull() }
             if (r != null) full = r else failed = true
         }
         BackHandler(enabled = !embedded, onBack = onBack)

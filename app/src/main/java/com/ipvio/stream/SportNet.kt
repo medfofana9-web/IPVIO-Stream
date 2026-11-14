@@ -40,7 +40,8 @@ object SportNet {
      * "Bally Sports Indiana" → "fanduelsportsindiana" (renamed in 2024).
      */
     fun key(name: String): String {
-        var s = " " + norm(name) + " "
+        // "+" marks a streaming service and must stay: "Paramount+" is not "Paramount Network", "ESPN+" is not "ESPN"
+        var s = " " + norm(name.replace("+", " plus ")) + " "
         s = s.replace(" bally sports ", " fanduel sports ").replace(" bally ", " fanduel sports ")
             .replace(" fanduel sn ", " fanduel sports ").replace(" fdsn ", " fanduel sports ").replace(" fds ", " fanduel sports ")
             .replace(" sports network ", " sports ").replace(" network ", " ")

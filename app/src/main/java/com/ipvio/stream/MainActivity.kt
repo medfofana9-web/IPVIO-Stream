@@ -426,6 +426,8 @@ private fun AppContent() {
     }
     // "Stop" on the phone: close the player
     LaunchedEffect(RemoteHub.closeTick) { if (RemoteHub.closeTick > 0 && playing != null) playing = null }
+    // Test builds only (the receiver is registered there): the journey test opens a tab
+    LaunchedEffect(AppNav.testTab) { val t = AppNav.testTab; if (t >= 0) { AppNav.testTab = -1; goTab(t) } }
     // Reminders while the app is open: card with "Switch" (instead of a notification)
     var remindNow by remember { mutableStateOf<Reminder?>(null) }
     LaunchedEffect(Unit) {

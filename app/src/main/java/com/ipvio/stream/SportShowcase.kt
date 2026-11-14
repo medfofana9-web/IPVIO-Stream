@@ -107,10 +107,16 @@ internal fun GameTileCard(g: SportData.Game, modifier: Modifier = Modifier, onCl
                 if (live) {
                     Box(Modifier.size(dpx(8)).clip(RoundedCornerShape(50)).background(Color(0xFFFF3B30)))
                     Text(raw = true, text = "LIVE", color = Color.White, fontSize = spx(13), fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = dpx(6)))
-                } else if (statusKind(g) == 5) Text(raw = true, text = "STARTED", color = Color(0xE6FFFFFF), fontSize = spx(13), fontWeight = FontWeight.Bold)
-                else if (g.state == 2) Text(raw = true, text = "FINAL", color = Color(0xCCFFFFFF), fontSize = spx(13), fontWeight = FontWeight.Bold)
+                } else {
+                    // One clear label per state: started (no live data), final, postponed/canceled; scheduled games show only their time
+                    val k = statusKind(g)
+                    val label = when { k == 5 -> "STARTED"; g.state == 2 -> "FINAL"; k == 3 || k == 4 -> statusText(g).uppercase(); else -> null }
+                    if (label != null) Text(raw = true, text = label, color = if (k == 3 || k == 4) Color(0xFFFFB020) else Color(0xCCFFFFFF), fontSize = spx(13), fontWeight = FontWeight.Bold)
+                }
                 Spacer(Modifier.weight(1f))
-                Text(raw = true, text = SportShowcase.time(g.start).uppercase(), color = Color(0xE6FFFFFF), fontSize = spx(13), fontWeight = FontWeight.SemiBold)
+                // Live: the match clock or period ("48'", "Q3 5:12") instead of the start time
+                val clock = if (live) g.detail.takeIf { it.isNotBlank() && it.length <= 14 } else null
+                Text(raw = true, text = (clock ?: SportShowcase.time(g.start)).uppercase(), color = Color(0xE6FFFFFF), fontSize = spx(13), fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
                 if (SportHubFavs.isFavGame(g) || SportFavs.isFavGame(g)) AppIcon(AIcon.Star, DS.Gold, size = dpx(16)) else Spacer(Modifier.width(dpx(40)))
             }
@@ -128,7 +134,8 @@ internal fun GameTileCard(g: SportData.Game, modifier: Modifier = Modifier, onCl
                     Column(Modifier.width(dpx(110)), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(raw = true, text = SportShowcase.title(SportData.sportOf(g)).uppercase(), color = Color(0xB3FFFFFF), fontSize = spx(10),
                             fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp, maxLines = 1)
-                        val showScore = g.state != 0 && !SportPrefs.hideScores && g.away.score != null && g.home.score != null
+                        // A missing score is shown as VS, never as 0 – 0
+                        val showScore = g.state != 0 && !SportPrefs.hideScores && !g.away.score.isNullOrBlank() && !g.home.score.isNullOrBlank()
                         Text(raw = true, text = if (showScore) g.away.score + " – " + g.home.score else "VS", color = Color.White,
                             fontSize = spx(if (showScore) 30 else 32), fontWeight = FontWeight.ExtraBold, letterSpacing = if (showScore) 0.sp else 2.sp, maxLines = 1)
                     }

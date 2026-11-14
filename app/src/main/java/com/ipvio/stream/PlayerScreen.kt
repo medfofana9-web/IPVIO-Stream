@@ -1055,7 +1055,9 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     showGuide -> guideFocus.requestFocus()
                     showChannels && showCats -> catsFocus.requestFocus()
                     showChannels -> chanFocus.requestFocus()
-                    controls -> (if (lastPanel != Panel.NONE) btn.getValue(lastPanel) else if (focusSeek && !cur.live) seekFocus else firstFocus).requestFocus()
+                    // The button the panel came from may not be on the bar (opened from Settings or a remote key): first button then
+                    controls -> runCatching { (if (lastPanel != Panel.NONE) btn.getValue(lastPanel) else if (focusSeek && !cur.live) seekFocus else firstFocus).requestFocus() }
+                        .getOrDefault(false) || firstFocus.requestFocus()
                     else -> rootFocus.requestFocus()
                 }
             }.getOrDefault(false)
@@ -1502,7 +1504,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             PRoundButton(label = "TV-Guide", onLabel = setLabel, onClick = { controls = false; showGuide = true }) {
                                 PlayerIcon(PIcon.Guide, it)
                             }
-                            PRoundButton(label = "Zurück zu Live", onLabel = setLabel, onClick = {
+                            // Only when behind live (otherwise it does nothing and just crowds the bar)
+                            if (LiveTimeshift.active || behindSec > 0L) PRoundButton(label = "Zurück zu Live", onLabel = setLabel, onClick = {
                                 if (LiveTimeshift.active) LiveTimeshift.goLive(player)
                                 else if (player.isCurrentMediaItemSeekable) player.seekToDefaultPosition()
                                 else { player.stop(); player.prepare() }
@@ -1557,17 +1560,10 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             PRoundButton(Modifier.focusRequester(btn.getValue(Panel.TRACKS)), label = "Audio & Untertitel", onLabel = setLabel, onClick = { openPanel(Panel.TRACKS) }) {
                                 PlayerIcon(PIcon.AudioSubs, it)
                             }
-                            PRoundButton(Modifier.focusRequester(btn.getValue(Panel.ASPECT)), label = "Bildformat", onLabel = setLabel, onClick = { openPanel(Panel.ASPECT) }) {
-                                PlayerIcon(PIcon.Aspect, it)
-                            }
-                            // Second stream (round 22): without a second picture channel selection, otherwise the menu with arrangement, audio and swap
-                            PRoundButton(label = "Zusatzbild", onLabel = setLabel, onClick = {
-                                if (second == null) { pickSecond = true; controls = false; openChannels() } else openPanel(Panel.MENU)
-                            }) {
-                                AppIcon(AIcon.Layers, it, size = 26.dp)
-                            }
-                            // Same game on another channel: every stream found for the game being watched
-                            if (cur.live && cur.archive == null) PRoundButton(label = "Other streams", onLabel = setLabel, onClick = {
+                            // Picture format, second picture, quality, score overlay and "open externally" live in Settings:
+                            // the bar keeps what is used while watching
+                            // Same game on another channel: every stream found for the game being watched (only while games are live)
+                            if (cur.live && cur.archive == null && (SportSession.owns(cur.itemId) || SportFeed.latest.values.any { it.state == 1 })) PRoundButton(label = "Other streams", onLabel = setLabel, onClick = {
                                 val here = curItem
                                 scope.launch {
                                     var list = SportSession.streams(cur.itemId)
@@ -1600,18 +1596,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             }) {
                                 AppIcon(AIcon.Grid, it, size = 26.dp)
                             }
-                            // Live channel with several qualities: pick the stream (4K / Full HD / HD / SD)
-                            if (cur.live && liveAlts.size > 1) PRoundButton(label = "Qualität", onLabel = setLabel, onClick = { openPanel(Panel.QUALITY) }) {
-                                AppIcon(AIcon.Sliders, it, size = 26.dp)
-                            }
-                            if (SportAlerts.miniOn || SportAlerts.pinned.isNotEmpty()) PRoundButton(label = "Score-Overlay", onLabel = setLabel, onClick = { scoreDlg = true }) {
-                                AppIcon(AIcon.Live, it, size = 26.dp)
-                            }
                             PRoundButton(Modifier.focusRequester(btn.getValue(Panel.MENU)), label = "Einstellungen", onLabel = setLabel, onClick = { openPanel(Panel.MENU) }) {
                                 PlayerIcon(PIcon.Settings, it)
-                            }
-                            PRoundButton(label = "Extern öffnen", onLabel = setLabel, onClick = { player.pause(); openExternal(ctx, cur.url, cur.title) }) {
-                                PlayerIcon(PIcon.External, it)
                             }
                         }
                         Row(
@@ -1894,6 +1880,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             }
                             add(MenuEntry(23, "Streams tauschen", null, false))
                         }
+                        if (cur.live && (SportAlerts.miniOn || SportAlerts.pinned.isNotEmpty())) add(MenuEntry(30, "Score overlay", null, true))
                         add(MenuEntry(0, "Sprungweite", "${step / 1000} s", true))
                         add(MenuEntry(1, "Untertitel-Stil", null, true))
                         add(MenuEntry(2, "Videoqualität", currentAlts().size.takeIf { it > 1 }?.let { "$it Quellen" }, true))
@@ -1918,6 +1905,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             ) {
                                 menuSel = i
                                 when (e.id) {
+                                    30 -> { closePanel(); scoreDlg = true }
                                     0 -> openPanel(Panel.STEP, Panel.MENU)
                                     1 -> openPanel(Panel.SUBSTYLE, Panel.MENU)
                                     2 -> openPanel(Panel.QUALITY, Panel.MENU)

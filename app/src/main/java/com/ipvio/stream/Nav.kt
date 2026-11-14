@@ -76,6 +76,8 @@ object AppNav {
     var testUrl by androidx.compose.runtime.mutableStateOf<String?>(null)
     /** Performance test only ("-test" builds): playlist address loaded at the start without the setup screens. */
     var testPlaylist: String? = null
+    /** Test builds: tab requested by the journey test (com.fof.tv.TAB broadcast), -1 = none. */
+    var testTab by androidx.compose.runtime.mutableIntStateOf(-1)
     /** "Watch now" on a catalog title: its title page starts the best addon stream right away. */
     var autoStream: String? = null
     /** Resume of a catalog title: season, episode, position in ms (used with [autoStream]). */
