@@ -42,7 +42,7 @@ object Marathon {
         val eps = (LazySeries.load(c, item) ?: item).episodes.map { it.season to it.num }
         if (eps.isEmpty()) return null
         this.shuffle = shuffle
-        title = item.title; imdb = id; year = item.year ?: Catalog.meta(item)?.year
+        title = item.title; imdb = id; year = item.year ?: Catalog.meta(item)?.year?.toString()?.take(4)?.toIntOrNull()
         order = MarathonLogic.order(eps, shuffle, System.currentTimeMillis())
         val last = WatchStore.entries.firstOrNull { it.itemId == item.id && it.season > 0 }?.let { it.season to it.ep }
         idx = if (shuffle) 0 else MarathonLogic.startIndex(order, last)

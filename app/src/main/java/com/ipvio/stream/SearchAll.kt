@@ -43,6 +43,22 @@ object SearchAllLogic {
         return tokens.all { t -> words.any { it.startsWith(t) } || (t.length >= 4 && words.any { t in it }) }
     }
 
+    /** Title order: exact title first, then titles starting with the query, then the rest (stable, keeps the source order). */
+    fun titleRank(title: String, q: String): Int {
+        val t = ChannelSearch.norm(title).trim(); val n = ChannelSearch.norm(q).trim()
+        if (n.isEmpty()) return 3
+        return when {
+            t == n || t.removePrefix("the ") == n.removePrefix("the ") -> 0
+            t.startsWith(n) -> 1
+            matches(title, tokens(q)) -> 2
+            else -> 3
+        }
+    }
+
+    /** Exact matches first; the same title and year from two sources is shown once. */
+    fun <T> order(list: List<T>, q: String, title: (T) -> String, year: (T) -> String): List<T> =
+        list.distinctBy { ChannelSearch.norm(title(it)).trim() + "|" + year(it) }.sortedBy { titleRank(title(it), q) }
+
     /** Live first, then upcoming (soonest first), then finished (latest first). */
     fun rank(state: Int, start: Long): Long = when (state) { 1 -> -1L; 0 -> start; else -> Long.MAX_VALUE / 2 - start }
 }

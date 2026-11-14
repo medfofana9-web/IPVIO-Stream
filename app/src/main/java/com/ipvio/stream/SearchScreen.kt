@@ -132,7 +132,8 @@ fun SearchScreen(
         val r = kotlinx.coroutines.coroutineScope {
             val m = async { Catalog.search(Kind.MOVIE, q) }
             val s = async { Catalog.search(Kind.SERIES, q) }
-            m.await().distinctBy { it.id } to s.await().distinctBy { it.id }
+            SearchAllLogic.order(m.await().distinctBy { it.id }, q, { it.title }, { "${it.year ?: 0}" }) to
+                SearchAllLogic.order(s.await().distinctBy { it.id }, q, { it.title }, { "${it.year ?: 0}" })
         }
         value = q to r
     }

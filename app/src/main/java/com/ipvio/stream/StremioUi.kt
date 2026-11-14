@@ -56,7 +56,7 @@ fun StremioSourcesPopup(
     val ctx = androidx.compose.ui.platform.LocalContext.current
     SourceMemory.init(ctx)
     // What was asked for: the identity every stream is checked against (no title search anywhere after this)
-    val want = Stremio.Want(series, item.title, item.year ?: Catalog.meta(item)?.year, season, ep)
+    val want = Stremio.Want(series, item.title, item.year ?: Catalog.meta(item)?.year?.toString()?.take(4)?.toIntOrNull(), season, ep)
     val cid = SourceMemory.contentId(imdb, series, season, ep)
     var partial by remember { mutableStateOf<List<Stremio.Source>>(emptyList()) }
     LaunchedEffect(imdb, season, ep) {
