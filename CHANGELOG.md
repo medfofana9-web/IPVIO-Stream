@@ -1,5 +1,16 @@
 # Changelog
 
+## Fof TV 1.3.61 (November 2026)
+**Faster**
+- A list saved before Live-TV-only still held the provider's 290,000 movies and series and was read at every start; they are dropped once and the smaller list is saved
+
+**Fixed**
+- Multi view: a tile that cannot play moves on by itself to another channel showing the same game
+
+**Reliability**
+- Phone settings page: new "App health" section with version, what is loaded, the speed of this run and the last crash (no photos of the TV needed)
+- Every build is tested on a test TV shaped like the real one before release: 23,773 channels named like the provider's ("US: TNT East"), 120,000 movie and episode lines, 2 GB of memory. The run fails, and nothing is released, unless: provider movies/series are skipped, the screen never freezes, the app stays open through search and Live TV, nothing crashes, Home shows posters within 15 s of a restart, the Live TV guide shows the categories, and search finds a person
+
 ## Fof TV 1.3.60 (November 2026)
 **Changed**
 - Search: smaller keyboard with the search text on top and suggestions or recent searches below it, so results get most of the screen. Results in sections: Top results (best matches), Movies, TV Shows, People, Live TV, games and teams, each only when it has hits and never the same title twice. All / Movies / TV Shows / Live TV filter above the results, switching keeps the search

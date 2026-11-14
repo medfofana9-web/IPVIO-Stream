@@ -53,3 +53,12 @@ U-1: move the Media3-dependent code out of `PlayerLogic.kt` (see `docs/REFACTORI
 - Done: stream identity check (`StremioLogic.matchCheck`, `Stremio.rank/bestVerified`), `SourceMemory`/`NowSources`, in-player Sources panel with revert, Wrong content action, auto/ask setting on the TV Stremio page, resume tied to item id, search exact-title-first + dedupe.
 - Checks run: CI release build + unit tests (incl. `StreamMatchTest`, `SearchAllLogicTest`) passed; emulator journey test passed with no crash. Not run: real addon playback (no addons on the emulator).
 - Open: on-device test of source switching and Wrong content; source picker sort/filter; Supabase sync waits for URL + anon key.
+
+## 2026-11-14 – Reliability pass (1.3.54 – 1.3.61)
+- Done: search freeze (lock on the main thread), provider live-only (parse, download and saved cache), Netflix-style search
+  with sections and filters, sports (3 sports, clean overview, flat tiles, ESPN/NBA TV, usual US networks, East/West feeds),
+  Live TV opens the TiviMate-style guide, multiview tile fallback, freeze watcher and exit reasons, Speed timings,
+  App health on the phone page, realistic test TV with pass/fail checks (docs/TESTING.md).
+- Checks: release build + unit tests pass; test TV run 43649087244: all 7 checks pass.
+- Open: real-TV numbers after 1.3.61 (Speed / App health); which unused features to remove (list in the report);
+  ESPN single live request for Sports; search typo tolerance for catalog titles; Back/focus rules of the search brief.

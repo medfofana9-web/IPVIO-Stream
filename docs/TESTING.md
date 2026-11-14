@@ -48,3 +48,32 @@ Unit tests cannot cover these. Each needs a test step for the maintainer after a
 
 - Never report a test as passed unless it was run (CLAUDE.md section 3).
 - Test names and some test classes are still German or named `Round17Test` to `Round25Test`; renaming is planned in P4.
+
+## Test TV and release gate (Fof TV, since 1.3.61)
+
+Workflow `.github/workflows/perf-test.yml` (push to branch `perf-test`) runs the app on an Android TV emulator shaped like
+the maintainer's setup: 23,773 channels with provider-style names ("US: TNT East", groups "USA | Sports"), 20,000 episode
+and 100,000 movie lines that the app must skip, a 24,000-channel guide, 2 GB of memory and a 256 MB app heap.
+
+The run fails unless every check passes (lines `CHECK PASS` / `CHECK FAIL` in the Summary step):
+
+- provider movies/series skipped (search index under 30,000 titles)
+- no frozen screen (no `FofFreeze` log from the freeze watcher)
+- app stays open through fast search typing and Live TV
+- no crash
+- Home shows posters within 15 s of a restart
+- the Live TV guide shows the categories
+- search finds a person
+
+Process: push to `perf-test` first; only a passing run goes to `main` (which releases).
+
+Not covered by the test TV (needs the real TV): playing real streams, the provider's real channel names for game
+matching, live ESPN games at the moment of the run.
+
+## What to try on the TV after an update
+
+1. Start the app: posters on Home quickly; Settings → Diagnostics → Speed or the phone page → App health.
+2. Search: type fast, delete fast, switch All / Movies / TV Shows / Live TV, open a result, Back.
+3. Sports: live games at the top, open a live game, it plays; a game shows its channels (e.g. TNT / TBS).
+4. Live TV: guide over the playing channel; pick another channel; Back twice.
+5. Multi view with 4 games: a tile that fails switches to another channel of the same game.
