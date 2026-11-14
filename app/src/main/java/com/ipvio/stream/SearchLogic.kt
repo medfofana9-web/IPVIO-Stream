@@ -9,9 +9,15 @@ class SearchIndex(val all: List<Item>) {
         val n = norm(q)
         val m = ArrayList<Item>(); val s = ArrayList<Item>(); val l = ArrayList<Item>()
         if (n.isEmpty()) return Triple(m, s, l)
+        // At most MAX hits per kind: a two-letter query on a big provider matched tens of thousands of titles, and every
+        // later step (dedupe, rows, recomposition) paid for all of them
         for (i in all.indices) if (keys[i].contains(n)) {
             val it = all[i]
-            when (it.kind) { Kind.MOVIE -> m.add(it); Kind.SERIES -> s.add(it); Kind.LIVE -> l.add(it) }
+            when (it.kind) {
+                Kind.MOVIE -> if (m.size < MAX) m.add(it)
+                Kind.SERIES -> if (s.size < MAX) s.add(it)
+                Kind.LIVE -> if (l.size < MAX) l.add(it)
+            }
         }
         // Few hits: forgive typos (movies and series, not channels)
         if (m.size + s.size < FUZZY_BELOW && n.length >= 4) {
@@ -34,6 +40,7 @@ class SearchIndex(val all: List<Item>) {
     }
 
     companion object {
+        const val MAX = 400
         const val FUZZY_BELOW = 3
         const val FUZZY_MAX = 40
 

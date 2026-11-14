@@ -41,6 +41,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -165,14 +166,28 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                 dirty = false
             }
             launch { while (true) { delay(400); if (dirty) publish() } }
+            // Leagues that can have a game on right now (by the saved schedule, or never loaded) and the top leagues are asked
+            // first; the rest waits until they answered (at most 4 s), so live games are not queued behind 60 quiet leagues
+            val nowS = System.currentTimeMillis() / 1000
+            val first = ls.filter { l ->
+                val c = m[l.path]
+                c == null || l.name in SportData.POPULAR.take(10) ||
+                    c.any { it.state == 1 || (it.state == 0 && it.start in (nowS - 5 * 3600)..(nowS + 20 * 60)) }
+            }.map { it.path }.toSet()
+            val firstLeft = java.util.concurrent.atomic.AtomicInteger(first.size)
+            val firstDone = kotlinx.coroutines.CompletableDeferred<Unit>()
+            if (first.isEmpty()) firstDone.complete(Unit)
             ls.forEach { l ->
                 launch {
+                    if (l.path !in first) withTimeoutOrNull(4_000) { firstDone.await() }
+                    var once = l.path in first
                     while (true) {
                         val r = SportData.fetch(l, SportData.ymd(0, General.zone()), 15_000)
                         m[l.path] = r
                         fresh.add(l.path)
                         pending.addAll(r)
                         dirty = true
+                        if (once) { once = false; if (firstLeft.decrementAndGet() == 0) { firstDone.complete(Unit); publish(); MainSampler.mark("sports: likely-live leagues answered") } }
                         // The last league answered: show the full picture at once
                         if (fresh.size == ls.size && value.done < ls.size) publish()
                         delay(SportFeed.interval(l, r))
@@ -335,6 +350,12 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
             }
             else -> item(key = "empty") { HubEmpty(AIcon.Info, "Heute keine Spiele gefunden.", "In deinen Ligen ist heute nichts angesetzt. Im Spielplan siehst du die nächsten Tage.", "Spielplan öffnen") { hub.goTab(2, null) } }
         }
+        // Live games are the first thing on the page
+        val liveAll = games.filter { it.state == 1 }.sortedWith(compareBy({ if (it.key in m.withCh) 0 else 1 }, { if (SportHubFavs.isFavGame(it)) 0 else 1 }, { popularity(it) }))
+        if (liveAll.isNotEmpty()) item(key = "live") {
+            LaunchedEffect(Unit) { MainSampler.mark("sports: live row shown") }
+            GameTileRow("Live now", liveAll, hub) { hub.goTab(1, null) }
+        }
         val mine = games.filter { SportFavs.isFavGame(it) && it.state != 2 }.sortedBy { if (it.state == 1) 0L else it.start }
         if (mine.isNotEmpty()) item(key = "myteams") {
             GameDay.init(ctx)
@@ -347,8 +368,6 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
         }
         if (soccer.isNotEmpty()) item(key = "ahead_soccer") { GameTileRow("Soccer", soccer.take(30), hub) { hub.goTab(2, "soccer") } }
         if (nba.isNotEmpty()) item(key = "ahead_nba") { GameTileRow("NBA", nba.take(30), hub) { hub.goTab(2, "basketball") } }
-        val liveAll = games.filter { it.state == 1 }.sortedWith(compareBy({ if (it.key in m.withCh) 0 else 1 }, { if (SportHubFavs.isFavGame(it)) 0 else 1 }, { popularity(it) }))
-        if (liveAll.isNotEmpty()) item(key = "live") { GameTileRow("Live now", liveAll, hub) { hub.goTab(1, null) } }
         val soon = games.filter { it.state == 0 && statusKind(it) == 0 }.sortedWith(compareBy({ if (SportHubFavs.isFavGame(it)) 0 else 1 }, { it.start }))
         if (soon.isNotEmpty()) item(key = "soon") { GameTileRow("Upcoming", soon, hub) { hub.goTab(2, null) } }
         // One row per sport: live and upcoming games; finished games are collected in "Today's results"
@@ -372,8 +391,6 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
                 }
             }
         }
-        val done = games.filter { it.state == 2 }.sortedByDescending { it.start }
-        if (done.isNotEmpty()) item(key = "done") { GameTileRow("Today's results", done, hub, null) }
         if (popular.isNotEmpty()) item(key = "leagues") {
             HubSectionTitle("Beliebte Ligen", action = "Alle Ligen") { hub.goTab(3, null) }
             Spacer(Modifier.height(dpx(8)))

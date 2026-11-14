@@ -92,7 +92,40 @@ object CrashLog {
                     .putLong("at", System.currentTimeMillis()).putBoolean("shown", false).commit()
             }
             prev?.uncaughtException(t, e)
-        }
+        }        watchFreezes(app)
+    }
+
+    /**
+     * A frozen screen is not a crash, so Android closes the app without a stack trace. This watcher pings the main
+     * thread every 2 s; when it has not answered for 6 s it saves where the main thread is stuck (own frames only), so
+     * the next start can show what froze. Saved once per freeze.
+     */
+    private fun watchFreezes(app: Context) {
+        val main = android.os.Handler(android.os.Looper.getMainLooper())
+        Thread({
+            var seen = 0L
+            val tick = java.util.concurrent.atomic.AtomicLong(0)
+            while (true) {
+                val sent = tick.incrementAndGet()
+                val at = android.os.SystemClock.uptimeMillis()
+                main.post { tick.compareAndSet(sent, -sent) }
+                try { Thread.sleep(2_000) } catch (_: InterruptedException) { return@Thread }
+                var waited = android.os.SystemClock.uptimeMillis() - at
+                while (tick.get() == sent && waited < 6_000) { try { Thread.sleep(500) } catch (_: InterruptedException) { return@Thread }; waited = android.os.SystemClock.uptimeMillis() - at }
+                if (tick.get() == sent && seen != sent) {
+                    seen = sent
+                    runCatching {
+                        val st = android.os.Looper.getMainLooper().thread.stackTrace
+                        val own = st.filter { it.className.startsWith("com.ipvio") }.take(5).ifEmpty { st.take(4) }
+                        val where = own.joinToString(" < ") { (it.fileName ?: it.className.substringAfterLast('.')) + ":" + it.lineNumber }
+                        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                            .putString("last", "Freeze (screen stuck 6 s) · $where")
+                            .putLong("at", System.currentTimeMillis()).putBoolean("shown", false).commit()
+                    }
+                    while (tick.get() == sent) try { Thread.sleep(500) } catch (_: InterruptedException) { return@Thread }
+                }
+            }
+        }, "freeze-watch").apply { isDaemon = true; priority = Thread.MIN_PRIORITY }.start()
     }
 
     fun last(ctx: Context): Pair<String, Long>? {

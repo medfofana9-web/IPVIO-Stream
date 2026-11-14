@@ -66,9 +66,9 @@ fun SearchScreen(
     val scope = rememberCoroutineScope()
     val all = PlaylistStore.channels
     // Build the index in the background; searches also run in the background and only after a short typing pause
-    val index by produceState(SearchCache.get(all), all) { value = withContext(Dispatchers.Default) { SearchCache.build(all) } }
+    val index by produceState(SearchCache.get(all), all) { value = safely(null) { SearchCache.build(all) } }
     val byId = index?.byId.orEmpty()
-    val suggestIdx by produceState<WordSuggest?>(null, all) { value = withContext(Dispatchers.Default) { SearchCache.suggest(all) } }
+    val suggestIdx by produceState<WordSuggest?>(null, all) { value = safely(null) { SearchCache.suggest(all) } }
     val firstSugg = remember { FocusRequester() }
     val hist = History.ids.mapNotNull { byId[it] }
     // Smaller cards than elsewhere so more hits are visible next to the keyboard
@@ -108,7 +108,10 @@ fun SearchScreen(
         val idx = index ?: return@produceState
         if (q.length < 2) { value = q to none; return@produceState }
         delay(250)
-        value = q to withContext(Dispatchers.Default) { idx.find(q) }
+        value = q to safely(none) {
+            val (m, s, l) = idx.find(q)
+            Triple(PlaylistLogic.firstPerKey(m) { it.mk + "|" + it.lang }, s, l)
+        }
     }
     val searching = q.length >= 2 && found.first != q
     val (rm0, rs0, rl0) = if (q.length < 2 || searching) none else found.second
@@ -116,10 +119,10 @@ fun SearchScreen(
     // Word suggestions for the word being typed
     val sugg = remember(SearchState.query, suggestIdx) { suggestIdx?.suggest(WordSuggest.lastWord(SearchState.query)).orEmpty() }
     // Sports hub filter: live channels that look like sports channels (the hub itself opens with the button)
-    val rl = when (fl) { 0, 3 -> rl0; 4 -> rl0.filter { SearchSport.isSport(it) }; else -> emptyList() }
+    val rl = when (fl) { 0, 3 -> rl0; 4 -> remember(rl0) { rl0.filter { SearchSport.isSport(it) } }; else -> emptyList() }
     val rs = if ((fl == 0 || fl == 2) && FofPrefs.providerVod) rs0 else emptyList()
     // The same movie in several versions only once (the source is chosen on the detail page)
-    val rmAll: List<Item> = remember(rm0) { PlaylistLogic.firstPerKey(rm0) { it.mk + "|" + it.lang } }
+    val rmAll: List<Item> = rm0
     val rm = if ((fl == 0 || fl == 1) && FofPrefs.providerVod) rmAll else emptyList()
     // Fof TV: one search over everything – catalog movies and shows (Cinemeta), people, games, teams and leagues (ESPN),
     // channels and what is on TV. Each source loads on its own after a short typing pause; a slow one never holds up the rest.
@@ -129,7 +132,7 @@ fun SearchScreen(
     val cm by produceState(q to (emptyList<Item>() to emptyList<Item>()), q) {
         if (q.length < 2) { value = q to (emptyList<Item>() to emptyList()); return@produceState }
         delay(300)
-        val r = kotlinx.coroutines.coroutineScope {
+        val r = safely(emptyList<Item>() to emptyList<Item>()) {
             val m = async { Catalog.search(Kind.MOVIE, q) }
             val s = async { Catalog.search(Kind.SERIES, q) }
             SearchAllLogic.order(m.await().distinctBy { it.id }, q, { it.title }, { "${it.year ?: 0}" }) to
@@ -147,7 +150,7 @@ fun SearchScreen(
         value = Triple(emptyList(), emptyList(), emptyList())
         if (q.length < 2) return@produceState
         delay(300)
-        value = withContext(Dispatchers.Default) {
+        value = safely(Triple(emptyList(), emptyList(), emptyList())) {
             val g = SearchSports.games()
             Triple(SearchSports.findGames(g, q), SearchSports.findTeams(g, q), SearchSports.findLeagues(q))
         }
@@ -156,9 +159,7 @@ fun SearchScreen(
         value = emptyList()
         if (q.length < 3) return@produceState
         delay(350)
-        value = withContext(Dispatchers.Default) {
-            try { SearchGuide.shows(live, q) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Throwable) { emptyList() }
-        }
+        value = safely(emptyList()) { SearchGuide.shows(live, q) }
     }
     val cmReady = q.length >= 2 && cm.first == q
     val cmM = if ((fl == 0 || fl == 1) && cmReady) cm.second.first else emptyList()
@@ -611,3 +612,12 @@ private fun MiniChip(label: String, selected: Boolean, modifier: Modifier = Modi
         Text(label, color = if (f) DS.FocusInk else Color.White, fontSize = 14.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1, raw = raw)
     }
 }
+
+/**
+ * Runs one search source in the background. A source that fails (network, bad data, out of memory) gives [fallback]
+ * instead of closing the app; only cancellation (a newer keystroke) passes through.
+ */
+private suspend fun <T> safely(fallback: T, block: suspend kotlinx.coroutines.CoroutineScope.() -> T): T =
+    try { withContext(Dispatchers.Default, block) }
+    catch (e: kotlinx.coroutines.CancellationException) { throw e }
+    catch (e: Throwable) { android.util.Log.w("FofSearch", "search source failed", e); fallback }
