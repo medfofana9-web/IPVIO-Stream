@@ -28,4 +28,10 @@ class SearchAllLogicTest {
         val r = SearchAllLogic.order(l, "reasonable doubt", { it.first }, { it.second })
         assertEquals(listOf("Reasonable Doubt" to "2022", "Reasonable Doubts" to "1991", "A Reasonable Doubt Story" to "2010", "Doubt" to "2008"), r)
     }
+
+    @Test fun abbreviationsAndRetries() {
+        assertEquals("game of thrones", SearchAllLogic.expand("GOT"))
+        assertEquals("denzel", SearchAllLogic.expand("denzel"))
+        assertEquals(listOf("reasonable doub", "reasonable"), SearchAllLogic.retries("reasonable doubt"))
+    }
 }

@@ -43,6 +43,28 @@ object SearchAllLogic {
         return tokens.all { t -> words.any { it.startsWith(t) } || (t.length >= 4 && words.any { t in it }) }
     }
 
+    /** Common short forms people type on a remote, searched by the full title. */
+    private val ABBR = mapOf(
+        "got" to "game of thrones", "hotd" to "house of the dragon", "lotr" to "the lord of the rings", "twd" to "the walking dead",
+        "b99" to "brooklyn nine-nine", "ahs" to "american horror story", "svu" to "law & order special victims unit",
+        "himym" to "how i met your mother", "iasip" to "its always sunny in philadelphia", "oitnb" to "orange is the new black",
+        "tlou" to "the last of us", "rhoa" to "real housewives of atlanta", "bcs" to "better call saul",
+        "gotg" to "guardians of the galaxy",
+        "tmnt" to "teenage mutant ninja turtles", "pob" to "power book", "p valley" to "p-valley"
+    )
+
+    fun expand(q: String): String = ABBR[q.trim().lowercase()] ?: q
+
+    /** Shorter forms of a query that found nothing: without the last letter, then without the last word, then the longest word. */
+    fun retries(q: String): List<String> {
+        val t = q.trim()
+        val out = ArrayList<String>()
+        if (t.length >= 4) out.add(t.dropLast(1))
+        val w = t.split(' ').filter { it.isNotBlank() }
+        if (w.size >= 2) { out.add(w.dropLast(1).joinToString(" ")); w.maxByOrNull { it.length }?.takeIf { it.length >= 4 }?.let { out.add(it) } }
+        return out.distinct().filter { it.length >= 2 && it != t }
+    }
+
     /** Title order: exact title first, then titles starting with the query, then the rest (stable, keeps the source order). */
     fun titleRank(title: String, q: String): Int {
         val t = ChannelSearch.norm(title).trim(); val n = ChannelSearch.norm(q).trim()

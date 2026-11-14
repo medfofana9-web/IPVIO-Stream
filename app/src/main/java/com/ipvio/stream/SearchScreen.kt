@@ -140,10 +140,20 @@ fun SearchScreen(
         if (q.length < 2) { value = q to (emptyList<Item>() to emptyList()); return@produceState }
         delay(300)
         val r = safely(emptyList<Item>() to emptyList<Item>()) {
-            val m = async { Catalog.search(Kind.MOVIE, q) }
-            val s = async { Catalog.search(Kind.SERIES, q) }
-            SearchAllLogic.order(m.await().distinctBy { it.id }, q, { it.title }, { "${it.year ?: 0}" }) to
-                SearchAllLogic.order(s.await().distinctBy { it.id }, q, { it.title }, { "${it.year ?: 0}" })
+            // Common abbreviations ("got", "lotr") are searched by their full title; a query without any hit is tried
+            // again in shorter forms (a typo at the end, one wrong word), so a small slip still finds the title
+            suspend fun both(t: String) = kotlinx.coroutines.coroutineScope {
+                val m = async { Catalog.search(Kind.MOVIE, t) }; val s = async { Catalog.search(Kind.SERIES, t) }
+                m.await().distinctBy { it.id } to s.await().distinctBy { it.id }
+            }
+            var used = SearchAllLogic.expand(q)
+            var got = both(used)
+            for (alt in SearchAllLogic.retries(used)) {
+                if (got.first.isNotEmpty() || got.second.isNotEmpty()) break
+                used = alt; got = both(alt)
+            }
+            SearchAllLogic.order(got.first, used, { it.title }, { "${it.year ?: 0}" }) to
+                SearchAllLogic.order(got.second, used, { it.title }, { "${it.year ?: 0}" })
         }
         value = q to r
     }
@@ -210,11 +220,8 @@ fun SearchScreen(
     fun fr(k: String) = if (firstKey == k) firstRes else null
     // Back: in the search field (keyboard already closed) first to the recent searches or hits, otherwise into the sidebar
     BackHandler(enabled = !inSidebar) {
-        val target = when {
-            !fieldFocused -> null
-            firstKey.isNotEmpty() -> firstRes
-            else -> null
-        }
+        // Back from the results returns to the keyboard (where the search is typed); from the keyboard to the menu
+        val target = if (!fieldFocused) ContentFocus.req else null
         // requestFocus returns false (no exception) when the target is not on screen: then go on to the sidebar instead of doing nothing
         val moved = target != null && runCatching { target.requestFocus() }.getOrDefault(false)
         if (!moved) runCatching { sideFocus.requestFocus() }

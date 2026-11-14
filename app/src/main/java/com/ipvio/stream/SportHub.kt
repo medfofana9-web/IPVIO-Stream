@@ -317,6 +317,9 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
     val model by produceState<HubOverviewModel?>(null, feed.games) {
         // Games at once, then the same page with the channel matches (which channel shows which game)
         value = withContext(Dispatchers.Default) { buildOverview(feed.games, hub, matchChannels = false) }
+        // The channel match (slow on a big playlist) waits until the leagues stop answering for a moment: while answers
+        // arrive every 400 ms it was started and thrown away again and again, taking the CPU the page needs to show up
+        delay(1_200)
         value = withContext(Dispatchers.Default) { buildOverview(feed.games, hub) }
     }
     val m = model
