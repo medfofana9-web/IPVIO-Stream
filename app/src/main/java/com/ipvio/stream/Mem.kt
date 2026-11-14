@@ -92,7 +92,8 @@ object CrashLog {
                     .putLong("at", System.currentTimeMillis()).putBoolean("shown", false).commit()
             }
             prev?.uncaughtException(t, e)
-        }        watchFreezes(app)
+        }
+        watchFreezes(app)
     }
 
     /**
@@ -102,16 +103,22 @@ object CrashLog {
      */
     private fun watchFreezes(app: Context) {
         val main = android.os.Handler(android.os.Looper.getMainLooper())
-        Thread({
+        Thread {
+            try { freezeLoop(app, main) } catch (_: InterruptedException) { }
+        }.apply { name = "freeze-watch"; isDaemon = true; priority = Thread.MIN_PRIORITY }.start()
+    }
+
+    private fun freezeLoop(app: Context, main: android.os.Handler) {
+        run {
             var seen = 0L
             val tick = java.util.concurrent.atomic.AtomicLong(0)
             while (true) {
                 val sent = tick.incrementAndGet()
                 val at = android.os.SystemClock.uptimeMillis()
                 main.post { tick.compareAndSet(sent, -sent) }
-                try { Thread.sleep(2_000) } catch (_: InterruptedException) { return@Thread }
+                Thread.sleep(2_000)
                 var waited = android.os.SystemClock.uptimeMillis() - at
-                while (tick.get() == sent && waited < 6_000) { try { Thread.sleep(500) } catch (_: InterruptedException) { return@Thread }; waited = android.os.SystemClock.uptimeMillis() - at }
+                while (tick.get() == sent && waited < 6_000) { Thread.sleep(500); waited = android.os.SystemClock.uptimeMillis() - at }
                 if (tick.get() == sent && seen != sent) {
                     seen = sent
                     runCatching {
@@ -122,10 +129,10 @@ object CrashLog {
                             .putString("last", "Freeze (screen stuck 6 s) · $where")
                             .putLong("at", System.currentTimeMillis()).putBoolean("shown", false).commit()
                     }
-                    while (tick.get() == sent) try { Thread.sleep(500) } catch (_: InterruptedException) { return@Thread }
+                    while (tick.get() == sent) Thread.sleep(500)
                 }
             }
-        }, "freeze-watch").apply { isDaemon = true; priority = Thread.MIN_PRIORITY }.start()
+        }
     }
 
     fun last(ctx: Context): Pair<String, Long>? {
