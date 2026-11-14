@@ -1,5 +1,21 @@
 # Changelog
 
+## Fof TV 1.3.51 (November 2026)
+**Fixed**
+- Wrong movie or episode playing: addon streams are now checked against the IMDb id, season and episode and the file name. Another episode, season or title is rejected; unclear sources are marked "Unverified". A playlist title only borrows addon streams that are confirmed
+- A resume position is only used for the title it was saved for (a stale position could carry over to another show)
+
+**New**
+- Play starts only a confirmed source. If none is confirmed, the source list opens so you can choose
+- Settings → Stremio addons: "Auto-select best source" or "Ask me every time"
+- Sources button in the player for addon movies and episodes: switch streams without leaving, the position is kept, and a stream that fails returns you to the one before
+- "Wrong content" in the player: marks the stream, skips it from now on and tries the next one
+- The source list fills in while addons answer, shows quality, HDR/Dolby Vision, audio and size when the addon reports them, and tags each row (Playing, Match, Unverified, Reported wrong)
+- The last stream that worked for a title is preferred next time
+
+**Improved**
+- Search: an exact title comes first, then titles starting with your words; the same title and year from two catalogs is shown once
+
 ## Fof TV 1.3.50 (November 2026)
 **Fixed**
 - Search closed the app on big playlists: the "On TV" guide search normalized every show title of the whole guide (millions on 20,000+ channels) on each keystroke and kept running after the next keystroke. It now compares without copies, stops when a newer query starts and collects at most 200 hits. Same fix for "Search channels" in the player
