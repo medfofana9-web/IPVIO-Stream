@@ -75,7 +75,7 @@ jobs:
             echo "== screen texts after start"; grep -o 'text="[^"]\+"' ui0.xml | head -40 || true
             adb shell dumpsys gfxinfo com.fof.tv reset > /dev/null
             PID=$(adb shell pidof com.fof.tv | tr -d '\r')
-            adb shell "simpleperf record -p $PID -g -f 2000 --duration 14 -o /data/local/tmp/home.data" > /dev/null 2>&1 &
+            adb shell "simpleperf record -p $PID -g -f 2000 --duration 14 -o /data/local/tmp/home.data" > rec_home.txt 2>&1 &
             sleep 1
             adb shell 'for i in 1 2 3; do input keyevent 20; sleep 0.6; done'
             adb shell 'for i in $(seq 1 25); do input keyevent 22; sleep 0.15; done'
@@ -110,7 +110,8 @@ jobs:
         run: |
           for f in gfx_home.txt gfx_detail.txt; do echo "== $f"; grep -E "Total frames rendered|Janky frames|50th percentile|90th percentile|95th percentile|99th percentile|Slow UI thread|Frame deadline missed" $f || true; done
           grep -E "TOTAL" meminfo.txt | head -3 || true
-          for f in prof_home_self.txt prof_home_children.txt prof_detail_children.txt; do echo "== $f"; grep -E "ipvio|compose|coil|okio|Overhead|Samples" $f | head -60 || true; done
+          for f in prof_home_self.txt prof_home_children.txt prof_detail_children.txt; do echo "== $f"; head -90 $f || true; done
+          echo "== simpleperf record log"; cat rec_home.txt 2>/dev/null | tail -20 || true
           grep -n "FATAL EXCEPTION" -A20 logcat.txt | head -40 || true
           grep -q RUNNING alive.txt && ! grep -q NOT-RUNNING alive.txt
       - uses: actions/upload-artifact@v4
