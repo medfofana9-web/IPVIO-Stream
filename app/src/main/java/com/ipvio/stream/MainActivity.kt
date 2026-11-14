@@ -376,6 +376,9 @@ private fun AppContent() {
     }
     fun goTab(id: Int) {
         if (id == MenuLogic.EPG) { openEpg(); return }
+        // Live TV opens like TiviMate: the last channel plays in the corner above the TV guide (categories, channels,
+        // program grid). Back closes the guide to the full picture, Back again returns to where you were.
+        if (id == 3 && liveAll.isNotEmpty()) { openEpg(); return }
         tab = id; CatMemory.reset()
         jumpTick++
     }

@@ -1,5 +1,9 @@
 # Changelog
 
+## Fof TV 1.3.58 (November 2026)
+**Changed**
+- Live TV opens like TiviMate: the last watched channel plays in the corner above the TV guide (categories on the left, channels with their program grid below). Back once shows the channel full screen, Back again returns to where you were
+
 ## Fof TV 1.3.57 (November 2026)
 **Fixed**
 - "No channel found" for games ESPN lists without TV networks (USA vs Haiti on TBS/truTV/Universo): the usual US networks of the competition are tried then (USMNT, Mexico, Premier League, Champions League, LaLiga, Bundesliga, Serie A, Ligue 1, Liga MX and more)
