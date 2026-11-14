@@ -1,5 +1,21 @@
 # Changelog
 
+## Fof TV 1.3.50 (November 2026)
+**Fixed**
+- Search closed the app on big playlists: the "On TV" guide search normalized every show title of the whole guide (millions on 20,000+ channels) on each keystroke and kept running after the next keystroke. It now compares without copies, stops when a newer query starts and collects at most 200 hits. Same fix for "Search channels" in the player
+- Movies/episodes that never start no longer spin forever: after 20 s without a picture (or two failed reconnects) the next source is tried (other quality, next addon stream, next 24/7 episode), then a clear message
+- Sports pages keep trying to take the focus for 1.5 s (the first element can appear a moment later), then the Back button
+
+**Improved**
+- Game tiles: background and shade built once and drawn in one pass
+- Title page: Trailer moved into More, so Play stays the clear first action
+- Live TV: the highlighted channel scrolls its full name
+- One section title size on Home, Sports and Search (no accent bar in Search)
+
+**Validated (emulator, 24,000 channels with a 240,000-show guide)**
+- Search "lakers" (guide hits) and "denzel" (catalog and person row): results shown, app keeps running
+- Home → title → Back and Sports → game → Back return to the same item; cold start 1.5 s to first frame
+
 ## Fof TV 1.3.49 (November 2026)
 **Fixed**
 - Sports: a game on a streaming service (e.g. WSL on "Paramount+") was matched to a TV channel with the same base name ("US: Paramount Network"). "+" now stays part of the network name
