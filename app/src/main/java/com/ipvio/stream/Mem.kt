@@ -94,6 +94,34 @@ object CrashLog {
             prev?.uncaughtException(t, e)
         }
         watchFreezes(app)
+        lastExit(app)
+    }
+
+    /**
+     * Android 11+: why the app's previous run ended. A kill for low memory, a freeze (ANR) or a native crash leaves
+     * no Java stack trace, so it is saved here and shown like a crash on this start.
+     */
+    private fun lastExit(app: Context) {
+        if (android.os.Build.VERSION.SDK_INT < 30) return
+        runCatching {
+            val am = app.getSystemService(android.app.ActivityManager::class.java) ?: return
+            val e = am.getHistoricalProcessExitReasons(app.packageName, 0, 1).firstOrNull() ?: return
+            val sp = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            if (sp.getLong("exitSeen", 0L) == e.timestamp) return
+            sp.edit().putLong("exitSeen", e.timestamp).apply()
+            val why = when (e.reason) {
+                android.app.ApplicationExitInfo.REASON_LOW_MEMORY -> "Closed by Android: low memory"
+                android.app.ApplicationExitInfo.REASON_ANR -> "Closed by Android: app not responding"
+                android.app.ApplicationExitInfo.REASON_CRASH_NATIVE -> "Native crash"
+                android.app.ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "Closed by Android: too much resource use"
+                else -> return
+            }
+            val mb = e.pss / 1024
+            // Keep a freeze location saved by the watcher a moment before (it says where the screen was stuck)
+            val prev = sp.getString("last", null)?.takeIf { it.startsWith("Freeze") && e.timestamp - sp.getLong("at", 0L) in 0..120_000 }
+            sp.edit().putString("last", "$why (memory $mb MB" + (e.description?.take(80)?.let { ", $it" } ?: "") + ")" + (prev?.let { " · $it" } ?: ""))
+                .putLong("at", e.timestamp).putBoolean("shown", false).commit()
+        }
     }
 
     /**

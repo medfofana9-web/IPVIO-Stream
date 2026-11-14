@@ -1,5 +1,16 @@
 # Changelog
 
+## Fof TV 1.3.53 (November 2026)
+**Fixed**
+- Search: a short query on a big provider matched tens of thousands of titles and every step after it paid for all of them; hits are now capped at 400 per kind, the heavy dedupe runs in the background, and a source that fails (network, bad data, memory) shows no hits instead of closing the app
+- Sports: leagues that can have a game on right now are asked first, so live games appear before the other 60 leagues answer
+
+**Changed**
+- Sports overview starts with Live now; the "Today's results" row (finished games) is gone
+
+**Diagnostics**
+- When Android closes the app (low memory, not responding, native crash) or the screen freezes for 6 s, the next start shows what happened, with the place it got stuck
+
 ## Fof TV 1.3.51 (November 2026)
 **Fixed**
 - Wrong movie or episode playing: addon streams are now checked against the IMDb id, season and episode and the file name. Another episode, season or title is rejected; unclear sources are marked "Unverified". A playlist title only borrows addon streams that are confirmed
