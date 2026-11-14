@@ -23,7 +23,11 @@ object MainSampler {
         }
         // Journey test: open a tab directly (com.fof.tv.TAB --ei tab N)
         val t = object : BroadcastReceiver() {
-            override fun onReceive(ctx: Context, i: Intent) { AppNav.testTab = i.getIntExtra("tab", -1) }
+            override fun onReceive(ctx: Context, i: Intent) {
+                AppNav.testTab = i.getIntExtra("tab", -1)
+                // Search journey: type a query as if entered on the keyboard
+                i.getStringExtra("q")?.let { SearchState.query = it }
+            }
         }
         if (Build.VERSION.SDK_INT >= 33) {
             c.registerReceiver(r, IntentFilter(ACTION), Context.RECEIVER_EXPORTED)

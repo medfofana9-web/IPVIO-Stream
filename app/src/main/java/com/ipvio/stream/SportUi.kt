@@ -146,9 +146,14 @@ internal fun HubPageFrame(
 ) {
     Dialog(onDismissRequest = onBack, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         val backReq = remember { FocusRequester() }
+        // The page's first element can appear a moment later (data still loading): keep trying, then the Back button.
+        // Before, one failed attempt left the focus behind the page (on the hub's tabs) until a key was pressed.
         LaunchedEffect(Unit) {
-            delay(60)
-            if (runCatching { first.requestFocus() }.isFailure) runCatching { backReq.requestFocus() }
+            repeat(15) {
+                delay(100)
+                if (runCatching { first.requestFocus() }.getOrDefault(false)) return@LaunchedEffect
+            }
+            runCatching { backReq.requestFocus() }
         }
         Column(
             Modifier.fillMaxSize().background(Bg).padding(horizontal = DS.PageX, vertical = DS.PageY),

@@ -107,6 +107,29 @@ jobs:
             adb exec-out screencap -p > p4_back.png
             adb shell uiautomator dump /sdcard/f.xml >/dev/null 2>&1; adb pull /sdcard/f.xml f.xml >/dev/null 2>&1; python3 .github/scripts/focused.py f.xml home-after-back | tee -a journey.txt
             adb shell dumpsys gfxinfo com.fof.tv > gfx_detail.txt
+            adb shell am broadcast -a com.fof.tv.TAB --ei tab 4
+            sleep 4
+            adb shell am broadcast -a com.fof.tv.TAB --ei tab 4 --es q l
+            sleep 1
+            adb shell am broadcast -a com.fof.tv.TAB --ei tab 4 --es q la
+            sleep 1
+            adb shell am broadcast -a com.fof.tv.TAB --ei tab 4 --es q lak
+            sleep 1
+            adb shell am broadcast -a com.fof.tv.TAB --ei tab 4 --es q lakers
+            sleep 12
+            adb exec-out screencap -p > p_search.png
+            adb shell uiautomator dump /sdcard/s.xml >/dev/null 2>&1; adb pull /sdcard/s.xml s.xml >/dev/null 2>&1; python3 .github/scripts/focused.py s.xml search-lakers | tee -a journey.txt
+            adb shell am broadcast -a com.fof.tv.TAB --ei tab 4 --es q denzel
+            sleep 12
+            adb shell uiautomator dump /sdcard/s.xml >/dev/null 2>&1; adb pull /sdcard/s.xml s.xml >/dev/null 2>&1; python3 .github/scripts/focused.py s.xml search-denzel | tee -a journey.txt
+            adb shell input keyevent 22
+            sleep 2
+            (adb shell pidof com.fof.tv > /dev/null && echo "search: app still running" || echo "search: APP CLOSED") | tee -a journey.txt
+            adb logcat -d -b crash > crash_search.txt; adb logcat -d | grep -B2 -A40 "FATAL EXCEPTION" | head -80 >> crash_search.txt
+            adb shell am start -n com.fof.tv/com.ipvio.stream.MainActivity
+            sleep 8
+            adb shell input keyevent 23
+            sleep 6
             adb shell am broadcast -a com.fof.tv.TAB --ei tab 10
             sleep 12
             adb shell 'input keyevent 20; sleep 1; input keyevent 20; sleep 1; input keyevent 22; sleep 1'
@@ -137,6 +160,7 @@ jobs:
           for f in gfx_home.txt gfx_detail.txt; do echo "== $f"; grep -E "Total frames rendered|Janky frames|50th percentile|90th percentile|95th percentile|99th percentile|Slow UI thread|Frame deadline missed" $f || true; done
           grep -E "TOTAL" meminfo.txt | head -3 || true
           echo "== journey"; cat journey.txt 2>/dev/null || true
+          echo "== search crash log"; head -80 crash_search.txt 2>/dev/null || true
           echo "== cold start"; grep -E "TotalTime|WaitTime" cold.txt || true; echo "== warm start"; grep -E "TotalTime|WaitTime" warm.txt || true
           echo "== cold start main thread"; sed 's/^.*FofProfile: //' cold_profile.txt | head -120 || true
           echo "== main thread samples"; grep "FofProfile" logcat.txt | sed 's/^.*FofProfile: //' || true
