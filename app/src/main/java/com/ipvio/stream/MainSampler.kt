@@ -33,6 +33,12 @@ object MainSampler {
 
     @Volatile private var cardMarked = false
 
+    /** Test builds: logs a moment in the startup ("profile picked") with the time since process start. */
+    fun mark(what: String) {
+        if (!BuildConfig.VERSION_NAME.endsWith("-test")) return
+        Log.i("FofProfile", "[start] $what after " + (android.os.SystemClock.elapsedRealtime() - android.os.Process.getStartElapsedRealtime()) + " ms")
+    }
+
     /** Test builds: logs once how long after process start the first poster card was composed (home usable). */
     fun firstCard() {
         if (cardMarked || !BuildConfig.VERSION_NAME.endsWith("-test")) return

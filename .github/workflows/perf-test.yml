@@ -121,7 +121,9 @@ jobs:
             adb logcat -c
             adb shell am force-stop com.fof.tv
             sleep 2
-            adb shell am start -W -n com.fof.tv/com.ipvio.stream.MainActivity --ei fof_profile_start 8000 | tee cold.txt
+            adb shell am start -W -n com.fof.tv/com.ipvio.stream.MainActivity --ei fof_profile_start 9000 | tee cold.txt
+            sleep 2
+            adb shell input keyevent 23
             sleep 12
             adb exec-out screencap -p > p6_cold.png
             adb logcat -d -s FofProfile > cold_profile.txt
