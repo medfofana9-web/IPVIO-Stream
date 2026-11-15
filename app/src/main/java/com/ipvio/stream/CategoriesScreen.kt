@@ -321,7 +321,7 @@ private fun CatTile(name: String, items: List<Item>, modifier: Modifier, onClick
     Box(
         modifier.graphicsLayer { scaleX = s; scaleY = s }.fillMaxWidth().height(132.dp).focusGlow(f, shape).clip(shape)
             .background(Brush.linearGradient(listOf(tint, Surf)))
-            .border(DS.FocusBorder, if (f) Accent2 else DS.Overlay1, shape)
+            .border(1.dp, FofGlass.edge(false), shape)
             .onFocusChanged { f = it.isFocused }
             .clickable(onClick = onClick)
     ) {
@@ -357,7 +357,7 @@ private fun AutoGenresOff() {
     val nf = java.text.NumberFormat.getIntegerInstance()
     val shape = RoundedCornerShape(DS.RadiusL)
     Column(
-        Modifier.widthIn(max = 720.dp).clip(shape).background(Surf).padding(24.dp),
+        Modifier.widthIn(max = 720.dp).glass(shape, 2).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Text("Automatische Genres sind für diese Auswahl ausgeschaltet", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)

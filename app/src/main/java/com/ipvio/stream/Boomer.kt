@@ -596,9 +596,7 @@ private fun PickRow(title: String, sub: String, logo: String?, selected: Boolean
     var f by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(DS.RadiusM)
     Row(
-        Modifier.fillMaxWidth().clip(shape)
-            .background(if (f) RowFocus else Surf)
-            .border(DS.Border, if (f) Accent2 else DS.Hairline, shape)
+        Modifier.fillMaxWidth().glass(shape, 1, f)
             .onFocusChanged { f = it.isFocused }
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),

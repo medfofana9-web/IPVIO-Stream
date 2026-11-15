@@ -213,7 +213,7 @@ private fun ProfileTile(name: String, avatar: ProfileAvatars.Preset, locked: Boo
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(Modifier.size(if (small) 136.dp else 180.dp)) {
-            Box(Modifier.fillMaxSize().clip(shape).border(if (f) 4.dp else 0.dp, Color.White, shape)) {
+            Box(Modifier.fillMaxSize().clip(shape).border(if (f) 2.dp else 1.dp, if (f) FofGlass.rim() else FofGlass.edge(false), shape)) {
                 FofAvatar(avatar, Modifier.fillMaxSize())
                 if (!f) Box(Modifier.fillMaxSize().background(Color(0x33000000)))
             }
@@ -251,8 +251,7 @@ private fun OutlinePill(label: String, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(50)
     Box(
-        Modifier.onFocusChanged { f = it.isFocused }.clip(shape).background(if (f) Color.White else Color.Transparent)
-            .border(2.dp, if (f) Color.White else Color(0x40FFFFFF), shape).clickable(onClick = onClick)
+        Modifier.onFocusChanged { f = it.isFocused }.then(if (f) Modifier.clip(shape).background(Color.White) else Modifier.glass(shape, 0)).clickable(onClick = onClick)
             .padding(horizontal = 34.dp, vertical = 14.dp)
     ) { Text(label, color = if (f) Color.Black else Color(0xB3FFFFFF), fontSize = 20.sp, fontWeight = FontWeight.SemiBold, raw = true) }
 }

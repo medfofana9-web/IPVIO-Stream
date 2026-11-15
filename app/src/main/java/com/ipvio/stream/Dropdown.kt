@@ -108,8 +108,7 @@ fun OptionPopup(options: List<String>, selected: Int, onDismiss: () -> Unit, ico
                 if (!ok || armed) false
                 else if (e.type == KeyEventType.KeyDown && e.nativeKeyEvent.repeatCount == 0) { armed = true; false }
                 else true
-            }.width(300.dp).heightIn(max = 340.dp).clip(shape)
-                .background(Surf.copy(alpha = 0.97f)).border(1.dp, DS.Overlay3, shape).padding(8.dp)
+            }.width(300.dp).heightIn(max = 340.dp).glass(shape, 2).padding(8.dp)
         ) {
             LazyColumn(state = state) {
                 itemsIndexed(options) { i, o ->
@@ -127,7 +126,7 @@ fun OptionRow(text: String, selected: Boolean, modifier: Modifier = Modifier, ic
     Row(
         modifier.fillMaxWidth().clip(shape)
             .background(if (f) DS.Overlay4 else Color.Transparent)
-            .border(DS.Border, if (f) Accent2 else Color.Transparent, shape)
+            .then(if (f) Modifier.border(1.dp, FofGlass.edge(true), shape) else Modifier)
             .onFocusChanged { f = it.isFocused }
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 11.dp),

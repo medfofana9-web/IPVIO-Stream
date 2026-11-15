@@ -265,7 +265,7 @@ fun ChannelOverlay(
                 val nowE = Epg.current(fe)
                 val barShape = RoundedCornerShape(DS.RadiusL)
                 Row(
-                    Modifier.fillMaxWidth().clip(barShape).background(PT.PanelBg).border(1.dp, PT.PanelBorder, barShape).padding(horizontal = 16.dp, vertical = 12.dp),
+                    Modifier.fillMaxWidth().glass(barShape, 2).padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.Top,
                     horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {

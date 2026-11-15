@@ -285,7 +285,7 @@ private fun PhoneCard(modifier: Modifier, address: String?, code: String) {
     var bigQr by remember { mutableStateOf(false) }
     // The card scrolls (the focused QR code brings the rest into view), so nothing is cut off on small screens
     Column(
-        modifier.fillMaxHeight().clip(shape).background(Surf).border(2.dp, Surf2, shape).verticalScroll(rememberScrollState()).padding(22.dp),
+        modifier.fillMaxHeight().glass(shape, 2).verticalScroll(rememberScrollState()).padding(22.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Text("Einfacher mit dem Handy", color = Accent2, fontSize = 22.sp, fontWeight = FontWeight.Bold)

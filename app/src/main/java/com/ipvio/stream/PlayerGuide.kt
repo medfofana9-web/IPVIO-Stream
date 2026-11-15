@@ -234,7 +234,7 @@ fun Guide(
                                 onDismissRequest = { showSettings = false }, properties = PopupProperties(focusable = true)
                             ) {
                                 Column(
-                                    Modifier.width(380.dp).clip(RoundedCornerShape(DS.RadiusL)).background(Tok.GlassStrong).padding(18.dp),
+                                    Modifier.width(380.dp).glass(RoundedCornerShape(DS.RadiusL), 2).padding(18.dp),
                                     verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
                                     Text("TV-Guide – Ansicht", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)

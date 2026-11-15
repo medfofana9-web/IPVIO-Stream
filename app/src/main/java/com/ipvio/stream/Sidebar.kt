@@ -260,6 +260,8 @@ fun Sidebar(tab: Int, onTab: (Int) -> Unit, modifier: Modifier, activeFocus: Foc
         Column(
             Modifier.width(w).fillMaxHeight().align(if (right) Alignment.CenterEnd else Alignment.CenterStart)
                 .background(SidebarBg)
+                // FOF Glass: the rail is a tall pane over the content (body and sheen, edge line below)
+                .background(FofGlass.sheen(2, false))
                 .drawBehind {
                     val x = if (right) 0f else size.width - 1f
                     drawLine(Color(0x1AFFFFFF), Offset(x, 0f), Offset(x, size.height), 1f)

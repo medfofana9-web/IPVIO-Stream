@@ -436,7 +436,7 @@ private fun NameDialog(title: String, initial: String, onDismiss: () -> Unit, on
     LaunchedEffect(Unit) { kotlinx.coroutines.delay(100); runCatching { fr.requestFocus() } }
     Box(Modifier.fillMaxSize().background(Color(0xB3000000)), contentAlignment = Alignment.Center) {
         Column(
-            Modifier.width(520.dp).clip(RoundedCornerShape(DS.RadiusL)).background(Surf).border(1.dp, DS.Overlay3, RoundedCornerShape(DS.RadiusL)).padding(24.dp),
+            Modifier.width(520.dp).glass(RoundedCornerShape(DS.RadiusL), 2).padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(title, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
@@ -586,7 +586,7 @@ fun ReminderCard(r: Reminder, modifier: Modifier, onClose: () -> Unit, onSwitch:
     }
     val shape = RoundedCornerShape(DS.RadiusL)
     Row(
-        modifier.widthIn(max = 760.dp).clip(shape).background(Tok.GlassStrong).border(1.dp, Accent2, shape).padding(horizontal = 20.dp, vertical = 14.dp),
+        modifier.widthIn(max = 760.dp).glass(shape, 2).padding(horizontal = 20.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {

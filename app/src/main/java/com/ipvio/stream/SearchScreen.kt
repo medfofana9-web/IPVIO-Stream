@@ -405,7 +405,7 @@ private fun SearchAllTile(live: Boolean, w: Dp, onClick: () -> Unit) {
         val shape = RoundedCornerShape(DS.RadiusM)
         Column(
             Modifier.width(w).graphicsLayer { scaleX = s; scaleY = s }.focusGlow(f, shape).clip(shape).background(Surf)
-                .border(DS.FocusBorder, if (f) Accent2 else Surf2, shape)
+                .border(1.dp, FofGlass.edge(false), shape)
                 .onFocusChanged { f = it.isFocused }
                 .clickable(onClick = onClick)
         ) {
@@ -426,7 +426,7 @@ private fun SearchAllTile(live: Boolean, w: Dp, onClick: () -> Unit) {
         ) {
             Box(
                 Modifier.fillMaxWidth().aspectRatio(2f / 3f).focusGlow(f, shape).clip(shape).background(Surf)
-                    .border(DS.FocusBorder, if (f) Accent2 else Surf2, shape),
+                    .border(1.dp, FofGlass.edge(false), shape),
                 contentAlignment = Alignment.Center
             ) {
                 IconLabel(null, "Alle anzeigen", Color.White, 18.sp, FontWeight.Bold, trailing = AIcon.Right)
@@ -478,7 +478,7 @@ private fun SearchRow(
 private fun QueryBox(text: String, modifier: Modifier) {
     val shape = RoundedCornerShape(16.dp)
     Box(
-        modifier.height(50.dp).clip(shape).background(Surf).padding(horizontal = 16.dp),
+        modifier.height(50.dp).glass(shape, 2).padding(horizontal = 16.dp),
         contentAlignment = Alignment.CenterStart
     ) {
         if (text.isEmpty()) Text("Search", color = Muted, fontSize = 18.sp, maxLines = 1, raw = true)
@@ -554,6 +554,7 @@ private fun KbKey(label: String, modifier: Modifier, onFocusChange: (Boolean) ->
     Box(
         modifier.height(34.dp).graphicsLayer { scaleX = sc; scaleY = sc }.clip(shape)
             .background(if (f) DS.FocusFill else DS.Overlay2)
+            .then(if (f) Modifier else Modifier.background(FofGlass.sheen(0, false)))
             .onPreviewKeyEvent { e ->
                 if (onRight != null && e.type == KeyEventType.KeyDown && e.key == Key.DirectionRight) onRight() else false
             }
@@ -575,7 +576,7 @@ private val LocalSearchFocus = compositionLocalOf<(Item) -> Unit> { {} }
 private fun SearchInfoPanel(item: Item?, modifier: Modifier) {
     val ctx = LocalContext.current
     val shape = RoundedCornerShape(DS.RadiusM)
-    Box(modifier.clip(shape).background(Surf).border(DS.Border, Surf2, shape)) {
+    Box(modifier.glass(shape, 2)) {
         if (item == null) {
             Text("Suche nach einem Titel: hier erscheinen Beschreibung, Bewertung und Format des markierten Treffers.", color = Muted, fontSize = 16.sp,
                 modifier = Modifier.align(Alignment.Center).padding(24.dp))
@@ -637,6 +638,7 @@ private fun MiniChip(label: String, selected: Boolean, modifier: Modifier = Modi
     Box(
         modifier.height(32.dp).clip(shape)
             .background(if (f) DS.FocusFill else if (selected) DS.Overlay3 else Surf)
+            .then(if (f) Modifier else Modifier.background(FofGlass.sheen(0, false)))
             .border(DS.Border, if (f) DS.FocusFill else if (selected) Color(0x99FFFFFF) else DS.Hairline, shape)
             .onFocusChanged { f = it.isFocused }
             .clickable(onClick = onClick)

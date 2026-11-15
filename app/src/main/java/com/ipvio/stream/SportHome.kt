@@ -109,6 +109,7 @@ private fun LiveGameCard(g: SportData.Game, onClick: () -> Unit) {
     Column(
         Modifier.width(dpx(320)).graphicsLayer { scaleX = s; scaleY = s }.clip(shape)
             .background(if (f) DS.FocusFill else Tok.Card)
+            .then(if (f) Modifier else Modifier.background(FofGlass.sheen(0, false)))
             .border(1.dp, if (f) DS.FocusFill else Tok.Line, shape)
             .onFocusChanged { f = it.isFocused }
             .trackFocus()

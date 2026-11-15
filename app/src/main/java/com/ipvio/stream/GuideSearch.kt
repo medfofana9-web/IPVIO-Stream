@@ -77,7 +77,7 @@ fun GuideSearchDialog(channels: List<Item>, onPick: (Item) -> Unit, onClose: () 
     }
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
-            Modifier.width(1180.dp).heightIn(max = 640.dp).clip(RoundedCornerShape(DS.RadiusL)).background(Tok.GlassStrong).padding(20.dp),
+            Modifier.width(1180.dp).heightIn(max = 640.dp).glass(RoundedCornerShape(DS.RadiusL), 2).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text("Im TV-Guide suchen", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)

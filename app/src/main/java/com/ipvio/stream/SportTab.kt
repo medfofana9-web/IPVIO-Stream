@@ -362,6 +362,7 @@ private fun HubSportRow(label: String, count: Int, selected: Boolean, modifier: 
     Row(
         modifier.fillMaxWidth().height(dpx(52)).clip(shape)
             .background(if (f) DS.FocusFill else if (selected) Color(0x33FFFFFF) else Color(0x0FFFFFFF))
+            .then(if (f) Modifier else Modifier.background(FofGlass.sheen(0, false)))
             .border(if (selected && !f) 2.dp else 0.dp, Accent1, shape)
             .onFocusChanged { f = it.isFocused }
             .trackFocus()

@@ -965,7 +965,7 @@ private fun WideCard(item: Item, sub: String?, progress: Float, modifier: Modifi
         Box(
             Modifier.fillMaxWidth().aspectRatio(16f / 9f).focusGlow(f, shape).clip(shape)
                 .background(Brush.linearGradient(listOf(colorFor(item).copy(alpha = .75f), Surf2)))
-                .border(DS.FocusBorder, if (f) Accent2 else Color.Transparent, shape)
+                .border(1.dp, FofGlass.edge(false), shape)
         ) {
             if (img != null) AsyncImage(img, item.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xDD000000))))

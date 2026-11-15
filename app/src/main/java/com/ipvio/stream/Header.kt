@@ -106,6 +106,7 @@ private fun SearchPill(w: Int, onClick: () -> Unit) {
     Row(
         Modifier.width(dpx(w)).height(dpx(50)).clip(shape)
             .background(if (f) DS.FocusFill else Color(0xCC0E0E12))
+            .then(if (f) Modifier else Modifier.background(FofGlass.sheen(0, false)))
             .border(1.dp, if (f) DS.FocusFill else Color(0x33FFFFFF), shape)
             .onFocusChanged { f = it.isFocused }
             .trackFocus()
@@ -138,6 +139,7 @@ private fun NavTab(t: HeaderTab, fixedReq: FocusRequester?) {
     Row(
         Modifier.graphicsLayer { scaleX = s; scaleY = s }.height(dpx(44)).clip(shape)
             .background(if (f) DS.FocusFill else Color(0x14FFFFFF))
+            .then(if (f) Modifier else Modifier.background(FofGlass.sheen(0, false)))
             .onFocusChanged { f = it.isFocused }
             .trackFocus(back)
             .clickable { HeaderFocus.returnTo = t.id; t.onClick() }
@@ -155,8 +157,7 @@ private fun RoundHeaderButton(icon: AIcon, modifier: Modifier = Modifier, onClic
     var f by remember { mutableStateOf(false) }
     Box(
         modifier.size(dpx(48)).clip(CircleShape)
-            .background(if (f) DS.FocusFill else Tok.Glass)
-            .border(1.dp, if (f) DS.FocusFill else Color(0x26FFFFFF), CircleShape)
+            .then(if (f) Modifier.background(DS.FocusFill) else Modifier.background(FofGlass.body(0, false)).background(FofGlass.sheen(0, false)).border(1.dp, FofGlass.edge(false), CircleShape))
             .onFocusChanged { f = it.isFocused }
             .trackFocus()
             .clickable(onClick = onClick),
@@ -227,6 +228,7 @@ private fun ChoiceChip(label: String, selected: Boolean, modifier: Modifier, onC
     Row(
         modifier.height(dpx(42)).clip(shape)
             .background(if (f) DS.FocusFill else if (selected) Accent1.copy(alpha = .22f) else Color(0x1AFFFFFF))
+            .then(if (f) Modifier else Modifier.background(FofGlass.sheen(0, false)))
             .border(1.dp, if (f) DS.FocusFill else if (selected) Accent1 else Color.Transparent, shape)
             .onFocusChanged { f = it.isFocused }
             .clickable(onClick = onClick)

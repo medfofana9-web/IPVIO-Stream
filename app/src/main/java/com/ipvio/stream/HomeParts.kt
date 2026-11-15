@@ -208,6 +208,7 @@ fun HeroButton(text: String, icon: AIcon, primary: Boolean, modifier: Modifier =
     Row(
         modifier.graphicsLayer { val k = s * pulse.scale; scaleX = k; scaleY = k }.height(dpx(h)).clip(shape)
             .background(if (f) DS.FocusFill else Color(0x33FFFFFF))
+            .then(if (f) Modifier else Modifier.background(FofGlass.sheen(0, false)))
             .border(1.dp, if (f) DS.FocusFill else Color(0x40FFFFFF), shape)
             .onFocusChanged { f = it.isFocused }
             .trackFocus()
@@ -232,6 +233,7 @@ fun DetailPill(text: String, modifier: Modifier = Modifier, light: Boolean = fal
     Row(
         modifier.graphicsLayer { val k = s * pulse.scale; scaleX = k; scaleY = k }.height(dpx(h)).clip(shape)
             .background(if (f) DS.FocusFill else if (light) Color(0x66FFFFFF) else Color(0x33FFFFFF))
+            .then(if (f) Modifier else Modifier.background(FofGlass.sheen(0, false)))
             .border(1.dp, if (f) DS.FocusFill else if (light) Color(0xB3FFFFFF) else Color(0x40FFFFFF), shape)
             .onFocusChanged { f = it.isFocused }
             .trackFocus()

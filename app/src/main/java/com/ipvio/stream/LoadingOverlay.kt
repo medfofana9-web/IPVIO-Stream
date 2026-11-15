@@ -171,7 +171,7 @@ private fun SlowHint(onChoose: () -> Unit, onClose: () -> Unit) {
     LaunchedEffect(Unit) { delay(150); runCatching { first.requestFocus() } }
     val shape = RoundedCornerShape(DS.RadiusL)
     Column(
-        Modifier.fillMaxWidth().clip(shape).background(Surf).border(DS.Border, Accent2.copy(alpha = 0.6f), shape).padding(20.dp),
+        Modifier.fillMaxWidth().glass(shape, 2).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text("Das dauert gerade sehr lange.", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)

@@ -42,7 +42,7 @@ fun UpdatePromptHost() {
     ) {
         Box(Modifier.fillMaxSize().background(Color(0xE6000000)), contentAlignment = Alignment.Center) {
             Column(
-                Modifier.widthIn(max = 560.dp).clip(RoundedCornerShape(20.dp)).background(Tok.GlassStrong).padding(32.dp),
+                Modifier.widthIn(max = 560.dp).glass(RoundedCornerShape(20.dp), 2).padding(32.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Text("Update verfügbar", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)

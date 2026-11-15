@@ -185,7 +185,8 @@ private fun SettingsCard(cat: Cat, idx: Int, modifier: Modifier, onClick: () -> 
     Row(
         modifier.height(dpx(96)).graphicsLayer { scaleX = s; scaleY = s }.clip(shape)
             .background(Brush.horizontalGradient(listOf(c1, c2)))
-            .border(if (f) 3.dp else 1.dp, if (f) Color.White else ink.copy(alpha = .22f), shape)
+            .background(FofGlass.sheen(1, f))
+            .border(if (f) 1.5.dp else 1.dp, if (f) FofGlass.rim() else FofGlass.edge(false), shape)
             .onFocusChanged { f = it.isFocused }
             .trackFocus()
             .clickable(onClick = onClick)
@@ -210,8 +211,7 @@ private fun SettingsBack(modifier: Modifier, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     Box(
         modifier.size(dpx(52)).clip(CircleShape)
-            .background(if (f) DS.FocusFill else Tok.Glass)
-            .border(1.dp, if (f) DS.FocusFill else Color(0x26FFFFFF), CircleShape)
+            .then(if (f) Modifier.background(DS.FocusFill) else Modifier.background(FofGlass.body(0, false)).background(FofGlass.sheen(0, false)).border(1.dp, FofGlass.edge(false), CircleShape))
             .onFocusChanged { f = it.isFocused }
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
@@ -238,6 +238,7 @@ internal fun ChoiceChip(label: String, selected: Boolean, dots: List<Color> = em
     Row(
         modifier.graphicsLayer { scaleX = sc; scaleY = sc }.height(46.dp).clip(shape)
             .background(if (f) DS.FocusFill else if (selected) DS.Overlay3 else Surf)
+            .then(if (f) Modifier else Modifier.background(FofGlass.sheen(0, false)))
             .border(DS.Border, if (f) DS.FocusFill else if (selected) Color(0x99FFFFFF) else DS.Hairline, shape)
             .onFocusChanged { if (f != it.isFocused) { f = it.isFocused; onFocus?.invoke(it.isFocused) } }
             .clickable(onClick = onClick)
@@ -279,9 +280,7 @@ internal fun ToggleRow(title: String, desc: String?, checked: Boolean, onChange:
     var f by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(DS.RadiusM)
     Row(
-        Modifier.fillMaxWidth().widthIn(max = 760.dp).clip(shape)
-            .background(if (f) RowFocus else Surf)
-            .border(DS.Border, if (f) Accent2 else DS.Hairline, shape)
+        Modifier.fillMaxWidth().widthIn(max = 760.dp).glass(shape, 1, f)
             .onFocusChanged { f = it.isFocused }
             .clickable { onChange(!checked) }
             .padding(horizontal = 18.dp, vertical = 12.dp),
@@ -322,9 +321,7 @@ internal fun SelectRow(label: String, value: String, options: List<String>, sele
     val shape = RoundedCornerShape(DS.RadiusM)
     Box {
         Row(
-            Modifier.fillMaxWidth().widthIn(max = 760.dp).clip(shape)
-                .background(if (f) RowFocus else Surf)
-                .border(DS.Border, if (f) Accent2 else DS.Hairline, shape)
+            Modifier.fillMaxWidth().widthIn(max = 760.dp).glass(shape, 1, f)
                 .onFocusChanged { f = it.isFocused }
                 .clickable { open = true }
                 .padding(horizontal = 18.dp, vertical = 14.dp),

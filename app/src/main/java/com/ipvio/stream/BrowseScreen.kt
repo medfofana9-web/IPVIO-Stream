@@ -438,7 +438,7 @@ private fun CinemaView(
         // Hint: Down continues here
         if (t < 0.99f) Row(
             Modifier.align(Alignment.BottomEnd).padding(end = dpx(28), bottom = dpx(18)).graphicsLayer { alpha = 1f - t }
-                .clip(RoundedCornerShape(dpx(20))).background(Tok.Glass).padding(horizontal = dpx(16), vertical = dpx(6)),
+                .glass(RoundedCornerShape(dpx(20)), 1).padding(horizontal = dpx(16), vertical = dpx(6)),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(8))
         ) {
             IconLabel(AIcon.Down, "Runter für Details und Abspielen", Muted, 14.sp, iconSize = 16.dp, maxLines = 1)

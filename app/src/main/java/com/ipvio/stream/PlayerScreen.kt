@@ -1463,7 +1463,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         }
         msg?.takeIf { !Boomer.enabled }?.let { m ->
             Box(
-                Modifier.align(Alignment.Center).clip(RoundedCornerShape(DS.RadiusM)).background(PT.PanelBg)
+                Modifier.align(Alignment.Center).glass(RoundedCornerShape(DS.RadiusM), 2)
                     .padding(horizontal = 28.dp, vertical = 18.dp)
             ) { Text(m, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold) }
         }

@@ -65,8 +65,7 @@ fun PillButton(text: String, modifier: Modifier = Modifier, light: Boolean = fal
     val c = buttonColors(f, primary = light)
     Box(
         modifier.graphicsLayer { val k = s * pulse.scale; scaleX = k; scaleY = k }
-            .clip(shape)
-            .background(c.bg)
+            .then(if (f) Modifier.clip(shape).background(c.bg) else Modifier.glass(shape, 0))
             .onFocusChanged { f = it.isFocused }
             .clickable(onClick = { pulse.pulse(); onClick() })
             .padding(horizontal = 24.dp, vertical = 12.dp),
@@ -85,8 +84,7 @@ fun SmallPill(text: String, modifier: Modifier = Modifier, icon: AIcon? = null, 
     val c = buttonColors(f, primary = false)
     Box(
         modifier.graphicsLayer { val k = s * pulse.scale; scaleX = k; scaleY = k }
-            .clip(shape)
-            .background(c.bg)
+            .then(if (f) Modifier.clip(shape).background(c.bg) else Modifier.glass(shape, 0))
             .onFocusChanged { f = it.isFocused }
             .clickable(onClick = { pulse.pulse(); onClick() })
             .padding(horizontal = 16.dp, vertical = 7.dp),
@@ -173,7 +171,7 @@ fun PosterCard(
         Box(
             posterMod.focusGlow(f, shape).clip(shape)
                 .background(Brush.linearGradient(listOf(colorFor(item).copy(alpha = .75f), Surf2)))
-                .border(DS.FocusBorder, border, shape),
+                .border(1.dp, FofGlass.edge(false), shape),
             contentAlignment = Alignment.Center
         ) {
             // Round 17: placeholder (gradient, initials, icon, title) below the image, stays visible if it is missing or does not load
@@ -222,7 +220,7 @@ fun LiveCard(item: Item, onClick: () -> Unit, modifier: Modifier = Modifier) {
         modifier.graphicsLayer { scaleX = s; scaleY = s }
             .focusGlow(f, shape)
             .clip(shape).background(Surf)
-            .border(DS.FocusBorder, border, shape)
+            .border(1.dp, FofGlass.edge(false), shape)
             .onFocusChanged { f = it.isFocused }
             .favKeys { Library.toggleFav(ctx, item.id) }
             .clickable(onClick = onClick)

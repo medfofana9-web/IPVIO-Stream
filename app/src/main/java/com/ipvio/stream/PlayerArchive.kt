@@ -95,7 +95,7 @@ fun BoxScope.ArchivePanel(
     val shape = RoundedCornerShape(PT.PanelRadius)
     Column(
         Modifier.align(Alignment.TopEnd).padding(top = PT.MarginY, end = PT.MarginY).width(w).heightIn(max = maxH)
-            .clip(shape).background(PT.PanelBg).border(1.dp, PT.PanelBorder, shape).padding(22.dp)
+            .glass(shape, 2).padding(22.dp)
     ) {
         // Header: which channel, which day
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {

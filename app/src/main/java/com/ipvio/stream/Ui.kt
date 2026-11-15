@@ -164,7 +164,9 @@ fun buttonColors(focused: Boolean, primary: Boolean): ButtonColors = when {
 /** Soft glow in the highlight color around focused cards (colored on Android 9+, neutral below). */
 fun Modifier.focusGlow(focused: Boolean, shape: androidx.compose.ui.graphics.Shape): Modifier =
     // Round 14 (user's wish): no colored glow around selected fields any more, only a subtle dark shadow
-    if (!focused) this else this.shadow(10.dp, shape, clip = false, ambientColor = Tok.Lift, spotColor = Tok.Lift)
+    // FOF Glass: a soft shadow lifts the card, its rim catches light (no colored frame, no glow)
+    if (!focused) this else this.shadow(12.dp, shape, clip = false, ambientColor = Tok.Lift, spotColor = Tok.Lift)
+        .border(1.5.dp, FofGlass.rim(), shape)
 
 @Composable
 fun FocusButton(text: String, modifier: Modifier = Modifier, primary: Boolean = false, compact: Boolean = false, onClick: () -> Unit) {
@@ -174,8 +176,7 @@ fun FocusButton(text: String, modifier: Modifier = Modifier, primary: Boolean = 
     Box(
         modifier
             .graphicsLayer { scaleX = s; scaleY = s }
-            .clip(shape)
-            .background(if (f) SolidColor(DS.FocusFill) else if (primary) SolidColor(lerp(DS.Overlay3, Look.accent1, 0.32f)) else SolidColor(DS.Overlay3))
+            .then(if (f) Modifier.clip(shape).background(SolidColor(DS.FocusFill)) else Modifier.glass(shape, 0))
             .onFocusChanged { f = it.isFocused }
             .clickable(onClick = onClick)
             .padding(horizontal = if (compact) 20.dp else 28.dp, vertical = if (compact) 9.dp else 14.dp),

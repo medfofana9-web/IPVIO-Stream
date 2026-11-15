@@ -77,6 +77,7 @@ fun PRoundButton(
             .size(size)
             .clip(CircleShape)
             .background(if (f) Color.White else PT.BtnBg)
+            .then(if (f) Modifier else Modifier.background(FofGlass.sheen(0, false)))
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onLabel(label) }
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
@@ -122,8 +123,7 @@ fun PSkipPill(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) 
         modifier
             .graphicsLayer { scaleX = sc; scaleY = sc }
             .height(38.dp).clip(shape)
-            .background(if (f) DS.FocusFill else Color(0x8C000000))
-            .border(if (f) 3.dp else 1.dp, if (f) Accent1 else Color(0x59FFFFFF), shape)
+            .then(if (f) Modifier.background(DS.FocusFill) else Modifier.background(FofGlass.body(0, false)).background(FofGlass.sheen(0, false)).border(1.dp, FofGlass.edge(false), shape))
             .onFocusChanged { f = it.isFocused }
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp),
@@ -186,7 +186,7 @@ private fun PTimeBubble(pos: () -> Long, dur: () -> Long) {
                 val x = (cx - p.width / 2f).toInt().coerceIn(0, (barW - p.width).coerceAtLeast(0))
                 layout(p.width, p.height) { p.place(x, -(p.height + 6.dp.roundToPx())) }
             }
-            .clip(shape).background(Surf).border(1.dp, PT.PanelBorder, shape)
+            .glass(shape, 2)
             .height(28.dp).padding(horizontal = 10.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -310,7 +310,7 @@ fun BoxScope.PPanelFrame(
     Column(
         Modifier.align(Alignment.TopEnd).padding(top = PT.MarginY, end = PT.MarginY)
             .width(width).heightIn(max = maxH)
-            .clip(shape).background(PT.PanelBg).border(1.dp, PT.PanelBorder, shape)
+            .glass(shape, 2)
             // Down at the end of the list: close the menu, the focus goes back to the icon in the control bar.
             // "exit" is called only when the focus would leave the menu downward (i.e. nothing below in the menu).
             .focusProperties {

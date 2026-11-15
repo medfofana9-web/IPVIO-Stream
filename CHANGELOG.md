@@ -1,5 +1,14 @@
 # Changelog
 
+## Fof TV 1.3.87 (November 2026)
+**FOF Glass, Fof TV's own surface design**
+- One shared glass style (Glass.kt) on buttons, pills, settings rows and cards, menus, the sidebar, the header, the
+  player's bars and menus, the TV guide panels, Who's watching and the PIN screen: a translucent tinted pane, light
+  from above, and an edge that catches light at the top
+- Focused posters, game cards and tiles: no colored frame any more; the card lifts with a soft shadow and its rim
+  catches light. Buttons stay white when focused (best to read from the couch)
+- No live blur: three plain draw layers per surface, cached, so Fire TV stays as fast as before
+
 ## Fof TV 1.3.86 (November 2026)
 - Fixed a frozen screen ("Freeze · GameDay < MainActivity"): Game Day (reminders, auto-tune for your teams, close-game
   alerts) ran on the main thread, including matching each game against every live channel. It now runs in the

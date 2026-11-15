@@ -116,9 +116,7 @@ private fun DeviceRow(d: AccountCloud.Device, mine: Boolean, onClick: () -> Unit
     var f by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(DS.RadiusM)
     Row(
-        Modifier.fillMaxWidth().widthIn(max = 760.dp).clip(shape)
-            .background(if (f) RowFocus else Surf)
-            .border(DS.Border, if (f) Accent2 else DS.Hairline, shape)
+        Modifier.fillMaxWidth().widthIn(max = 760.dp).glass(shape, 1, f)
             .onFocusChanged { f = it.isFocused }
             .clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 12.dp),

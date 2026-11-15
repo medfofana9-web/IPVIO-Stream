@@ -66,6 +66,7 @@ private fun LChip(label: String, selected: Boolean, onClick: () -> Unit) {
     Row(
         Modifier.height(32.dp).clip(shape)
             .background(if (f) DS.FocusFill else if (selected) Accent1 else Color(0x26FFFFFF))
+            .then(if (f) Modifier else Modifier.background(FofGlass.sheen(0, false)))
             .border(if (f) 2.dp else 1.dp, if (f) Color.White else if (selected) Accent1 else Color(0x33FFFFFF), shape)
             .onFocusChanged { f = it.isFocused }
             .clickable(onClick = onClick)
