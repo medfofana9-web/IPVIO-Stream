@@ -169,7 +169,8 @@ object FofAccount {
             runCatching { call("GET", "/rest/v1/household_config?select=playlist_url,addons&household_id=eq.${m.householdId}", null, t) }.getOrNull()
         }?.takeIf { it.first in 200..299 }?.second?.let { AccountLogic.configFrom(it) }
         if (cfg == null) { status = "Could not reach the family setup"; return }
-        if (m.owner) { status = "Owner of the family setup"; return }
+        // The owner's TV is the source of the setup; only a fresh install of it (no playlist yet) takes the saved setup back
+        if (m.owner && PlaylistStore.savedUrl(c) != null) { status = "Owner of the family setup"; return }
         Stremio.ensure(c)
         val fromFamily = prefs(c).getStringSet("fam_addons", emptySet()).orEmpty()
         val have = Stremio.addons.map { it.base.lowercase() }.toSet()

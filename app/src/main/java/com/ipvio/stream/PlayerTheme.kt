@@ -16,7 +16,7 @@ object PT {
     val PanelBorder = DS.Overlay1
     val BtnBg = Color(0x24FFFFFF)       // round buttons at rest
     val Track = DS.Overlay3
-    val Buffered = Color(0x6BFFFFFF)
+    val Buffered = Color(0x45FFFFFF)
     val ScrimTop = Color(0xCC000000)
     val ScrimBottom = Color(0xE6000000)
 

@@ -222,13 +222,11 @@ jobs:
             adb exec-out screencap -p > p9_sports_again.png
             # Audit: every other screen once (Movies, Shows, TV guide, Favorites, My list, History), the sports tabs and a
             # settings page; the app must stay up, nothing may freeze, and each screen goes into the report
-            for t in 1 2 6 7 8 9; do
-              adb shell am broadcast -a com.fof.tv.TAB --ei tab $t >/dev/null; sleep 7
-              adb exec-out screencap -p > p_tab$t.png
-              adb shell input keyevent 4; sleep 2
-            done
+            adb shell 'for t in 1 2 6 7 8 9; do am broadcast -a com.fof.tv.TAB --ei tab $t >/dev/null; sleep 7; screencap -p /sdcard/p_tab$t.png; input keyevent 4; sleep 2; done'
+            for t in 1 2 6 7 8 9; do adb pull /sdcard/p_tab$t.png p_tab$t.png >/dev/null 2>&1; done
             adb shell am broadcast -a com.fof.tv.TAB --ei tab 10 >/dev/null; sleep 8
-            for k in 1 2 3; do adb shell 'input keyevent 22; sleep 0.6; input keyevent 23'; sleep 6; adb exec-out screencap -p > p_sport$k.png; done
+            adb shell 'for k in 1 2 3; do input keyevent 22; sleep 0.6; input keyevent 23; sleep 6; screencap -p /sdcard/p_sport$k.png; done'
+            for k in 1 2 3; do adb pull /sdcard/p_sport$k.png p_sport$k.png >/dev/null 2>&1; done
             adb shell am broadcast -a com.fof.tv.TAB --ei tab 5 >/dev/null; sleep 5
             adb shell 'input keyevent 20; sleep 0.5; input keyevent 23'; sleep 4; adb exec-out screencap -p > p_settings_page.png
             (adb shell pidof com.fof.tv > /dev/null && echo "allscreens: app still running" || echo "allscreens: APP CLOSED") | tee -a journey.txt

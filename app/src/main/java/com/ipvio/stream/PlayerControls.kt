@@ -158,13 +158,12 @@ fun PSeekTrack(
         if (bw > 0f) drawRoundRect(PT.Buffered, Offset(0f, top), Size(bw, th), rad)
         val frac = (pos().toFloat() / d).coerceIn(0f, 1f)
         val pw = frac * w
-        // Round 17b: green glow under the played part (cinematic, only drawn, no effect on the video)
-        if (pw > 0f) drawRoundRect(Accent1.copy(alpha = 0.22f), Offset(0f, top - th * 0.7f), Size(pw, th * 2.4f), CornerRadius(th * 1.2f))
+        // Clean bar (Apple TV style): the played part in the accent, no glow around it
         if (pw > 0f) drawRoundRect(Accent1, Offset(0f, top), Size(pw, th), rad)
         for (s in segs()) {
             val x1 = (s.start.toFloat() / d).coerceIn(0f, 1f) * w
             val x2 = (s.end.toFloat() / d).coerceIn(0f, 1f) * w
-            if (x2 - x1 > 1f) drawRoundRect(Accent2.copy(alpha = 0.85f), Offset(x1, top), Size(x2 - x1, th), rad)
+            if (x2 - x1 > 1f) drawRoundRect(Color(0xFFFFC266).copy(alpha = 0.8f), Offset(x1, top), Size(x2 - x1, th), rad)
         }
         val tr = 7f.dp.toPx() + 4f.dp.toPx() * fp
         val cx = pw.coerceIn(tr, (w - tr).coerceAtLeast(tr))

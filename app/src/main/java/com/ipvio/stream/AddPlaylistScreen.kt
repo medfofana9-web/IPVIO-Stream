@@ -136,6 +136,14 @@ fun AddPlaylistScreen(onDone: () -> Unit) {
     // Start focus on the M3U/Xtream choice (not on an input field: that would open the on-screen keyboard immediately)
     val startFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { delay(120); runCatching { startFocus.requestFocus() } }
+    // Joined a family on the phone: its playlist arrives by itself; this screen closes as soon as the channels are there
+    var joinFamily by remember { mutableStateOf(false) }
+    LaunchedEffect(PlaylistStore.channels.size, FofAccount.member) {
+        if (FofAccount.member != null && PlaylistStore.channels.isNotEmpty()) onDone()
+    }
+    if (joinFamily) androidx.compose.ui.window.Dialog({ joinFamily = false }, androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+        RemoteOverlay(Modifier.fillMaxSize(), onClose = { joinFamily = false })
+    }
 
     // Phone (narrow or portrait): single column, without the phone card, smaller margins
     val cfg = androidx.compose.ui.platform.LocalConfiguration.current
@@ -232,6 +240,8 @@ fun AddPlaylistScreen(onDone: () -> Unit) {
                         scope.launch { if (PlaylistStore.load(ctx, finalUrl, true)) onDone() }
                     }
                 }
+                // Family member: sign up on the phone with the owner's invite code; the family playlist then loads by itself
+                if (!canCancel) FocusButton("Join my family", compact = true) { joinFamily = true }
                 if (canCancel) FocusButton("Abbrechen", compact = true) { PlaylistStore.clearPending(ctx); onDone() }
                 // Nothing to add yet (first start): just look around the app; the home screen then offers "Playlist hinzufügen"
                 else FocusButton("Weiter ohne Playlist", compact = true) { PlaylistStore.clearPending(ctx); PlaylistStore.error = null; onDone() }

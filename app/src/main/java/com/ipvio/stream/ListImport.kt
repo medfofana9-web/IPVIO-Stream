@@ -16,7 +16,7 @@ object ListImportLogic {
     fun parse(fileName: String, bytes: ByteArray): List<Row> {
         val lname = fileName.lowercase()
         if (bytes.size > 3 && bytes[0] == 'P'.code.toByte() && bytes[1] == 'K'.code.toByte()) return parseZip(bytes)
-        val text = String(bytes, Charsets.UTF_8).removePrefix("﻿")
+        val text = String(bytes, Charsets.UTF_8).removePrefix("\uFEFF")
         val t = text.trimStart()
         val defaultStatus = if (lname.contains("watchlist") || lname.contains("plan")) Status.WATCHLIST else Status.WATCHED
         return when {
@@ -35,7 +35,7 @@ object ListImportLogic {
                 if (e.isDirectory || !n.endsWith(".csv")) continue
                 // Letterboxd: watchlist.csv = to watch; watched.csv and ratings.csv = seen; other files are ignored
                 val st = when (n) { "watchlist.csv" -> Status.WATCHLIST; "watched.csv", "ratings.csv" -> Status.WATCHED; else -> null } ?: continue
-                val text = String(z.readBytes(), Charsets.UTF_8).removePrefix("﻿")
+                val text = String(z.readBytes(), Charsets.UTF_8).removePrefix("\uFEFF")
                 out += parseCsv(text, st)
             }
         }

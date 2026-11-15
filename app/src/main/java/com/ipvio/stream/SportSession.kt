@@ -227,12 +227,12 @@ private fun Ticker(games: List<SportData.Game>, current: String) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             games.drop(from).take(5).forEach { g ->
                 val on = g.key == current
-                Box(Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).background(if (on) Color(0xFFE50914) else Color(0xFF1C1C21))
+                Box(Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).background(if (on) Color(0xFFF2F2F5) else Color(0xFF1C1C21))
                     .padding(horizontal = 10.dp, vertical = 8.dp)) {
                     Column {
                         val line = if (g.solo) g.title.ifBlank { g.league }
                             else g.away.abbr.ifBlank { g.away.short } + " " + scoreText(g.away) + "  " + g.home.abbr.ifBlank { g.home.short } + " " + scoreText(g.home)
-                        Text(raw = true, text = line, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(raw = true, text = line, color = if (on) Color.Black else Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(raw = true, text = g.detail, color = if (on) Color.White else Color(0xFF9A9AA2), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }

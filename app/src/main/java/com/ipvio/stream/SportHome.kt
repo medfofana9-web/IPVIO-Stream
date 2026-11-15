@@ -50,8 +50,9 @@ object SportPrefs {
 }
 
 /** Leagues checked for the home row "Live sports" (team sports with a day schedule). */
-private val HOME_LEAGUES = listOf("NBA", "NFL", "College Football", "College Basketball", "NHL", "MLB", "WNBA", "MLS",
-    "Premier League", "Champions League", "LaLiga")
+// Fof TV: Home shows live NBA and soccer only (the main soccer leagues and cups)
+private val HOME_LEAGUES = listOf("NBA", "Premier League", "Champions League", "LaLiga", "Serie A", "Bundesliga", "Ligue 1", "MLS",
+    "Europa League", "Liga MX", "Concacaf Nations League", "International Friendlies", "FA Cup", "Copa del Rey", "Club World Cup")
 
 /**
  * Home row "Live sports": games running now (and favorite-team games starting within the hour), one click plays

@@ -69,13 +69,14 @@ fun FofWelcome(onPick: (Int) -> Unit) {
             }
         }
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xCC000000), Color(0xE6000000), Color.Black))))
-        Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x40E50914), Color.Transparent),
-            center = androidx.compose.ui.geometry.Offset(960f, 200f), radius = 1100f)))
+        // Soft light from above instead of a colored glow
+        Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x1FFFFFFF), Color.Transparent),
+            center = androidx.compose.ui.geometry.Offset(960f, 0f), radius = 1200f)))
         Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
             // Fof TV mark
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(Brush.linearGradient(listOf(Color(0xFFE50914), Color(0xFF8E0710)))),
-                    contentAlignment = Alignment.Center) { AppIcon(AIcon.Play, Color.White, size = 22.dp) }
+                Box(Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(Color.White),
+                    contentAlignment = Alignment.Center) { AppIcon(AIcon.Play, Color.Black, size = 22.dp) }
                 Text("fof tv", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.ExtraBold, raw = true)
             }
             Spacer(Modifier.height(30.dp))

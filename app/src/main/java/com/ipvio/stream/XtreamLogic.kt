@@ -180,7 +180,7 @@ object XtreamLogic {
 
     /** Does the beginning of a downloaded file look like an M3U list? */
     fun looksLikeM3u(head: String): Boolean {
-        val t = head.trimStart('﻿', ' ', '\r', '\n', '\t')
+        val t = head.trimStart('\uFEFF', ' ', '\r', '\n', '\t')
         return t.startsWith("#EXTM3U") || t.startsWith("#EXTINF")
     }
 }

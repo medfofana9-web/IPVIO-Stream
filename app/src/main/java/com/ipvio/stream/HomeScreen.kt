@@ -938,7 +938,7 @@ private fun ResumeCard(item: Item, se: Pair<Int, Int>?, badge: String?, sub: Str
             Text(raw = true, text = line, color = Color(0xB3FFFFFF), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (progress > 0f) Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Color(0x40FFFFFF))) {
-            Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Color(0xFFE50914)))
+            Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Color.White))
         }
     }
 }
