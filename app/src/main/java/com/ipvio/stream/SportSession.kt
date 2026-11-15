@@ -175,6 +175,23 @@ fun BoxScope.SportPlayerOverlay() {
     val ch = SportSession.watching ?: return
     @Suppress("UNUSED_VARIABLE") val v = SportSession.version
     val g = SportSession.game(ch) ?: return
+    // The score bug refreshes itself while you watch (the Sports page, which refreshes scores, is closed then):
+    // every 12 s during the game, else every 30 s
+    val gameKey = g.key
+    LaunchedEffect(gameKey) {
+        while (true) {
+            val cur = SportFeed.latest[gameKey] ?: g
+            val l = SportData.league(cur.league)
+            if (l != null) {
+                val fresh = runCatching {
+                    if (l.kind == SportData.KIND_TEAM) SportData.fetch(l, SportData.ymd(0, General.zone(), cur.start * 1000), 8_000)
+                    else SportData.fetchCurrent(l, 8_000)
+                }.getOrNull()
+                if (!fresh.isNullOrEmpty()) SportFeed.put(fresh)
+            }
+            delay(if ((SportFeed.latest[gameKey] ?: cur).state == 1) 12_000L else 30_000L)
+        }
+    }
     if (!SportSession.busy) Box(Modifier.align(Alignment.TopEnd).padding(top = 26.dp, end = 34.dp)) { ScoreBug(g) }
     var tick by remember { mutableIntStateOf(0) }
     LaunchedEffect(SportSession.switchedAt) { tick++; delay(7000); tick++ }

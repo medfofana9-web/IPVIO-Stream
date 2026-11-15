@@ -1,5 +1,9 @@
 # Changelog
 
+## Fof TV 1.3.77 (November 2026)
+- Live games: the score in the corner kept the score from when you started watching (it was only refreshed on the
+  Sports page). It now refreshes itself every 12 seconds while you watch, so it matches the broadcast
+
 ## Fof TV 1.3.76 (November 2026)
 **Make Fof TV yours (every profile)**
 - The first time a profile is opened, a few quick questions: which sports you follow (NFL, NBA, WNBA, college,
