@@ -1,6 +1,6 @@
 # Changelog
 
-## Fof TV 1.3.69 (November 2026)
+## Fof TV 1.3.70 (November 2026)
 **Look**
 - Premium neutral look: the red accent is gone. Buttons, focus, the player's seek bar and progress bars are platinum white; intro and credits marks on the seek bar are soft amber; no glow under the played part
 - Welcome screen: white logo, soft neutral light instead of the red glow

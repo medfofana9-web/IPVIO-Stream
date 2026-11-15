@@ -59,7 +59,7 @@ The download link in the README and the Downloader code always point to the newe
 Version 1.0 has no update check yet, so 1.0 users install 1.1 once by hand (Downloader code or link). From 1.1 on it works from inside the app.
 
 
-## 4. Signing key and key rotation (since 1.3.69)
+## 4. Signing key and key rotation (since 1.3.70)
 
 - The release key is no longer in the repository. The repository secret `FOF_SIGNING` holds a base64 tar archive with
   `old.jks` (the original key, published earlier in the repository), `new.jks` (the private key) and `sign.env`
@@ -71,7 +71,7 @@ Version 1.0 has no update check yet, so 1.0 users install 1.1 once by hand (Down
   also checks that the rotation commands work ("CHECK PASS key rotation signing").
 - **Never lose `FOF_SIGNING`**: without it no update can be installed over the existing app.
 
-## 5. Update channels (since 1.3.69)
+## 5. Update channels (since 1.3.70)
 
 - `release.yml` publishes every build as a **prerelease** (early channel).
 - `promote.yml` (hourly, or by hand with "now") makes the newest prerelease that is at least 24 hours old the

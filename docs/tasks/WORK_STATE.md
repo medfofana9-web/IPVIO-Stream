@@ -1,5 +1,18 @@
 # Work state
 
+## Last session (15 Nov 2026) – release 1.3.70
+- Done: full audit on the test TV (all CHECK PASS, screenshots of every screen reviewed; fixed German design names,
+  "0 seasons", sports row order), premium neutral accent (no red), Home live row NBA + soccer, join-family on first start,
+  owner restore, problem reports (Supabase table `reports`, owner list on the phone page), update channels
+  (prerelease → promote.yml after 24 h), key-rotation signing (release.yml + secret `FOF_SIGNING`), install link
+  is.gd/getfoftv, test TV screenshots on branch `perf-shots`.
+- Open: the owner adds the repository secret `FOF_SIGNING` (until then releases keep the old key); after that,
+  `git rm signing/fof-tv.jks` and remove the fallback in release.yml.
+- Lint: 13 errors left, none crash risks (NonObservableLocale, RememberInComposition, RememberReturnType, RestrictedApi,
+  UnspecifiedRegisterReceiverFlag in test code).
+
+# Work state
+
 Last update: 2026-11-12. Read `CLAUDE.md` first, then this file.
 
 ## Fof TV (fork) – state on 2026-11-12
