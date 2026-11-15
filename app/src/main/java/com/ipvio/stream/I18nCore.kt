@@ -72,11 +72,14 @@ object I18nCore {
 
     fun size() = exact.size + pats.size
 
+    /** Test builds: called with a text that has no English translation (to find German left on screen). */
+    @Volatile var onMiss: ((String) -> Unit)? = null
+
     fun translate(s: String, li: Int): String {
         if (li <= 0 || li >= CODES.size || s.isEmpty()) return s
         val m = memo[li]
         m[s]?.let { return it }
-        val r = lookup(s, li, 0) ?: s
+        val r = lookup(s, li, 0) ?: s.also { if (li == 1) onMiss?.invoke(it) }
         if (m.size > 6000) m.clear()
         m[s] = r
         return r

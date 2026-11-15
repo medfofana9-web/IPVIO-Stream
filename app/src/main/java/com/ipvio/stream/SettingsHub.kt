@@ -874,7 +874,7 @@ private fun DiagPage(ctx: Context, reload: () -> Unit) {
         "Version" to version,
         "Installiert" to runCatching { DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(ctx.packageManager.getPackageInfo(ctx.packageName, 0).lastUpdateTime)) }.getOrDefault("?"),
         "Sprache" to (Lang.code() + " · Index " + Lang.index),
-        "Bildschirm" to "${cfg.screenWidthDp} × ${cfg.screenHeightDp} dp · Dichte ${"%.2f".format(java.util.Locale.US, dens)}",
+        "Bildschirm" to "${cfg.screenWidthDp} × ${cfg.screenHeightDp} dp · density ${"%.2f".format(java.util.Locale.US, dens)}",
         "Playlist" to (PlaylistStore.lists.getOrNull(PlaylistStore.active)?.name ?: "keine"),
         "Inhalte" to "${counts.first} Sender · ${counts.second} Filme · ${counts.third} Serien",
         "Ladezustand" to (if (PlaylistStore.loading) "lädt …" else PlaylistStore.error ?: "bereit"),

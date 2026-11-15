@@ -17,6 +17,10 @@ object MainSampler {
     private const val ACTION = "com.fof.tv.PROFILE"
 
     fun register(c: Context) {
+        if (BuildConfig.VERSION_NAME.endsWith("-test")) {
+            val german = Regex("[äöüßÄÖÜ]|\\b(der|die|das|und|nicht|ist|ein|eine|wird|kein|keine|Sender|Spiele|Lade|Filme|Serien|Suche|Fehler|anzeigen|öffnen|Sportarten|Einstellungen|Zurück|Weiter|Alle|Neu|Verlauf|Löschen)\\b")
+            I18nCore.onMiss = { t -> if (german.containsMatchIn(t)) Log.w("FofUntranslated", t.take(160)) }
+        }
         if (!BuildConfig.VERSION_NAME.endsWith("-test")) return
         val r = object : BroadcastReceiver() {
             override fun onReceive(ctx: Context, i: Intent) { run(i.getIntExtra("ms", 10_000), i.getStringExtra("tag") ?: "run") }
