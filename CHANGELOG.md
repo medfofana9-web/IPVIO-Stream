@@ -1,9 +1,15 @@
 # Changelog
 
 ## Fof TV 1.3.74 (November 2026)
-- New avatars: 34 polished 3D characters (17 people, 17 animals) on rich color tiles, in place of the drawn faces.
-  They ship inside the app (instant, also offline); the phone sign-up page shows the same characters.
-  Pictures: Microsoft Fluent Emoji (MIT license, docs/THIRD-PARTY.md)
+**Avatars, redone**
+- 73 avatars in six collections: TV Shows, Movies, NBA, Soccer, NFL and More Sports: polished 3D characters and
+  athletes on cinematic color tiles (original art, no real people or studio characters: those need licenses)
+- New selection screen: "Choose Your Avatar" with category tabs, search, the name of the focused avatar, a large preview
+  with "Use this avatar", then the profile card (avatar, profile name, "as The Detective", change)
+- The avatar shows everywhere: Who's watching, the profile button at the top of Home, Settings → Profiles, and the
+  phone sign-up page; it travels with your account to other TVs
+- Pictures ship inside the app (instant, also offline). Catalog: assets/avatars/catalog.json; new avatars or collections
+  are a picture and a line there
 
 ## Fof TV 1.3.72 (November 2026)
 **Your watching follows you**

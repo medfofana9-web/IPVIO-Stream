@@ -13,7 +13,7 @@ object AccountWeb {
     fun state(c: Context): String {
         FofAccount.init(c)
         val m = FofAccount.member
-        val avatars = ProfileAvatars.PRESETS.joinToString(",") { "{\"k\":${q(it.key)},\"u\":${q(it.phoneUrl)},\"bg\":${q(ProfileAvatars.cssGradient(it))}}" }
+        val avatars = ProfileAvatars.all(c).joinToString(",") { "{\"k\":${q(it.key)},\"u\":${q(it.phoneUrl)},\"n\":${q(it.name)}}" }
         val mem = if (m == null) "null" else "{\"name\":${q(m.name)},\"avatar\":${q(m.avatar)},\"owner\":${m.owner}}"
         return "{\"signedIn\":${FofAccount.signedIn},\"email\":${q(FofAccount.email.orEmpty())},\"member\":$mem,\"status\":${q(FofAccount.status)},\"sync\":${q(syncLine(c))},\"avatars\":[$avatars]}"
     }
@@ -32,7 +32,7 @@ object AccountWeb {
         val mail = p["e"].orEmpty().trim().take(120)
         val pw = p["p"].orEmpty().take(120)
         val name = p["name"].orEmpty().trim().take(40)
-        val av = p["av"].orEmpty().take(10).takeIf { k -> ProfileAvatars.PRESETS.any { it.key == k } } ?: ""
+        val av = p["av"].orEmpty().take(40).takeIf { k -> ProfileAvatars.byKey(c, k) != null } ?: ""
         if (!FofAccount.signedIn) {
             if (mail.isBlank() || pw.length < 6) return err("Enter your email and a password of at least 6 characters.")
             FofAccount.signUpOrIn(c, mail, pw, create = p["mode"] == "up")?.let { return err(it) }

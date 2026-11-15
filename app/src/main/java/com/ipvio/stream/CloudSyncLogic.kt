@@ -18,8 +18,11 @@ object SyncLogic {
         "ipvio_lib",          // My List and favorites
         "fof_catalog_items",  // addon titles those lists refer to
         "ipvio_catfavs",      // favorite categories
-        "ipvio_chlists"       // own channel lists
+        "ipvio_chlists",      // own channel lists
+        AVATAR                // the profile's avatar (not a file: written through ProfileAvatars)
     )
+
+    const val AVATAR = "fof_avatar"
 
     /** A saved version that is bigger than this is not applied (a real one is far smaller). */
     const val MAX_CHARS = 2_000_000

@@ -112,6 +112,10 @@ object CloudSync {
     private fun read(c: Context, pid: Int): JSONObject {
         val o = JSONObject()
         for (n in SyncLogic.STORES) {
+            if (n == SyncLogic.AVATAR) {
+                ProfileAvatars.keyOf(c, pid)?.let { o.put(n, SyncLogic.encode(mapOf("a" to it))) }
+                continue
+            }
             val all = store(c, n, pid).all
             if (all.isNotEmpty()) o.put(n, SyncLogic.encode(all))
         }
@@ -122,6 +126,10 @@ object CloudSync {
     private fun write(c: Context, pid: Int, files: JSONObject) {
         for (n in SyncLogic.STORES) {
             val o = files.optJSONObject(n) ?: continue
+            if (n == SyncLogic.AVATAR) {
+                (SyncLogic.decodeValue(o.optJSONArray("a")) as? String)?.let { k -> if (ProfileAvatars.byKey(c, k) != null) ProfileAvatars.set(c, pid, k) }
+                continue
+            }
             val e = store(c, n, pid).edit().clear()
             for (k in o.keys()) {
                 @Suppress("UNCHECKED_CAST")

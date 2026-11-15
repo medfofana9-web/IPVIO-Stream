@@ -56,7 +56,7 @@ jobs:
           PY
       - name: Avatar tiles draw
         run: |
-          if ./gradlew --no-daemon -q testDebugUnitTest --tests 'com.ipvio.stream.AvatarTilesTest'; then echo "CHECK PASS 34 avatars bundled" | tee avatars.txt; else echo "CHECK FAIL avatar tiles" | tee avatars.txt; exit 1; fi
+          if ./gradlew --no-daemon -q testDebugUnitTest --tests 'com.ipvio.stream.AvatarTilesTest'; then echo "CHECK PASS avatar catalog complete" | tee avatars.txt; else echo "CHECK FAIL avatar tiles" | tee avatars.txt; exit 1; fi
       - name: Generate test playlist and serve it
         run: |
           mkdir -p srv
@@ -136,6 +136,9 @@ jobs:
             adb shell input keyevent --longpress 23
             sleep 5
             adb exec-out screencap -p > p_avatars.png
+            adb shell input keyevent 22; sleep 1; adb shell input keyevent 23; sleep 3
+            adb exec-out screencap -p > p_avatar_preview.png
+            adb shell input keyevent 4; sleep 1
             adb shell input keyevent 4
             sleep 2
             adb shell input keyevent 23
@@ -294,7 +297,7 @@ jobs:
           echo "== German text without translation"; grep FofUntranslated marks.txt | sed 's/^.*FofUntranslated: //' | sort -u | head -80 || true
           # Screens as small JPEGs in the log (artifacts cannot be downloaded from here): between ==IMG name and the end of line
           which convert >/dev/null || sudo apt-get install -y -qq imagemagick >/dev/null
-          for f in p_tab1.png p_tab2.png p_tab6.png p_tab7.png p_tab8.png p_tab9.png p_sport1.png p_sport2.png p_sport3.png p_settings_page.png p_profiles.png p_avatars.png p0_start.png p_search.png p5_sports.png p7_livetv.png p8_settings.png p9_sports_again.png p3_detail.png; do
+          for f in p_tab1.png p_tab2.png p_tab6.png p_tab7.png p_tab8.png p_tab9.png p_sport1.png p_sport2.png p_sport3.png p_settings_page.png p_profiles.png p_avatars.png p_avatar_preview.png p0_start.png p_search.png p5_sports.png p7_livetv.png p8_settings.png p9_sports_again.png p3_detail.png; do
             [ -f "$f" ] || continue
             convert "$f" -resize 960x -quality 55 "${f%.png}.jpg" && echo "==IMG ${f%.png} $(base64 -w0 "${f%.png}.jpg")"
           done

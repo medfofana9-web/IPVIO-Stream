@@ -149,7 +149,7 @@ if(s.member.owner)h+='<div class="r"><div>Share this TV\'s setup<small>Playlist 
 '<div class="r"><div>Invite someone<small id="invc">They enter the code when they sign up on their TV</small></div><button class="g" onclick="acctInv()">New code</button></div>'+
 '<div class="r"><div>Problems on family TVs<small>Crashes, frozen screens and forced closes</small></div><button class="g" onclick="acctProb()">Show</button></div><div id="probs"></div>';
 b.innerHTML=h;return}
-var av=s.avatars.map(function(a){return '<img src="'+esc(a.u)+'" data-k="'+esc(a.k)+'" style="width:56px;height:56px;box-sizing:border-box;padding:6px;background:'+esc(a.bg)+';border-radius:12px;margin:3px;cursor:pointer;border:3px solid '+(acc.av==a.k?'#fff':'transparent')+'" onclick="acc.av=this.getAttribute(\'data-k\');acctLoad()">'}).join('');
+var av=s.avatars.map(function(a){return '<img src="'+esc(a.u)+'" data-k="'+esc(a.k)+'" title="'+esc(a.n)+'" loading="lazy" style="width:60px;height:60px;box-sizing:border-box;border-radius:12px;margin:3px;cursor:pointer;border:3px solid '+(acc.av==a.k?'#fff':'transparent')+'" onclick="acc.av=this.getAttribute(\'data-k\');acctLoad()">'}).join('');
 b.innerHTML=(s.signedIn?'<div class="r"><div>Signed in<small>'+esc(s.email)+'</small></div><button class="g" onclick="acctOut()">Sign out</button></div>':
 '<div class="r"><div>'+(acc.mode=='up'?'New account':'I already have an account')+'</div><button class="g" onclick="acc.mode=acc.mode==\'up\'?\'in\':\'up\';acctLoad()">'+(acc.mode=='up'?'I have one':'New account')+'</button></div>'+
 '<div style="padding:8px 0"><input type="text" id="ae" placeholder="Email" autocomplete="email"><input type="password" id="ap" placeholder="Password (6+ characters)" style="margin-top:8px"></div>')+

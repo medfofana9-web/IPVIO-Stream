@@ -345,8 +345,14 @@ private fun PlaylistSwitchButton() {
     }
 }
 
-/** Profile: only a circle with a person icon (round 14, without "Hello, name"). */
+/** Profile: the active profile's avatar in a circle (white ring on focus). */
 @Composable
 private fun ProfileCircle(onClick: () -> Unit) {
-    RoundHeaderButton(AIcon.Person, Modifier.focusRequester(HeaderFocus.profile), onClick = onClick)
+    var f by remember { mutableStateOf(false) }
+    Box(
+        Modifier.focusRequester(HeaderFocus.profile).size(dpx(48)).clip(CircleShape)
+            .border(if (f) 3.dp else 1.dp, if (f) Color.White else Color(0x33FFFFFF), CircleShape)
+            .onFocusChanged { f = it.isFocused }.trackFocus().clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) { ActiveAvatar(dpx(48)) }
 }
