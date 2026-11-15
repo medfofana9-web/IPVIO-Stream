@@ -1,5 +1,9 @@
 # Changelog
 
+## Fof TV 1.3.83 (November 2026)
+- "Sign in with your phone" opens a short page with only email, password and Sign in; everything else syncs by
+  itself (addons, lists, Continue Watching, taste). The full settings page stays on the normal phone code
+
 ## Fof TV 1.3.82 (November 2026)
 - Signing in to your account on another TV now brings your Stremio addons (and your playlist, when that TV has none)
   automatically, also for the family owner. Nothing already on that TV is removed or replaced

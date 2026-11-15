@@ -39,7 +39,7 @@ object RemoteUi {
  * „Beenden“ switches it off.
  */
 @Composable
-fun RemoteOverlay(modifier: Modifier = Modifier, onClose: (() -> Unit)? = null) {
+fun RemoteOverlay(modifier: Modifier = Modifier, onClose: (() -> Unit)? = null, path: String = "/s") {
     val ctx = LocalContext.current
     val focus = remember { FocusRequester() }
     val ip = remember { PhoneImport.localIp() }
@@ -62,10 +62,10 @@ fun RemoteOverlay(modifier: Modifier = Modifier, onClose: (() -> Unit)? = null) 
             else if (server == null) Text("Der Server konnte nicht gestartet werden.", color = Color(0xFFFFB86B), fontSize = 17.sp)
             else {
                 // Fof TV: the QR opens the settings website; it links to the phone remote
-                val addr = "http://$ip:${server.port}/s?code=${server.code}"
+                val addr = "http://$ip:${server.port}$path?code=${server.code}"
                 QrImage(addr, 280.dp)
                 Text("Mit der Handy-Kamera scannen", color = Muted, fontSize = 16.sp)
-                Text("http://$ip:${server.port}/s", color = Accent2, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, raw = true)
+                Text("http://$ip:${server.port}$path", color = Accent2, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, raw = true)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("Code", color = Muted, fontSize = 16.sp)
                     Text(server.code, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, raw = true)

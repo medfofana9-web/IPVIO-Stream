@@ -384,10 +384,10 @@ fun SignInWithPhone(onClose: () -> Unit) {
         Column(Modifier.align(Alignment.TopCenter).padding(top = 44.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("Sign in with your phone", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Bold, raw = true)
             Spacer(Modifier.height(6.dp))
-            Text("Scan the code, then enter your email and password under “Family account”. New here? The same form creates your account.",
+            Text("Scan the code and sign in with your email and password. Your addons, lists and Continue Watching come along.",
                 color = Color(0xA6FFFFFF), fontSize = 17.sp, raw = true, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 760.dp))
         }
-        RemoteOverlay(Modifier.align(Alignment.Center).padding(top = 90.dp), onClose = onClose)
+        RemoteOverlay(Modifier.align(Alignment.Center).padding(top = 90.dp), onClose = onClose, path = "/in")
     }
 }
 

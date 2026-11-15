@@ -394,6 +394,7 @@ class PhoneImport(private val onReceive: (PhoneInput) -> Unit) {
                 }
             }
             "GET /s" -> if (api != null) html(200, SettingsWeb.page()) else html(404, PhoneImportLogic.message(li, "bad"))
+            "GET /in" -> if (api != null) html(200, SettingsWeb.signInPage()) else html(404, PhoneImportLogic.message(li, "bad"))
             // Avatar photo from the phone (already made small there): at most 300 KB
             "POST /apip/avatar" -> {
                 val cb = apiPost

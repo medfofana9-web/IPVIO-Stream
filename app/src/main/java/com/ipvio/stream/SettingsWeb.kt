@@ -94,6 +94,33 @@ object SettingsWeb {
         return "{\"ok\":true}"
     }
 
+    /** Phone page behind the TV's "Sign in with your phone" code: only email and password, then everything syncs. */
+    fun signInPage(): String = """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign in to Fof TV</title><style>
+body{margin:0;background:#0b0b0e;color:#f2f2f5;font:16px -apple-system,system-ui,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center}
+.w{width:100%;max-width:380px;padding:28px}h1{font-size:26px;margin:0 0 6px}p{color:#9a9aa2;margin:0 0 22px;line-height:1.4}
+input{width:100%;box-sizing:border-box;background:#17171c;border:1px solid #2a2a31;color:#fff;border-radius:12px;padding:15px;font-size:17px;margin-bottom:12px}
+button{width:100%;background:#f2f2f5;color:#0b0b0e;border:0;border-radius:12px;padding:15px;font-size:17px;font-weight:700;margin-top:6px}
+#m{color:#ffb86b;min-height:22px;margin-top:14px;text-align:center}.ok{text-align:center}.ok h1{margin-top:8px}
+</style></head><body><div class="w" id="w">
+<h1>Sign in to Fof TV</h1><p>Your profile, addons, lists and Continue Watching come to this TV.</p>
+<input id="e" type="email" autocomplete="username" placeholder="Email" autocapitalize="off">
+<input id="p" type="password" autocomplete="current-password" placeholder="Password">
+<button id="b" onclick="go()">Sign in</button><div id="m"></div>
+<p style="margin-top:18px;font-size:13px">New here? The same button creates your account.</p></div>
+<script>
+var code='';try{code=new URLSearchParams(location.search).get('code')||''}catch(e){}
+function m(t){document.getElementById('m').textContent=t}
+function done(){document.getElementById('w').innerHTML='<div class="ok"><h1>You\u2019re in</h1><p>Your things are syncing to the TV now. You can put your phone away.</p></div>'}
+function api(q){return fetch('/api/acctgo?code='+encodeURIComponent(code)+q).then(function(r){if(r.status==403)throw 'The code on the TV changed. Scan it again.';if(!r.ok)throw 'The TV did not answer.';return r.json()})}
+function go(){var e=document.getElementById('e').value.trim(),p=document.getElementById('p').value;
+if(!e||p.length<6){m('Enter your email and password (6+ characters).');return}
+var b=document.getElementById('b');b.disabled=true;b.textContent='Signing in...';m('');
+api('&e='+encodeURIComponent(e)+'&p='+encodeURIComponent(p)).then(function(r){if(r.err){m(r.err);b.disabled=false;b.textContent='Sign in'}else done()})
+.catch(function(x){m(typeof x=='string'?x:'Not signed in. Try again.');b.disabled=false;b.textContent='Sign in'})}
+document.getElementById('p').addEventListener('keydown',function(ev){if(ev.key=='Enter')go()})
+</script></body></html>"""
+
     fun page(): String = """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Fof TV settings</title><style>
 body{margin:0;background:#0b0b0d;color:#f2f2f2;font:16px -apple-system,Roboto,Helvetica,Arial,sans-serif}
