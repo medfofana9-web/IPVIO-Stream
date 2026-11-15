@@ -1,5 +1,9 @@
 # Changelog
 
+## Fof TV 1.3.66 (November 2026)
+**Fixed**
+- Continue watching on Home showed "Connection lost", then "Playback not possible" for movies and shows from the addons: it replayed the saved address, but addon and Real-Debrid links expire after a few hours. It now finds a fresh stream for that title and episode (the last one that worked first) and starts at the saved spot, like Continue watching on the other screens already did. Right after start it also waits a moment for the addons to load
+
 ## Fof TV 1.3.65 (November 2026)
 **New**
 - Shared provider login (e.g. 4 streams for the family): before a channel starts, the app asks the provider how many streams run on the login right now. When all are in use, nothing starts and a message says so, with "Try again" – instead of the provider cutting off someone else's stream or blocking the login. Switching channels on a TV that is already watching never counts twice; multi view tiles count one each. If the provider does not answer within 2.5 s, playback goes ahead

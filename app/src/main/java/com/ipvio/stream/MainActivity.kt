@@ -592,9 +592,17 @@ private fun AppContent() {
                 onResume = { e, i ->
                     LastFocus.pending = i.id
                     if (i.kind != Kind.LIVE) pushTop(i)
-                    // current address from the loaded playlist instead of the stored one (providers change addresses)
-                    val t = WatchStore.target(ctx, i, e)
-                    start(i, t.first, t.second, e.pos)
+                    if (i.id.startsWith("stremio:")) {
+                        // Addon and Real-Debrid links expire after a few hours, so the saved address cannot be played again
+                        // ("Connection lost", then "Playback not possible"): the title page finds a fresh stream for that
+                        // episode, the last one that worked first, and starts at the saved spot
+                        AppNav.autoStream = i.id
+                        AppNav.autoResume = Triple(e.season, e.ep, e.pos); AppNav.autoResumeId = i.id
+                    } else {
+                        // current address from the loaded playlist instead of the stored one (providers change addresses)
+                        val t = WatchStore.target(ctx, i, e)
+                        start(i, t.first, t.second, e.pos)
+                    }
                 },
                 onBrowse = { browse = BrowseState(it) },
                 onCategories = { cats = it },

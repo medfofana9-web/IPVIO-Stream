@@ -220,6 +220,10 @@ private fun DetailScreenFull(
             // Only a resume point of this very title (never a leftover from another show)
             if (AppNav.autoResumeId != item.id) { AppNav.autoResume = null; AppNav.autoResumeId = null }
             AppNav.autoResume?.let { (s, e, _) -> if (item.kind == Kind.SERIES && s > 0 && e > 0) stremioAt = s to e }
+            // Addons are read in the background at start: wait for them a moment (Continue watching right after start did nothing)
+            Stremio.ensure(ctx)
+            var waited = 0
+            while (Stremio.addons.isEmpty() && waited < 40) { kotlinx.coroutines.delay(100); waited++ }
             if (Stremio.addons.isNotEmpty()) { stremioAuto = true; showStremio = true }
         }
     }
