@@ -52,7 +52,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /** Small JSON helpers shared by the ESPN readers in this file. */
-private object J {
+internal object J {
     fun get(url: String): JSONObject? = try {
         val req = Request.Builder().url(url).header("User-Agent", "IPVIO-Stream").build()
         Net.withTimeouts(8, 12).newCall(req).execute().use { r -> if (r.isSuccessful) JSONObject(r.body?.string().orEmpty()) else null }
