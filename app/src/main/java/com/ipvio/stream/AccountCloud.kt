@@ -71,6 +71,10 @@ object AccountCloud {
 
     private fun setOpened(c: Context, localId: Int) { prefs(c).edit().putInt("unl_" + (FofAccount.userId ?: ""), localId).apply() }
 
+    /** The profile's person chose no PIN (asked once; a PIN can still be set in Manage profiles). */
+    fun noPin(c: Context, cloudId: String): Boolean = prefs(c).getBoolean("nopin_$cloudId", false)
+    fun setNoPin(c: Context, cloudId: String) { prefs(c).edit().putBoolean("nopin_$cloudId", true).apply() }
+
     fun deviceId(c: Context): String {
         val p = prefs(c)
         p.getString("dev_id", null)?.let { return it }

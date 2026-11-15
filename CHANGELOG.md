@@ -1,5 +1,12 @@
 # Changelog
 
+## Fof TV 1.3.86 (November 2026)
+- Fixed a frozen screen ("Freeze · GameDay < MainActivity"): Game Day (reminders, auto-tune for your teams, close-game
+  alerts) ran on the main thread, including matching each game against every live channel. It now runs in the
+  background; only the switch to the game and the alert use the main thread, and each game is matched once
+- After a crash or freeze the TV shows one calm line; the details stay in Settings > Diagnostics and on the phone page
+- Profile PIN is optional: "No PIN for this profile" on the create-PIN screen (a PIN can be set later in Manage profiles)
+
 ## Fof TV 1.3.84 (November 2026)
 **One account for the household, like Netflix**
 - Sign in once per TV (email and password on the phone); it stays signed in through restarts. Every profile of the

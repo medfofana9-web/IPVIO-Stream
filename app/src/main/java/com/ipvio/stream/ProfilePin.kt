@@ -72,6 +72,7 @@ fun ProfileGate(id: Int, change: Boolean = false, onOpen: () -> Unit, onCancel: 
         val trusted = st?.unlocked == true && AccountCloud.openedHere(ctx) == id && !AccountCloud.pinAlways
         mode = when {
             st == null -> if (!change && AccountCloud.openedHere(ctx) == id) { open(); "busy" } else "enter"
+            !st.set && !change && AccountCloud.noPin(ctx, cid) -> { open(); "busy" }
             !st.set -> "create"
             change && st.unlocked -> "create"
             !change && trusted -> { open(); "busy" }
@@ -93,9 +94,16 @@ fun ProfileGate(id: Int, change: Boolean = false, onOpen: () -> Unit, onCancel: 
                 when (mode) {
                     "load", "busy" -> Text(if (mode == "busy") "Opening $name…" else "One moment…", color = Color(0xB3FFFFFF), fontSize = 22.sp, raw = true)
                     "create" -> key("create") {
-                        PinPad(if (reset) "Choose a new PIN" else "Create a PIN for $name",
-                            "4 to 6 digits, then OK. It opens this profile on every TV.", err,
-                            { p -> first = p; err = null; mode = "again" }, onCancel, minLen = 4, maxLen = 6, raw = true)
+                        Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                            PinPad(if (reset) "Choose a new PIN" else "Create a PIN for $name",
+                                "4 to 6 digits, then OK. It opens this profile on every TV.", err,
+                                { p -> first = p; err = null; mode = "again" }, onCancel, minLen = 4, maxLen = 6, raw = true)
+                            // The PIN is optional: a profile can stay open (it can get a PIN later in Manage profiles)
+                            if (!reset && !change) PillButton("No PIN for this profile", raw = true) {
+                                AccountCloud.cloudId(ctx, id)?.let { AccountCloud.setNoPin(ctx, it) }
+                                open()
+                            }
+                        }
                     }
                     "again" -> key("again") {
                         PinPad("Enter the PIN again", null, err, { p ->

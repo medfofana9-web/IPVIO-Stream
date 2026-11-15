@@ -26,14 +26,16 @@ fun LastCrashNotice() {
     val ctx = LocalContext.current
     var msg by remember { mutableStateOf<String?>(CrashLog.takeRecent(ctx)) }
     val m = msg ?: return
-    LaunchedEffect(m) { delay(25_000L); msg = null }
+    // One calm line for viewers; the technical details stay in Settings > Diagnostics and on the phone page
+    LaunchedEffect(m) { delay(8_000L); msg = null }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
         Box(
             Modifier.padding(bottom = 28.dp).widthIn(max = 900.dp)
-                .background(Color(0xF0281414), RoundedCornerShape(12.dp))
+                .background(Color(0xF01C1C20), RoundedCornerShape(12.dp))
                 .padding(16.dp)
         ) {
-            Text("The app closed unexpectedly last time. Take a photo of this message to get it fixed:\n$m",
+            Text(if (m.startsWith("Freeze")) "Fof TV got stuck last time. That has been noted; details are in Settings > Diagnostics."
+                else "Fof TV closed unexpectedly last time. That has been noted; details are in Settings > Diagnostics.",
                 color = Color.White, fontSize = 16.sp, raw = true)
         }
     }

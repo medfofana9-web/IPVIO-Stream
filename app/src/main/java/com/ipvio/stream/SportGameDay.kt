@@ -2,7 +2,9 @@ package com.ipvio.stream
 
 import android.content.Context
 import androidx.compose.runtime.mutableStateListOf
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 /** When is a running game "close"? Pure logic, testable. [sport] is the league's sport key from [SportData.League]. */
 object GameDayLogic {
@@ -54,6 +56,7 @@ object GameDay {
     private var inited = false
     private fun prefs(c: Context) = Profiles.sp(c, "fof_gameday")
 
+    @Synchronized
     fun init(c: Context) {
         if (inited) return
         inited = true
@@ -81,12 +84,19 @@ object GameDay {
     }
 
     private suspend fun show(a: SportAlerts.Alert) {
-        SportAlerts.current = a
+        withContext(Dispatchers.Main) { SportAlerts.current = a }
         delay(12_000L)
-        if (SportAlerts.current === a) SportAlerts.current = null
+        withContext(Dispatchers.Main) { if (SportAlerts.current === a) SportAlerts.current = null }
     }
 
-    suspend fun run(c: Context) {
+    /**
+     * Runs off the main thread (it is started from a LaunchedEffect, which runs on the main thread): store loading,
+     * the schedule and above all matching games to the live channels (thousands of names) froze the screen
+     * ("Freeze · GameDay < MainActivity", 15 Nov 2026). Only the hand-over to the player and the alert run on main.
+     */
+    suspend fun run(c: Context) = withContext(Dispatchers.Default) { loop(c) }
+
+    private suspend fun loop(c: Context) {
         init(c); SportLeagues.init(c); SportFix.init(c); SportLearn.init(c); SportPrefs.init(c); SportFavs.init(c)
         val alerted = HashSet<String>()
         while (true) {
@@ -96,23 +106,24 @@ object GameDay {
                 val leagues = SportData.LEAGUES.filter { it.kind == SportData.KIND_TEAM && SportLeagues.on(it) &&
                     (it.name in wanted || ((closeAlerts || autoTeams) && it.name in LEAGUES)) }
                 val games = leagues.flatMap { l -> runCatching { SportData.fetch(l, ymd, 40_000) }.getOrDefault(emptyList()) }
-                SportFeed.put(games)
+                withContext(Dispatchers.Main) { SportFeed.put(games) }
                 val now = System.currentTimeMillis() / 1000
                 // My teams with auto-tune on count like a reminder, once per game, only right at the start (not mid-game)
                 if (autoTeams) for (g in games) if (SportFavs.isFavGame(g) && g.key !in tuned && g.key !in reminders &&
                     (g.state == 0 && g.start - now in 0..60 || g.state == 1 && now - g.start < 600)) { tuned.add(g.key); reminders.add(g.key) }
                 val due = games.any { it.key in reminders && (it.state == 1 || it.start - now <= 60) }
-                val live = if (!due) emptyList() else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                    PlaylistStore.channels.filter { it.kind == Kind.LIVE }.also { SportWatch.prewarm(it) }
-                }
+                val live = if (!due) emptyList() else PlaylistStore.channels.filter { it.kind == Kind.LIVE }.also { SportWatch.prewarm(it) }
                 // Reminders: at the start, switch to the game's channel (as if picked on the phone)
                 for (g in games) if (g.key in reminders && (g.state == 1 || g.start - now <= 60)) {
                     reminders.remove(g.key); save(c)
-                    val ch = SportWatch.channels(g, live).firstOrNull()
+                    val chans = SportWatch.channels(g, live)
+                    val ch = chans.firstOrNull()
                     if (ch != null) {
-                        SportSession.start(g, SportWatch.channels(g, live), live)
-                        ZapContext.list = SportSession.zapList().ifEmpty { SportWatch.channels(g, live) }; ZapContext.key = null
-                        RemoteHub.playReq = RemoteHub.Play(ch.id, 0, 0)
+                        withContext(Dispatchers.Main) {
+                            SportSession.start(g, chans, live)
+                            ZapContext.list = SportSession.zapList().ifEmpty { chans }; ZapContext.key = null
+                            RemoteHub.playReq = RemoteHub.Play(ch.id, 0, 0)
+                        }
                         show(SportAlerts.Alert("Game time", g.away.short + " at " + g.home.short + "  ·  " + ch.title))
                     } else show(SportAlerts.Alert("Game time", g.away.short + " at " + g.home.short + " is starting. No channel found: open Live sports to pick one."))
                 }
