@@ -61,6 +61,12 @@ class MainActivity : ComponentActivity() {
             SportLeagues.init(this@MainActivity)
             SportData.warmUp(SportLeagues.enabled())
         }
+        // Family account: take over the owner's setup (playlist, addons) shortly after start, then every 3 hours
+        FofAccount.init(this)
+        if (FofAccount.signedIn) kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+            kotlinx.coroutines.delay(10_000)
+            while (true) { runCatching { FofAccount.sync(this@MainActivity) }; kotlinx.coroutines.delay(3 * 3600_000L) }
+        }
         // Search index built once in the background after Home settled, so the first key press in Search finds it ready
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
             kotlinx.coroutines.delay(12_000)

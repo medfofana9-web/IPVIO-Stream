@@ -100,7 +100,7 @@ main{max-width:640px;margin:0 auto;padding:20px 16px 60px}h1{font-size:26px;marg
 .r div{flex:1}.r small{display:block;color:#8a8a92;font-size:13px;margin-top:2px}
 .t{position:relative;width:50px;height:30px;flex:none}.t input{opacity:0;width:0;height:0}.t span{position:absolute;inset:0;background:#3a3a42;border-radius:30px;transition:.2s}
 .t span:before{content:"";position:absolute;width:24px;height:24px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}.t input:checked+span{background:#e50914}.t input:checked+span:before{transform:translateX(20px)}
-input[type=text],select{width:100%;box-sizing:border-box;background:#0b0b0d;color:#fff;border:1px solid #33333a;border-radius:10px;padding:12px;font-size:16px}
+input[type=text],input[type=password],select{width:100%;box-sizing:border-box;background:#0b0b0d;color:#fff;border:1px solid #33333a;border-radius:10px;padding:12px;font-size:16px}
 button{background:#e50914;color:#fff;border:0;border-radius:10px;padding:12px 16px;font-size:16px;font-weight:600}button.g{background:#2a2a30}
 #msg{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#fff;color:#000;padding:10px 16px;border-radius:20px;display:none}a{color:#e50914}
 </style></head><body><main><h1>Fof TV</h1><div style="color:#8a8a92">Changes show on the TV right away. <a id="rl" href="/r">Phone remote</a></div>
@@ -110,6 +110,7 @@ button{background:#e50914;color:#fff;border:0;border-radius:10px;padding:12px 16
 <h2>TMDB key</h2><div class="c"><div class="r"><div>Descriptions, ratings, cast and episode pictures<small id="tk">From themoviedb.org (free account &gt; Settings &gt; API)</small></div></div></div>
 <div style="display:flex;gap:8px;margin-top:10px"><input type="text" id="tki" placeholder="Paste your TMDB API key (v3)"><button onclick="tmdb()">Save</button></div>
 <h2>App updates</h2><div class="c"><div class="r"><div>Check for a new version<small id="updv">The TV also checks by itself every hour</small></div><button class="g" onclick="upd()">Check now</button></div></div>
+<h2>Family account</h2><div class="c" id="acct"></div>
 <h2>App health</h2><div class="c" id="health"></div>
 <h2>Viewing</h2><div class="c" id="flags"></div>
 <h2>Home rows</h2><div class="c" id="rows"></div>
@@ -139,5 +140,26 @@ Array.prototype.forEach.call(document.querySelectorAll('#ads button'),function(b
 function tmdb(){var k=document.getElementById('tki').value.trim();if(!k)return;api('cfgset',{k:'tmdb',id:k,v:''}).then(function(){toast('Saved');document.getElementById('tki').value='';setTimeout(load,300)}).catch(function(){})}
 function upd(){toast('Checking...');api('cfgset',{k:'upd',id:'',v:''}).then(function(r){document.getElementById('updv').textContent=r.msg||'';toast(r.msg||'Done')}).catch(function(){})}
 function add(){var u=document.getElementById('au').value.trim();if(!u)return;toast('Adding...');api('addon',{u:u}).then(function(r){if(r.err)toast(r.err);else{toast('Added');document.getElementById('au').value='';setTimeout(load,400)}}).catch(function(){toast('Not added')})}
-load()</script></body></html>"""
+var acc={mode:'up',kind:'join',av:''};
+function acctLoad(){api('acct').then(function(s){var b=document.getElementById('acct');
+if(s.member){var h='<div class="r"><div>'+esc(s.member.name||'You')+(s.member.owner?' · owner':' · family')+'<small>'+esc(s.email)+(s.status?' · '+esc(s.status):'')+'</small></div><button class="g" onclick="acctOut()">Sign out</button></div>';
+if(s.member.owner)h+='<div class="r"><div>Share this TV\'s setup<small>Playlist and Stremio addons go to everyone in the family</small></div><button class="g" onclick="acctShare()">Share</button></div>'+
+'<div class="r"><div>Invite someone<small id="invc">They enter the code when they sign up on their TV</small></div><button class="g" onclick="acctInv()">New code</button></div>';
+b.innerHTML=h;return}
+var av=s.avatars.map(function(a){return '<img src="'+esc(a.u)+'" data-k="'+esc(a.k)+'" style="width:56px;height:56px;border-radius:12px;margin:3px;cursor:pointer;border:3px solid '+(acc.av==a.k?'#fff':'transparent')+'" onclick="acc.av=this.getAttribute(\'data-k\');acctLoad()">'}).join('');
+b.innerHTML=(s.signedIn?'<div class="r"><div>Signed in<small>'+esc(s.email)+'</small></div><button class="g" onclick="acctOut()">Sign out</button></div>':
+'<div class="r"><div>'+(acc.mode=='up'?'New account':'I already have an account')+'</div><button class="g" onclick="acc.mode=acc.mode==\'up\'?\'in\':\'up\';acctLoad()">'+(acc.mode=='up'?'I have one':'New account')+'</button></div>'+
+'<div style="padding:8px 0"><input type="text" id="ae" placeholder="Email" autocomplete="email"><input type="password" id="ap" placeholder="Password (6+ characters)" style="margin-top:8px"></div>')+
+'<div class="r"><div>'+(acc.kind=='join'?'Join my family':'I am the owner')+'<small>'+(acc.kind=='join'?'Use the code you got from the owner':'Your playlist and addons are shared with the family')+'</small></div><button class="g" onclick="acc.kind=acc.kind==\'join\'?\'owner\':\'join\';acctLoad()">'+(acc.kind=='join'?'I am the owner':'Join instead')+'</button></div>'+
+'<div style="padding:8px 0"><input type="text" id="an" placeholder="Your name"><input type="text" id="ac" placeholder="'+(acc.kind=='join'?'Invite code':'Family name (e.g. Fofana family)')+'" style="margin-top:8px"></div>'+
+'<div style="padding:4px 0 6px;color:#8a8a92">Choose your avatar</div><div>'+av+'</div>'+
+'<div style="display:flex;justify-content:flex-end;padding-top:10px"><button onclick="acctGo()">Continue</button></div>';
+}).catch(function(){})}
+function v(id){var e=document.getElementById(id);return e?e.value:''}
+function acctGo(){if(!acc.av){toast('Choose your avatar');return}toast('Working...');var c=v('ac');
+api('acctgo',{mode:acc.mode,kind:acc.kind,e:v('ae'),p:v('ap'),name:v('an'),av:acc.av,code:acc.kind=='join'?c:'',fam:acc.kind=='owner'?c:''}).then(function(r){if(r.err)toast(r.err);else{toast('Done');setTimeout(acctLoad,600)}}).catch(function(){toast('Not done')})}
+function acctOut(){api('acctout').then(function(){setTimeout(acctLoad,400)})}
+function acctShare(){toast('Sharing...');api('acctshare').then(function(r){toast(r.err||'Shared with the family')})}
+function acctInv(){api('acctinv',{n:1}).then(function(r){if(r.err)toast(r.err);else document.getElementById('invc').innerHTML='Code: <b style="font-size:20px;color:#fff;letter-spacing:3px">'+esc(r.code)+'</b> · one person, 14 days'})}
+acctLoad();load()</script></body></html>"""
 }

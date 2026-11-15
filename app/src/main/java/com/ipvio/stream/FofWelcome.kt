@@ -44,6 +44,7 @@ fun FofWelcome(onPick: (Int) -> Unit) {
     var askPin by remember { mutableStateOf(false) }
     var pinErr by remember { mutableStateOf<String?>(null) }
     var options by remember { mutableStateOf<Int?>(null) }
+    var phone by remember { mutableStateOf(false) }
     val first = remember { FocusRequester() }
     val startIdx = remember { Profiles.list.indexOfFirst { it.id == Profiles.active }.coerceAtLeast(0) }
     LaunchedEffect(naming, picking) {
@@ -51,11 +52,25 @@ fun FofWelcome(onPick: (Int) -> Unit) {
         delay(120)
         repeat(8) { if (runCatching { first.requestFocus() }.getOrDefault(false)) return@LaunchedEffect; delay(80) }
     }
-    Box(
-        Modifier.fillMaxSize().background(Color.Black)
-            .background(Brush.radialGradient(listOf(Color(0x8C4A3A10), Color(0x334A3A10), Color.Transparent),
-                center = androidx.compose.ui.geometry.Offset(380f, 320f), radius = 1500f))
-    ) {
+    FofAccount.init(ctx)
+    // Poster wall behind the profiles (the catalog's popular titles, already on the device), faded into black
+    val wall = remember {
+        val m = Catalog.cached(Catalog.popular(Kind.MOVIE)); val s = Catalog.cached(Catalog.popular(Kind.SERIES))
+        (0 until maxOf(m.size, s.size)).flatMap { listOfNotNull(m.getOrNull(it), s.getOrNull(it)) }.mapNotNull { it.logo }.distinct().take(24)
+    }
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
+        if (wall.size >= 8) Column(Modifier.fillMaxSize().graphicsLayer { alpha = 0.22f; rotationZ = -6f; scaleX = 1.25f; scaleY = 1.25f },
+            verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            wall.chunked(8).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    row.forEach { u -> coil.compose.AsyncImage(u, null, Modifier.width(150.dp).height(225.dp).clip(RoundedCornerShape(10.dp)),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop) }
+                }
+            }
+        }
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xCC000000), Color(0xE6000000), Color.Black))))
+        Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x40E50914), Color.Transparent),
+            center = androidx.compose.ui.geometry.Offset(960f, 200f), radius = 1100f)))
         Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
             // Fof TV mark
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -65,6 +80,11 @@ fun FofWelcome(onPick: (Int) -> Unit) {
             }
             Spacer(Modifier.height(30.dp))
             Text(if (manage) "Manage profiles" else "Who's watching?", color = Color.White, fontSize = 44.sp, fontWeight = FontWeight.Bold, raw = true)
+            // The family this TV belongs to (family account), as a quiet line under the title
+            FofAccount.member?.let { m ->
+                Spacer(Modifier.height(8.dp))
+                Text(if (m.owner) "Your family setup" else "Family setup by your host", color = Color(0x99FFFFFF), fontSize = 16.sp, raw = true)
+            }
             Spacer(Modifier.height(48.dp))
             // Up to 10 profiles: one row up to 5, then two rows
             val tiles: List<Int?> = Profiles.list.indices.toList() + (if (manage && Profiles.list.size < Profiles.MAX) listOf(null) else emptyList())
@@ -92,12 +112,17 @@ fun FofWelcome(onPick: (Int) -> Unit) {
             Spacer(Modifier.height(if (big) 26.dp else 40.dp))
             if (!manage) Text("Hold OK on a profile to change its picture", color = Color(0x80FFFFFF), fontSize = 15.sp, raw = true)
             Spacer(Modifier.height(18.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            // Not signed in: join the family (sign up with name, avatar and invite code on the phone)
+            if (!manage && FofAccount.member == null) OutlinePill(if (FofAccount.signedIn) "Join your family" else "Sign in or join your family") { phone = true }
             OutlinePill(if (manage) "Done" else "Manage Profiles") {
                 if (manage) manage = false
                 else if (Parental.profileLocked(ctx, 0)) { askPin = true; pinErr = null }
                 else manage = true
             }
+            }
         }
+        if (phone) RemoteOverlay(Modifier.align(Alignment.Center), onClose = { phone = false })
         if (askPin) Box(Modifier.fillMaxSize().background(Color(0xE6000000)), contentAlignment = Alignment.Center) {
             Box(Modifier.width(420.dp)) {
                 PinPad("Master PIN", "Only the master profile can manage profiles.", pinErr,

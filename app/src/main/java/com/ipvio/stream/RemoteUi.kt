@@ -39,12 +39,12 @@ object RemoteUi {
  * „Beenden“ switches it off.
  */
 @Composable
-fun RemoteOverlay(modifier: Modifier = Modifier) {
+fun RemoteOverlay(modifier: Modifier = Modifier, onClose: (() -> Unit)? = null) {
     val ctx = LocalContext.current
     val focus = remember { FocusRequester() }
     val ip = remember { PhoneImport.localIp() }
     val server = remember { RemoteHub.start(ctx) }
-    fun close() { RemoteUi.show = false }
+    fun close() { if (onClose != null) onClose() else RemoteUi.show = false }
     BackHandler { close() }
     LaunchedEffect(Unit) { delay(150); runCatching { focus.requestFocus() } }
     androidx.compose.foundation.layout.Box(

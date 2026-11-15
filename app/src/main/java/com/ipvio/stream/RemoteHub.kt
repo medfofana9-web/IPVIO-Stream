@@ -106,6 +106,12 @@ object RemoteHub {
             // Fof TV settings website (/s)
             "cfg" -> { val c = appCtx ?: return "{\"err\":\"TV not ready\"}"; SettingsWeb.state(c) }
             "cfgset" -> { val c = appCtx ?: return "{\"err\":\"TV not ready\"}"; SettingsWeb.set(c, q["k"].orEmpty(), q["id"].orEmpty().take(500), q["v"].orEmpty().take(20)) }
+            // Family account (phone settings page): state, sign up / sign in with name, avatar and invite code, invite, share
+            "acct" -> { val c = appCtx ?: return "{\"err\":\"TV not ready\"}"; AccountWeb.state(c) }
+            "acctgo" -> { val c = appCtx ?: return "{\"err\":\"TV not ready\"}"; kotlinx.coroutines.runBlocking { AccountWeb.go(c, q) } }
+            "acctinv" -> { val c = appCtx ?: return "{\"err\":\"TV not ready\"}"; kotlinx.coroutines.runBlocking { AccountWeb.invite(c, q["n"]?.toIntOrNull() ?: 1) } }
+            "acctshare" -> { val c = appCtx ?: return "{\"err\":\"TV not ready\"}"; kotlinx.coroutines.runBlocking { AccountWeb.share(c) } }
+            "acctout" -> { val c = appCtx ?: return "{\"err\":\"TV not ready\"}"; main.post { FofAccount.signOut(c) }; "{\"ok\":true}" }
             // Stremio addon link pasted on the phone (Settings > Stremio addons on the TV shows it afterwards)
             "addon" -> {
                 val c = appCtx ?: return "{\"err\":\"TV not ready\"}"
