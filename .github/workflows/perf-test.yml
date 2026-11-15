@@ -8,6 +8,10 @@ on:
   push:
     branches: [perf-test]
 
+# contents: write only to store the screenshots on the branch perf-shots (the log drops long lines)
+permissions:
+  contents: write
+
 jobs:
   perf:
     runs-on: ubuntu-latest
@@ -25,7 +29,9 @@ jobs:
       - name: Build release APK
         run: |
           chmod +x gradlew
-          printf 'storeFile=signing/fof-tv.jks\nstorePassword=foftv-sign\nkeyAlias=foftv\nkeyPassword=foftv-sign\n' > keystore.properties
+          # Test builds use a throwaway key (the real key exists only as a secret of the release workflow)
+          keytool -genkeypair -keystore "$RUNNER_TEMP/test.jks" -storetype PKCS12 -alias t -keyalg RSA -keysize 2048 -validity 2 -storepass testpass -dname CN=test >/dev/null 2>&1
+          printf 'storeFile=%s\nstorePassword=testpass\nkeyAlias=t\nkeyPassword=testpass\n' "$RUNNER_TEMP/test.jks" > keystore.properties
           # Test build only: allow the shell profiler (simpleperf) to sample the app
           sed -i 's#<application#<application xmlns:tools="http://schemas.android.com/tools"#' app/src/main/AndroidManifest.xml
           sed -i 's#</application>#<profileable android:shell="true" /></application>#' app/src/main/AndroidManifest.xml
@@ -273,6 +279,18 @@ jobs:
           } | tee checks.txt
           echo "== sports and search timings"; grep -E "sports:|search:|first poster|profile picked" marks.txt | sed 's/^.*FofProfile: //' || true
           grep -q RUNNING alive.txt && ! grep -q NOT-RUNNING alive.txt && ! grep -q "CHECK FAIL" checks.txt
+      - name: Key rotation signing works (throwaway keys)
+        if: always()
+        run: |
+          cd "$RUNNER_TEMP" && rm -f o.jks n.jks lin.bin r.apk
+          keytool -genkeypair -keystore o.jks -storetype PKCS12 -alias o -keyalg RSA -keysize 2048 -validity 2 -storepass oldpass -dname CN=o >/dev/null 2>&1
+          keytool -genkeypair -keystore n.jks -storetype PKCS12 -alias n -keyalg RSA -keysize 2048 -validity 2 -storepass newpass -dname CN=n >/dev/null 2>&1
+          export OLD_PASS=oldpass NEW_PASS=newpass
+          AS=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner
+          APK=$(ls "$GITHUB_WORKSPACE"/app/build/outputs/apk/release/*.apk | head -1)
+          "$AS" rotate --out lin.bin --old-signer --ks o.jks --ks-key-alias o --ks-pass env:OLD_PASS --set-rollback false --new-signer --ks n.jks --ks-key-alias n --ks-pass env:NEW_PASS
+          "$AS" sign --lineage lin.bin --rotation-min-sdk-version 28 --ks o.jks --ks-key-alias o --ks-pass env:OLD_PASS --next-signer --ks n.jks --ks-key-alias n --ks-pass env:NEW_PASS --out r.apk "$APK"
+          if "$AS" verify -v --print-certs r.apk | tee verify.txt | grep -q "CN=n"; then echo "CHECK PASS key rotation signing" | tee -a "$GITHUB_WORKSPACE/checks.txt"; else cat verify.txt | head -30; echo "CHECK FAIL key rotation signing" | tee -a "$GITHUB_WORKSPACE/checks.txt"; fi
       - name: Screens and texts
         if: always()
         run: |
@@ -284,6 +302,14 @@ jobs:
             convert "$f" -resize 960x -quality 55 "${f%.png}.jpg" && echo "==IMG ${f%.png} $(base64 -w0 "${f%.png}.jpg")"
           done
           echo "== checks again"; cat checks.txt 2>/dev/null || true
+      - name: Store screenshots (branch perf-shots)
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/shots"; cp *.jpg checks.txt "$RUNNER_TEMP/shots/" 2>/dev/null || true
+          cd "$RUNNER_TEMP/shots" && git init -q && git checkout -q -b perf-shots
+          git -c user.name=ci -c user.email=ci@users.noreply.github.com add -A
+          git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "Screens of run ${{ github.run_id }}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" perf-shots
       - uses: actions/upload-artifact@v4
         if: always()
         with:

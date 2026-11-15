@@ -1365,6 +1365,8 @@ private fun UpdateSection(ctx: Context) {
     val scope = rememberCoroutineScope()
     Text("Installiert: Version " + AppUpdate.currentName(ctx), color = Muted, fontSize = 16.sp)
     ToggleRow("Automatisch nach Updates suchen", "At every start, every hour and whenever the app comes back. A new update appears in the bell at the top right.", auto) { auto = it; AppUpdate.setAuto(ctx, it) }
+    var early by remember { mutableStateOf(AppUpdate.early(ctx)) }
+    ToggleRow("Early updates", "Get new versions right away. Off: only versions that ran 24 hours without problems.", early) { early = it; AppUpdate.setEarly(ctx, it) }
     Hint("Die Schlüssel bleiben nur auf diesem Gerät. Nach dem Eintragen die App einmal neu starten, damit alle Bereiche die Infos laden. Intro- und Abspann-Zeiten kommen von TheIntroDB und brauchen keinen Schlüssel.")
     // Buttons last: text below the last focusable element was cut off at the bottom of the page
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

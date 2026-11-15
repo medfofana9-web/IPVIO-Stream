@@ -110,6 +110,7 @@ object RemoteHub {
             "acct" -> { val c = appCtx ?: return "{\"err\":\"TV not ready\"}"; AccountWeb.state(c) }
             "acctgo" -> { val c = appCtx ?: return "{\"err\":\"TV not ready\"}"; kotlinx.coroutines.runBlocking { AccountWeb.go(c, q) } }
             "acctinv" -> { val c = appCtx ?: return "{\"err\":\"TV not ready\"}"; kotlinx.coroutines.runBlocking { AccountWeb.invite(c, q["n"]?.toIntOrNull() ?: 1) } }
+            "acctprob" -> { val c = appCtx ?: return "{\"err\":\"TV not ready\"}"; kotlinx.coroutines.runBlocking { AccountWeb.problems(c) } }
             "acctshare" -> { val c = appCtx ?: return "{\"err\":\"TV not ready\"}"; kotlinx.coroutines.runBlocking { AccountWeb.share(c) } }
             "acctout" -> { val c = appCtx ?: return "{\"err\":\"TV not ready\"}"; main.post { FofAccount.signOut(c) }; "{\"ok\":true}" }
             // Stremio addon link pasted on the phone (Settings > Stremio addons on the TV shows it afterwards)

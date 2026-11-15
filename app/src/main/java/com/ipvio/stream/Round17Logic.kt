@@ -14,6 +14,17 @@ object TechText {
 object UpdateLogic {
     fun isNewer(current: Long, remote: Long): Boolean = remote > current
 
+    /** From a GitHub release list: the finished release with the highest version (drafts skipped). */
+    fun newestRelease(a: org.json.JSONArray): org.json.JSONObject? {
+        var best: org.json.JSONObject? = null
+        for (i in 0 until a.length()) {
+            val o = a.optJSONObject(i) ?: continue
+            if (o.optBoolean("draft") || o.optString("tag_name").isBlank()) continue
+            if (best == null || isNewerName(best.optString("tag_name"), o.optString("tag_name"))) best = o
+        }
+        return best
+    }
+
     /** Numbers of a version string: "v1.2.3" → [1, 2, 3], "1.1-beta" → [1, 1]. */
     fun parts(v: String): List<Int> =
         v.trim().trimStart('v', 'V').split('.', '-', '_', ' ').map { it.takeWhile(Char::isDigit) }.takeWhile { it.isNotEmpty() }.map { it.toIntOrNull() ?: 0 }

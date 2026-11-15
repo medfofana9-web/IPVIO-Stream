@@ -27,7 +27,8 @@ object SettingsWeb {
             Triple("close_alerts", "Close-game alerts" to "Pop-up when a game is close at the end", GameDay.closeAlerts),
             Triple("auto_teams", "Auto-tune my teams" to "Switch to your teams' games when they start", GameDay.autoTeams),
             Triple("motion", "Animations" to "Off makes moving around the fastest on slow devices", Look.motion > 0),
-            Triple("auto_update", "Check for updates automatically" to "At start, every 15 minutes and when the app comes back", AppUpdate.auto(c))
+            Triple("auto_update", "Check for updates automatically" to "At start, every 15 minutes and when the app comes back", AppUpdate.auto(c)),
+            Triple("early_updates", "Early updates" to "Get new versions right away. Off: only versions that ran 24 hours without problems", AppUpdate.early(c))
         )
     }
 
@@ -41,6 +42,7 @@ object SettingsWeb {
             "auto_teams" -> GameDay.setAutoTeams(c, on)
             "motion" -> AppSettings.setLook(c, Look.accentIdx, Look.custom, Look.bgIdx, if (on) 2 else 0, Look.uiScale)
             "auto_update" -> AppUpdate.setAuto(c, on)
+            "early_updates" -> AppUpdate.setEarly(c, on)
             else -> return false
         }
         return true
@@ -144,7 +146,8 @@ var acc={mode:'up',kind:'join',av:''};
 function acctLoad(){api('acct').then(function(s){var b=document.getElementById('acct');
 if(s.member){var h='<div class="r"><div>'+esc(s.member.name||'You')+(s.member.owner?' · owner':' · family')+'<small>'+esc(s.email)+(s.status?' · '+esc(s.status):'')+'</small></div><button class="g" onclick="acctOut()">Sign out</button></div>';
 if(s.member.owner)h+='<div class="r"><div>Share this TV\'s setup<small>Playlist and Stremio addons go to everyone in the family</small></div><button class="g" onclick="acctShare()">Share</button></div>'+
-'<div class="r"><div>Invite someone<small id="invc">They enter the code when they sign up on their TV</small></div><button class="g" onclick="acctInv()">New code</button></div>';
+'<div class="r"><div>Invite someone<small id="invc">They enter the code when they sign up on their TV</small></div><button class="g" onclick="acctInv()">New code</button></div>'+
+'<div class="r"><div>Problems on family TVs<small>Crashes, frozen screens and forced closes</small></div><button class="g" onclick="acctProb()">Show</button></div><div id="probs"></div>';
 b.innerHTML=h;return}
 var av=s.avatars.map(function(a){return '<img src="'+esc(a.u)+'" data-k="'+esc(a.k)+'" style="width:56px;height:56px;border-radius:12px;margin:3px;cursor:pointer;border:3px solid '+(acc.av==a.k?'#fff':'transparent')+'" onclick="acc.av=this.getAttribute(\'data-k\');acctLoad()">'}).join('');
 b.innerHTML=(s.signedIn?'<div class="r"><div>Signed in<small>'+esc(s.email)+'</small></div><button class="g" onclick="acctOut()">Sign out</button></div>':
@@ -159,6 +162,8 @@ function v(id){var e=document.getElementById(id);return e?e.value:''}
 function acctGo(){if(!acc.av){toast('Choose your avatar');return}toast('Working...');var c=v('ac');
 api('acctgo',{mode:acc.mode,kind:acc.kind,e:v('ae'),p:v('ap'),name:v('an'),av:acc.av,code:acc.kind=='join'?c:'',fam:acc.kind=='owner'?c:''}).then(function(r){if(r.err)toast(r.err);else{toast('Done');setTimeout(acctLoad,600)}}).catch(function(){toast('Not done')})}
 function acctOut(){api('acctout').then(function(){setTimeout(acctLoad,400)})}
+function acctProb(){var d=document.getElementById('probs');d.innerHTML='<small>Loading...</small>';api('acctprob').then(function(r){if(r.err){d.innerHTML='<small>'+esc(r.err)+'</small>';return}
+d.innerHTML=r.list.length?r.list.map(function(p){return '<div class="r"><div>'+esc(p.who||'Someone')+' · '+esc(p.at)+'<small>'+esc(p.kind)+' · '+esc(p.v)+' · '+esc(p.dev)+'</small></div></div>'}).join(''):'<small>No problems reported. Everything runs smoothly.</small>'}).catch(function(){d.innerHTML='<small>Not loaded</small>'})}
 function acctShare(){toast('Sharing...');api('acctshare').then(function(r){toast(r.err||'Shared with the family')})}
 function acctInv(){api('acctinv',{n:1}).then(function(r){if(r.err)toast(r.err);else document.getElementById('invc').innerHTML='Code: <b style="font-size:20px;color:#fff;letter-spacing:3px">'+esc(r.code)+'</b> · one person, 14 days'})}
 acctLoad();load()</script></body></html>"""

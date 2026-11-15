@@ -1,0 +1,35 @@
+name: Promote release
+
+# Update channels: every build is first published as a prerelease (early channel, the owner's TV).
+# A prerelease that is at least 24 hours old becomes the latest release, which family devices and the
+# install link (releases/latest/download/FofTV.apk) get. Run by hand to promote the newest build now.
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+    inputs:
+      now:
+        description: 'Promote the newest build now (skip the 24-hour wait)'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      NOW: ${{ inputs.now }}
+    steps:
+      - name: Promote
+        run: |
+          MIN=86400; [ "$NOW" = "true" ] && MIN=0
+          TAG=$(gh api "repos/${{ github.repository }}/releases?per_page=20" --jq "[.[] | select(.prerelease and (.draft|not)) | select((now - (.published_at|fromdateiso8601)) >= $MIN)] | sort_by(.published_at) | last | .tag_name // empty")
+          if [ -z "$TAG" ]; then echo "Nothing to promote"; exit 0; fi
+          LATEST=$(gh api "repos/${{ github.repository }}/releases/latest" --jq .published_at 2>/dev/null || echo "")
+          PUB=$(gh api "repos/${{ github.repository }}/releases/tags/$TAG" --jq .published_at)
+          if [ -n "$LATEST" ] && [ "$PUB" \< "$LATEST" ]; then echo "$TAG is older than the latest release"; exit 0; fi
+          gh release edit "$TAG" -R "${{ github.repository }}" --prerelease=false --latest
+          echo "Promoted $TAG"

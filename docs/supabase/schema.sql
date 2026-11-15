@@ -134,3 +134,27 @@ revoke all on function public.join_household(text, text, text) from anon;
 grant execute on function public.create_household(text, text, text) to authenticated;
 grant execute on function public.create_invite(int) to authenticated;
 grant execute on function public.join_household(text, text, text) to authenticated;
+
+-- ---------------------------------------------------------------- Problem reports (added in 1.3, T-026)
+-- A family TV sends its last crash, freeze or forced close here; only the owner can read them.
+create table if not exists public.reports (
+  id bigint generated always as identity primary key,
+  household_id uuid not null references public.households(id) on delete cascade,
+  user_id uuid not null default auth.uid(),
+  member_name text not null default '' check (length(member_name) <= 60),
+  kind text not null check (length(kind) <= 400),
+  version text not null default '' check (length(version) <= 40),
+  device text not null default '' check (length(device) <= 80),
+  happened_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+alter table public.reports enable row level security;
+drop policy if exists rep_insert on public.reports;
+create policy rep_insert on public.reports for insert to authenticated
+  with check (user_id = auth.uid() and household_id = public.my_household());
+drop policy if exists rep_owner_read on public.reports;
+create policy rep_owner_read on public.reports for select to authenticated using (public.i_am_owner(household_id));
+drop policy if exists rep_owner_delete on public.reports;
+create policy rep_owner_delete on public.reports for delete to authenticated using (public.i_am_owner(household_id));
+revoke all on public.reports from anon;
+create index if not exists reports_household on public.reports (household_id, happened_at desc);

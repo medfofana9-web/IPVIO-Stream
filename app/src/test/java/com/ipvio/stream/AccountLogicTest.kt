@@ -28,4 +28,17 @@ class AccountLogicTest {
         assertEquals("Invalid login credentials", AccountLogic.message("""{"error":"invalid_grant","error_description":"invalid login credentials"}"""))
         assertEquals("Invite code not valid", AccountLogic.message("""{"code":"P0001","message":"invite code not valid"}"""))
     }
+
+    @Test fun reportJsonIsUtcAndLimited() {
+        val j = org.json.JSONObject(AccountLogic.reportJson("h1", "Med", "Freeze".repeat(100), "1.3.70", "Amazon AFTKA", 0L))
+        assertEquals("1970-01-01T00:00:00Z", j.getString("happened_at"))
+        assertEquals(400, j.getString("kind").length)
+        assertEquals("h1", j.getString("household_id"))
+    }
+
+    @Test fun reportsListParses() {
+        val l = AccountLogic.reportsFrom("""[{"member_name":"Awa","kind":"Freeze","version":"1.3.70","device":"Fire TV","happened_at":"2026-11-14T20:00:00+00:00"}]""")
+        assertEquals(1, l.size); assertEquals("Awa", l[0].who); assertEquals("Freeze", l[0].kind)
+        assertEquals(0, AccountLogic.reportsFrom("not json").size)
+    }
 }

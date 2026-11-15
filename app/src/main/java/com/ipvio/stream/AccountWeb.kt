@@ -49,6 +49,13 @@ object AccountWeb {
         return if (code != null) "{\"code\":${q(code)}}" else err(e ?: "Could not create a code.")
     }
 
+    /** Owner: problem reports of the family TVs, newest first. */
+    suspend fun problems(c: Context): String {
+        if (FofAccount.member?.owner != true) return err("Only the owner sees problem reports.")
+        val l = FofAccount.problems(c)
+        return "{\"list\":[" + l.joinToString(",") { "{\"who\":${q(it.who)},\"kind\":${q(it.kind)},\"v\":${q(it.version)},\"dev\":${q(it.device)},\"at\":${q(it.at.take(16).replace('T', ' '))}}" } + "]}"
+    }
+
     suspend fun share(c: Context): String = FofAccount.share(c)?.let { err(it) } ?: "{\"ok\":true}"
 
     private fun err(s: String) = "{\"err\":${q(s)}}"

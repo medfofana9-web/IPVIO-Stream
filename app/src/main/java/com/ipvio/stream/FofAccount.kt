@@ -139,6 +139,28 @@ object FofAccount {
             ?.takeIf { it.first in 200..299 }?.second?.let { AccountLogic.membersFrom(it) } ?: emptyList()
     }
 
+    // ---------------------------------------------------------------- Problem reports
+
+    /** Sends this TV's last crash, freeze or forced close to the family (once per problem); the owner sees the list. */
+    private suspend fun report(c: Context, m: Member, t: String) = withContext(Dispatchers.IO) {
+        val (kind, at) = CrashLog.last(c) ?: return@withContext
+        // Once per problem, and nothing older than a week (a first sign-in does not send an old crash)
+        if (at <= prefs(c).getLong("rep_at", 0L) || System.currentTimeMillis() - at > 7 * 86_400_000L) return@withContext
+        val body = AccountLogic.reportJson(m.householdId, m.name, kind, AppUpdate.currentName(c),
+            (android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL).trim(), at)
+        val (code, _) = call("POST", "/rest/v1/reports", body, t)
+        if (code in 200..299) prefs(c).edit().putLong("rep_at", at).apply()
+    }
+
+    class Report(val who: String, val kind: String, val version: String, val device: String, val at: String)
+
+    /** Owner: the latest problem reports of all family TVs. */
+    suspend fun problems(c: Context): List<Report> = withContext(Dispatchers.IO) {
+        val t = token(c) ?: return@withContext emptyList()
+        runCatching { call("GET", "/rest/v1/reports?select=member_name,kind,version,device,happened_at&order=happened_at.desc&limit=25", null, t) }.getOrNull()
+            ?.takeIf { it.first in 200..299 }?.second?.let { AccountLogic.reportsFrom(it) } ?: emptyList()
+    }
+
     // ---------------------------------------------------------------- Shared setup
 
     /** Owner: put this TV's playlist and addons into the family setup. */
@@ -168,6 +190,7 @@ object FofAccount {
         val cfg = withContext(Dispatchers.IO) {
             runCatching { call("GET", "/rest/v1/household_config?select=playlist_url,addons&household_id=eq.${m.householdId}", null, t) }.getOrNull()
         }?.takeIf { it.first in 200..299 }?.second?.let { AccountLogic.configFrom(it) }
+        runCatching { report(c, m, t) }
         if (cfg == null) { status = "Could not reach the family setup"; return }
         // The owner's TV is the source of the setup; only a fresh install of it (no playlist yet) takes the saved setup back
         if (m.owner && PlaylistStore.savedUrl(c) != null) { status = "Owner of the family setup"; return }
@@ -212,6 +235,16 @@ object AccountLogic {
     }.getOrNull()
 
     /** Readable error text from Supabase (auth: "msg"/"error_description", database: "message"). */
+    fun reportJson(household: String, who: String, kind: String, version: String, device: String, atMs: Long): String =
+        JSONObject().put("household_id", household).put("member_name", who.take(60)).put("kind", kind.take(400))
+            .put("version", version.take(40)).put("device", device.take(80))
+            .put("happened_at", java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.format(java.util.Date(atMs))).toString()
+
+    fun reportsFrom(body: String): List<FofAccount.Report> = runCatching {
+        val a = JSONArray(body)
+        (0 until a.length()).mapNotNull { i -> a.optJSONObject(i)?.let { FofAccount.Report(it.optString("member_name"), it.optString("kind"), it.optString("version"), it.optString("device"), it.optString("happened_at")) } }
+    }.getOrDefault(emptyList())
+
     fun message(body: String): String? = runCatching {
         val o = JSONObject(body)
         listOf("msg", "error_description", "message", "error").map { o.optString(it) }.firstOrNull { it.isNotBlank() }

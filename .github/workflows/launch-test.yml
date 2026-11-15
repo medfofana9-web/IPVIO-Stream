@@ -30,7 +30,9 @@ jobs:
       - name: Build release APK
         run: |
           chmod +x gradlew
-          printf 'storeFile=signing/fof-tv.jks\nstorePassword=foftv-sign\nkeyAlias=foftv\nkeyPassword=foftv-sign\n' > keystore.properties
+          # Test builds use a throwaway key (the real key exists only as a secret of the release workflow)
+          keytool -genkeypair -keystore "$RUNNER_TEMP/test.jks" -storetype PKCS12 -alias t -keyalg RSA -keysize 2048 -validity 2 -storepass testpass -dname CN=test >/dev/null 2>&1
+          printf 'storeFile=%s\nstorePassword=testpass\nkeyAlias=t\nkeyPassword=testpass\n' "$RUNNER_TEMP/test.jks" > keystore.properties
           ./gradlew --no-daemon assembleRelease
           cp app/build/outputs/apk/release/*.apk app.apk
           ls -la app.apk

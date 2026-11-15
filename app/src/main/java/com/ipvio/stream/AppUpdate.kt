@@ -32,6 +32,8 @@ data class UpdateInfo(val code: Long, val name: String, val apkUrl: String, val 
 object AppUpdate {
     /** Built-in update address: the latest release of the project on GitHub. */
     const val DEFAULT_URL = "https://api.github.com/repos/medfofana9-web/IPVIO-Stream/releases/latest"
+    /** Early channel: every new build (also the ones not yet promoted to latest). */
+    const val EARLY_URL = "https://api.github.com/repos/medfofana9-web/IPVIO-Stream/releases?per_page=10"
 
     /** Found update (for the bell), null = none known. */
     var available by mutableStateOf<UpdateInfo?>(null)
@@ -43,7 +45,14 @@ object AppUpdate {
     var dismissedFor by mutableStateOf<String?>(null)
 
     private fun prefs(c: Context) = c.getSharedPreferences("ipvio_upd", Context.MODE_PRIVATE)
-    fun url(c: Context) = prefs(c).getString("url", "").orEmpty().ifBlank { DEFAULT_URL }
+    fun url(c: Context) = prefs(c).getString("url", "").orEmpty().ifBlank { if (early(c)) EARLY_URL else DEFAULT_URL }
+
+    /**
+     * Update channel. New builds reach the early channel first; after 24 hours without problems they become the
+     * latest release, which everybody else gets. Default: early on the family owner's TV, latest everywhere else.
+     */
+    fun early(c: Context): Boolean = if (prefs(c).contains("early")) prefs(c).getBoolean("early", false) else FofAccount.member?.owner == true
+    fun setEarly(c: Context, on: Boolean) = prefs(c).edit().putBoolean("early", on).putLong("last_start", 0L).apply()
     fun setUrl(c: Context, v: String) = prefs(c).edit().putString("url", v.trim()).apply()
 
     /** Automatic check at start (default: on). */
@@ -67,8 +76,10 @@ object AppUpdate {
             Net.base.newCall(req).execute().use { r ->
                 if (r.code == 404) error("Noch keine Veröffentlichung gefunden")
                 if (!r.isSuccessful) error("Fehler ${r.code}")
-                val j = JSONObject(r.body?.string().orEmpty())
-                val res = if (j.has("tag_name")) fromGithub(c, j) else fromFile(c, u, j)
+                val body = r.body?.string().orEmpty()
+                // The early channel lists releases (newest first): take the newest finished one
+                val j = if (body.trimStart().startsWith("[")) UpdateLogic.newestRelease(org.json.JSONArray(body)) ?: error("Noch keine Veröffentlichung gefunden") else JSONObject(body)
+                val res = if (j.has("tag_name")) fromGithub(c, j, allowPre = u == EARLY_URL || early(c)) else fromFile(c, u, j)
                 prefs(c).edit().putLong("last", System.currentTimeMillis()).apply()
                 available = res
                 remember(c, res)
@@ -77,9 +88,9 @@ object AppUpdate {
         }
     }
 
-    private fun fromGithub(c: Context, j: JSONObject): UpdateInfo? {
+    private fun fromGithub(c: Context, j: JSONObject, allowPre: Boolean): UpdateInfo? {
         val tag = j.optString("tag_name")
-        if (j.optBoolean("draft") || j.optBoolean("prerelease")) return null
+        if (j.optBoolean("draft") || (j.optBoolean("prerelease") && !allowPre)) return null
         if (!UpdateLogic.isNewerName(currentName(c), tag)) return null
         val a = j.optJSONArray("assets")
         val assets = ArrayList<Pair<String, String>>()
