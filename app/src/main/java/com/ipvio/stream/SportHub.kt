@@ -31,6 +31,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -86,11 +87,24 @@ object SportFeed {
 
 /** What the tabs and pages of the hub need: page stack, channels, play, change tab. */
 class HubCtx(val nav: HubNav, val live: List<Item>, private val onPlay: (Item, List<Item>) -> Unit, val goTab: (Int, String?) -> Unit) {
+    /** For the addon lookup of a game (set where the hub is built). */
+    var ctxApp: android.content.Context? = null
+    var scopeApp: kotlinx.coroutines.CoroutineScope? = null
+    private var pendingAddon: String? = null
     fun chans(g: SportData.Game): List<Item> = SportWatch.channels(g, live)
     /** Remember the open pages (Match Center, Watch Live …): Back from the player returns to exactly there. */
     fun play(ch: Item, list: List<Item>) { HubMemory.keep = nav.stack.toList(); nav.clear(); onPlay(ch, list) }
     /** Watch Live: start the best channel directly, otherwise show the Watch Live page (assign by hand). */
     fun watch(g: SportData.Game) {
+        // Addon streams of this game (Pengu …): asked first, at most 4 s, then the best channel is chosen
+        if (SportAddons.cached(g).isEmpty() && g.state != 2 && ctxApp != null && pendingAddon != g.key) {
+            pendingAddon = g.key
+            scopeApp?.launch {
+                kotlinx.coroutines.withTimeoutOrNull(4_000) { SportAddons.find(ctxApp, g) }
+                watch(g); pendingAddon = null
+            }
+            return
+        }
         val c = chans(g)
         if (c.isEmpty()) { nav.open(HubPage.Watch(g)); return }
         // One press: best channel (verified ones first); failover, game switching and score bug come from the session
@@ -140,8 +154,10 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     var scoreDlg by remember { mutableStateOf(false) }
     if (scoreDlg) ScoreOverlayDialog { scoreDlg = false }
     val nav = remember { HubNav().also { n -> HubMemory.keep.forEach { n.open(it) }; HubMemory.keep = emptyList() } }
+    val hubScope = rememberCoroutineScope()
     val hub = remember(live, nav) {
         HubCtx(nav, live, onPlay) { t, s -> tab = t; HubMemory.tab = t; if (s != null || t == 1) { sport = s; HubMemory.sport = s } }
+            .also { it.ctxApp = ctx.applicationContext; it.scopeApp = hubScope }
     }
 
     // Today's games of all active leagues, each league with its own refresh interval

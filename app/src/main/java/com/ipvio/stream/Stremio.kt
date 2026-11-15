@@ -76,6 +76,10 @@ object Stremio {
         prefs(c).edit().putString("addons", a.toString()).apply()
     }
 
+    /** Raw addon request (sports lookup in [SportAddons]). */
+    internal fun rawGet(url: String): String = get(url)
+    internal fun parseStreams(addon: String, body: String): List<Source> = parse(addon, body)
+
     private fun get(url: String): String {
         val req = Request.Builder().url(url).header("User-Agent", "Mozilla/5.0 (Linux; Android) FofTV").build()
         http.newCall(req).execute().use { r ->

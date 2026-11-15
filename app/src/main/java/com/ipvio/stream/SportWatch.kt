@@ -157,7 +157,7 @@ object SportWatch {
         val fixed = SportFix.map[SportFix.key(g)]
         val learned = SportLearn.lookup(g)
         val pr = prepFor(live)
-        val sig = (((((System.identityHashCode(live) * 31 + live.size) * 31 + version) * 31 + (fixed?.hashCode() ?: 0)) * 31 +
+        val sig = ((((((System.identityHashCode(live) * 31 + live.size) * 31 + version) * 31 + SportAddons.cached(g).size) * 31 + (fixed?.hashCode() ?: 0)) * 31 +
             learned.hashCode()) * 31 + SportLearn.version) * 31 + (if (pr != null) 1 else 0)
         synchronized(cache) { cache[g.key]?.let { if (it.first == sig) return it.second } }
         val out = ArrayList<Hit>()
@@ -173,6 +173,8 @@ object SportWatch {
                 (multiDay && s.prog.start in g.start..g.end && g.state != 2)
             if (timeOk && showMatches(g, s.prog.title + " " + s.prog.desc)) out.add(Hit(s.ch, 1, s.prog.title))
         }
+        // Streams of the game from the addons (Pengu …): exact, so before the network guesses
+        SportAddons.cached(g).forEach { out.add(Hit(it, 2, "Addon")) }
         if (pr != null) {
             teamChannels(g, pr).forEach { (c, t) -> out.add(Hit(c, 4, if (t == 1) g.home.name else g.away.name)) }
             // ESPN often lists no TV for games it does not carry itself (e.g. USA vs Haiti on TBS/truTV): then the usual US
@@ -197,6 +199,9 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
     SportFix.init(ctx)
     val g = SportFeed.latest[g0.key] ?: g0
     @Suppress("UNUSED_VARIABLE") val ready = SportWatch.prepVersion   // recompose once the channel lookups are built
+    // Streams of this game from the addons (Pengu …) join the list once found
+    @Suppress("UNUSED_VARIABLE") val addonV = SportAddons.version
+    LaunchedEffect(g.key) { runCatching { SportAddons.find(ctx, g) } }
     val hits = SportWatch.resolve(g, hub.live)
     var pick by remember { mutableStateOf(false) }
     val first = remember { FocusRequester() }
