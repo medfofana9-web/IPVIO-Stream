@@ -510,7 +510,9 @@ private fun AppContent() {
                     }
                 } else emptyList()
                 val seriesBase = remember(p.itemId, all) {
-                    if (p.live || p.archive != null) null else all.firstOrNull { it.id == p.itemId }?.let { LazySeries.full(it) }
+                    // Playlist series, or an addon series (catalog title): its episodes give next episode and the watched marks
+                    if (p.live || p.archive != null) null
+                    else (all.firstOrNull { it.id == p.itemId } ?: CatalogItems.get(p.itemId)?.takeIf { it.kind == Kind.SERIES })?.let { LazySeries.full(it) }
                 }
                 // Series with a placeholder (e.g. Resume from the home screen): fetch episodes in the background, the player uses them right after
                 val seriesItem by produceState(seriesBase, seriesBase) {

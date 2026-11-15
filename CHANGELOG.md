@@ -1,5 +1,12 @@
 # Changelog
 
+## Fof TV 1.3.68 (November 2026)
+**Shows from the addons (Netflix-style)**
+- The next episode plays by itself when one ends (with the "Next episode" countdown); in the last 3 minutes its stream is already looked up and chosen, so it starts right away
+- The next episode uses the same addon and quality that worked for this one (only a source whose file name confirms that very episode); if none is confirmed, a message says so instead of playing something else
+- Finished episodes are marked as watched, and Continue watching moves on to the next episode (addon shows were not linked to their episode list before)
+- "Skip intro" (and credits) also for addon shows when the intro database knows the episode (the show's TMDB number now comes from Cinemeta, no key needed)
+
 ## Fof TV 1.3.67 (November 2026)
 **New**
 - Family account: the owner's account holds the shared setup (provider playlist and Stremio addons). Family members sign up on the phone page (Who's watching → "Sign in or join your family") with email, password, their name, their avatar and the owner's invite code; their TV then loads the family playlist and addons by itself and keeps them current (every 3 hours). Each TV keeps its own pages and settings. Owner on the phone page: "Share" (this TV's setup to the family) and "New code" (invite for one person, 14 days)

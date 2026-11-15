@@ -245,6 +245,15 @@ object Stremio {
     }
 
     /** Automatic choice: only a verified match that was not reported wrong; null = let the viewer choose. */
+    /**
+     * Source for the next episode, like the one that just worked: same addon and quality first, then same addon, then the
+     * best other confirmed one. Only sources whose file name confirms this very episode.
+     */
+    fun pickLike(l: List<Source>, w: Want, contentId: String, likeAddon: String?, likeQ: Int?): Source? {
+        val ok = rank(l, w, contentId).filter { match(it, w) == StremioLogic.VERIFIED && !SourceMemory.isWrong(contentId, it.key) }
+        return ok.firstOrNull { it.addon == likeAddon && it.q == likeQ } ?: ok.firstOrNull { it.addon == likeAddon } ?: ok.firstOrNull()
+    }
+
     fun bestVerified(l: List<Source>, w: Want, contentId: String): Source? =
         rank(l, w, contentId).firstOrNull { match(it, w) == StremioLogic.VERIFIED && !SourceMemory.isWrong(contentId, it.key) }
 

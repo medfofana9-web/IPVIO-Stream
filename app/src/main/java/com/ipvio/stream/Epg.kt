@@ -260,6 +260,24 @@ data class Seg(val label: String, val start: Long, val end: Long)
 
 object IntroDb {
     private val client = Net.base
+    private val tmdbOf = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
+    /**
+     * TMDB number of an addon title from its IMDb id (Cinemeta's "moviedb_id"; no TMDB key needed), so intro and credit
+     * times work for shows from the addons too. 0 = unknown.
+     */
+    suspend fun tmdbForImdb(imdb: String, series: Boolean): Int {
+        tmdbOf[imdb]?.let { return it }
+        val id = withContext(Dispatchers.IO) {
+            runCatching {
+                client.newCall(Request.Builder().url("https://v3-cinemeta.strem.io/meta/" + (if (series) "series" else "movie") + "/$imdb.json").build()).execute().use { r ->
+                    if (!r.isSuccessful) 0 else org.json.JSONObject(r.body?.string().orEmpty()).optJSONObject("meta")?.optInt("moviedb_id", 0) ?: 0
+                }
+            }.getOrDefault(0)
+        }
+        if (id > 0) tmdbOf[imdb] = id
+        return id
+    }
 
     suspend fun get(tmdbId: Int, season: Int, episode: Int, durMs: Long): List<Seg> {
         val tv = if (season > 0 && episode > 0) "&season=$season&episode=$episode" else ""

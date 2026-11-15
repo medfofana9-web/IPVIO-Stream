@@ -684,8 +684,42 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         WatchStore.save(ctx, Entry(cur.itemId, cur.title, cur.url, p, d, now, cur.season, cur.episode), next)
     }
 
+    // Addon series (catalog title): the next episode comes from the addons, prepared while this one ends
+    val addonSeries = seriesItem?.id?.startsWith("stremio:") == true
+    var prepared by remember { mutableStateOf<Pair<Episode, Stremio.Source>?>(null) }
+    var preparedList by remember { mutableStateOf<List<Stremio.Source>>(emptyList()) }
+    suspend fun addonSourceFor(ep: Episode): Pair<Stremio.Source, List<Stremio.Source>>? {
+        val si = seriesItem ?: return null
+        val imdb = si.id.removePrefix("stremio:")
+        val list = runCatching { Stremio.streams(Kind.SERIES, imdb, ep.season, ep.num) }.getOrDefault(emptyList())
+        val w = Stremio.Want(true, si.title, si.year, ep.season, ep.num)
+        val now = NowSources.list.firstOrNull { it.key == NowSources.currentKey }
+        val s = Stremio.pickLike(list, w, SourceMemory.contentId(imdb, true, ep.season, ep.num), now?.addon, now?.q) ?: return null
+        return s to list
+    }
+
     fun playEpisode(ep: Episode) {
         val si = seriesItem ?: return
+        if (addonSeries) {
+            saveProgress()
+            scope.launch {
+                val ready = prepared?.takeIf { it.first.season == ep.season && it.first.num == ep.num }
+                val pick = ready?.let { it.second to preparedList } ?: addonSourceFor(ep)
+                if (pick == null) { notice = "No confirmed stream for S" + ep.season + " E" + ep.num + " – open the show to pick one"; return@launch }
+                val (src, list) = pick
+                val url = if (src.hash == null) src.url else runCatching { Debrid.resolve(src.hash, src.file) }.getOrNull()
+                if (url.isNullOrBlank()) { notice = "The next episode could not be opened"; return@launch }
+                val imdb = si.id.removePrefix("stremio:")
+                NowSources.set(si.id, imdb, Stremio.Want(true, si.title, si.year, ep.season, ep.num), list, src)
+                History.add(ctx, si.id)
+                scrubTarget = -1L
+                prepared = null
+                cur = PlayReq(si.title + " S" + ep.season + "E" + ep.num, url, si.id, false, 0L, cur.tmdbId, ep.season, ep.num)
+                if (!openStream(player, url, 0L)) { msg = PlayerLogic.MSG_FORMAT; buffering = false; return@launch }
+                ping()
+            }
+            return
+        }
         saveProgress()
         val saved = VariantPref.get(ctx, si.id)
         val v = pickVariant(ep, saved.first, saved.second, saved.third, PlaybackPrefs.cap(ctx))
@@ -694,6 +728,15 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         cur = PlayReq(si.title + " S" + ep.season + "E" + ep.num, v.url, si.id, false, 0L, cur.tmdbId, ep.season, ep.num)
         if (!openStream(player, v.url, 0L)) { msg = PlayerLogic.MSG_FORMAT; buffering = false; return }
         ping()
+    }
+
+    // The last 3 minutes of an addon episode: the next episode's stream is looked up and chosen now, so it starts at once
+    val nearEnd = addonSeries && hasNext && dur > 0 && dur - pos in 0..180_000L
+    LaunchedEffect(nearEnd, epIdx) {
+        if (!nearEnd || epIdx < 0) return@LaunchedEffect
+        val ep = epList.getOrNull(epIdx + 1) ?: return@LaunchedEffect
+        if (prepared?.first?.let { it.season == ep.season && it.num == ep.num } == true) return@LaunchedEffect
+        addonSourceFor(ep)?.let { (s, l) -> prepared = ep to s; preparedList = l }
     }
 
     /** 24/7 show channel: the next episode (in order or shuffled) with a fresh addon link. */
@@ -1065,7 +1108,9 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         }
     }
     LaunchedEffect(cur.url, hasDur) {
-        if (!cur.live && cur.tmdbId > 0 && hasDur && AppSettings.skipIntro) segs = IntroDb.get(cur.tmdbId, cur.season, cur.episode, dur)
+        // Addon titles have no TMDB number of their own: it comes from Cinemeta, so "Skip intro" works for them too
+        val tid = if (cur.tmdbId > 0) cur.tmdbId else if (cur.itemId.startsWith("stremio:")) IntroDb.tmdbForImdb(cur.itemId.removePrefix("stremio:"), cur.season > 0) else 0
+        if (!cur.live && tid > 0 && hasDur && AppSettings.skipIntro) segs = IntroDb.get(tid, cur.season, cur.episode, dur)
     }
     // Optional: skip the intro automatically
     LaunchedEffect(activeSeg) {
