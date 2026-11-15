@@ -165,6 +165,8 @@ object SportWatch {
             // ESPN often lists no TV for games it does not carry itself (e.g. USA vs Haiti on TBS/truTV): then the usual US
             // networks of that competition are tried, so the game is never "no channel found" while it is on TV
             for (n in (g.nets + SportRights.usual(g)).distinct()) (pr.net[SportNet.key(n)] ?: pr.net["~" + SportNet.looseKey(n)])?.forEach { out.add(Hit(it, 3, n)) }
+            // Still nothing: the networks that carry this sport in the US (tried in order by the player)
+            if (out.isEmpty()) for (n in SportRights.fallback(g)) (pr.net[SportNet.key(n)] ?: pr.net["~" + SportNet.looseKey(n)])?.forEach { out.add(Hit(it, 6, "Usually on $n")) }
         }
         // Working channels before ones marked broken; the rest of the list is the backup order for the player
         val r = out.distinctBy { it.ch.id }.sortedBy { if (DeadLinks.isDead(it.ch.url)) 1 else 0 }

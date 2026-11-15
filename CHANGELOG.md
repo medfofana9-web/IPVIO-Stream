@@ -1,5 +1,10 @@
 # Changelog
 
+## Fof TV 1.3.78 (November 2026)
+- Live games: national-team soccer (Spain, France, England … in the Nations League, qualifiers and friendlies) finds
+  its channels: FOX, FS1, FS2, FOX Deportes. When ESPN names no channel and nothing else matches, the channels that
+  usually carry that sport are offered (tried one after another), so "no matching channel" no longer appears for a game on TV
+
 ## Fof TV 1.3.77 (November 2026)
 - Live games: the score in the corner kept the score from when you started watching (it was only refreshed on the
   Sports page). It now refreshes itself every 12 seconds while you watch, so it matches the broadcast

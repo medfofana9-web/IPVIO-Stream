@@ -7,6 +7,23 @@ package com.ipvio.stream
 object SportRights {
     private val USMNT = listOf("TBS", "truTV", "TNT", "Universo", "Telemundo", "Peacock")
     private val MEXICO = listOf("TUDN", "Univision", "UniMás", "FOX", "FS1")
+    // European national teams (Nations League, qualifiers, friendlies): FOX holds the US rights
+    private val UEFA_NATIONS = listOf("FOX", "FS1", "FS2", "FOX Deportes", "Fox Soccer Plus", "Telemundo", "Universo", "Peacock")
+
+    /**
+     * Last resort when nothing else names a channel: the networks that carry this sport in the US. The player tries them
+     * in order and moves on when one does not start, so a game is never left without a channel.
+     */
+    private val BY_SPORT = mapOf(
+        "soccer" to listOf("FOX", "FS1", "FS2", "FOX Deportes", "ESPN", "ESPN2", "ESPN Deportes", "CBS Sports Network", "TUDN", "Univision",
+            "UniMás", "Telemundo", "Universo", "beIN Sports", "beIN Sports en Español", "USA Network", "Peacock"),
+        "NBA" to listOf("ESPN", "ABC", "NBC", "Peacock", "NBA TV", "Prime Video", "ESPN2"),
+        "WNBA" to listOf("ION", "ESPN", "ABC", "CBS", "NBA TV", "Prime Video", "ESPN2"),
+        "NFL" to listOf("CBS", "FOX", "NBC", "ESPN", "ABC", "NFL Network", "Prime Video", "Peacock"),
+        "College Football" to listOf("ESPN", "ABC", "FOX", "CBS", "NBC", "ESPN2", "FS1", "Big Ten Network", "SEC Network", "ACC Network", "ESPNU", "CBS Sports Network"),
+        "College Basketball" to listOf("ESPN", "ESPN2", "ESPNU", "FS1", "CBS", "CBS Sports Network", "Big Ten Network", "SEC Network", "ACC Network", "FOX"),
+        "Women's College Basketball" to listOf("ESPN", "ESPN2", "ESPNU", "FS1", "SEC Network", "ACC Network", "Big Ten Network", "CBS Sports Network", "ABC", "FOX")
+    )
 
     private val BY_LEAGUE = mapOf(
         "Premier League" to listOf("USA Network", "NBC", "Peacock", "Telemundo", "Universo"),
@@ -32,7 +49,9 @@ object SportRights {
         "Copa Libertadores" to listOf("beIN Sports", "FOX", "FS1"),
         "Saudi Pro League" to listOf("FOX", "FS1", "FS2"),
         "Liga Portugal" to listOf("CBS Sports Network"),
-        "MLS" to listOf("FOX", "FS1", "Univision", "UniMás", "TUDN")
+        "MLS" to listOf("FOX", "FS1", "Univision", "UniMás", "TUDN"),
+        "Nations League" to UEFA_NATIONS,
+        "International Friendlies" to listOf("FOX", "FS1", "FS2", "FOX Deportes", "TUDN", "Univision", "ESPN", "ESPN2", "Telemundo", "Universo")
     )
 
     private fun isUsa(t: SportData.Team) = t.abbr.equals("USA", true) || t.name.equals("United States", true) || t.short.equals("USA", true)
@@ -45,6 +64,13 @@ object SportRights {
             if (isUsa(g.home) || isUsa(g.away)) return USMNT
             if (isMexico(g.home) || isMexico(g.away)) return MEXICO
         }
-        return BY_LEAGUE[g.league].orEmpty()
+        BY_LEAGUE[g.league]?.let { return it }
+        // World Cup / Euro qualifiers of European teams
+        if (g.league.contains("UEFA", true) || g.league.contains("Euro", true)) return UEFA_NATIONS
+        return emptyList()
     }
+
+    /** The sport's usual networks (see [BY_SPORT]). */
+    fun fallback(g: SportData.Game): List<String> =
+        BY_SPORT[g.league] ?: if (SportData.sportOf(g) == "soccer") BY_SPORT["soccer"].orEmpty() else emptyList()
 }
