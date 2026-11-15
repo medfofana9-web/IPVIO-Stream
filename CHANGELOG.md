@@ -1,5 +1,10 @@
 # Changelog
 
+## Fof TV 1.3.91 (November 2026)
+- Continue watching keeps titles watched on another TV or from another source: when this TV's playlist has the title
+  under another id (or not yet), it is found by its exact name and kind (only one match, so similar names never mix);
+  otherwise the saved entry is shown and resumes at its saved position
+
 ## Fof TV 1.3.90 (November 2026)
 - Continue Watching reaches the account while you watch: progress is saved every 5 s, and each save used to restart
   the 8 s sync timer, so it only went up every 2 minutes or after stopping. Now the first change starts the timer and

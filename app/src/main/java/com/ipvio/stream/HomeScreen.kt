@@ -476,7 +476,9 @@ fun HomeScreen(
     val tasteSeeds = remember(Profiles.active) { Taste.titles(ctx).mapNotNull { CatalogItems.get(it) }.shuffled() }
     val likedGenres = remember(Profiles.active) { Taste.genres(ctx) }
     fun tasteOrder(l: List<Catalog.Spec>) = l.sortedBy { sp -> likedGenres.indexOfFirst { it.equals(sp.title, true) }.let { if (it < 0) 99 else it } }
-    val resumeList by remember(byId) { derivedStateOf { WatchStore.entries.mapNotNull { e -> lk(e.itemId)?.let { e to it } } } }
+    // A title watched on another TV (or from another source) stays in Continue watching even when this TV's playlist has
+    // it under another id or not at all: exact title + kind match first, else the saved entry itself (ResumeMatch)
+    val resumeList by remember(byId) { derivedStateOf { WatchStore.entries.map { e -> e to (lk(e.itemId) ?: ResumeMatch.find(e, byId)) } } }
     // Movies/series tab: the same lists filtered by kind, kept between recompositions
     val vodKind = if (tab == 1) Kind.MOVIE else Kind.SERIES
     val resumeK = remember(resumeList, vodKind) { resumeList.filter { it.second.kind == vodKind } }
