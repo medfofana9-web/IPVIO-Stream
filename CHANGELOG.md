@@ -1,5 +1,9 @@
 # Changelog
 
+## Fof TV 1.3.65 (November 2026)
+**New**
+- Shared provider login (e.g. 4 streams for the family): before a channel starts, the app asks the provider how many streams run on the login right now. When all are in use, nothing starts and a message says so, with "Try again" – instead of the provider cutting off someone else's stream or blocking the login. Switching channels on a TV that is already watching never counts twice; multi view tiles count one each. If the provider does not answer within 2.5 s, playback goes ahead
+
 ## Fof TV 1.3.64 (November 2026)
 **Sports**
 - The overview always opens at the top (Live now): rows arriving later no longer leave the page scrolled down; once you move into the list it stays where you are
