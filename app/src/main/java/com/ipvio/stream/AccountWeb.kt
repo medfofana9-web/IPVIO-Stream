@@ -13,7 +13,7 @@ object AccountWeb {
     fun state(c: Context): String {
         FofAccount.init(c)
         val m = FofAccount.member
-        val avatars = ProfileAvatars.all(c).joinToString(",") { "{\"k\":${q(it.key)},\"u\":${q(it.phoneUrl)},\"n\":${q(it.name)}}" }
+        val avatars = ""
         val mem = if (m == null) "null" else "{\"name\":${q(m.name)},\"avatar\":${q(m.avatar)},\"owner\":${m.owner}}"
         return "{\"signedIn\":${FofAccount.signedIn},\"email\":${q(FofAccount.email.orEmpty())},\"member\":$mem,\"status\":${q(FofAccount.status)},\"sync\":${q(syncLine(c))},\"avatars\":[$avatars]}"
     }
@@ -32,7 +32,7 @@ object AccountWeb {
         val mail = p["e"].orEmpty().trim().take(120)
         val pw = p["p"].orEmpty().take(120)
         val name = p["name"].orEmpty().trim().take(40)
-        val av = p["av"].orEmpty().take(40).takeIf { k -> ProfileAvatars.byKey(c, k) != null } ?: ""
+        val av = ""
         if (!FofAccount.signedIn) {
             if (mail.isBlank() || pw.length < 6) return err("Enter your email and a password of at least 6 characters.")
             FofAccount.signUpOrIn(c, mail, pw, create = p["mode"] == "up")?.let { return err(it) }
@@ -68,4 +68,21 @@ object AccountWeb {
     suspend fun share(c: Context): String = FofAccount.share(c)?.let { err(it) } ?: "{\"ok\":true}"
 
     private fun err(s: String) = "{\"err\":${q(s)}}"
+
+    /** Profiles of this TV with their picture (phone page "Your avatar"). */
+    fun avatarState(c: Context): String {
+        Profiles.init(c)
+        return "{\"list\":[" + Profiles.list.joinToString(",") { p ->
+            val pr = ProfileAvatars.presetFor(c, p.id)
+            val img = when (val m = pr.model) { is java.io.File -> "/img/p" + p.id + ".jpg?v=" + m.lastModified(); is String -> m; else -> "" }
+            "{\"id\":${p.id},\"name\":${q(Profiles.displayName(p))},\"img\":${q(img)},\"what\":${q(pr.name)}}"
+        } + "]}"
+    }
+
+    /** Photo from the phone for profile [id]. */
+    fun avatarUpload(c: Context, q: Map<String, String>, body: ByteArray): String {
+        Profiles.init(c)
+        val id = q["p"]?.toIntOrNull()?.takeIf { i -> Profiles.list.any { it.id == i } } ?: return err("Unknown profile")
+        return if (ProfileAvatars.savePhoto(c, id, body)) "{\"ok\":true}" else err("That file is not a picture")
+    }
 }

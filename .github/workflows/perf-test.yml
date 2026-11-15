@@ -56,7 +56,7 @@ jobs:
           PY
       - name: Avatar tiles draw
         run: |
-          if ./gradlew --no-daemon -q testDebugUnitTest --tests 'com.ipvio.stream.AvatarTilesTest'; then echo "CHECK PASS avatar catalog complete" | tee avatars.txt; else echo "CHECK FAIL avatar tiles" | tee avatars.txt; exit 1; fi
+          if ./gradlew --no-daemon -q testDebugUnitTest --tests 'com.ipvio.stream.AvatarValueTest'; then echo "CHECK PASS avatar values" | tee avatars.txt; else echo "CHECK FAIL avatar tiles" | tee avatars.txt; exit 1; fi
       - name: Generate test playlist and serve it
         run: |
           mkdir -p srv

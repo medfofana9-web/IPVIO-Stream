@@ -1269,7 +1269,7 @@ private fun ProfilesPage(ctx: Context, onExit: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             val av = remember(p.id, ProfileAvatars.version) { ProfileAvatars.presetFor(ctx, p.id) }
-            FofAvatar(av, Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)))
+            FofAvatar(av, Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)), letterSize = 20.sp)
             androidx.compose.foundation.text.BasicText(
                 Profiles.displayName(p) + if (isActive) "  ·  " + Lang.tr("aktiv") else "",
                 modifier = Modifier.weight(1f),

@@ -51,6 +51,12 @@ object RemoteHub {
             if (name != "state") main.post { RemoteUi.show = false }
             runCatching { handle(name, q) }.getOrNull()
         }
+        // Avatar photo from the phone page, and the saved photos shown on that page
+        s.apiPost = { _, q, body -> appCtx?.let { c -> runCatching { AccountWeb.avatarUpload(c, q, body) }.getOrNull() } }
+        s.image = { path ->
+            val id = Regex("^p(\\d{1,3})\\.jpg$").find(path.substringBefore('?'))?.groupValues?.get(1)?.toIntOrNull()
+            appCtx?.let { c -> id?.let { ProfileAvatars.photoBytes(c, it) } }?.let { it to "image/jpeg" }
+        }
         if (!s.start()) return null
         server = s
         active = true
@@ -110,6 +116,7 @@ object RemoteHub {
             "acct" -> { val c = appCtx ?: return "{\"err\":\"TV not ready\"}"; AccountWeb.state(c) }
             "acctgo" -> { val c = appCtx ?: return "{\"err\":\"TV not ready\"}"; kotlinx.coroutines.runBlocking { AccountWeb.go(c, q) } }
             "acctinv" -> { val c = appCtx ?: return "{\"err\":\"TV not ready\"}"; kotlinx.coroutines.runBlocking { AccountWeb.invite(c, q["n"]?.toIntOrNull() ?: 1) } }
+            "avstate" -> { val c = appCtx ?: return "{\"err\":\"TV not ready\"}"; AccountWeb.avatarState(c) }
             "acctprob" -> { val c = appCtx ?: return "{\"err\":\"TV not ready\"}"; kotlinx.coroutines.runBlocking { AccountWeb.problems(c) } }
             "acctshare" -> { val c = appCtx ?: return "{\"err\":\"TV not ready\"}"; kotlinx.coroutines.runBlocking { AccountWeb.share(c) } }
             "acctout" -> { val c = appCtx ?: return "{\"err\":\"TV not ready\"}"; main.post { FofAccount.signOut(c) }; "{\"ok\":true}" }

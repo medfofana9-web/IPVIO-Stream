@@ -1,5 +1,12 @@
 # Changelog
 
+## Fof TV 1.3.76 (November 2026)
+**Avatars like Netflix**
+- Pick a scene from a show or movie (the same artwork the app shows on Home), a player from the teams in Sports (ESPN
+  photos), or upload your own photo on the phone page ("Your avatar"). Search by name, preview, confirm
+- The picture follows you to every TV you sign in on, your own photo included
+- Profiles without a picture show their first letter on a color tile; the built-in 3D avatars are gone
+
 ## Fof TV 1.3.75 (November 2026)
 - New Fof TV logo: a white F whose middle bar is a play button, on a graphite tile. App icon, Fire TV banner, menu,
   welcome screen and start screen

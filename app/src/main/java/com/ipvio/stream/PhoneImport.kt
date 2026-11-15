@@ -189,6 +189,10 @@ class PhoneImport(private val onReceive: (PhoneInput) -> Unit) {
     var api: ((String, Map<String, String>) -> String?)? = null
     /** Import of an exported list file (file name, content); runs on the server thread, so the callback must post to the main thread itself. */
     var onList: ((String, ByteArray) -> Unit)? = null
+    /** Small uploads from the phone page (avatar photo): name, query, body → JSON answer. */
+    var apiPost: ((String, Map<String, String>, ByteArray) -> String?)? = null
+    /** Pictures for the phone page (avatars): path after "/img/" → bytes and type, or null. */
+    var image: ((String) -> Pair<ByteArray, String>?)? = null
 
     fun start(): Boolean {
         if (server != null) return true
@@ -390,10 +394,24 @@ class PhoneImport(private val onReceive: (PhoneInput) -> Unit) {
                 }
             }
             "GET /s" -> if (api != null) html(200, SettingsWeb.page()) else html(404, PhoneImportLogic.message(li, "bad"))
+            // Avatar photo from the phone (already made small there): at most 300 KB
+            "POST /apip/avatar" -> {
+                val cb = apiPost
+                val c = codeOk(h.query["code"])
+                if (cb == null) Reply(404, "{}".toByteArray(), "application/json; charset=utf-8")
+                else if (c != 200) Reply(c, "{}".toByteArray(), "application/json; charset=utf-8")
+                else if (h.len <= 0 || h.len > 300_000) Reply(413, "{\"err\":\"Picture too big\"}".toByteArray(), "application/json; charset=utf-8")
+                else Reply(200, (cb("avatar", h.query, readBody(ins, h.len)) ?: "{}").toByteArray(Charsets.UTF_8), "application/json; charset=utf-8")
+            }
             "GET /r" -> if (api != null) html(200, RemoteLogic.page(li)) else html(404, PhoneImportLogic.message(li, "bad"))
             else -> {
                 val a = api
-                if (h.method == "GET" && a != null && h.path.startsWith("/api/")) {
+                val img = image
+                if (h.method == "GET" && img != null && h.path.startsWith("/img/")) {
+                    // Avatar pictures only (names checked by the handler); no code needed, nothing personal
+                    val r = img(h.path.removePrefix("/img/"))
+                    if (r == null) Reply(404, ByteArray(0), "text/plain") else Reply(200, r.first, r.second)
+                } else if (h.method == "GET" && a != null && h.path.startsWith("/api/")) {
                     val c = codeOk(h.query["code"])
                     if (c != 200) Reply(c, "{}".toByteArray(), "application/json; charset=utf-8")
                     else {
@@ -407,7 +425,7 @@ class PhoneImport(private val onReceive: (PhoneInput) -> Unit) {
         val out = s.getOutputStream()
         val reason = when (r.status) { 200 -> "OK"; 400 -> "Bad Request"; 403 -> "Forbidden"; 404 -> "Not Found"; 413 -> "Payload Too Large"; 429 -> "Too Many Requests"; else -> "Error" }
         out.write(("HTTP/1.1 ${r.status} $reason\r\nContent-Type: ${r.type}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\n" +
-            "Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; img-src data:; frame-ancestors 'none'\r\n" +
+            "Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; img-src 'self' data: https:; frame-ancestors 'none'\r\n" +
             r.extra + "Content-Length: ${r.body.size}\r\nConnection: close\r\n\r\n").toByteArray())
         out.write(r.body)
         out.flush()

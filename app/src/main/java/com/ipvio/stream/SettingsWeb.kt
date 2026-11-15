@@ -112,6 +112,7 @@ button{background:#e50914;color:#fff;border:0;border-radius:10px;padding:12px 16
 <h2>TMDB key</h2><div class="c"><div class="r"><div>Descriptions, ratings, cast and episode pictures<small id="tk">From themoviedb.org (free account &gt; Settings &gt; API)</small></div></div></div>
 <div style="display:flex;gap:8px;margin-top:10px"><input type="text" id="tki" placeholder="Paste your TMDB API key (v3)"><button onclick="tmdb()">Save</button></div>
 <h2>App updates</h2><div class="c"><div class="r"><div>Check for a new version<small id="updv">The TV also checks by itself every hour</small></div><button class="g" onclick="upd()">Check now</button></div></div>
+<h2>Your avatar</h2><div class="c" id="avs"></div><input type="file" id="avf" accept="image/*" style="display:none">
 <h2>Family account</h2><div class="c" id="acct"></div>
 <h2>App health</h2><div class="c" id="health"></div>
 <h2>Viewing</h2><div class="c" id="flags"></div>
@@ -143,6 +144,17 @@ function tmdb(){var k=document.getElementById('tki').value.trim();if(!k)return;a
 function upd(){toast('Checking...');api('cfgset',{k:'upd',id:'',v:''}).then(function(r){document.getElementById('updv').textContent=r.msg||'';toast(r.msg||'Done')}).catch(function(){})}
 function add(){var u=document.getElementById('au').value.trim();if(!u)return;toast('Adding...');api('addon',{u:u}).then(function(r){if(r.err)toast(r.err);else{toast('Added');document.getElementById('au').value='';setTimeout(load,400)}}).catch(function(){toast('Not added')})}
 var acc={mode:'up',kind:'join',av:''};
+var avFor=0;
+function avLoad(){api('avstate').then(function(s){document.getElementById('avs').innerHTML=s.list.map(function(p){
+return '<div class="r"><div style="display:flex;align-items:center;gap:12px">'+(p.img?'<img src="'+esc(p.img)+'" style="width:48px;height:48px;border-radius:10px;object-fit:cover">':'<div style="width:48px;height:48px;border-radius:10px;background:#2D5BE3;display:flex;align-items:center;justify-content:center;font-weight:700">'+esc((p.name||'?').charAt(0))+'</div>')+
+'<div>'+esc(p.name)+'<small>'+esc(p.what||'Pick a picture from your phone, or choose a show, movie or player on the TV (hold OK on the profile)')+'</small></div></div><button class="g" onclick="avPick('+p.id+')">Photo</button></div>'}).join('')}).catch(function(){})}
+function avPick(id){avFor=id;var f=document.getElementById('avf');f.value='';f.click()}
+document.addEventListener('change',function(e){if(e.target.id!='avf')return;var file=e.target.files[0];if(!file)return;toast('Uploading …');
+var img=new Image();img.onload=function(){var s=Math.min(img.width,img.height),c=document.createElement('canvas');c.width=c.height=320;
+c.getContext('2d').drawImage(img,(img.width-s)/2,(img.height-s)/2,s,s,0,0,320,320);
+c.toBlob(function(b){fetch('/apip/avatar?code='+encodeURIComponent(code)+'&p='+avFor,{method:'POST',body:b}).then(function(r){if(r.status==403){ask();throw 0}return r.json()})
+.then(function(j){toast(j.err||'Avatar saved');avLoad()}).catch(function(e){if(e)toast('Not saved')})},'image/jpeg',0.86)};
+img.onerror=function(){toast('That file is not a picture')};img.src=URL.createObjectURL(file)});
 function acctLoad(){api('acct').then(function(s){var b=document.getElementById('acct');
 if(s.member){var h='<div class="r"><div>'+esc(s.member.name||'You')+(s.member.owner?' · owner':' · family')+'<small>'+esc(s.email)+(s.status?' · '+esc(s.status):'')+'</small></div><button class="g" onclick="acctOut()">Sign out</button></div>'+(s.sync?'<div class="r"><div>Your watching<small>'+esc(s.sync)+'</small></div></div>':'');
 if(s.member.owner)h+='<div class="r"><div>Share this TV\'s setup<small>Playlist and Stremio addons go to everyone in the family</small></div><button class="g" onclick="acctShare()">Share</button></div>'+
@@ -155,7 +167,7 @@ b.innerHTML=(s.signedIn?'<div class="r"><div>Signed in<small>'+esc(s.email)+'</s
 '<div style="padding:8px 0"><input type="text" id="ae" placeholder="Email" autocomplete="email"><input type="password" id="ap" placeholder="Password (6+ characters)" style="margin-top:8px"></div>')+
 '<div class="r"><div>'+(acc.kind=='join'?'Join my family':'I am the owner')+'<small>'+(acc.kind=='join'?'Use the code you got from the owner':'Your playlist and addons are shared with the family')+'</small></div><button class="g" onclick="acc.kind=acc.kind==\'join\'?\'owner\':\'join\';acctLoad()">'+(acc.kind=='join'?'I am the owner':'Join instead')+'</button></div>'+
 '<div style="padding:8px 0"><input type="text" id="an" placeholder="Your name"><input type="text" id="ac" placeholder="'+(acc.kind=='join'?'Invite code':'Family name (e.g. Fofana family)')+'" style="margin-top:8px"></div>'+
-'<div style="padding:4px 0 6px;color:#8a8a92">Choose your avatar</div><div>'+av+'</div>'+
+'
 '<div style="display:flex;justify-content:flex-end;padding-top:10px"><button onclick="acctGo()">Continue</button></div>';
 }).catch(function(){})}
 function v(id){var e=document.getElementById(id);return e?e.value:''}
@@ -166,5 +178,5 @@ function acctProb(){var d=document.getElementById('probs');d.innerHTML='<small>L
 d.innerHTML=r.list.length?r.list.map(function(p){return '<div class="r"><div>'+esc(p.who||'Someone')+' · '+esc(p.at)+'<small>'+esc(p.kind)+' · '+esc(p.v)+' · '+esc(p.dev)+'</small></div></div>'}).join(''):'<small>No problems reported. Everything runs smoothly.</small>'}).catch(function(){d.innerHTML='<small>Not loaded</small>'})}
 function acctShare(){toast('Sharing...');api('acctshare').then(function(r){toast(r.err||'Shared with the family')})}
 function acctInv(){api('acctinv',{n:1}).then(function(r){if(r.err)toast(r.err);else document.getElementById('invc').innerHTML='Code: <b style="font-size:20px;color:#fff;letter-spacing:3px">'+esc(r.code)+'</b> · one person, 14 days'})}
-acctLoad();load()</script></body></html>"""
+avLoad();acctLoad();load()</script></body></html>"""
 }

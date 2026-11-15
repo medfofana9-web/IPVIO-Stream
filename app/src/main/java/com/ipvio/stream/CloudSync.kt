@@ -113,7 +113,11 @@ object CloudSync {
         val o = JSONObject()
         for (n in SyncLogic.STORES) {
             if (n == SyncLogic.AVATAR) {
-                ProfileAvatars.keyOf(c, pid)?.let { o.put(n, SyncLogic.encode(mapOf("a" to it))) }
+                ProfileAvatars.keyOf(c, pid)?.let { k ->
+                    val m = HashMap<String, Any>(); m["a"] = k
+                    if (k.startsWith("photo:")) ProfileAvatars.photoBytes(c, pid)?.let { m["ph"] = android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP) }
+                    o.put(n, SyncLogic.encode(m))
+                }
                 continue
             }
             val all = store(c, n, pid).all
@@ -127,7 +131,13 @@ object CloudSync {
         for (n in SyncLogic.STORES) {
             val o = files.optJSONObject(n) ?: continue
             if (n == SyncLogic.AVATAR) {
-                (SyncLogic.decodeValue(o.optJSONArray("a")) as? String)?.let { k -> if (ProfileAvatars.byKey(c, k) != null) ProfileAvatars.set(c, pid, k) }
+                val k = SyncLogic.decodeValue(o.optJSONArray("a")) as? String
+                val ph = (SyncLogic.decodeValue(o.optJSONArray("ph")) as? String)?.let { runCatching { android.util.Base64.decode(it, android.util.Base64.NO_WRAP) }.getOrNull() }
+                when {
+                    k == null -> {}
+                    k.startsWith("photo:") -> if (ph != null && k != ProfileAvatars.keyOf(c, pid)) ProfileAvatars.savePhoto(c, pid, ph, fromAccount = k)
+                    AvatarValue.parse(k) != null -> if (k != ProfileAvatars.keyOf(c, pid)) ProfileAvatars.set(c, pid, k)
+                }
                 continue
             }
             val e = store(c, n, pid).edit().clear()

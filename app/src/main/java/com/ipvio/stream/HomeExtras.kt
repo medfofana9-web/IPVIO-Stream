@@ -27,6 +27,9 @@ object CatalogItems {
 
     fun reload(c: Context) { loadedFor = null; init(c) }
 
+    /** Every remembered addon title of the active profile (avatar picker). */
+    fun all(): List<Item> = map.values.toList()
+
     fun init(c: Context) {
         val key = Profiles.active.toString()
         if (loadedFor == key) return
