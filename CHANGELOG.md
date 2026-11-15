@@ -1,5 +1,10 @@
 # Changelog
 
+## Fof TV 1.3.74 (November 2026)
+- New avatars: 34 polished 3D characters (17 people, 17 animals) on rich color tiles, in place of the drawn faces.
+  They ship inside the app (instant, also offline); the phone sign-up page shows the same characters.
+  Pictures: Microsoft Fluent Emoji (MIT license, docs/THIRD-PARTY.md)
+
 ## Fof TV 1.3.72 (November 2026)
 **Your watching follows you**
 - Signed in with a Fof account, your Continue watching (to the second), watched episodes and movies, Recently watched,

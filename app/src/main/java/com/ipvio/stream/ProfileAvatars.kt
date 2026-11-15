@@ -27,37 +27,63 @@ import kotlinx.coroutines.delay
 
 /**
  * Chosen avatar per profile (device-wide prefs "fof_avatars", key "a<profile id>").
- * Netflix-style tiles: a bold color square with a simple friendly face, drawn by the app itself (no download, so they
- * show instantly and offline). The same drawing is made as SVG for the phone page ([svgUri]).
+ * Polished 3D characters (people and animals from Microsoft's Fluent Emoji, MIT license, see docs/THIRD-PARTY.md) on a rich
+ * color gradient. The pictures ship inside the app (assets/avatars), so they show instantly and also offline.
  */
 object ProfileAvatars {
-    /** One tile: background color, face ink and the face ([AvatarArt.FACES]). */
-    class Preset(val key: String, val color: Long, val face: Int) {
-        /** Dark ink on the light colors (yellow, lime, sky), white everywhere else. */
-        val ink: Long get() = if (color in LIGHT) 0xFF16161AL else 0xFFFFFFFFL
+    /** [people] = person (else animal); [src] = path in the Fluent Emoji project (picture for the phone page). */
+    class Preset(val key: String, val people: Boolean, val src: String) {
+        val asset: String get() = "file:///android_asset/avatars/$key.webp"
+        val phoneUrl: String get() = "https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/" + src.replace(" ", "%20")
+        /** Gradient (top, bottom) by position, so neighbours never share a color. */
+        val gradient: Pair<Long, Long> get() = GRADIENTS[PRESETS.indexOf(this).coerceAtLeast(0) % GRADIENTS.size]
     }
 
-    private val COLORS = listOf(
-        0xFF2D5BE3L, // cobalt
-        0xFFE0453AL, // tomato
-        0xFFF5B700L, // sunflower
-        0xFF13A26BL, // emerald
-        0xFF7C4DFFL, // violet
-        0xFFF26B1DL, // tangerine
-        0xFFE8457AL, // rose
-        0xFF0E9AA7L, // teal
-        0xFF3F3D9EL, // indigo
-        0xFF8CC63FL, // lime
-        0xFF4FB6F0L, // sky
-        0xFF5B6472L  // slate
+    val GRADIENTS = listOf(
+        0xFF2D5BE3L to 0xFF14287AL, 0xFFE0453AL to 0xFF6E1928L, 0xFFF5B700L to 0xFFBE5A00L, 0xFF13A26BL to 0xFF08463CL,
+        0xFF7C4DFFL to 0xFF321982L, 0xFFF26B1DL to 0xFF962814L, 0xFFE8457AL to 0xFF6E1950L, 0xFF0E9AA7L to 0xFF0A3C5AL,
+        0xFF3F3D9EL to 0xFF191446L, 0xFF505564L to 0xFF1E2028L
     )
-    private val LIGHT = setOf(0xFFF5B700L, 0xFF8CC63FL, 0xFF4FB6F0L)
 
-    /** 24 tiles: every color twice with different faces, so neighbours never look alike. */
-    val PRESETS: List<Preset> = (0 until 24).map { i -> Preset("n" + (i + 1), COLORS[i % COLORS.size], (i + i / COLORS.size * 3) % AvatarArt.FACES) }
+    val PRESETS: List<Preset> = listOf(
+        Preset("p_man_curly_hair_dark", true, "Man curly hair/Dark/3D/man_curly_hair_3d_dark.png"),
+        Preset("p_woman_curly_hair_dark", true, "Woman curly hair/Dark/3D/woman_curly_hair_3d_dark.png"),
+        Preset("p_person_beard_dark", true, "Person beard/Dark/3D/person_beard_3d_dark.png"),
+        Preset("p_woman_curly_hair_medium-dark", true, "Woman curly hair/Medium-Dark/3D/woman_curly_hair_3d_medium-dark.png"),
+        Preset("p_man_curly_hair_medium-dark", true, "Man curly hair/Medium-Dark/3D/man_curly_hair_3d_medium-dark.png"),
+        Preset("p_woman_medium-dark", true, "Woman/Medium-Dark/3D/woman_3d_medium-dark.png"),
+        Preset("p_man_dark", true, "Man/Dark/3D/man_3d_dark.png"),
+        Preset("p_girl_medium-dark", true, "Girl/Medium-Dark/3D/girl_3d_medium-dark.png"),
+        Preset("p_boy_dark", true, "Boy/Dark/3D/boy_3d_dark.png"),
+        Preset("p_man_bald_medium-dark", true, "Man bald/Medium-Dark/3D/man_bald_3d_medium-dark.png"),
+        Preset("p_older_person_dark", true, "Older person/Dark/3D/older_person_3d_dark.png"),
+        Preset("p_woman_with_headscarf_medium-dark", true, "Woman with headscarf/Medium-Dark/3D/woman_with_headscarf_3d_medium-dark.png"),
+        Preset("p_astronaut_medium-dark", true, "Astronaut/Medium-Dark/3D/astronaut_3d_medium-dark.png"),
+        Preset("p_detective_dark", true, "Detective/Dark/3D/detective_3d_dark.png"),
+        Preset("p_singer_dark", true, "Singer/Dark/3D/singer_3d_dark.png"),
+        Preset("p_technologist_medium-dark", true, "Technologist/Medium-Dark/3D/technologist_3d_medium-dark.png"),
+        Preset("p_ninja_dark", true, "Ninja/Dark/3D/ninja_3d_dark.png"),
+        Preset("a_lion", false, "Lion/3D/lion_3d.png"),
+        Preset("a_tiger_face", false, "Tiger face/3D/tiger_face_3d.png"),
+        Preset("a_panda", false, "Panda/3D/panda_3d.png"),
+        Preset("a_fox", false, "Fox/3D/fox_3d.png"),
+        Preset("a_owl", false, "Owl/3D/owl_3d.png"),
+        Preset("a_unicorn", false, "Unicorn/3D/unicorn_3d.png"),
+        Preset("a_wolf", false, "Wolf/3D/wolf_3d.png"),
+        Preset("a_koala", false, "Koala/3D/koala_3d.png"),
+        Preset("a_penguin", false, "Penguin/3D/penguin_3d.png"),
+        Preset("a_cat_face", false, "Cat face/3D/cat_face_3d.png"),
+        Preset("a_dog_face", false, "Dog face/3D/dog_face_3d.png"),
+        Preset("a_bear", false, "Bear/3D/bear_3d.png"),
+        Preset("a_rabbit_face", false, "Rabbit face/3D/rabbit_face_3d.png"),
+        Preset("a_monkey_face", false, "Monkey face/3D/monkey_face_3d.png"),
+        Preset("a_frog", false, "Frog/3D/frog_3d.png"),
+        Preset("a_hamster", false, "Hamster/3D/hamster_3d.png"),
+        Preset("a_dragon_face", false, "Dragon face/3D/dragon_face_3d.png")
+    )
 
-    /** Profiles without a choice: a distinct tile by their number (first profiles: blue, tomato, yellow, green, ...). */
-    private fun default(id: Int): Preset = PRESETS[id % PRESETS.size]
+    /** Profiles without a choice: a different person per profile number. */
+    private fun default(id: Int): Preset = PRESETS[(id * 3) % 17]
 
     private fun prefs(c: Context) = c.applicationContext.getSharedPreferences("fof_avatars", Context.MODE_PRIVATE)
 
@@ -65,43 +91,28 @@ object ProfileAvatars {
     var version by mutableIntStateOf(0)
         private set
 
-    /** Earlier picture choices (cartoon portraits) are no longer offered: those profiles get their default tile. */
+    /** Earlier choices (cartoon portraits, drawn tiles) are no longer offered: those profiles get their default. */
     fun chosen(c: Context, id: Int): Preset? = prefs(c).getString("a$id", null)?.let { k -> PRESETS.firstOrNull { it.key == k } }
 
     fun presetFor(c: Context, id: Int): Preset = chosen(c, id) ?: default(id)
-
-    fun byKey(k: String?): Preset? = PRESETS.firstOrNull { it.key == k }
 
     fun set(c: Context, id: Int, key: String?) {
         prefs(c).edit().apply { if (key == null) remove("a$id") else putString("a$id", key) }.apply()
         version++
     }
 
-    /** The tile as an SVG data address (phone page). */
-    fun svgUri(p: Preset): String = "data:image/svg+xml;charset=utf-8," +
-        java.net.URLEncoder.encode(AvatarArt.svg(p.color, p.ink, p.face), "UTF-8").replace("+", "%20")
+    /** CSS background of the tile on the phone page. */
+    fun cssGradient(p: Preset): String = "linear-gradient(180deg,#%06X,#%06X)".format(p.gradient.first and 0xFFFFFF, p.gradient.second and 0xFFFFFF)
 }
 
-/** The avatar tile, drawn: soft light from the top left on the color, then the face. */
+/** The avatar tile: color gradient, a soft light behind the character, then the 3D character. */
 @Composable
 fun FofAvatar(p: ProfileAvatars.Preset, modifier: Modifier = Modifier) {
-    androidx.compose.foundation.Canvas(modifier) {
-        val w = size.width; val h = size.height
-        val base = Color(p.color)
-        drawRect(base)
-        drawRect(Brush.linearGradient(listOf(Color.White.copy(alpha = 0.16f), Color.Transparent, Color.Black.copy(alpha = 0.14f)),
-            start = androidx.compose.ui.geometry.Offset.Zero, end = androidx.compose.ui.geometry.Offset(w, h)))
-        val ink = Color(p.ink)
-        for (s in AvatarArt.shapes(p.face)) when (s) {
-            is AvatarArt.Shape.Bar -> drawRoundRect(ink, androidx.compose.ui.geometry.Offset(s.x * w, s.y * h),
-                androidx.compose.ui.geometry.Size(s.w * w, s.h * h), androidx.compose.ui.geometry.CornerRadius(s.r * w, s.r * w))
-            is AvatarArt.Shape.Dot -> drawCircle(ink, s.r * w, androidx.compose.ui.geometry.Offset(s.cx * w, s.cy * h))
-            is AvatarArt.Shape.Curve -> drawArc(ink, s.start, s.sweep, false,
-                androidx.compose.ui.geometry.Offset((s.cx - s.rx) * w, (s.cy - s.ry) * h), androidx.compose.ui.geometry.Size(2 * s.rx * w, 2 * s.ry * h),
-                style = androidx.compose.ui.graphics.drawscope.Stroke(s.width * w, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-            is AvatarArt.Shape.Bowl -> drawArc(ink, 0f, 180f, true,
-                androidx.compose.ui.geometry.Offset((s.cx - s.r) * w, (s.cy - s.r) * h), androidx.compose.ui.geometry.Size(2 * s.r * w, 2 * s.r * h))
-        }
+    val (top, bottom) = p.gradient
+    Box(modifier.background(Brush.verticalGradient(listOf(Color(top), Color(bottom)))), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color.White.copy(alpha = 0.22f), Color.Transparent))))
+        coil.compose.AsyncImage(p.asset, null, Modifier.fillMaxSize(0.76f).offset(y = 2.dp),
+            contentScale = androidx.compose.ui.layout.ContentScale.Fit)
     }
 }
 
@@ -121,11 +132,14 @@ fun AvatarPicker(profileId: Int, onClose: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(26.dp)
         ) {
             Text("Choose your avatar", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Bold, raw = true)
-            ProfileAvatars.PRESETS.chunked(8).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
-                    row.forEach { p ->
-                        AvatarChoice(p, p.key == current, if (p.key == current) Modifier.focusRequester(start) else Modifier) {
-                            ProfileAvatars.set(ctx, profileId, p.key); onClose()
+            listOf("People" to ProfileAvatars.PRESETS.filter { it.people }, "Animals" to ProfileAvatars.PRESETS.filter { !it.people }).forEach { (title, list) ->
+                Text(title, color = Color(0x99FFFFFF), fontSize = 18.sp, fontWeight = FontWeight.SemiBold, raw = true)
+                list.chunked(9).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        row.forEach { p ->
+                            AvatarChoice(p, p.key == current, if (p.key == current) Modifier.focusRequester(start) else Modifier) {
+                                ProfileAvatars.set(ctx, profileId, p.key); onClose()
+                            }
                         }
                     }
                 }
@@ -140,7 +154,7 @@ private fun AvatarChoice(p: ProfileAvatars.Preset, selected: Boolean, modifier: 
     val s by animateFloatAsState(if (f) 1.1f else 1f, androidx.compose.animation.core.tween(140), label = "av")
     val shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
     Box(
-        modifier.size(112.dp).graphicsLayer { scaleX = s; scaleY = s }
+        modifier.size(88.dp).graphicsLayer { scaleX = s; scaleY = s }
             .onFocusChanged { f = it.isFocused }
             .clip(shape)
             .border(if (f) 4.dp else 0.dp, Color.White, shape)
