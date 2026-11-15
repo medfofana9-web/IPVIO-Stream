@@ -95,8 +95,9 @@ internal fun GameTileCard(g: SportData.Game, modifier: Modifier = Modifier, onCl
         Box(
             // Flat card (no gradients): cleaner, and cheaper to draw on a TV
             Modifier.size(w, h).graphicsLayer { scaleX = sc; scaleY = sc }.clip(shape)
-                .background(if (f) Color(0xFF23262E) else Color(0xFF16181D))
-                .border(if (f) 2.dp else 1.dp, if (f) Color.White else Color(0x1AFFFFFF), shape)
+                .background(FofGlass.body(1, f))
+                .background(FofGlass.sheen(1, f))
+                .border(if (f) 1.5.dp else 1.dp, if (f) FofGlass.rim() else FofGlass.edge(false), shape)
                 .onFocusChanged { f = it.isFocused }
                 .trackFocus()
                 .restoreFocus("game:" + g.key)
