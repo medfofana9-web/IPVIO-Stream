@@ -313,7 +313,7 @@ private fun AppContent() {
     // Genre detection in the background; restarts cleanly with every new list (reload, language filter, parental control)
     LaunchedEffect(all) { kotlinx.coroutines.delay(8_000); Classifier.restart(ctx, all) }   // after the first screen is up, and debounced while the list is still changing
 
-    fun start(item: Item, title: String, url: String, startMs: Long = 0L) {
+    fun startChecked(item: Item, title: String, url: String, startMs: Long) {
         History.add(ctx, item.id)
         val sm = SE_RE.find(title)
         val season = sm?.groupValues?.get(1)?.toIntOrNull() ?: 0
@@ -350,6 +350,21 @@ private fun AppContent() {
             }
         }
         playing = PlayReq(title, playUrl, item.id, item.kind == Kind.LIVE, startMs, tmdb, season, ep, alts, note)
+    }
+
+    // Shared provider login: a new stream only starts while one of its streams is free (see ConnGuard)
+    var limitHit by remember { mutableStateOf<Pair<ConnGuard.State, () -> Unit>?>(null) }
+    val guardScope = rememberCoroutineScope()
+    fun start(item: Item, title: String, url: String, startMs: Long = 0L) {
+        if (ConnLogic.acctOf(url) == null) { startChecked(item, title, url, startMs); return }
+        guardScope.launch {
+            val full = ConnGuard.blockedBy(url, replacing = playing != null)
+            if (full == null) { ConnGuard.changed(); startChecked(item, title, url, startMs) }
+            else limitHit = full to { ConnGuard.changed(); start(item, title, url, startMs) }
+        }
+    }
+    limitHit?.let { (s, retry) ->
+        StreamLimitDialog(s, onRetry = { limitHit = null; retry() }, onClose = { limitHit = null })
     }
 
     /** EPG (sidebar/tile): start the last watched channel (otherwise the first) and show the TV guide right away. */

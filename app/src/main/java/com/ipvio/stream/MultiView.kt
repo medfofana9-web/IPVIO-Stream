@@ -97,7 +97,19 @@ fun MultiViewScreen(live: List<Item>, start: List<Item>? = null, onExit: ((Item?
     // A tile that cannot play moves on by itself to another channel showing the same game (not one already on screen
     // or already tried), instead of staying on "Extra picture can't be played"
     val tried = remember { HashMap<Int, MutableSet<String>>() }
+    // A new tile is one more stream on the shared login: only while one is free (replacing a tile frees its own)
+    var limit by remember { mutableStateOf<ConnGuard.State?>(null) }
+    limit?.let { s -> StreamLimitDialog(s, onRetry = { limit = null }, onClose = { limit = null }) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    fun put(p: Int, ch: Item) {
+        val replacing = p in 0 until slots.size
+        scope.launch {
+            val full = ConnGuard.blockedBy(ch.url, replacing = replacing)
+            if (full != null) { limit = full; return@launch }
+            ConnGuard.changed()
+            if (replacing) slots[p] = ch else if (p == slots.size && slots.size < cap) slots.add(ch)
+        }
+    }
     fun nextChannel(i: Int, ch: Item) {
         val seen = tried.getOrPut(i) { HashSet() }.apply { add(ch.id) }
         scope.launch {
@@ -187,12 +199,12 @@ fun MultiViewScreen(live: List<Item>, start: List<Item>? = null, onExit: ((Item?
                 val p = gamePick
                 gamePick = -1
                 if (a >= liveGames.size) picking = p
-                else { val ch = liveGames[a].second; if (p in 0 until slots.size) slots[p] = ch else if (p == slots.size && slots.size < cap) slots.add(ch) }
+                else { val ch = liveGames[a].second; put(p, ch) }
             }
         }
         if (picking >= 0) GuideSearchDialog(live, onPick = { ch ->
             val p = picking
-            if (p in 0 until slots.size) slots[p] = ch else if (p == slots.size) slots.add(ch)
+            put(p, ch)
             picking = -1
         }, onClose = { picking = -1 })
     }
