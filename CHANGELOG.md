@@ -1,5 +1,26 @@
 # Changelog
 
+## Fof TV 1.3.69 (November 2026)
+**Look**
+- Premium neutral look: the red accent is gone. Buttons, focus, the player's seek bar and progress bars are platinum white; intro and credits marks on the seek bar are soft amber; no glow under the played part
+- Welcome screen: white logo, soft neutral light instead of the red glow
+
+**Family**
+- First start on a family member's TV: "Join my family" right on the playlist screen; the screen closes by itself once the family playlist arrives
+- The owner's TV gets its setup back from the account after a reinstall (when it has no playlist yet)
+- Problem reports: a crash, frozen screen or forced close on a family TV is sent to the account once; the owner sees them on the phone page (Family account → Problems on family TVs)
+
+**Updates**
+- Update channels: every new version goes to the owner's TV first (early updates). After 24 hours without problems it becomes the version everyone else gets, and the install link serves it. Settings → App update → "Early updates" switches the channel
+- Install link for new TVs (Downloader): is.gd/getfoftv (always the latest tested version)
+- New private signing key with key rotation: Android 9 and newer move to the new key through a normal update (no reinstall); the old, published key can no longer sign updates for them
+
+**Sports**
+- Home's live games row shows NBA and soccer only
+
+**Fixed**
+- Three text files started with a hidden byte-order character (Lint errors); now written as an escape
+
 ## Fof TV 1.3.68 (November 2026)
 **Shows from the addons (Netflix-style)**
 - The next episode plays by itself when one ends (with the "Next episode" countdown); in the last 3 minutes its stream is already looked up and chosen, so it starts right away

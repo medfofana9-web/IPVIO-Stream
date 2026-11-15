@@ -131,7 +131,7 @@ fun HeroMetaLine(item: Item, m: Meta?, dots: Boolean = false) {
     if (dots) m?.genres?.firstOrNull()?.let { parts.add(it to true) }
     (m?.year ?: item.year?.toString())?.let { parts.add(it to true) }
     if (!dots) m?.genres?.firstOrNull()?.let { parts.add(it to true) }
-    if (item.kind == Kind.SERIES) parts.add(seriesCountText(item) to false)
+    if (item.kind == Kind.SERIES) seriesCountText(item).takeIf { it.isNotBlank() }?.let { parts.add(it to false) }
     else m?.runtime?.takeIf { it > 0 }?.let { parts.add((if (it >= 60) "${it / 60}h ${it % 60}min" else "$it min") to true) }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(14))) {
         parts.forEachIndexed { i, (p, raw) ->
@@ -152,6 +152,8 @@ fun HeroMetaLine(item: Item, m: Meta?, dots: Boolean = false) {
 fun seriesCountText(item: Item): String {
     if (XtreamLogic.isLazy(item)) return ""
     val e = item.episodes.size
+    // No season known yet (addon series before its episode list loads): no "0 seasons"
+    if (seasonCount(item) <= 0) return if (e > 0) Lang.tr(if (e == 1) "1 Episode" else "$e Episoden") else ""
     return if (e > 0) Lang.tr(seasonsText(item)) + " · " + Lang.tr(if (e == 1) "1 Episode" else "$e Episoden") else Lang.tr(seasonsText(item))
 }
 
@@ -578,7 +580,7 @@ fun LandscapeCard(item: Item, modifier: Modifier, onClick: () -> Unit) {
 }
 
 /** "2 Staffeln" (landscape cards have little room). */
-fun seasonsText(item: Item): String { val n = seasonCount(item); return if (n == 1) "1 Staffel" else "$n Staffeln" }
+fun seasonsText(item: Item): String { val n = seasonCount(item); return if (n <= 0) "" else if (n == 1) "1 Staffel" else "$n Staffeln" }
 
 const val CARD_POSTER = 0
 const val CARD_LAND = 1

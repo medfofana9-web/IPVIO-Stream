@@ -57,3 +57,24 @@ The download link in the README and the Downloader code always point to the newe
 - The first time, Android asks to allow "Install unknown apps" for IPVIO Stream.
 
 Version 1.0 has no update check yet, so 1.0 users install 1.1 once by hand (Downloader code or link). From 1.1 on it works from inside the app.
+
+
+## 4. Signing key and key rotation (since 1.3.69)
+
+- The release key is no longer in the repository. The repository secret `FOF_SIGNING` holds a base64 tar archive with
+  `old.jks` (the original key, published earlier in the repository), `new.jks` (the private key) and `sign.env`
+  (aliases and passwords). The owner keeps an offline backup of the same archive.
+- `release.yml` builds with the old key, then re-signs with `apksigner` using a signing lineage
+  (`--rotation-min-sdk-version 28`, old signer with `rollback=false`). Android 9+ moves to the new key during a normal
+  update; Android 7–8 keep the old signature. Without the secret the workflow falls back to the old key.
+- Test workflows (`perf-test.yml`, `launch-test.yml`) sign with a throwaway key generated in the run; `perf-test.yml`
+  also checks that the rotation commands work ("CHECK PASS key rotation signing").
+- **Never lose `FOF_SIGNING`**: without it no update can be installed over the existing app.
+
+## 5. Update channels (since 1.3.69)
+
+- `release.yml` publishes every build as a **prerelease** (early channel).
+- `promote.yml` (hourly, or by hand with "now") makes the newest prerelease that is at least 24 hours old the
+  **latest** release. Family TVs and the install link (`releases/latest/download/FofTV.apk`, short: is.gd/getfoftv)
+  only get latest releases.
+- The app: early channel on the family owner's TV by default, switchable in Settings → App update → "Early updates".

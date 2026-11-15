@@ -2,6 +2,13 @@ package com.ipvio.stream
 
 // Translations part E: sorting, language names, colors, genres, remaining player texts
 val DictE = """
+Nachteule¦Night Owl¦Night Owl¦Night Owl¦Night Owl¦Night Owl¦Night Owl¦Night Owl¦Night Owl
+Vampir-Disco¦Vampire Disco¦Vampire Disco¦Vampire Disco¦Vampire Disco¦Vampire Disco¦Vampire Disco¦Vampire Disco¦Vampire Disco
+Eisbär im Eisfach¦Arctic¦Arctic¦Arctic¦Arctic¦Arctic¦Arctic¦Arctic¦Arctic
+Tiefsee-Tauchgang¦Deep Sea¦Deep Sea¦Deep Sea¦Deep Sea¦Deep Sea¦Deep Sea¦Deep Sea¦Deep Sea
+Waldschrat¦Forest¦Forest¦Forest¦Forest¦Forest¦Forest¦Forest¦Forest
+Mitternachtssnack¦Midnight¦Midnight¦Midnight¦Midnight¦Midnight¦Midnight¦Midnight¦Midnight
+Sonnenbrand¦Sunset Glow¦Sunset Glow¦Sunset Glow¦Sunset Glow¦Sunset Glow¦Sunset Glow¦Sunset Glow¦Sunset Glow
 Rating¦Rating¦Puan¦Ocjena¦Ocjena¦Ocena¦Valoración¦Note¦Voto
 Genre¦Genre¦Tür¦Žanr¦Žanr¦Žanr¦Género¦Genre¦Genere
 Directing¦Directing¦Yönetmenlik¦Režija¦Režija¦Režija¦Dirección¦Réalisation¦Regia

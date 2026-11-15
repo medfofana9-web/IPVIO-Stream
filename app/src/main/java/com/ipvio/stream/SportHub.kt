@@ -381,7 +381,9 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
         // Each sport: today's open games plus the coming week, live first, then by start time
         val todayOpen = games.filter { it.state != 2 && statusKind(it) != 6 }
         fun section(sp: String, week: List<SportData.Game>) = fresh(todayOpen.filter { SportData.sportOf(it) == sp } + week)
-            .distinctBy { it.key }.sortedWith(compareBy({ if (it.state == 1) 0 else 1 }, { if (SportHubFavs.isFavGame(it)) 0 else 1 }, { it.start })).take(30)
+            .distinctBy { it.key }.sortedWith(compareBy({ if (it.state == 1) 0 else 1 }, { if (SportHubFavs.isFavGame(it)) 0 else 1 },
+                // Same day: the big leagues first (a Premier League game before a small cup tie), then by start time
+                { localDay(it.start) }, { SportData.POPULAR.indexOf(it.league).let { i -> if (i < 0) 99 else i } }, { it.start })).take(30)
         val socc = section("soccer", ahead.soccer)
         val bask = section("basketball", ahead.nba)
         val foot = section("nfl", ahead.football)
@@ -564,3 +566,6 @@ internal object SportChannels {
         return us + which * 10 + (if ("hd" in t || "fhd" in t) 0 else 1)
     }
 }
+
+/** Calendar day of a start time (seconds) in the device's time zone, for sorting. */
+private fun localDay(startSec: Long): Long = (startSec * 1000 + java.util.TimeZone.getDefault().getOffset(startSec * 1000)) / 86_400_000L

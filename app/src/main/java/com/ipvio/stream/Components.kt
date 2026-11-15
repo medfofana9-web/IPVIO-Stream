@@ -133,6 +133,7 @@ fun seriesInfo(item: Item): String {
     if (XtreamLogic.isLazy(item) || StalkerLogic.isLazy(item)) return ""
     val sc = seasonCount(item)
     val ec = item.episodes.size
+    if (sc <= 0) return if (ec <= 0) "" else if (ec == 1) "1 Folge" else "$ec Folgen"
     val a = if (sc == 1) "1 Staffel" else "$sc Staffeln"
     return if (ec <= 0) a else a + " · " + (if (ec == 1) "1 Folge" else "$ec Folgen")
 }
