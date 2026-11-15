@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * "Who's watching?" (Netflix style): slowly drifting poster wall, Fof TV mark with greeting and time at the top,
@@ -43,6 +44,9 @@ fun FofWelcome(onPick: (Int) -> Unit) {
     var pinErr by remember { mutableStateOf<String?>(null) }
     var options by remember { mutableStateOf<Int?>(null) }
     var phone by remember { mutableStateOf(false) }
+    var changePin by remember { mutableStateOf<Int?>(null) }
+    var note by remember { mutableStateOf<String?>(null) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val first = remember { FocusRequester() }
     val startIdx = remember { Profiles.list.indexOfFirst { it.id == Profiles.active }.coerceAtLeast(0) }
     LaunchedEffect(naming, picking) {
@@ -51,6 +55,8 @@ fun FofWelcome(onPick: (Int) -> Unit) {
         repeat(8) { if (runCatching { first.requestFocus() }.getOrDefault(false)) return@LaunchedEffect; delay(80) }
     }
     FofAccount.init(ctx)
+    // The account's profiles and their PIN state (new profiles from other TVs appear here)
+    LaunchedEffect(FofAccount.signedInState) { if (FofAccount.signedInState) AccountCloud.refreshPins(ctx) }
     // Poster wall behind the profiles (the catalog's popular titles, already on the device), faded into black
     val wall = remember {
         val m = Catalog.cached(Catalog.popular(Kind.MOVIE)); val s = Catalog.cached(Catalog.popular(Kind.SERIES))
@@ -89,10 +95,10 @@ fun FofWelcome(onPick: (Int) -> Unit) {
         }
         Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(if (manage) "Manage profiles" else "Who's watching?", color = Color.White, fontSize = 52.sp, fontWeight = FontWeight.Bold, raw = true)
-            // The family this TV belongs to (family account), as a quiet line under the title
-            FofAccount.member?.let { m ->
+            // The account this TV is signed in to, as a quiet line under the title
+            if (FofAccount.signedInState) {
                 Spacer(Modifier.height(8.dp))
-                Text(if (m.owner) "Your family setup" else "Family setup by your host", color = Color(0x99FFFFFF), fontSize = 16.sp, raw = true)
+                Text("Fof TV account · " + FofAccount.email.orEmpty(), color = Color(0x99FFFFFF), fontSize = 16.sp, raw = true)
             }
             Spacer(Modifier.height(56.dp))
             // Up to 10 profiles: one row up to 5, then two rows; the "+" tile adds one (master PIN asked when set)
@@ -110,8 +116,9 @@ fun FofWelcome(onPick: (Int) -> Unit) {
                                 val p = Profiles.list[i]
                                 val nm = Profiles.displayName(p)
                                 val av = remember(p.id, ProfileAvatars.version) { ProfileAvatars.presetFor(ctx, p.id) }
+                                val pinned = AccountCloud.cloudId(ctx, p.id)?.let { AccountCloud.pins[it]?.set } == true
                                 ProfileTile(
-                                    nm, av, Parental.profileLocked(ctx, p.id), manage, big,
+                                    nm, av, Parental.profileLocked(ctx, p.id) || pinned, manage, big,
                                     if (i == startIdx) Modifier.focusRequester(first) else Modifier,
                                     // Hold OK on a profile: choose its picture right here (a locked profile asks in Manage)
                                     onLong = { if (!Parental.profileLocked(ctx, p.id)) picking = p.id }
@@ -123,8 +130,8 @@ fun FofWelcome(onPick: (Int) -> Unit) {
             }
             Spacer(Modifier.height(if (big) 40.dp else 64.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            // Not signed in: join the family (sign up with name, avatar and invite code on the phone)
-            if (!manage && FofAccount.member == null) OutlinePill(if (FofAccount.signedIn) "Join your family" else "Sign in or join your family") { phone = true }
+            // Not signed in: one sign-in for the whole TV (email and password on the phone); the account's profiles appear
+            if (!manage && !FofAccount.signedInState) OutlinePill("Sign in") { phone = true }
             OutlinePill(if (manage) "Done" else "Manage Profiles") {
                 if (manage) manage = false
                 else if (Parental.profileLocked(ctx, 0)) { askPin = true; pinErr = null }
@@ -132,7 +139,17 @@ fun FofWelcome(onPick: (Int) -> Unit) {
             }
             }
         }
-        if (phone) RemoteOverlay(Modifier.align(Alignment.Center), onClose = { phone = false })
+        if (phone) {
+            LaunchedEffect(FofAccount.signedInState) { if (FofAccount.signedInState) { phone = false; AccountCloud.refreshPins(ctx) } }
+            SignInWithPhone(onClose = { phone = false })
+        }
+        note?.let { n ->
+            LaunchedEffect(n) { delay(4_000); note = null }
+            Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 48.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xE61C1C20)).padding(horizontal = 22.dp, vertical = 14.dp)) {
+                Text(n, color = Color.White, fontSize = 17.sp, raw = true)
+            }
+        }
+        changePin?.let { id -> ProfileGate(id, change = true, onOpen = { changePin = null; note = "PIN saved" }, onCancel = { changePin = null }) }
         if (askPin) Box(Modifier.fillMaxSize().background(Color(0xE6000000)), contentAlignment = Alignment.Center) {
             Box(Modifier.width(420.dp)) {
                 PinPad("Master PIN", "Only the master profile can add or manage profiles.", pinErr,
@@ -144,15 +161,24 @@ fun FofWelcome(onPick: (Int) -> Unit) {
             }
         }
         options?.let { id ->
-            val acts = if (id == 0) listOf("Change avatar", "Rename", "Your taste") else listOf("Change avatar", "Rename", "Your taste", "Delete profile")
+            val acts = listOf("Change avatar", "Rename", "Your taste") +
+                (if (FofAccount.signedInState) listOf("Change PIN") else emptyList()) +
+                (if (id != 0) listOf("Delete profile") else emptyList())
             OptionPopup(acts, -1, { options = null }) { a ->
                 options = null
-                when (a) {
-                    0 -> picking = id
-                    1 -> { naming = id; name = Profiles.list.firstOrNull { it.id == id }?.let { Profiles.displayName(it) } ?: "" }
+                when (acts[a]) {
+                    "Change avatar" -> picking = id
+                    "Rename" -> { naming = id; name = Profiles.list.firstOrNull { it.id == id }?.let { Profiles.displayName(it) } ?: "" }
                     // The questions come back the next time this profile is picked
-                    2 -> { Taste.reset(ctx, id); manage = false; onPick(id) }
-                    3 -> if (Profiles.remove(ctx, id)) ProfileAvatars.set(ctx, id, null)
+                    "Your taste" -> { Taste.reset(ctx, id); manage = false; onPick(id) }
+                    "Change PIN" -> changePin = id
+                    "Delete profile" -> scope.launch {
+                        // In the account: removed there first (owner's profile or that profile open on this TV), then here
+                        val e = if (FofAccount.signedIn) AccountCloud.deleteProfile(ctx, id) else null
+                        if (e != null) note = e
+                        else if (id == Profiles.active) note = "Open another profile first, then remove this one."
+                        else if (Profiles.remove(ctx, id)) ProfileAvatars.set(ctx, id, null)
+                    }
                 }
             }
         }

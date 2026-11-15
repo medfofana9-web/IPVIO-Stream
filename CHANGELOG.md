@@ -1,5 +1,19 @@
 # Changelog
 
+## Fof TV 1.3.84 (November 2026)
+**One account for the household, like Netflix**
+- Sign in once per TV (email and password on the phone); it stays signed in through restarts. Every profile of the
+  account appears on every TV signed in to it
+- Each profile has its own PIN (4 to 6 digits), checked by the account service with a lockout after wrong tries;
+  existing profiles set theirs the first time they are opened. "Forgot PIN" asks for the account password
+- The TV remembers the profile last opened (no PIN to come back to it), unless "Ask for the PIN every time" is on
+- Stremio addons, the Real-Debrid token and the provider playlist belong to the account (encrypted on the server):
+  added once, they are on every TV
+- Continue Watching, watched episodes, My List, favorites, sports teams and taste are saved per profile in the account;
+  newer progress wins, a TV that was offline cannot overwrite it
+- Settings > Account & devices: signed-in TVs, rename, sign out one device, sign out all others, sign out this TV
+- Earlier personal sign-ins (one per profile) are taken over: their saved data goes into the matching profile
+
 ## Fof TV 1.3.83 (November 2026)
 - "Sign in with your phone" opens a short page with only email, password and Sign in; everything else syncs by
   itself (addons, lists, Continue Watching, taste). The full settings page stays on the normal phone code

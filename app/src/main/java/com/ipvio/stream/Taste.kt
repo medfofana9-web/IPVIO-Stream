@@ -156,11 +156,11 @@ fun TasteSetup(onDone: () -> Unit) {
     var saveAtEnd by remember { mutableStateOf(false) }
     LaunchedEffect(FofAccount.signedInState, signingIn) {
         if (signingIn && FofAccount.signedInState) {
-            CloudSync.run(ctx)
-            signingIn = false
+            // The whole TV is on the account now: its profiles come in, then "Who's watching?" with each profile's PIN
             if (saveAtEnd) finish()
-            else if (!Taste.needed(ctx)) onDone()          // their taste came with the account
-            else askAccount = false
+            AccountCloud.run(ctx)
+            CloudSync.run(ctx)
+            Profiles.restartToPicker(ctx)
         }
     }
     BackHandler {

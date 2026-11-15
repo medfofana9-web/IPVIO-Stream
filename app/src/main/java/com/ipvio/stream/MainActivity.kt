@@ -74,7 +74,8 @@ class MainActivity : ComponentActivity() {
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
             kotlinx.coroutines.delay(4_000)
             while (true) {
-                if (FofAccount.signedIn && Reminders.foreground) CloudSync.run(applicationContext)
+                // Account first (still allowed? profiles, PINs, addons), then the profile in use
+                if (FofAccount.signedIn && Reminders.foreground) { AccountCloud.run(applicationContext); CloudSync.run(applicationContext) }
                 kotlinx.coroutines.delay(120_000)
             }
         }
@@ -172,7 +173,8 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // After standby or app switch set the window flag again in case the system dropped it
         ScreenAwake.apply()
-        // Back in the app: pick up what this person watched on another TV
+        // Back in the app: pick up what this person watched on another TV, and addons added on another TV
+        AccountCloud.kick(applicationContext, 0)
         CloudSync.now(applicationContext)
     }
 

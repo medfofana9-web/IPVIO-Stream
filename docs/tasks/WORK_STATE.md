@@ -1,5 +1,9 @@
 # Work state
 
+## 15 Nov 2026 – 1.3.84: one account per household (T-007)
+- See `docs/tasks/T-007-one-account-profiles.md`. Backend applied and tested (`docs/supabase/accounts_test.sql`).
+- Next: maintainer test on two TVs (sign in, PIN per profile, resume on the other TV, Connected Devices).
+
 ## 15 Nov 2026 – 1.3.72: personal data sync (CloudSync)
 - `CloudSync.kt` (Android) + `CloudSyncLogic.kt` (`SyncLogic`, pure, tested in `SyncLogicTest`).
 - Stores: ipvio_watch, ipvio_eprog, ipvio_hist, ipvio_lib, fof_catalog_items, ipvio_catfavs, ipvio_chlists of the

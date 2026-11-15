@@ -107,8 +107,11 @@ object Profiles {
         val m = meta(c)
         val skip = m.getBoolean("skip", false)
         if (skip) m.edit().putBoolean("skip", false).commit()
+        // Right after signing in to an account: always "Who's watching?" once
+        val force = m.getBoolean("force", false)
+        if (force) m.edit().putBoolean("force", false).commit()
         // Fof TV: the "Who's watching?" welcome shows on every start (also with one profile), unless turned off
-        return askAtStart && !skip
+        return force || (askAtStart && !skip)
     }
 
     fun add(c: Context): Boolean {
@@ -118,6 +121,14 @@ object Profiles {
         list.add(Profile(id, defaultName(id)))
         save(c)
         return true
+    }
+
+    /** Adds a profile with a name (from the account); null when there is no room. */
+    fun addNamed(c: Context, name: String): Int? {
+        if (!add(c)) return null
+        val id = list.last().id
+        rename(c, id, name)
+        return id
     }
 
     fun rename(c: Context, id: Int, name: String) {
@@ -150,6 +161,12 @@ object Profiles {
         active = id
         save(c)
         meta(c).edit().putBoolean("skip", true).commit()
+        restart(c)
+    }
+
+    /** Start again at "Who's watching?" (after signing in: the account's profiles are there now). */
+    fun restartToPicker(c: Context) {
+        meta(c).edit().putBoolean("force", true).putBoolean("skip", false).commit()
         restart(c)
     }
 
@@ -191,21 +208,26 @@ fun ProfilePicker(onPick: (Int) -> Unit) {
     // Last active profile locked (parental control with PIN)? Then another profile can only be left with the PIN.
     var pending by remember { mutableStateOf<Int?>(null) }
     var pinErr by remember { mutableStateOf<String?>(null) }
+    var gate by remember { mutableStateOf<Int?>(null) }
     val pid = pending
     if (pid != null) {
         Box(Modifier.fillMaxSize().background(Bg), contentAlignment = Alignment.Center) {
             Box(Modifier.width(420.dp)) {
                 PinPad(
                     "PIN eingeben", "Das zuletzt genutzte Profil ist durch den Jugendschutz gesperrt. Zum Wechseln bitte dessen PIN eingeben.", pinErr,
-                    { if (Parental.verifyFor(ctx, Profiles.active, it)) { pending = null; pinErr = null; onPick(pid) } else pinErr = Parental.pinError() },
+                    { if (Parental.verifyFor(ctx, Profiles.active, it)) { pending = null; pinErr = null; if (FofAccount.signedIn) gate = pid else onPick(pid) } else pinErr = Parental.pinError() },
                     { pending = null; pinErr = null }
                 )
             }
         }
         return
     }
+    // Signed in to an account: every profile opens with its own PIN, checked by the server (ProfileGate)
+    gate?.let { g -> ProfileGate(g, onOpen = { gate = null; onPick(g) }, onCancel = { gate = null }); return }
     val pick: (Int) -> Unit = { id ->
-        if (id != Profiles.active && Parental.profileLocked(ctx, Profiles.active)) pending = id else onPick(id)
+        if (id != Profiles.active && Parental.profileLocked(ctx, Profiles.active)) pending = id
+        else if (FofAccount.signedIn) gate = id
+        else onPick(id)
     }
     FofWelcome(pick)
 }

@@ -66,6 +66,8 @@ object Stremio {
     }
 
     private fun store(c: Context, list: List<Addon>) {
+        // Addons belong to the account: every TV signed in to it gets the change
+        AccountCloud.kick(c)
         addons = list
         val a = JSONArray()
         list.forEach { ad ->

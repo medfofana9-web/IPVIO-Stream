@@ -64,6 +64,7 @@ private val CATS = listOf(
     Cat(AIcon.Sliders, "Startseite anpassen", "Reihen und Widgets wählen und ordnen"),
     Cat(AIcon.Globe, "Stremio addons", "Add addon links for extra streams"),
     Cat(AIcon.Live, "Sports", "Spoiler-free mode, how games find channels"),
+    Cat(AIcon.Person, "Account & devices", "Sign-in, PINs, TVs on the account"),
     Cat(AIcon.Info, "Über IPVIO Stream", "Version, Quellen, Zurücksetzen"),
     // Donate is always the very last entry
     Cat(AIcon.HeartFilled, "Spende", "Unterstütze IPVIO Stream")
@@ -150,8 +151,9 @@ fun SettingsHub(onAdd: () -> Unit, reload: () -> Unit) {
                 15 -> ListImportPage(ctx)
                 18 -> StremioPage(ctx)
                 19 -> FofSportsPage(ctx)
-                21 -> DonateSection(ctx)
-                else -> AboutPage(ctx)   // 20
+                20 -> AccountPage(ctx)
+                22 -> DonateSection(ctx)
+                else -> AboutPage(ctx)   // 21
             }
             // Every setting page ends with a way back to the defaults
             if (page in 0..8) {
@@ -338,13 +340,18 @@ internal fun SelectRow(label: String, value: String, options: List<String>, sele
 
 /** Number pad for the PIN: arrow keys + OK or directly the digit keys of the remote. */
 @Composable
-internal fun PinPad(title: String, hint: String?, error: String?, onSubmit: (String) -> Unit, onCancel: () -> Unit) {
+internal fun PinPad(
+    title: String, hint: String?, error: String?, onSubmit: (String) -> Unit, onCancel: () -> Unit,
+    /** Profile PINs: 4 to 6 digits, sent with OK (or at 6 digits); the parental PIN stays exactly 4. */
+    minLen: Int = 4, maxLen: Int = 4, raw: Boolean = false
+) {
     var pin by remember { mutableStateOf("") }
     val start = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { start.requestFocus() } }
-    LaunchedEffect(pin) { if (pin.length == 4) { val p = pin; pin = ""; onSubmit(p) } }
+    LaunchedEffect(pin) { if (pin.length == maxLen) { val p = pin; pin = ""; onSubmit(p) } }
     BackHandler { onCancel() }
-    fun add(d: Char) { if (pin.length < 4) pin += d }
+    fun add(d: Char) { if (pin.length < maxLen) pin += d }
+    fun send() { if (pin.length >= minLen) { val p = pin; pin = ""; onSubmit(p) } }
     Column(
         Modifier.onPreviewKeyEvent { e ->
             val ne = e.nativeKeyEvent
@@ -356,28 +363,31 @@ internal fun PinPad(title: String, hint: String?, error: String?, onSubmit: (Str
                     kc in android.view.KeyEvent.KEYCODE_NUMPAD_0..android.view.KeyEvent.KEYCODE_NUMPAD_9 -> '0' + (kc - android.view.KeyEvent.KEYCODE_NUMPAD_0)
                     else -> null
                 }
-                if (d != null) { add(d); true } else false
+                if (d != null) { add(d); true }
+                else if (kc == android.view.KeyEvent.KEYCODE_DEL) { pin = pin.dropLast(1); true }
+                else false
             }
         },
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Text(title, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-        if (hint != null) Hint(hint)
+        Text(title, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold, raw = raw)
+        if (hint != null) { if (raw) Text(hint, color = Muted, fontSize = 15.sp, raw = true) else Hint(hint) }
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            repeat(4) { i ->
+            repeat(maxOf(minLen, pin.length)) { i ->
                 Box(Modifier.size(22.dp).clip(CircleShape).background(if (i < pin.length) Accent2 else DS.Overlay3))
             }
-            if (error != null) Text(error, color = DS.Danger, fontSize = 15.sp)
+            if (error != null) Text(error, color = DS.Danger, fontSize = 15.sp, raw = raw)
         }
-        val keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "DEL", "0", "ESC")
+        val keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "DEL", "0", if (maxLen > minLen) "OK" else "ESC")
         keys.chunked(3).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 row.forEach { k ->
-                    val ic = when (k) { "DEL" -> AIcon.Backspace; "ESC" -> AIcon.Close; else -> null }
+                    val ic = when (k) { "DEL" -> AIcon.Backspace; "ESC" -> AIcon.Close; "OK" -> AIcon.Check; else -> null }
                     SmallPill(if (ic != null) "" else k, Modifier.width(78.dp).then(if (k == "5") Modifier.focusRequester(start) else Modifier), icon = ic) {
                         when (k) {
                             "DEL" -> pin = pin.dropLast(1)
                             "ESC" -> onCancel()
+                            "OK" -> send()
                             else -> add(k[0])
                         }
                     }

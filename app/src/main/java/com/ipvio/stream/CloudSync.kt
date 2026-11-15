@@ -13,11 +13,11 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 /**
- * Netflix-style "your stuff follows you": a signed-in person's Continue watching, watched episodes, Recently watched,
- * My List and favorites are saved in their account (Supabase table user_data, only readable by that person) and come
- * back on every TV they sign in on.
+ * Netflix-style "your stuff follows you": each profile's Continue watching, watched episodes, Recently watched,
+ * My List, favorites, sports teams and taste are saved with that profile in the account (table fof_profile_data) and
+ * come back on every TV signed in to the account. The server only lets a TV reach a profile it opened with the PIN.
  *
- * The account is linked to one profile on each TV: the profile that was active when signing in.
+ * The profile in use syncs; its link to the account profile comes from [AccountCloud].
  * When: shortly after a change (playback stopped, title added), when the app comes back or goes to the background,
  * and every 2 minutes while it is open. If both TVs changed something, both versions are merged ([SyncLogic.merge]).
  */
@@ -30,21 +30,24 @@ object CloudSync {
     @Volatile var status: String = ""
         private set
 
-    // Sync state lives with the profile's own sign-in
-    private fun prefs(c: Context) = Profiles.sp(c, "fof_account")
+    // Sync state per account and profile, on this TV
+    private fun prefs(c: Context) = FofAccount.devicePrefs(c)
+    private fun hk(pid: Int, cid: String) = "sh_${cid}_$pid"
+    private fun ak(pid: Int, cid: String) = "sa_${cid}_$pid"
 
-    /** Profile on this TV that follows the signed-in person. */
-    fun linked(c: Context): Int = prefs(c).getInt("sync_profile", -1)
-
-    fun link(c: Context, profileId: Int) {
-        // A new link starts fresh: the first sync merges this TV's data with the saved one
-        prefs(c).edit().putInt("sync_profile", profileId).remove("sync_hash").remove("sync_at").apply()
-    }
+    /** Profile on this TV whose data syncs now (the one in use), -1 when signed out. */
+    fun linked(c: Context): Int = if (FofAccount.signedIn) Profiles.active else -1
 
     fun unlink(c: Context) {
         pending?.cancel()
-        prefs(c).edit().remove("sync_profile").remove("sync_hash").remove("sync_at").apply()
         status = ""
+    }
+
+    /** Merges saved data (e.g. of an earlier sign-in) into a profile on this TV; the next sync takes it to the account. */
+    internal fun mergeLocal(c: Context, pid: Int, files: JSONObject) {
+        val merged = SyncLogic.merge(read(c, pid), files)
+        write(c, pid, merged)
+        kotlinx.coroutines.runBlocking { reloadIfActive(c, pid) }
     }
 
     /** Sync soon (after [delayMs]); called after every change of the personal stores. Repeated calls are merged. */
@@ -71,38 +74,64 @@ object CloudSync {
 
     private suspend fun once(c: Context) {
         withContext(Dispatchers.Main) { Profiles.init(c) }
-        // Every profile has its own account: the profile in use is the one that syncs
         val pid = Profiles.active
-        if (linked(c) != pid) link(c, pid)
+        if (AccountCloud.cloudId(c, pid) == null) AccountCloud.run(c)
+        val cid = AccountCloud.cloudId(c, pid)
+        if (cid == null) { status = "This profile is not in the account yet"; return }
+        if (!AccountCloud.canSync(c, pid)) { status = "Open this profile with its PIN to sync it"; return }
         val p = prefs(c)
         val local = read(c, pid)
-        val localChanged = SyncLogic.fingerprint(local) != p.getString("sync_hash", null)
-        val cloudAt = FofAccount.userDataAt(c).getOrThrow()
-        val cloudChanged = cloudAt != null && cloudAt != p.getString("sync_at", null)
+        val localChanged = SyncLogic.fingerprint(local) != p.getString(hk(pid, cid), null)
+        val cloudAt = dataAt(c, cid)
+        val cloudChanged = cloudAt != null && cloudAt != p.getString(ak(pid, cid), null)
         when (SyncLogic.decide(localChanged, cloudChanged, cloudAt != null)) {
             SyncLogic.Step.NOTHING -> {}
-            SyncLogic.Step.UPLOAD -> upload(c, local)
+            SyncLogic.Step.UPLOAD -> upload(c, pid, cid, local)
             SyncLogic.Step.APPLY -> {
-                val (data, at) = FofAccount.userDataGet(c).getOrThrow() ?: return
+                val (data, at) = dataGet(c, cid) ?: return
                 val files = filesOf(data) ?: return
                 write(c, pid, files)
-                p.edit().putString("sync_hash", SyncLogic.fingerprint(read(c, pid))).putString("sync_at", at).apply()
+                p.edit().putString(hk(pid, cid), SyncLogic.fingerprint(read(c, pid))).putString(ak(pid, cid), at).apply()
                 reloadIfActive(c, pid)
             }
             SyncLogic.Step.MERGE -> {
-                val (data, _) = FofAccount.userDataGet(c).getOrThrow() ?: return upload(c, local)
+                val (data, _) = dataGet(c, cid) ?: return upload(c, pid, cid, local)
                 val merged = SyncLogic.merge(local, filesOf(data) ?: JSONObject())
                 write(c, pid, merged)
                 reloadIfActive(c, pid)
-                upload(c, read(c, pid))
+                upload(c, pid, cid, read(c, pid))
             }
         }
         status = "Synced " + java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(java.util.Date())
     }
 
-    private fun upload(c: Context, files: JSONObject) {
-        val at = FofAccount.userDataPut(c, JSONObject().put("v", 1).put("files", files)).getOrThrow()
-        prefs(c).edit().putString("sync_hash", SyncLogic.fingerprint(files)).putString("sync_at", at).apply()
+    private fun upload(c: Context, pid: Int, cid: String, files: JSONObject) {
+        val at = dataPut(c, cid, JSONObject().put("v", 1).put("files", files))
+        prefs(c).edit().putString(hk(pid, cid), SyncLogic.fingerprint(files)).putString(ak(pid, cid), at).apply()
+    }
+
+    private fun get(c: Context, path: String): String {
+        val t = FofAccount.tokenFor(c) ?: error("signed out")
+        val (code, body) = FofAccount.call("GET", path, null, t)
+        if (code !in 200..299) error("HTTP $code")
+        return body
+    }
+
+    /** Time of the profile's last saved change (null = nothing saved yet). */
+    private fun dataAt(c: Context, cid: String): String? =
+        org.json.JSONArray(get(c, "/rest/v1/fof_profile_data?select=updated_at&profile_id=eq.$cid")).optJSONObject(0)?.optString("updated_at")?.ifBlank { null }
+
+    private fun dataGet(c: Context, cid: String): Pair<JSONObject, String>? =
+        org.json.JSONArray(get(c, "/rest/v1/fof_profile_data?select=data,updated_at&profile_id=eq.$cid")).optJSONObject(0)
+            ?.let { (it.optJSONObject("data") ?: JSONObject()) to it.optString("updated_at") }
+
+    /** Saves the profile's data; returns the server's time of the change. */
+    private fun dataPut(c: Context, cid: String, data: JSONObject): String {
+        val t = FofAccount.tokenFor(c) ?: error("signed out")
+        val body = JSONObject().put("profile_id", cid).put("data", data).toString()
+        val (code, res) = FofAccount.call("POST", "/rest/v1/fof_profile_data?on_conflict=profile_id", body, t, "resolution=merge-duplicates,return=representation")
+        if (code !in 200..299) error("HTTP $code")
+        return org.json.JSONArray(res).optJSONObject(0)?.optString("updated_at")?.ifBlank { null } ?: error("no time")
     }
 
     private fun filesOf(data: JSONObject): JSONObject? =

@@ -37,22 +37,44 @@ object FofAccount {
     var status by mutableStateOf("")
         private set
 
-    /** Each profile signs in on its own (profile 0 keeps the original store, so existing sign-ins stay). */
-    private fun prefs(c: Context) = Profiles.sp(c, "fof_account")
+    /**
+     * One sign-in per TV (T-007): every profile on this TV uses it. Before, each profile signed in on its own
+     * (store "fof_account" per profile); [init] takes the best of those once ([migrateDevice]) and leaves them in place.
+     */
+    internal fun devicePrefs(c: Context) = c.applicationContext.getSharedPreferences("fof_device_account", Context.MODE_PRIVATE)
+    private fun prefs(c: Context) = devicePrefs(c)
+
+    val userId: String? get() = session?.userId
 
     /** Signed in? As Compose state, so screens (sign-in on the TV) react the moment the phone finishes. */
     var signedInState by mutableStateOf(false)
         private set
 
-    /** After switching profile: load that profile's sign-in. */
-    fun reload(c: Context) {
-        session = null; email = null; member = null; status = ""
-        init(c)
-        signedInState = session != null
+    /** After switching profile: the TV's sign-in stays (kept for callers from before one account per household). */
+    fun reload(c: Context) { init(c); signedInState = session != null }
+
+    /** Takes over a sign-in from the per-profile stores once: the family owner's, else the main profile's, else any. */
+    private fun migrateDevice(c: Context) {
+        val dp = devicePrefs(c)
+        if (dp.getBoolean("migrated", false)) return
+        val meta = c.applicationContext.getSharedPreferences(Profiles.META, Context.MODE_PRIVATE)
+        val ids = (meta.getString("ids", "0") ?: "0").split(",").mapNotNull { it.trim().toIntOrNull() }.ifEmpty { listOf(0) }
+        val found = ids.mapNotNull { pid ->
+            val sp = c.applicationContext.getSharedPreferences(Profiles.scopedName("fof_account", pid), Context.MODE_PRIVATE)
+            val enc = sp.getString("s", null) ?: return@mapNotNull null
+            Triple(pid, enc, sp.getString("m", null))
+        }
+        val pick = found.firstOrNull { t -> t.third?.let { AccountLogic.readMember(it)?.owner } == true }
+            ?: found.firstOrNull { it.first == 0 } ?: found.firstOrNull()
+        dp.edit().apply {
+            if (pick != null) { putString("s", pick.second); pick.third?.let { putString("m", it) } }
+            putBoolean("migrated", true)
+        }.commit()
     }
 
     fun init(c: Context) {
         if (session != null) return
+        migrateDevice(c)
         val enc = prefs(c).getString("s", null) ?: return
         val raw = Secrets.decrypt(enc) ?: return
         session = AccountLogic.readSession(raw)
@@ -77,23 +99,31 @@ object FofAccount {
 
     // ---------------------------------------------------------------- HTTP
 
-    private fun call(method: String, path: String, body: String?, token: String?, prefer: String? = null): Pair<Int, String> {
+    internal fun call(method: String, path: String, body: String?, token: String?, prefer: String? = null): Pair<Int, String> {
         val b = Request.Builder().url(URL + path).header("apikey", KEY).header("Authorization", "Bearer " + (token ?: KEY))
         if (prefer != null) b.header("Prefer", prefer)
         if (method == "POST") b.post((body ?: "{}").toRequestBody(JSON)) else if (method == "PATCH") b.patch((body ?: "{}").toRequestBody(JSON)).header("Prefer", "return=minimal")
         Net.withTimeouts(8, 12).newCall(b.build()).execute().use { r -> return r.code to (r.body?.string().orEmpty()) }
     }
 
-    /** A valid access token (refreshed when it is about to run out), or null when signed out. */
+    /**
+     * A valid access token (refreshed when it is about to run out), or null when signed out. One refresh at a time
+     * (the refresh token changes with every use). No connection: the sign-in stays; the account service refusing the
+     * refresh (signed out on another device, password changed): this TV signs out.
+     */
+    @Synchronized
     private fun token(c: Context): String? {
         val s = session ?: return null
         if (System.currentTimeMillis() / 1000 < s.expiresAt - 120) return s.access
         val (code, body) = call("POST", "/auth/v1/token?grant_type=refresh_token", JSONObject().put("refresh_token", s.refresh).toString(), null)
+        if (code in 400..403) { android.os.Handler(android.os.Looper.getMainLooper()).post { signOut(c, revoked = true) }; return null }
         if (code !in 200..299) return null
         val n = AccountLogic.sessionFrom(body) ?: return null
         save(c, n)
         return n.access
     }
+
+    internal fun tokenFor(c: Context): String? = token(c)
 
     private fun err(body: String, fallback: String) = AccountLogic.message(body) ?: fallback
 
@@ -107,10 +137,9 @@ object FofAccount {
             if (code !in 200..299) return@runCatching err(res, if (create) "Could not create the account." else "Email or password is not right.")
             val s = AccountLogic.sessionFrom(res) ?: return@runCatching "Account created – sign in with it now."
             save(c, s)
-            // This profile now follows this person (watching progress, My List, favorites, avatar, taste)
-            CloudSync.link(c, Profiles.active)
+            // The whole TV is now on this account: profiles, addons and everyone's progress come from it
             refreshMember(c)
-            CloudSync.kick(c, 0)
+            AccountCloud.afterSignIn(c)
             null
         }.getOrElse { "No connection to the account service." }
     }
@@ -125,7 +154,33 @@ object FofAccount {
         return if (made.contains("already", true) || made.contains("registered", true)) "Wrong password for this email." else made
     }
 
-    fun signOut(c: Context) { save(c, null); saveMember(c, null); status = ""; CloudSync.unlink(c) }
+    /** Signs this TV out ([revoked] = it was signed out from another device, the session is already gone). */
+    fun signOut(c: Context, revoked: Boolean = false) {
+        val old = session
+        if (old != null && !revoked) Thread { runCatching { call("POST", "/auth/v1/logout?scope=local", null, old.access) } }.start()
+        save(c, null); saveMember(c, null)
+        status = if (revoked) "This TV was signed out from the account." else ""
+        CloudSync.unlink(c); AccountCloud.onSignedOut()
+    }
+
+    /**
+     * Signs in again with the account password (forgotten PIN): the new sign-in counts as "just confirmed" for 10 minutes,
+     * which lets this TV set any profile's PIN. The old sign-in of this TV is ended. Null = ok, else a readable error.
+     */
+    suspend fun confirmPassword(c: Context, password: String): String? = withContext(Dispatchers.IO) {
+        val mail = session?.email ?: return@withContext "Sign in first."
+        val old = session
+        runCatching {
+            val (code, res) = call("POST", "/auth/v1/token?grant_type=password", JSONObject().put("email", mail).put("password", password).toString(), null)
+            if (code !in 200..299) return@runCatching "That is not the account password."
+            val s = AccountLogic.sessionFrom(res) ?: return@runCatching "That did not work."
+            save(c, s)
+            if (old != null) runCatching { call("POST", "/auth/v1/logout?scope=local", null, old.access) }
+            devicePrefs(c).edit().remove("reg_at").apply()
+            AccountCloud.run(c)
+            null
+        }.getOrElse { "No connection to the account service." }
+    }
 
     // ---------------------------------------------------------------- Personal data (CloudSync)
 
@@ -249,27 +304,10 @@ object FofAccount {
         }?.takeIf { it.first in 200..299 }?.second?.let { AccountLogic.configFrom(it) }
         runCatching { report(c, m, t) }
         if (cfg == null) { status = "Could not reach the family setup"; return }
-        // The owner's TV is the source of the setup; only a fresh install of it (no playlist yet) takes the saved setup back
+        // Addons and the playlist come from the account now ([AccountCloud]); the old shared setup only fills an empty TV
         Stremio.ensure(c)
-        if (m.owner) {
-            // Every TV of the owner gets the owner's addons and playlist; nothing local is removed or replaced
-            val have0 = Stremio.addons.map { it.base.lowercase() }.toSet()
-            for (a in cfg.second) if (a.lowercase() !in have0) Stremio.add(c, a)
-            if (PlaylistStore.savedUrl(c) == null && cfg.first.isNotBlank()) withContext(Dispatchers.Main) { PlaylistStore.load(c, cfg.first, save = true) }
-            // Keep the shared setup complete: publish addons added on this TV (and the playlist when none is shared yet)
-            val shared = cfg.second.map { it.lowercase() }.toSet()
-            val missing = Stremio.addons.any { it.base.lowercase() !in shared }
-            if (missing || (cfg.first.isBlank() && PlaylistStore.savedUrl(c) != null)) runCatching { share(c, keepUrl = cfg.first) }
-            status = "Owner of the family setup"
-            return
-        }
-        val fromFamily = prefs(c).getStringSet("fam_addons", emptySet()).orEmpty()
-        val have = Stremio.addons.map { it.base.lowercase() }.toSet()
-        for (a in cfg.second) if (a.lowercase() !in have) Stremio.add(c, a)
-        for (a in fromFamily) if (cfg.second.none { it.equals(a, true) }) withContext(Dispatchers.Main) { Stremio.remove(c, a) }
-        prefs(c).edit().putStringSet("fam_addons", cfg.second.toSet()).apply()
-        val url = cfg.first
-        if (url.isNotBlank() && url != PlaylistStore.savedUrl(c)) withContext(Dispatchers.Main) { PlaylistStore.load(c, url, save = true) }
+        if (Stremio.addons.isEmpty()) for (a in cfg.second) Stremio.add(c, a)
+        if (cfg.first.isNotBlank() && PlaylistStore.savedUrl(c) == null) withContext(Dispatchers.Main) { PlaylistStore.load(c, cfg.first, save = true) }
         status = "Using the family setup"
     }
 }

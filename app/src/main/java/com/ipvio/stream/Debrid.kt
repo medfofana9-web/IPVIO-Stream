@@ -41,13 +41,16 @@ object Debrid {
         inited = true
     }
 
+    /** The token itself (account sync only; never shown or logged). */
+    internal fun raw(): String = token
+
     fun masked(): String = if (token.length > 6) "…" + token.takeLast(4) else ""
 
     /** Saves and checks the token. Returns the Real-Debrid user name, or an error text starting with "!". */
     suspend fun save(c: Context, t: String): String = withContext(Dispatchers.IO) {
         val v = t.trim().filter { it.isLetterOrDigit() }
         if (v.isEmpty()) {
-            prefs(c).edit().remove("rd").apply(); token = ""; withContext(Dispatchers.Main) { on = false }
+            prefs(c).edit().remove("rd").apply(); token = ""; withContext(Dispatchers.Main) { on = false }; AccountCloud.kick(c)
             return@withContext "!Removed"
         }
         val user = runCatching { JSONObject(call("GET", "/user", null, v)).optString("username") }.getOrNull()
@@ -55,6 +58,7 @@ object Debrid {
         val enc = Secrets.encrypt(v) ?: return@withContext "!Could not store the token on this device."
         prefs(c).edit().putString("rd", enc).apply()
         token = v
+        AccountCloud.kick(c)
         withContext(Dispatchers.Main) { on = true }
         user
     }
