@@ -1,6 +1,13 @@
 # Changelog
 
 ## Fof TV 1.3.76 (November 2026)
+**Make Fof TV yours (every profile)**
+- The first time a profile is opened, a few quick questions: which sports you follow (NFL, NBA, WNBA, college,
+  soccer), your teams, shows and movies you love, favorite genres. Everything can be skipped
+- The answers shape that profile: Sports and the Home live row show only your sports, your teams' games come first,
+  "Because you like …" rows from your favorites, your genres first. Redo it any time: Manage Profiles → profile → Your taste
+- Travels with your account, like your teams and leagues
+
 **Avatars like Netflix**
 - Pick a scene from a show or movie (the same artwork the app shows on Home), a player from the teams in Sports (ESPN
   photos), or upload your own photo on the phone page ("Your avatar"). Search by name, preview, confirm

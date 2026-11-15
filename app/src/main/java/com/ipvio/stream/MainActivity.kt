@@ -109,6 +109,7 @@ class MainActivity : ComponentActivity() {
         ScreenAwake.attach(this)
         intent?.getStringExtra(Reminders.EXTRA_CH)?.let { AppNav.openChannel = it }
         if (BuildConfig.VERSION_NAME.endsWith("-test")) intent?.getStringExtra("fof_test_url")?.let { AppNav.testUrl = it }
+        if (BuildConfig.VERSION_NAME.endsWith("-test") && intent?.getBooleanExtra("fof_taste", false) == true) Taste.testForce = true
         MainSampler.register(this)
         if (BuildConfig.VERSION_NAME.endsWith("-test")) intent?.getIntExtra("fof_profile_start", 0)?.takeIf { it > 0 }?.let { MainSampler.run(it, "start") }
         // Stores read when a title page opens: loaded from disk in the background now, so the first open does not wait
@@ -226,7 +227,11 @@ fun App(pick: Boolean = false) {
     ) {
         val c = LocalContext.current
         var picked by remember { mutableStateOf(!pick) }
+        // First time on a profile (or "Your taste" in Manage Profiles): a few questions to tailor it
+        var tasting by remember { mutableStateOf(false) }
+        LaunchedEffect(picked) { if (picked && Taste.needed(c)) tasting = true }
         if (!picked) ProfilePicker { id -> MainSampler.mark("profile picked"); Profiles.select(c, id); AppSettings.init(c); Parental.init(c); LangFilter.init(c); Boomer.init(c); HomeLayout.init(c); BoomerLayout.init(c); picked = true }
+        else if (tasting) TasteSetup { tasting = false }
         else {
             LaunchedEffect(Unit) { delay(10_000); runCatching { SportAlerts.run(c.applicationContext) } }   // after the start: the playlist and the home screen come first
             LaunchedEffect(Unit) { delay(15_000); runCatching { GameDay.run(c.applicationContext) } }   // Fof Game Day: reminders and close-game alerts

@@ -472,6 +472,10 @@ fun HomeScreen(
         else { lastBack = now; android.widget.Toast.makeText(ctx, Lang.tr("Noch einmal Zurück drücken zum Beenden"), android.widget.Toast.LENGTH_SHORT).show() }
     }
 
+    // Taste setup of this profile: liked titles feed "Because you like …", liked genres come first
+    val tasteSeeds = remember(Profiles.active) { Taste.titles(ctx).mapNotNull { CatalogItems.get(it) }.shuffled() }
+    val likedGenres = remember(Profiles.active) { Taste.genres(ctx) }
+    fun tasteOrder(l: List<Catalog.Spec>) = l.sortedBy { sp -> likedGenres.indexOfFirst { it.equals(sp.title, true) }.let { if (it < 0) 99 else it } }
     val resumeList by remember(byId) { derivedStateOf { WatchStore.entries.mapNotNull { e -> lk(e.itemId)?.let { e to it } } } }
     // Movies/series tab: the same lists filtered by kind, kept between recompositions
     val vodKind = if (tab == 1) Kind.MOVIE else Kind.SERIES
@@ -605,6 +609,12 @@ fun HomeScreen(
                                         if (seed != null) item(key = "because" + seed.id) {
                                             ExtraRow("Because you watched " + seed.title, "because:" + seed.id.removePrefix("stremio:"), cardW, onOpen, onBrowse) { TmdbExtra.because(seed) }
                                         }
+                                        // Picked in the taste setup: up to two "Because you like …" rows
+                                        tasteSeeds.filter { it.id != seed?.id }.take(2).forEach { ts ->
+                                            item(key = "like" + ts.id) {
+                                                ExtraRow("Because you like " + ts.title, "because:" + ts.id.removePrefix("stremio:"), cardW, onOpen, onBrowse) { TmdbExtra.because(ts) }
+                                            }
+                                        }
                                         Catalog.home().forEach { sp -> item(key = "cm" + sp.title) { CatalogRow(sp, cardW, onOpen, onBrowse, topIds) } }
                                         // What just came out on the big streaming services
                                         TmdbExtra.SERVICES.take(4).forEach { sv ->
@@ -637,8 +647,8 @@ fun HomeScreen(
                                     "tops" -> { if (topS.size >= 8) item(key = "tops") {
                                         ItemsRow("Top bewertet · Serien", topS, cardW, onOpen) { onBrowse(BrowseReq("Top bewertet · Serien", topS, SORT_RATING)) }
                                     } }
-                                    "sg" -> Catalog.genres(Kind.SERIES).take(4).forEach { sp -> item(key = "cms" + sp.title) { CatalogRow(sp.copy(title = "Series · " + sp.title), cardW, onOpen, onBrowse) } }
-                                    "mg" -> Catalog.genres(Kind.MOVIE).take(4).forEach { sp -> item(key = "cmm" + sp.title) { CatalogRow(sp.copy(title = "Movies · " + sp.title), cardW, onOpen, onBrowse) } }
+                                    "sg" -> tasteOrder(Catalog.genres(Kind.SERIES)).take(4).forEach { sp -> item(key = "cms" + sp.title) { CatalogRow(sp.copy(title = "Series · " + sp.title), cardW, onOpen, onBrowse) } }
+                                    "mg" -> tasteOrder(Catalog.genres(Kind.MOVIE)).take(4).forEach { sp -> item(key = "cmm" + sp.title) { CatalogRow(sp.copy(title = "Movies · " + sp.title), cardW, onOpen, onBrowse) } }
                                 }
                             }
                             // Build own home screen: entry at the end of the page
@@ -754,7 +764,7 @@ fun HomeScreen(
         }
         if (picker) {
             BackHandler { picker = false }
-            ProfilePicker { id -> picker = false; if (id != Profiles.active) Profiles.switchTo(ctx, id) }
+            ProfilePicker { id -> picker = false; if (id != Profiles.active) Profiles.switchTo(ctx, id) else if (Taste.needed(ctx)) Profiles.reopen(ctx) }
         }
         Sidebar(
             tab,

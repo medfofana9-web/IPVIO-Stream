@@ -55,7 +55,7 @@ object Profiles {
         "ipvio_variants", "ipvio_guide", "ipvio_browse", "ipvio_cat", "ipvio_general", "ipvio_lang",
         "ipvio_chlists", "ipvio_tracks", "ipvio_eprog",
         // Fof TV per-profile stores (deleted with the profile)
-        "ipvio_sportfavs", "ipvio_sportleagues", "ipvio_sporthub", "fof_flags", "fof_gameday", "fof_sport", "fof_catalog_items"
+        "ipvio_sportfavs", "ipvio_sportleagues", "ipvio_sporthub", "fof_flags", "fof_gameday", "fof_sport", "fof_catalog_items", "fof_taste"
     )
 
     val list = mutableStateListOf<Profile>()
@@ -149,6 +149,12 @@ object Profiles {
         if (id == active || list.none { it.id == id }) return
         active = id
         save(c)
+        meta(c).edit().putBoolean("skip", true).commit()
+        restart(c)
+    }
+
+    /** Start again on the same profile (e.g. to show its taste questions). */
+    fun reopen(c: Context) {
         meta(c).edit().putBoolean("skip", true).commit()
         restart(c)
     }

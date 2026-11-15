@@ -144,13 +144,15 @@ fun FofWelcome(onPick: (Int) -> Unit) {
             }
         }
         options?.let { id ->
-            val acts = if (id == 0) listOf("Change avatar", "Rename") else listOf("Change avatar", "Rename", "Delete profile")
+            val acts = if (id == 0) listOf("Change avatar", "Rename", "Your taste") else listOf("Change avatar", "Rename", "Your taste", "Delete profile")
             OptionPopup(acts, -1, { options = null }) { a ->
                 options = null
                 when (a) {
                     0 -> picking = id
                     1 -> { naming = id; name = Profiles.list.firstOrNull { it.id == id }?.let { Profiles.displayName(it) } ?: "" }
-                    2 -> if (Profiles.remove(ctx, id)) ProfileAvatars.set(ctx, id, null)
+                    // The questions come back the next time this profile is picked
+                    2 -> { Taste.reset(ctx, id); manage = false; onPick(id) }
+                    3 -> if (Profiles.remove(ctx, id)) ProfileAvatars.set(ctx, id, null)
                 }
             }
         }

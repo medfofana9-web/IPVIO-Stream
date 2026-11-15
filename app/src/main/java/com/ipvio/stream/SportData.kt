@@ -600,7 +600,10 @@ object SportFavs {
         val k = key(t)
         if (!keys.remove(k)) keys.add(k)
         prefs(c).edit().putString("k", keys.joinToString("|")).apply()
+        CloudSync.kick(c)
     }
+
+    fun reload(c: Context) { inited = false; keys.clear(); init(c) }
 }
 
 /** Channel chosen by hand per game ("Correct channel", per profile). Key = game ID|league, value = channel ID. */
@@ -651,4 +654,14 @@ object SportLeagues {
         if (!off.remove(l.name)) off.add(l.name)
         prefs(c).edit().putString("off", off.joinToString("|")).apply()
     }
+
+    /** Taste setup: the leagues that are off for this profile, all at once. */
+    fun setOff(c: Context, names: List<String>) {
+        init(c)
+        off.clear(); off.addAll(names.distinct())
+        prefs(c).edit().putString("off", off.joinToString("|")).putBoolean("fof_def1", true).apply()
+    }
+
+    /** Read again after the account brought newer data (CloudSync). */
+    fun reload(c: Context) { inited = false; off.clear(); init(c) }
 }

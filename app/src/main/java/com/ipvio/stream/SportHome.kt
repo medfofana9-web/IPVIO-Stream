@@ -50,8 +50,8 @@ object SportPrefs {
 }
 
 /** Leagues checked for the home row "Live sports" (team sports with a day schedule). */
-// Fof TV: Home shows live NBA and soccer only (the main soccer leagues and cups)
-private val HOME_LEAGUES = listOf("NBA", "Premier League", "Champions League", "LaLiga", "Serie A", "Bundesliga", "Ligue 1", "MLS",
+// Fof TV: the leagues each profile follows (taste setup / Leagues on-off), from the main pro leagues and soccer competitions
+private val HOME_LEAGUES = listOf("NFL", "NBA", "WNBA", "College Football", "Premier League", "Champions League", "LaLiga", "Serie A", "Bundesliga", "Ligue 1", "MLS",
     "Europa League", "Liga MX", "Concacaf Nations League", "International Friendlies", "FA Cup", "Copa del Rey", "Club World Cup")
 
 /**

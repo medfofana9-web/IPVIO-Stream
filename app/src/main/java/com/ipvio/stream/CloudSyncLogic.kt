@@ -19,6 +19,9 @@ object SyncLogic {
         "fof_catalog_items",  // addon titles those lists refer to
         "ipvio_catfavs",      // favorite categories
         "ipvio_chlists",      // own channel lists
+        "fof_taste",          // taste setup (sports, liked titles, genres)
+        "ipvio_sportfavs",    // favorite teams
+        "ipvio_sportleagues", // leagues on/off
         AVATAR                // the profile's avatar (not a file: written through ProfileAvatars)
     )
 
