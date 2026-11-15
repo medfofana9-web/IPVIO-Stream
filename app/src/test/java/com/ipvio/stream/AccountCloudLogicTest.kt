@@ -144,6 +144,7 @@ class AccountCloudLogicTest {
         tv.files = resume(Triple("movie:tt1", 30 * 60_000L, 100)); sync(tv, cloudA)
         sync(tvB, cloudB)
         assertTrue(positions(tvB.files).isEmpty())
-        assertEquals(null, cloudB.data)
+        assertTrue(positions(cloudB.data ?: JSONObject()).isEmpty())
+        assertEquals(30 * 60_000L, positions(cloudA.data!!)["movie:tt1"])
     }
 }
