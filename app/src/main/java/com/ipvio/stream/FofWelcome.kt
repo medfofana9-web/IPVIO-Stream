@@ -96,10 +96,11 @@ fun FofWelcome(onPick: (Int) -> Unit) {
         Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(if (manage) "Manage profiles" else "Who's watching?", color = Color.White, fontSize = 52.sp, fontWeight = FontWeight.Bold, raw = true)
             // The account this TV is signed in to, as a quiet line under the title
-            if (FofAccount.signedInState) {
-                Spacer(Modifier.height(8.dp))
-                Text("Fof TV account · " + FofAccount.email.orEmpty(), color = Color(0x99FFFFFF), fontSize = 16.sp, raw = true)
-            }
+            Spacer(Modifier.height(8.dp))
+            if (FofAccount.signedInState) Text("Fof TV account · " + FofAccount.email.orEmpty(), color = Color(0x99FFFFFF), fontSize = 16.sp, raw = true)
+            // Not signed in: say plainly what is missing (this TV shows nothing from the account until it signs in)
+            else Text("This TV is not signed in. Sign in to bring your profiles, addons and Continue Watching here.",
+                color = Color(0xCCFFFFFF), fontSize = 17.sp, raw = true)
             Spacer(Modifier.height(56.dp))
             // Up to 10 profiles: one row up to 5, then two rows; the "+" tile adds one (master PIN asked when set)
             val tiles: List<Int?> = Profiles.list.indices.toList() + (if (Profiles.list.size < Profiles.MAX) listOf(null) else emptyList())

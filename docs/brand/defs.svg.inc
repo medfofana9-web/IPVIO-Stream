@@ -1,0 +1,5 @@
+<linearGradient id="tile" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#26244F"/><stop offset="0.55" stop-color="#131230"/><stop offset="1" stop-color="#1A1446"/></linearGradient>
+<radialGradient id="glow" cx="0.62" cy="1.0" r="0.75"><stop offset="0" stop-color="#7B5CFF" stop-opacity="0.55"/><stop offset="1" stop-color="#7B5CFF" stop-opacity="0"/></radialGradient>
+<linearGradient id="edge" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.75"/><stop offset="0.5" stop-color="#B9B0FF" stop-opacity="0.18"/><stop offset="1" stop-color="#8F75FF" stop-opacity="0.55"/></linearGradient>
+<linearGradient id="ribbon" x1="0.1" y1="0.05" x2="0.85" y2="0.95"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.45" stop-color="#DAD4FF"/><stop offset="0.75" stop-color="#9E85FF"/><stop offset="1" stop-color="#6A45F5"/></linearGradient>
+<linearGradient id="shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0.5" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#2A1580" stop-opacity="0.35"/></linearGradient>

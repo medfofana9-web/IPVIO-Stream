@@ -95,7 +95,7 @@ object SettingsWeb {
     }
 
     /** Phone page behind the TV's "Sign in with your phone" code: only email and password, then everything syncs. */
-    fun signInPage(): String = """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    fun signInPage(): String = """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect x='8' y='8' width='496' height='496' rx='118' fill='%2316143A'/%3E%3Cpath d='M182 160 L182 352 L372 256 Z' fill='none' stroke='%23C9BFFF' stroke-width='58' stroke-linejoin='round'/%3E%3C/svg%3E">
 <title>Sign in to Fof TV</title><style>
 body{margin:0;background:#0b0b0e;color:#f2f2f5;font:16px -apple-system,system-ui,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center}
 .w{width:100%;max-width:380px;padding:28px}h1{font-size:26px;margin:0 0 6px}p{color:#9a9aa2;margin:0 0 22px;line-height:1.4}
@@ -121,7 +121,7 @@ api('&e='+encodeURIComponent(e)+'&p='+encodeURIComponent(p)).then(function(r){if
 document.getElementById('p').addEventListener('keydown',function(ev){if(ev.key=='Enter')go()})
 </script></body></html>"""
 
-    fun page(): String = """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    fun page(): String = """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect x='8' y='8' width='496' height='496' rx='118' fill='%2316143A'/%3E%3Cpath d='M182 160 L182 352 L372 256 Z' fill='none' stroke='%23C9BFFF' stroke-width='58' stroke-linejoin='round'/%3E%3C/svg%3E">
 <title>Fof TV settings</title><style>
 body{margin:0;background:#0b0b0d;color:#f2f2f2;font:16px -apple-system,Roboto,Helvetica,Arial,sans-serif}
 main{max-width:640px;margin:0 auto;padding:20px 16px 60px}h1{font-size:26px;margin:4px 0 2px}h2{font-size:15px;text-transform:uppercase;letter-spacing:.08em;color:#9a9aa2;margin:28px 0 8px}

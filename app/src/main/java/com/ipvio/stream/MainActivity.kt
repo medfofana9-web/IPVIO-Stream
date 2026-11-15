@@ -34,6 +34,8 @@ import coil.Coil
 import coil.ImageLoader
 import coil.memory.MemoryCache
 
+private var syncTick = -1
+
 class MainActivity : ComponentActivity() {
     /** Escape (keyboards, desktop remotes) works like Back everywhere. */
     override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
@@ -74,9 +76,13 @@ class MainActivity : ComponentActivity() {
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
             kotlinx.coroutines.delay(4_000)
             while (true) {
-                // Account first (still allowed? profiles, PINs, addons), then the profile in use
-                if (FofAccount.signedIn && Reminders.foreground) { AccountCloud.run(applicationContext); CloudSync.run(applicationContext) }
-                kotlinx.coroutines.delay(120_000)
+                // Every 20 s: the profile in use (one small request when nothing changed), so progress from another TV
+                // shows within seconds; every 2 minutes also the account (still allowed? profiles, PINs, addons)
+                if (FofAccount.signedIn && Reminders.foreground) {
+                    if (++syncTick % 6 == 0) AccountCloud.run(applicationContext)
+                    CloudSync.run(applicationContext)
+                }
+                kotlinx.coroutines.delay(20_000)
             }
         }
         // Search index built once in the background after Home settled, so the first key press in Search finds it ready

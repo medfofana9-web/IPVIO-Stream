@@ -1,5 +1,15 @@
 # Changelog
 
+## Fof TV 1.3.90 (November 2026)
+- Continue Watching reaches the account while you watch: progress is saved every 5 s, and each save used to restart
+  the 8 s sync timer, so it only went up every 2 minutes or after stopping. Now the first change starts the timer and
+  later ones join it (at most 8 s)
+- Other TVs check the profile in use every 20 s (one small request when nothing changed), so progress from another
+  TV shows within seconds; account checks (profiles, PINs, addons) stay every 2 minutes
+- A TV that is not signed in now says so on Who's watching, with what signing in brings
+- New official Fof TV logo: play ribbon on a deep indigo glass tile, "TV" in lavender. App icon, TV launcher banner,
+  in-app mark and the phone pages' icon are drawn from vector sources in docs/brand/
+
 ## Fof TV 1.3.87 (November 2026)
 **FOF Glass, Fof TV's own surface design**
 - One shared glass style (Glass.kt) on buttons, pills, settings rows and cards, menus, the sidebar, the header, the

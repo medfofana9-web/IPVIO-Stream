@@ -50,11 +50,17 @@ object CloudSync {
         kotlinx.coroutines.runBlocking { reloadIfActive(c, pid) }
     }
 
-    /** Sync soon (after [delayMs]); called after every change of the personal stores. Repeated calls are merged. */
+    /**
+     * Sync soon (after [delayMs]); called after every change of the personal stores. Repeated calls join the sync
+     * already scheduled instead of pushing it back: playback saves progress every 5 s, so a restarting timer never
+     * fired while watching (progress only reached the account every 2 minutes or after stopping).
+     */
     fun kick(c: Context, delayMs: Long = 8_000) {
         val app = c.applicationContext
         if (!FofAccount.signedIn) return
-        pending?.cancel()
+        val p = pending
+        if (delayMs > 0 && p != null && p.isActive) return
+        p?.cancel()
         pending = scope.launch {
             delay(delayMs)
             run(app)
