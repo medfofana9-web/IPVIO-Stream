@@ -835,13 +835,14 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             override fun run() {
                 saveProgress()
                 val nowT = System.currentTimeMillis()
-                if (cur.live && cur.archive == null && !readyOnce && SportSession.owns(cur.itemId) && sportT[0] > 0 && nowT - sportT[0] > 9_000L) sportFailover()
+                if (cur.live && cur.archive == null && !readyOnce && SportSession.owns(cur.itemId) && sportT[0] > 0 && nowT - sportT[0] > 6_000L) sportFailover()
                 if (player.playbackState == Player.STATE_BUFFERING && player.playWhenReady && !pError) {
                     if (bufSince == 0L) bufSince = nowT
                     // Movie/episode that never showed a picture, or still hanging after two reconnects: reloading the same
                     // link rarely helps, so the next source is tried (other quality, next addon stream, next 24/7 episode).
                     // Before this the spinner could stay forever.
-                    else if (!cur.live && ((!readyOnce && nowT - bufSince > 20_000L) || (wdTries >= 2 && nowT - bufSince > 30_000L))) {
+                    // Addon movies/episodes have many sources: a source that shows nothing for 12 s is replaced sooner
+                    else if (!cur.live && ((!readyOnce && nowT - bufSince > (if (NowSources.owns(cur.itemId, cur.season, cur.episode)) 12_000L else 20_000L)) || (wdTries >= 2 && nowT - bufSince > 30_000L))) {
                         bufSince = nowT; wdTries = 0
                         val rv = revertTo
                         if (rv != null && rv.first != cur.url) { revertTo = null; cur = cur.copy(url = rv.first, startMs = rv.second, note = null); notice = "That source did not start – back to the previous one" }
@@ -1305,6 +1306,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     k == Key.MediaFastForward && !cur.live -> { stepSeek(1); true }
                     k == Key.MediaRewind && !cur.live -> { stepSeek(-1); true }
                     // Live with buffer: seek keys jump within the buffer (not beyond the live picture)
+                    // Live TV without a buffer: Rewind jumps back to the previous channel
+                    k == Key.MediaRewind && cur.live && cur.archive == null && !LiveTimeshift.active && lastChId != null -> { lastChannel(); true }
                     k == Key.MediaRewind && cur.live && LiveTimeshift.active -> { LiveTimeshift.seekBy(player, -step); flash = Flash(PIcon.Replay, "−" + step / 1000 + " s"); true }
                     k == Key.MediaFastForward && cur.live && LiveTimeshift.active -> { LiveTimeshift.seekBy(player, step); flash = Flash(PIcon.Forward, "+" + step / 1000 + " s"); true }
                     // Fast-forward on live TV (nothing to skip): open Multiview with this channel as tile 1

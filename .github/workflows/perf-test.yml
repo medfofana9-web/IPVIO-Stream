@@ -305,7 +305,8 @@ jobs:
       - name: Store screenshots (branch perf-shots)
         if: always()
         run: |
-          mkdir -p "$RUNNER_TEMP/shots"; cp *.jpg checks.txt "$RUNNER_TEMP/shots/" 2>/dev/null || true
+          grep FofUntranslated marks.txt 2>/dev/null | sed 's/^.*FofUntranslated: //' | sort -u > untranslated.txt || true
+          mkdir -p "$RUNNER_TEMP/shots"; cp *.jpg checks.txt untranslated.txt "$RUNNER_TEMP/shots/" 2>/dev/null || true
           cd "$RUNNER_TEMP/shots" && git init -q && git checkout -q -b perf-shots
           git -c user.name=ci -c user.email=ci@users.noreply.github.com add -A
           git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "Screens of run ${{ github.run_id }}"

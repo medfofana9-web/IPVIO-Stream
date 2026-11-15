@@ -5,10 +5,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.padding
 
 /**
- * The IPVIO mark (play symbol with a gradient) as an image: res/drawable/ic_brand_mark.png.
- * The "IPVIO" lettering is set next to it as white text.
+ * The Fof TV mark: a white F whose middle bar is a play triangle, on a graphite tile (res/drawable/ic_brand_mark.png,
+ * same picture as the app icon). [FofLogo] sets the word mark "fof TV" next to it.
  */
 @Composable
 fun BrandMark(modifier: Modifier = Modifier) {
@@ -18,4 +21,17 @@ fun BrandMark(modifier: Modifier = Modifier) {
         modifier = modifier,
         contentScale = ContentScale.Fit
     )
+}
+
+/** Mark plus word mark: "fof" bold, "TV" small and grey (Outfit, the app font). */
+@Composable
+fun FofLogo(markSize: androidx.compose.ui.unit.Dp, textSize: androidx.compose.ui.unit.TextUnit, modifier: Modifier = Modifier) {
+    androidx.compose.foundation.layout.Row(modifier, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        BrandMark(Modifier.size(markSize))
+        androidx.compose.foundation.layout.Spacer(Modifier.width(markSize * 0.3f))
+        Text("fof", color = androidx.compose.ui.graphics.Color.White, fontSize = textSize, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, raw = true)
+        androidx.compose.foundation.layout.Spacer(Modifier.width(markSize * 0.12f))
+        Text("TV", color = androidx.compose.ui.graphics.Color(0xFFA0A4AC), fontSize = textSize * 0.42f, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, raw = true,
+            modifier = Modifier.padding(top = markSize * 0.12f))
+    }
 }

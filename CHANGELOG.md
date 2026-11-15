@@ -1,5 +1,12 @@
 # Changelog
 
+## Fof TV 1.3.75 (November 2026)
+- New Fof TV logo: a white F whose middle bar is a play button, on a graphite tile. App icon, Fire TV banner, menu,
+  welcome screen and start screen
+- Live games: when a channel does not start, the next one is tried after 6 seconds (was 9)
+- Movies and episodes from the addons: a source that shows nothing for 12 seconds is replaced by the next one (was 20)
+- Live TV: the Rewind button jumps back to the previous channel; Sports sits right under Favorites
+
 ## Fof TV 1.3.74 (November 2026)
 **Avatars, redone**
 - 73 avatars in six collections: TV Shows, Movies, NBA, Soccer, NFL and More Sports: polished 3D characters and

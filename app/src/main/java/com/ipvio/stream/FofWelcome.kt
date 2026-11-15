@@ -80,10 +80,7 @@ fun FofWelcome(onPick: (Int) -> Unit) {
         // Top bar: Fof TV mark on the left, greeting and time on the right
         val now by produceState(System.currentTimeMillis()) { while (true) { value = System.currentTimeMillis(); delay(15_000) } }
         Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(horizontal = 56.dp, vertical = 36.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(40.dp).clip(RoundedCornerShape(11.dp)).background(Color.White),
-                contentAlignment = Alignment.Center) { AppIcon(AIcon.Play, Color.Black, size = 20.dp) }
-            Spacer(Modifier.width(12.dp))
-            Text("fof tv", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, raw = true)
+            FofLogo(44.dp, 30.sp)
             Spacer(Modifier.weight(1f))
             Column(horizontalAlignment = Alignment.End) {
                 Text(android.text.format.DateFormat.getTimeFormat(ctx).format(java.util.Date(now)), color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.SemiBold, raw = true)
