@@ -226,6 +226,9 @@ jobs:
             if [ -n "$fp" ] && [ "$fp" -lt 15000 ]; then echo "CHECK PASS home posters after restart ($fp ms)"; else echo "CHECK FAIL home posters after restart (${fp:-none} ms)"; fi
             grep -q "HAS\[livetv-guide\] USA | Sports: yes" journey.txt && echo "CHECK PASS Live TV guide shows categories" || echo "CHECK FAIL Live TV guide shows categories"
             [ -s playlist_ready.txt ] && echo "CHECK PASS playlist loaded" || echo "CHECK FAIL playlist loaded"
+            # Smoothness while scrolling Home (frames held up by the app's own work, not by the emulator's slow drawing)
+            tot=$(grep -o "Total frames rendered: [0-9]*" gfx_home.txt | grep -o "[0-9]*$"); slow=$(grep -o "Number Slow UI thread: [0-9]*" gfx_home.txt | grep -o "[0-9]*$")
+            if [ -n "$tot" ] && [ "$tot" -gt 0 ] && [ $((slow * 100 / tot)) -lt 60 ]; then echo "CHECK PASS smooth Home scrolling ($slow of $tot frames slow in the app)"; else echo "CHECK FAIL smooth Home scrolling (${slow:-?} of ${tot:-?} frames slow in the app)"; fi
             grep -q "HAS\[search-denzel\] Denzel Washington: yes" journey.txt && echo "CHECK PASS search finds a person" || echo "CHECK FAIL search finds a person"
           } | tee checks.txt
           echo "== sports and search timings"; grep -E "sports:|search:|first poster|profile picked" marks.txt | sed 's/^.*FofProfile: //' || true

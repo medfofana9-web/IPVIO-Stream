@@ -505,7 +505,11 @@ private fun GuideRow(
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Box(Modifier.size(38.dp).clip(RoundedCornerShape(DS.RadiusXs)).background(DS.Overlay2), contentAlignment = Alignment.Center) {
-                if (ch.logo != null) AsyncImage(ch.logo, null, Modifier.fillMaxSize().padding(3.dp), contentScale = ContentScale.Fit)
+                // No logo (or it fails): the channel's short name, e.g. "TNT" for "US: TNT East"
+                var bad by remember(ch.logo) { mutableStateOf(false) }
+                if (ch.logo.isNullOrBlank() || bad) Text(raw = true, text = SportNet.stripPrefix(ch.title).split(' ').firstOrNull { it.isNotBlank() }.orEmpty().take(4).uppercase(),
+                    color = Color(0xCCFFFFFF), fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                else AsyncImage(ch.logo, null, Modifier.fillMaxSize().padding(3.dp), contentScale = ContentScale.Fit, onError = { bad = true })
             }
             Text(
                 ch.title, color = Color.White, fontSize = 14.sp,

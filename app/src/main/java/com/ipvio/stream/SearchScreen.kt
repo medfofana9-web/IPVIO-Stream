@@ -108,6 +108,9 @@ fun SearchScreen(
     BackHandler(enabled = inSidebar && tab != 0) { onTab(0) }
 
     val q = SearchState.query.trim()
+    // A new search starts at the top of the results (the list kept the scroll position of the previous one) – only while
+    // typing, so returning from a title page keeps its place
+    LaunchedEffect(q) { if (fieldFocused && state.firstVisibleItemIndex > 0) runCatching { state.scrollToItem(0) } }
     val none = Triple(emptyList<Item>(), emptyList<Item>(), emptyList<Item>())
     // A result always belongs to exactly one input: while still searching it says "Searching …" instead of "No hits"
     val found by produceState("" to none, q, index) {

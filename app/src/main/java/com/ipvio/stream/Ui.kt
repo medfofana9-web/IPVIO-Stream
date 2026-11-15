@@ -282,7 +282,7 @@ fun Spinner(color: Color, modifier: Modifier = Modifier) {
 @Composable
 fun shimmerColor(): Color {
     val t = rememberInfiniteTransition(label = "sk")
-    val a by t.animateFloat(0.05f, 0.12f, infiniteRepeatable(tween(900), androidx.compose.animation.core.RepeatMode.Reverse), label = "ska")
+    val a by t.animateFloat(0.04f, 0.08f, infiniteRepeatable(tween(900), androidx.compose.animation.core.RepeatMode.Reverse), label = "ska")
     return Color.White.copy(alpha = if (Look.motion > 0) a else 0.08f)
 }
 

@@ -76,7 +76,16 @@ object Debrid {
      * Direct link for a torrent result: add the magnet, pick the file ([fileName] if given, otherwise the largest video),
      * wait a few seconds for Real-Debrid, then unlock the link. Throws with a readable message when it cannot play now.
      */
-    suspend fun resolve(hash: String, fileName: String?): String = withContext(Dispatchers.IO) {
+    /** Links unlocked in the last 30 minutes (hash|file → time, link): Play right after opening a title needs no wait. */
+    private val unlocked = java.util.concurrent.ConcurrentHashMap<String, Pair<Long, String>>()
+
+    suspend fun resolve(hash: String, fileName: String?): String {
+        val k = hash.lowercase() + "|" + fileName.orEmpty()
+        unlocked[k]?.let { if (System.currentTimeMillis() - it.first < 30 * 60_000L) return it.second }
+        return resolveNow(hash, fileName).also { unlocked[k] = System.currentTimeMillis() to it }
+    }
+
+    private suspend fun resolveNow(hash: String, fileName: String?): String = withContext(Dispatchers.IO) {
         if (token.isBlank()) error("Add your Real-Debrid token under Settings > Stremio addons.")
         val id = JSONObject(call("POST", "/torrents/addMagnet", mapOf("magnet" to "magnet:?xt=urn:btih:$hash"))).optString("id")
         if (id.isBlank()) error("Real-Debrid did not accept this torrent.")

@@ -40,9 +40,11 @@ object Mem {
     /** Buffer sizes for the player: (min ms, max ms, start ms, rebuffer ms, byte limit). */
     fun bufferPlan(tier: Int): IntArray = when (tier) {
         // After a stall playback resumes only with a few seconds in the buffer (rebuffer ms); too little means stall, play 1 s, stall again
-        0 -> intArrayOf(10_000, 25_000, 1_500, 5_000, 14 * 1024 * 1024)
-        1 -> intArrayOf(20_000, 40_000, 2_000, 6_000, 28 * 1024 * 1024)
-        else -> intArrayOf(30_000, 60_000, 2_500, 8_000, -1)
+        // Start (third value): the picture starts once this much is loaded. Kept short so a channel switch or Play feels
+        // instant; the rebuffer value after a stall stays high, so a weak stream still does not stutter
+        0 -> intArrayOf(10_000, 25_000, 1_000, 5_000, 14 * 1024 * 1024)
+        1 -> intArrayOf(20_000, 40_000, 1_200, 6_000, 28 * 1024 * 1024)
+        else -> intArrayOf(30_000, 60_000, 1_500, 8_000, -1)
     }
 
     fun loadControl(ctx: Context): DefaultLoadControl {

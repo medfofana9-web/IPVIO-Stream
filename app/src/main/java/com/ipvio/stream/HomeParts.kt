@@ -523,8 +523,10 @@ fun PosterTile(item: Item, modifier: Modifier, onClick: () -> Unit) {
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        if (img == null && st.done) ArtPlaceholder(item, Modifier.fillMaxSize())
-        if (img != null) AsyncImage(img, item.title, Modifier.fillMaxSize(), contentScale = if (item.kind == Kind.LIVE) ContentScale.Fit else ContentScale.Crop)
+        // A title without artwork, or whose image fails to load, shows its name instead of an empty box
+        var imgFailed by remember(img) { mutableStateOf(false) }
+        if ((img == null && (st.done || item.id.startsWith("stremio:"))) || imgFailed) ArtPlaceholder(item, Modifier.fillMaxSize())
+        if (img != null && !imgFailed) AsyncImage(img, item.title, Modifier.fillMaxSize(), contentScale = if (item.kind == Kind.LIVE) ContentScale.Fit else ContentScale.Crop, onError = { imgFailed = true })
         if (item.kind != Kind.SERIES && DeadLinks.isDead(item.url)) AppIcon(AIcon.Warning, DS.Gold, Modifier.align(Alignment.TopStart).padding(dpx(8)), dpx(18))
         // 17c: darkening as a simple surface on top (cheaper than transparency of the whole card)
         Box(Modifier.fillMaxSize().drawBehind { val d = 1f - dimA; if (d > 0.01f) drawRect(Color.Black.copy(alpha = d)) })
@@ -778,8 +780,9 @@ fun RowPosterCard(item: Item, baseW: Dp, modifier: Modifier, overlay0: Int = 0, 
             else -> null
         }
         // Placeholder lies under the image: if the image is missing or does not load, it stays visible
-        if (img == null && st.done) ArtPlaceholder(item, Modifier.fillMaxSize())
-        if (img != null) AsyncImage(img, item.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        var imgFailed by remember(img) { mutableStateOf(false) }
+        if ((img == null && (st.done || item.id.startsWith("stremio:"))) || imgFailed) ArtPlaceholder(item, Modifier.fillMaxSize())
+        if (img != null && !imgFailed) AsyncImage(img, item.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, onError = { imgFailed = true })
         if (wide && p > 0.01f && m?.backdrop != null) {
             Box(Modifier.fillMaxSize().graphicsLayer { alpha = p }) {
                 AsyncImage(cardBackdrop(m.backdrop), item.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)

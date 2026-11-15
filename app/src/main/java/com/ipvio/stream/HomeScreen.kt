@@ -1061,7 +1061,7 @@ private fun Hero(
 @Composable
 private fun SkeletonHome() {
     val t = rememberInfiniteTransition(label = "sk")
-    val a by t.animateFloat(0.05f, 0.14f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "ska")
+    val a by t.animateFloat(0.04f, 0.08f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "ska")
     val col = Color.White.copy(alpha = a)
     Column(Modifier.fillMaxSize().padding(horizontal = DS.PageX).padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
         Box(Modifier.fillMaxWidth().height(260.dp).clip(RoundedCornerShape(DS.RadiusXl)).background(col))

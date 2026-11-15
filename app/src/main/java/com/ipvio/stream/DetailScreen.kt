@@ -202,7 +202,9 @@ private fun DetailScreenFull(
     LaunchedEffect(item.id, season, imdbId, Stremio.addons.size) {
         if (!playUrl.isNullOrBlank() || Stremio.addons.none { it.streams } || item.kind == Kind.LIVE) return@LaunchedEffect
         val id = Stremio.imdbFor(item, imdbId ?: item.id.removePrefix("stremio:").takeIf { StremioLogic.isImdb(it) }) ?: return@LaunchedEffect
-        runCatching { Stremio.streams(item.kind, id, season, eps.firstOrNull()?.num ?: 1) }
+        val ep1 = eps.firstOrNull()?.num ?: 1
+        // Asked ahead, so Play has its streams at once (not unlocked on Real-Debrid: that would add every viewed title to the account)
+        runCatching { Stremio.streams(item.kind, id, season, ep1) }
     }
     var showStremio by remember(item.id) { mutableStateOf(false) }
     // Episode picked in a Stremio-only series: the streams popup opens at that season and episode
