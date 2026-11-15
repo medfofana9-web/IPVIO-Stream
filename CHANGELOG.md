@@ -1,5 +1,15 @@
 # Changelog
 
+## Fof TV 1.3.64 (November 2026)
+**Sports**
+- The overview always opens at the top (Live now): rows arriving later no longer leave the page scrolled down; once you move into the list it stays where you are
+- Live scores refresh every 12 s (was 30 s), games about to start or just started every 20 s, the match page every 15 s, the score box and Home's live row every 15–20 s; each answer is fresh (past ESPN's edge cache)
+
+**Profiles**
+- Who's watching: larger rounded portrait tiles; hold OK on a profile to choose its picture right there
+- New portrait avatars (16, most of them Black men and women) next to the earlier flat set; profiles without a choice get a portrait instead of a random cartoon
+- Test TV checks that every avatar picture loads
+
 ## Fof TV 1.3.63 (November 2026)
 **Faster**
 - Playback starts with less buffered first (about 1 s instead of 1.5–2.5 s) – channel switches and Play feel quicker; after a stall it still waits for a safe buffer
