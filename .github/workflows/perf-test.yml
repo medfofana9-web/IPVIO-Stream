@@ -102,6 +102,9 @@ jobs:
             adb install -r app.apk
             adb shell am start -W -n com.fof.tv/com.ipvio.stream.MainActivity --es fof_test_playlist http://10.0.2.2:8000/test.m3u | tee start.txt
             sleep 60
+            # The emulator's network to the test server is sometimes not up yet: ask again once if the list did not load
+            if ! adb logcat -d -s FofProfile | grep -q "playlist: ready"; then echo "playlist not loaded yet, asking again"; adb shell am force-stop com.fof.tv; sleep 2; adb shell am start -W -n com.fof.tv/com.ipvio.stream.MainActivity --es fof_test_playlist http://10.0.2.2:8000/test.m3u; sleep 60; fi
+            adb logcat -d -s FofProfile | grep "playlist: ready" | head -1 > playlist_ready.txt || true
             adb shell input keyevent 23
             sleep 40
             adb exec-out screencap -p > p0_start.png
@@ -222,8 +225,14 @@ jobs:
             fp=$(grep -o "first poster card composed after [0-9]* ms" cold_profile.txt logcat.txt 2>/dev/null | head -1 | grep -o "[0-9]* ms" | grep -o "[0-9]*")
             if [ -n "$fp" ] && [ "$fp" -lt 15000 ]; then echo "CHECK PASS home posters after restart ($fp ms)"; else echo "CHECK FAIL home posters after restart (${fp:-none} ms)"; fi
             grep -q "HAS\[livetv-guide\] USA | Sports: yes" journey.txt && echo "CHECK PASS Live TV guide shows categories" || echo "CHECK FAIL Live TV guide shows categories"
+            [ -s playlist_ready.txt ] && echo "CHECK PASS playlist loaded" || echo "CHECK FAIL playlist loaded"
             grep -q "HAS\[search-denzel\] Denzel Washington: yes" journey.txt && echo "CHECK PASS search finds a person" || echo "CHECK FAIL search finds a person"
           } | tee checks.txt
+          echo "== sports and search timings"; grep -E "sports:|search:|first poster|profile picked" marks.txt | sed 's/^.*FofProfile: //' || true
+          grep -q RUNNING alive.txt && ! grep -q NOT-RUNNING alive.txt && ! grep -q "CHECK FAIL" checks.txt
+      - name: Screens and texts
+        if: always()
+        run: |
           echo "== German text without translation"; grep FofUntranslated marks.txt | sed 's/^.*FofUntranslated: //' | sort -u | head -80 || true
           # Screens as small JPEGs in the log (artifacts cannot be downloaded from here): between ==IMG name and the end of line
           which convert >/dev/null || sudo apt-get install -y -qq imagemagick >/dev/null
@@ -231,8 +240,7 @@ jobs:
             [ -f "$f" ] || continue
             convert "$f" -resize 960x -quality 55 "${f%.png}.jpg" && echo "==IMG ${f%.png} $(base64 -w0 "${f%.png}.jpg")"
           done
-          echo "== sports and search timings"; grep -E "sports:|search:|first poster|profile picked" marks.txt | sed 's/^.*FofProfile: //' || true
-          grep -q RUNNING alive.txt && ! grep -q NOT-RUNNING alive.txt && ! grep -q "CHECK FAIL" checks.txt
+          echo "== checks again"; cat checks.txt 2>/dev/null || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
