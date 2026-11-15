@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -343,9 +344,14 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
     // Live games arrive after the cached rows: the list keeps its place when rows are added above, so the new Live now row
     // ended up above the screen. When the page has not been scrolled yet, it goes back to the top to show them.
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
-    val hasLive = games.any { it.state == 1 }
-    LaunchedEffect(hasLive) { if (hasLive && listState.firstVisibleItemIndex <= 1) runCatching { listState.scrollToItem(0) } }
-    LazyColumn(state = listState, contentPadding = PaddingValues(horizontal = DS.PageX, vertical = dpx(8)), verticalArrangement = Arrangement.spacedBy(dpx(26))) {
+    // The page always opens at the top (Live now): rows arriving above the visible one (live games, the week ahead) made
+    // the list keep its place further down. Until you move into the list yourself, every update returns it to the top.
+    var inList by remember { mutableStateOf(false) }
+    val liveKeys = games.filter { it.state == 1 }.size
+    LaunchedEffect(liveKeys, games.size, ahead.soccer.size, ahead.nba.size, ahead.football.size) {
+        if (!inList && (listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0)) runCatching { listState.scrollToItem(0) }
+    }
+    LazyColumn(state = listState, modifier = Modifier.onFocusChanged { inList = it.hasFocus }, contentPadding = PaddingValues(horizontal = DS.PageX, vertical = dpx(8)), verticalArrangement = Arrangement.spacedBy(dpx(26))) {
         when {
             // feed.games too: the page model can lag a moment behind the feed, and must never show "no games" meanwhile
             games.isNotEmpty() || feed.games.isNotEmpty() || ahead.soccer.isNotEmpty() || ahead.nba.isNotEmpty() || ahead.football.isNotEmpty() -> {}
