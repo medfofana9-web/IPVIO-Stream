@@ -31,14 +31,10 @@ jobs:
           FOF_SIGNING: ${{ secrets.FOF_SIGNING }}
         run: |
           chmod +x gradlew
-          if [ -n "$FOF_SIGNING" ]; then
-            umask 077; mkdir -p "$RUNNER_TEMP/k"; echo "$FOF_SIGNING" | base64 -d | tar xz -C "$RUNNER_TEMP/k"
-            . "$RUNNER_TEMP/k/sign.env"
-            printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' "$RUNNER_TEMP/k/old.jks" "$OLD_PASS" "$OLD_ALIAS" "$OLD_PASS" > keystore.properties
-          else
-            # Before the FOF_SIGNING secret exists: the old key from the repository
-            printf 'storeFile=signing/fof-tv.jks\nstorePassword=foftv-sign\nkeyAlias=foftv\nkeyPassword=foftv-sign\n' > keystore.properties
-          fi
+          if [ -z "$FOF_SIGNING" ]; then echo "::error::Repository secret FOF_SIGNING is missing (signing key)"; exit 1; fi
+          umask 077; mkdir -p "$RUNNER_TEMP/k"; echo "$FOF_SIGNING" | tr -d ' \r\n' | base64 -d | tar xz -C "$RUNNER_TEMP/k"
+          . "$RUNNER_TEMP/k/sign.env"
+          printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' "$RUNNER_TEMP/k/old.jks" "$OLD_PASS" "$OLD_ALIAS" "$OLD_PASS" > keystore.properties
       - name: Unit tests
         run: ./gradlew --no-daemon testDebugUnitTest
       - name: Build release APK
@@ -52,7 +48,6 @@ jobs:
         env:
           FOF_SIGNING: ${{ secrets.FOF_SIGNING }}
         run: |
-          if [ -z "$FOF_SIGNING" ]; then echo "No FOF_SIGNING secret: old signing kept"; exit 0; fi
           set -a; . "$RUNNER_TEMP/k/sign.env"; set +a
           AS=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner
           "$AS" rotate --out "$RUNNER_TEMP/k/lineage.bin" \
@@ -62,7 +57,7 @@ jobs:
             --ks "$RUNNER_TEMP/k/old.jks" --ks-key-alias "$OLD_ALIAS" --ks-pass env:OLD_PASS \
             --next-signer --ks "$RUNNER_TEMP/k/new.jks" --ks-key-alias "$NEW_ALIAS" --ks-pass env:NEW_PASS \
             --out FofTV-signed.apk FofTV.apk
-          "$AS" verify --print-certs FofTV-signed.apk | grep -i "signer #" || true
+          "$AS" verify --print-certs FofTV-signed.apk | grep -i "certificate DN" | sed 's/^/Signed: /' 
           mv FofTV-signed.apk FofTV.apk
       - name: Remove keys
         if: always()

@@ -6,8 +6,8 @@
   owner restore, problem reports (Supabase table `reports`, owner list on the phone page), update channels
   (prerelease → promote.yml after 24 h), key-rotation signing (release.yml + secret `FOF_SIGNING`), install link
   is.gd/getfoftv, test TV screenshots on branch `perf-shots`.
-- Open: the owner adds the repository secret `FOF_SIGNING` (until then releases keep the old key); after that,
-  `git rm signing/fof-tv.jks` and remove the fallback in release.yml.
+- Signing: secret `FOF_SIGNING` added by the owner (15 Nov); `signing/fof-tv.jks` removed from the repository,
+  release.yml has no fallback any more (a missing secret stops the release).
 - Lint: 13 errors left, none crash risks (NonObservableLocale, RememberInComposition, RememberReturnType, RestrictedApi,
   UnspecifiedRegisterReceiverFlag in test code).
 
