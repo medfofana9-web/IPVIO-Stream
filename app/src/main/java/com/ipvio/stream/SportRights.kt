@@ -7,15 +7,15 @@ package com.ipvio.stream
 object SportRights {
     private val USMNT = listOf("TBS", "truTV", "TNT", "Universo", "Telemundo", "Peacock")
     private val MEXICO = listOf("TUDN", "Univision", "UniMás", "FOX", "FS1")
-    // European national teams (Nations League, qualifiers, friendlies): FOX holds the US rights
-    private val UEFA_NATIONS = listOf("FOX", "FS1", "FS2", "FOX Deportes", "Fox Soccer Plus", "Telemundo", "Universo", "Peacock")
+    // European national teams (Nations League, qualifiers, friendlies): in the US on Fubo (English) and ViX (Spanish)
+    private val UEFA_NATIONS = listOf("fuboTV", "Fubo Sports", "ViX")
 
     /**
      * Last resort when nothing else names a channel: the networks that carry this sport in the US. The player tries them
      * in order and moves on when one does not start, so a game is never left without a channel.
      */
     private val BY_SPORT = mapOf(
-        "soccer" to listOf("FOX", "FS1", "FS2", "FOX Deportes", "ESPN", "ESPN2", "ESPN Deportes", "CBS Sports Network", "TUDN", "Univision",
+        "soccer" to listOf("fuboTV", "ViX", "FOX", "FS1", "FS2", "FOX Deportes", "ESPN", "ESPN2", "ESPN Deportes", "CBS Sports Network", "TUDN", "Univision",
             "UniMás", "Telemundo", "Universo", "beIN Sports", "beIN Sports en Español", "USA Network", "Peacock"),
         "NBA" to listOf("ESPN", "ABC", "NBC", "Peacock", "NBA TV", "Prime Video", "ESPN2"),
         "WNBA" to listOf("ION", "ESPN", "ABC", "CBS", "NBA TV", "Prime Video", "ESPN2"),

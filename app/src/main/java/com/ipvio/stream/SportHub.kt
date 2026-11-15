@@ -75,7 +75,7 @@ object SportFeed {
             games.any { it.state == 1 } -> when (l.kind) {
                 SportData.KIND_GOLF, SportData.KIND_CRICKET -> 60_000L
                 SportData.KIND_FIGHT -> 30_000L
-                else -> 12_000L
+                else -> 8_000L
             }
             // About to start, or past its start time but not reported live yet (ESPN switches a little late): every 20 s
             games.any { it.state == 0 && it.start - now in -1800..900 } -> 20_000L

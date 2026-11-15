@@ -1,6 +1,13 @@
 # Changelog
 
 ## Fof TV 1.3.79 (November 2026)
+**Live games: right channel, fresh scores**
+- European national teams (Spain, England, France …) are on Fubo and ViX in the US, not FOX: the app now looks for
+  those channels ("fuboTV", "Fubo Sports", "ViX", "ViX+" …)
+- Channels whose name lists the game ("Fubo 03: Spain vs England") are found in the whole channel list, not only in
+  the sports groups. Order: your own pick → channel named after the game → TV guide → network → usual networks
+- Scores refresh every 8 seconds (Sports page, the score in the corner) and every 10 seconds on Home
+
 **Every profile is its own account**
 - A new profile first asks "Do you already use Fof TV?". Yes: scan the code, sign in on your phone, and that person's
   Continue Watching, avatar, name, teams, taste and favorites come right over – no questions. No: the quick taste setup,

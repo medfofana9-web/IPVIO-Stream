@@ -79,6 +79,18 @@ object SportWatch {
         }
     }
 
+    // Channels whose name looks like an event ("Fubo 03: Spain vs England", "ViX 12 | España - Inglaterra")
+    private var evSig = 0
+    private var evList: List<Item> = emptyList()
+    private val EVENT_NAME = Regex("""\b(vs\.?|v|at|@|-|–)\b|\|.*\S""", RegexOption.IGNORE_CASE)
+    private fun eventChannels(live: List<Item>): List<Item> {
+        val sig = System.identityHashCode(live) * 31 + live.size
+        synchronized(this) {
+            if (sig != evSig) { evList = live.filter { it.kind == Kind.LIVE && it.title.length > 12 && EVENT_NAME.containsMatchIn(it.title) }; evSig = sig }
+            return evList
+        }
+    }
+
     /** Prepares the list of sports channels in the background (otherwise the first opening of the hub filters all channels on the main thread). */
     fun prewarm(live: List<Item>) {
         sportChannels(live)
@@ -154,6 +166,7 @@ object SportWatch {
         val sport = sportChannels(live)
         // Event channels that name both teams ("NBA 01: Pacers vs Celtics") are the most exact
         SportData.channelsFor(g, sport).forEach { out.add(Hit(it, 2, "")) }
+        if (out.none { it.why == 2 }) SportData.channelsFor(g, eventChannels(live)).forEach { out.add(Hit(it, 2, "")) }
         val multiDay = g.end > g.start
         for (s in slots) {
             val timeOk = (s.live && g.state == 1) || kotlin.math.abs(s.prog.start - g.start) <= 3 * 3600 ||

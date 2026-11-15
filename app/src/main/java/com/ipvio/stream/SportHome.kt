@@ -68,14 +68,14 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
             val ymd = SportData.ymd(0, General.zone())
             val leagues = HOME_LEAGUES.mapNotNull { SportData.league(it) }.filter { SportLeagues.on(it) }
             val all = runCatching {
-                coroutineScope { leagues.map { l -> async { runCatching { SportData.fetch(l, ymd, 15_000) }.getOrDefault(emptyList()) } }.awaitAll().flatten() }
+                coroutineScope { leagues.map { l -> async { runCatching { SportData.fetch(l, ymd, 8_000) }.getOrDefault(emptyList()) } }.awaitAll().flatten() }
             }.getOrDefault(emptyList())
             SportFeed.put(all)
             val now = System.currentTimeMillis() / 1000
             value = all.filter { g ->
                 g.state == 1 || (g.state == 0 && SportFavs.isFavGame(g) && g.start - now in 0..3600)
             }.sortedWith(compareByDescending<SportData.Game> { GameDayLogic.isClose(it) }.thenByDescending { SportFavs.isFavGame(it) }.thenByDescending { it.state }.thenBy { it.start })
-            delay(if (value.isNotEmpty()) 20_000L else 180_000L)
+            delay(if (value.isNotEmpty()) 10_000L else 180_000L)
         }
     }
     if (games.isEmpty()) return

@@ -58,6 +58,9 @@ object SportNet {
             .replace(" accn ", " acc ").replace(" secn ", " sec ").replace(" acc network ", " acc ").replace(" sec network ", " sec ")
             .replace(" mnmt ", " monumental ").replace(" sny ", " snysports ").replace(" snysports sports ", " snysports ")
             .replace(" peacock live tv ", " peacock ")
+            // Fubo and ViX under their many names ("fuboTV", "Fubo Sports Network", "ViX+", "ViX Premium")
+            .replace(" fubotv ", " fubo ").replace(" fubo tv ", " fubo ").replace(" fubo sports ", " fubo ")
+            .replace(" vix plus ", " vix ").replace(" vix premium ", " vix ")
         val words = s.trim().split(' ').filter { it.isNotEmpty() && it !in NOISE }.toMutableList()
         // A trailing state code after a regional network ("fanduel sports in") is spelled out
         if (words.size >= 2 && words.contains("sports")) {

@@ -189,7 +189,7 @@ fun BoxScope.SportPlayerOverlay() {
                 }.getOrNull()
                 if (!fresh.isNullOrEmpty()) SportFeed.put(fresh)
             }
-            delay(if ((SportFeed.latest[gameKey] ?: cur).state == 1) 12_000L else 30_000L)
+            delay(if ((SportFeed.latest[gameKey] ?: cur).state == 1) 8_000L else 30_000L)
         }
     }
     if (!SportSession.busy) Box(Modifier.align(Alignment.TopEnd).padding(top = 26.dp, end = 34.dp)) { ScoreBug(g) }
