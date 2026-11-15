@@ -1131,7 +1131,12 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     fun skipSeg(sg: Seg) {
         segVisible = false
         controls = false
-        if (sg.label.startsWith("Abspann") && hasNext) playEpisode(epList[epIdx + 1]) else player.seekTo(sg.end)
+        if (sg.label.startsWith("Abspann") && hasNext) playEpisode(epList[epIdx + 1])
+        else {
+            // Keep playing after the jump (the release of OK used to reach the play/pause toggle and stopped the video)
+            player.seekTo(sg.end); player.playWhenReady = true; player.play()
+            scope.launch { delay(450); if (!player.playWhenReady || !player.isPlaying && player.playbackState == androidx.media3.common.Player.STATE_READY) player.play() }
+        }
         runCatching { rootFocus.requestFocus() }
     }
     // Episode title (TMDB, otherwise name from the playlist) for the overlay and control bar
@@ -1556,7 +1561,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             ) {
                 // Only ONE button: credits marker and "Next episode" show the same thing and are merged
                 val outro = seg0 != null && seg0.label.startsWith("Abspann") && hasNext
-                if (seg0 != null && !outro) PSkipPill(seg0.label + (if (!controls) "  (OK)" else "")) { skipSeg(seg0) }
+                if (seg0 != null && !outro) PSkipPill(Lang.tr(seg0.label) + (if (!controls) "  (OK)" else "")) { skipSeg(seg0) }
                 if (outro || (showNextCard && hasNext && !controls)) {
                     NextPill({ (dur - pos).coerceAtLeast(0L) }, AppSettings.autoNext, !controls) { playEpisode(epList[epIdx + 1]) }
                 }

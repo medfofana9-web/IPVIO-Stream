@@ -10,6 +10,17 @@
   and when it last synced (Family account → Your watching)
 - Only you can read your saved data (checked on the account service)
 
+**Welcome screen and avatars**
+- New avatars: bold Netflix-style color tiles with friendly faces (24 to choose from), drawn by the app, so they show
+  instantly and also work offline. The phone sign-up page shows the same tiles
+- "Who's watching?" redone: slowly drifting poster wall, Fof TV mark with greeting and time at the top, larger tiles and
+  names, no hint lines, and a "+" tile to add a profile (asks for the master PIN when one is set)
+
+**Playback**
+- DragonStreams: MP4 links are never used any more (they often played the wrong title); only MKV and CDN links
+- "Skip intro" is always in English (it showed in German until the controls opened)
+- After "Skip intro" the episode keeps playing instead of stopping
+
 **Fixed**
 - Opening the first video after starting the app could freeze the screen for several seconds and Android closed the app
   ("not responding"): the check for the extra audio decoder (AC3/DTS) now runs in the background at start

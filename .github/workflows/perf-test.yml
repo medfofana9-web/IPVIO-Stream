@@ -54,12 +54,9 @@ jobs:
               loc = i.find('location')
               print("LINT ERR", i.get('id'), (loc.get('file').split('/java/')[-1] + ':' + str(loc.get('line'))) if loc is not None else '', '-', i.get('message')[:160])
           PY
-      - name: Avatar pictures load
+      - name: Avatar tiles draw
         run: |
-          ./gradlew --no-daemon -q testDebugUnitTest --tests 'com.ipvio.stream.AvatarUrlsTest'
-          bad=0; n=0
-          while read u; do n=$((n+1)); c=$(curl -s -o /dev/null -w "%{http_code}" "$u"); [ "$c" = 200 ] || { echo "BAD $c $u"; bad=1; }; done < app/avatar_urls.txt
-          [ $bad = 0 ] && echo "CHECK PASS all $n avatar pictures load" | tee avatars.txt || { echo "CHECK FAIL avatar pictures" | tee avatars.txt; exit 1; }
+          if ./gradlew --no-daemon -q testDebugUnitTest --tests 'com.ipvio.stream.AvatarTilesTest'; then echo "CHECK PASS avatar tiles draw (24)" | tee avatars.txt; else echo "CHECK FAIL avatar tiles" | tee avatars.txt; exit 1; fi
       - name: Generate test playlist and serve it
         run: |
           mkdir -p srv

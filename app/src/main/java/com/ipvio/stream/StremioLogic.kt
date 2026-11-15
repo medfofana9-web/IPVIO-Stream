@@ -6,6 +6,30 @@ package com.ipvio.stream
  * base/stream/{type}/{id}.json, where id is an IMDb id ("tt0111161") or, for an episode, "tt0903747:1:3".
  */
 object StremioLogic {
+    /** File kind of a stream from its labels and address: "mp4", "mkv", "cdn" (CDN link) or null. */
+    fun streamKind(info: String, url: String): String? {
+        val t = info.lowercase()
+        val path = url.substringBefore('?').substringBefore('#').lowercase()
+        val host = url.substringAfter("://", "").substringBefore('/').lowercase()
+        return when {
+            // MP4 first: a link marked MP4 anywhere is never used, even if it also says CDN or MKV
+            path.endsWith(".mp4") || Regex("\\bmp4\\b").containsMatchIn(t) -> "mp4"
+            path.endsWith(".mkv") || Regex("\\bmkv\\b").containsMatchIn(t) -> "mkv"
+            Regex("\\bcdn\\b").containsMatchIn(t) || "cdn" in host -> "cdn"
+            else -> null
+        }
+    }
+
+    /**
+     * DragonStreams: its MP4 links often play the wrong title, so they are never used. Only MKV and CDN links play;
+     * links without any marker are kept only when the addon sent no MKV or CDN link at all.
+     */
+    fun dragonFilter(l: List<Pair<String, String>>): List<Int> {
+        val kinds = l.map { streamKind(it.first, it.second) }
+        val hasGood = kinds.any { it == "mkv" || it == "cdn" }
+        return kinds.indices.filter { i -> kinds[i] == "mkv" || kinds[i] == "cdn" || (!hasGood && kinds[i] == null) }
+    }
+
     /**
      * Turns whatever the user pasted into the addon's base address (no trailing slash):
      * "stremio://host/abc/manifest.json" → "https://host/abc". Returns null if it cannot be an addon address.

@@ -13,7 +13,7 @@ object AccountWeb {
     fun state(c: Context): String {
         FofAccount.init(c)
         val m = FofAccount.member
-        val avatars = ProfileAvatars.PRESETS.joinToString(",") { "{\"k\":${q(it.key)},\"u\":${q(ProfileAvatars.url(it))}}" }
+        val avatars = ProfileAvatars.PRESETS.joinToString(",") { "{\"k\":${q(it.key)},\"u\":${q(ProfileAvatars.svgUri(it))}}" }
         val mem = if (m == null) "null" else "{\"name\":${q(m.name)},\"avatar\":${q(m.avatar)},\"owner\":${m.owner}}"
         return "{\"signedIn\":${FofAccount.signedIn},\"email\":${q(FofAccount.email.orEmpty())},\"member\":$mem,\"status\":${q(FofAccount.status)},\"sync\":${q(syncLine(c))},\"avatars\":[$avatars]}"
     }

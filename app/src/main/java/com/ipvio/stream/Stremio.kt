@@ -278,7 +278,10 @@ object Stremio {
                 val body = runCatching { get(StremioLogic.streamUrl(a.base, kind, imdb, season, ep)) }
                 body.fold({ b ->
                     val raw = runCatching { JSONObject(b).optJSONArray("streams")?.length() ?: 0 }.getOrDefault(0)
-                    val l = runCatching { parse(a.name, b) }.getOrDefault(emptyList())
+                    val l = runCatching { parse(a.name, b) }.getOrDefault(emptyList()).let { all ->
+                        if (!a.name.contains("dragon", true)) all
+                        else StremioLogic.dragonFilter(all.map { it.info + "\n" + it.label to it.url }).map { all[it] }
+                    }
                     if (onPart != null && l.isNotEmpty()) { partial.addAll(l); val snap = synchronized(partial) { partial.toList() }; withContext(Dispatchers.Main) { onPart(snap) } }
                     l to (a.name + ": " + when {
                         l.isNotEmpty() -> "${l.size} playable"
