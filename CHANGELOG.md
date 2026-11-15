@@ -1,5 +1,20 @@
 # Changelog
 
+## Fof TV 1.3.63 (November 2026)
+**Faster**
+- Playback starts with less buffered first (about 1 s instead of 1.5–2.5 s) – channel switches and Play feel quicker; after a stall it still waits for a safe buffer
+- A Real-Debrid link unlocked once is reused for 30 minutes (playing the same title again starts at once)
+
+**Polish**
+- Titles without artwork (or whose image fails) show their name on a colored card instead of an empty box; channels without a logo show their short name (TNT, TBS) in the guide
+- A new search starts at the top of the results
+- Dark startup screen with the Fof TV mark (no grey flash)
+- Calmer loading placeholders
+- Diagnostics fully in English
+
+**Reliability**
+- Test TV: retries the playlist if the emulator's network was not ready, checks that the list loaded, checks smooth scrolling on Home, and shows its screens and any untranslated text in the report
+
 ## Fof TV 1.3.62 (November 2026)
 **Improved**
 - Search: Back from the results goes to the keyboard (then to the menu), never straight away; common short forms find the full title (GOT, HOTD, LOTR, TWD, TLOU, B99, SVU, BCS …); a search without any hit is tried again shorter (last letter or last word dropped), so a small typo still finds the title
