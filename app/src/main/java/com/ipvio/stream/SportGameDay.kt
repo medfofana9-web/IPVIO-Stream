@@ -117,7 +117,8 @@ object GameDay {
                     } else show(SportAlerts.Alert("Game time", g.away.short + " at " + g.home.short + " is starting. No channel found: open Live sports to pick one."))
                 }
                 // Close games in the last minutes (once per game)
-                if (closeAlerts) for (g in games) if (g.key !in alerted && GameDayLogic.isClose(g)) {
+                // Close-game alerts: NBA only (Fof TV)
+                if (closeAlerts) for (g in games) if (g.league == "NBA" && g.key !in alerted && GameDayLogic.isClose(g)) {
                     alerted.add(g.key)
                     show(SportAlerts.Alert(if (g.statusName.contains("OVERTIME") || g.detail.contains("OT")) "Overtime" else "Close game", line(g), g))
                 }

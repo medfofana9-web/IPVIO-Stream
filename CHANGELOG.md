@@ -1,5 +1,13 @@
 # Changelog
 
+## Fof TV 1.3.67 (November 2026)
+**New**
+- Family account: the owner's account holds the shared setup (provider playlist and Stremio addons). Family members sign up on the phone page (Who's watching → "Sign in or join your family") with email, password, their name, their avatar and the owner's invite code; their TV then loads the family playlist and addons by itself and keeps them current (every 3 hours). Each TV keeps its own pages and settings. Owner on the phone page: "Share" (this TV's setup to the family) and "New code" (invite for one person, 14 days)
+- Who's watching: poster wall from popular titles behind the profiles, the family line under the title
+
+**Changed**
+- Close-game alerts only for NBA games
+
 ## Fof TV 1.3.66 (November 2026)
 **Fixed**
 - Continue watching on Home showed "Connection lost", then "Playback not possible" for movies and shows from the addons: it replayed the saved address, but addon and Real-Debrid links expire after a few hours. It now finds a fresh stream for that title and episode (the last one that worked first) and starts at the saved spot, like Continue watching on the other screens already did. Right after start it also waits a moment for the addons to load
