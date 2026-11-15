@@ -454,7 +454,8 @@ object SportData {
 
     private fun urlFor(l: League, ymd: String?): String = when (l.kind) {
         KIND_CRICKET -> "https://site.web.api.espn.com/apis/v2/scoreboard/header?sport=cricket"
-        KIND_TEAM -> "https://site.api.espn.com/apis/site/v2/sports/${l.path}/scoreboard?dates=$ymd"
+        // The changing last parameter (10-second step) gets a fresh answer past ESPN's edge cache, so live scores never lag
+        KIND_TEAM -> "https://site.api.espn.com/apis/site/v2/sports/${l.path}/scoreboard?dates=$ymd&_=" + System.currentTimeMillis() / 10_000
         // Tennis, F1, UFC, golf: the scoreboard shows the current events; days are filtered afterwards
         else -> "https://site.api.espn.com/apis/site/v2/sports/${l.path}/scoreboard"
     }

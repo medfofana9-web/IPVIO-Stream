@@ -247,7 +247,7 @@ internal fun MatchCenterPage(g0: SportData.Game, hub: HubCtx) {
             if (r != null) value = r
             done = true
             if ((SportFeed.latest[g.key] ?: g).state != 1) break
-            delay(30_000)
+            delay(15_000)
         }
     }
     // UFC: the other fights of the same card

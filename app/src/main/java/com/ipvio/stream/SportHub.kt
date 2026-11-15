@@ -71,12 +71,14 @@ object SportFeed {
     fun interval(l: SportData.League, games: List<SportData.Game>): Long {
         val now = System.currentTimeMillis() / 1000
         return when {
+            // Live: every 12 s, so scores and the clock stay close to the broadcast
             games.any { it.state == 1 } -> when (l.kind) {
                 SportData.KIND_GOLF, SportData.KIND_CRICKET -> 60_000L
-                SportData.KIND_FIGHT -> 45_000L
-                else -> 30_000L
+                SportData.KIND_FIGHT -> 30_000L
+                else -> 12_000L
             }
-            games.any { it.state == 0 && it.start - now in 0..900 } -> 60_000L
+            // About to start, or past its start time but not reported live yet (ESPN switches a little late): every 20 s
+            games.any { it.state == 0 && it.start - now in -1800..900 } -> 20_000L
             else -> 180_000L
         }
     }
@@ -184,7 +186,7 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     if (l.path !in first) withTimeoutOrNull(4_000) { firstDone.await() }
                     var once = l.path in first
                     while (true) {
-                        val r = SportData.fetch(l, SportData.ymd(0, General.zone()), 15_000)
+                        val r = SportData.fetch(l, SportData.ymd(0, General.zone()), 8_000)
                         m[l.path] = r
                         fresh.add(l.path)
                         pending.addAll(r)

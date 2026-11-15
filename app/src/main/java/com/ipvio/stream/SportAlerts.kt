@@ -121,7 +121,7 @@ object SportAlerts {
                     // Leagues of your teams plus the leagues of the games picked by hand
                     val leagues = ((if (favOn) SportData.LEAGUES.filter { it.kind == SportData.KIND_TEAM } else emptyList()) +
                         pinned.mapNotNull { SportData.league(it.substringBefore('|')) }).distinct()
-                    val games = leagues.flatMap { l -> SportData.fetch(l, ymd) }.distinctBy { it.key }
+                    val games = leagues.flatMap { l -> SportData.fetch(l, ymd, 10_000) }.distinctBy { it.key }
                         .filter { (favOn && SportFavs.isFavGame(it)) || it.key in pinned }
                     val now = System.currentTimeMillis() / 1000
                     // Picked games first in the window; a finished picked game is removed again
@@ -147,7 +147,7 @@ object SportAlerts {
                         }
                     }
                 } else { last.clear(); live = emptyList() }
-                delay(if (live.isNotEmpty()) 30_000L else 60_000L)
+                delay(if (live.isNotEmpty()) 15_000L else 60_000L)
             }
         }
     }

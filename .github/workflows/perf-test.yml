@@ -31,6 +31,12 @@ jobs:
           sed -i 's#</application>#<profileable android:shell="true" /></application>#' app/src/main/AndroidManifest.xml
           ./gradlew --no-daemon assembleRelease
           cp app/build/outputs/apk/release/*.apk app.apk
+      - name: Avatar pictures load
+        run: |
+          ./gradlew --no-daemon -q testDebugUnitTest --tests 'com.ipvio.stream.AvatarUrlsTest'
+          bad=0; n=0
+          while read u; do n=$((n+1)); c=$(curl -s -o /dev/null -w "%{http_code}" "$u"); [ "$c" = 200 ] || { echo "BAD $c $u"; bad=1; }; done < app/avatar_urls.txt
+          [ $bad = 0 ] && echo "CHECK PASS all $n avatar pictures load" | tee avatars.txt || { echo "CHECK FAIL avatar pictures" | tee avatars.txt; exit 1; }
       - name: Generate test playlist and serve it
         run: |
           mkdir -p srv
@@ -105,6 +111,13 @@ jobs:
             # The emulator's network to the test server is sometimes not up yet: ask again once if the list did not load
             if ! adb logcat -d -s FofProfile | grep -q "playlist: ready"; then echo "playlist not loaded yet, asking again"; adb shell am force-stop com.fof.tv; sleep 2; adb shell am start -W -n com.fof.tv/com.ipvio.stream.MainActivity --es fof_test_playlist http://10.0.2.2:8000/test.m3u; sleep 60; fi
             adb logcat -d -s FofProfile | grep "playlist: ready" | head -1 > playlist_ready.txt || true
+            # Who's watching screen and the avatar gallery (hold OK)
+            adb exec-out screencap -p > p_profiles.png
+            adb shell input keyevent --longpress 23
+            sleep 5
+            adb exec-out screencap -p > p_avatars.png
+            adb shell input keyevent 4
+            sleep 2
             adb shell input keyevent 23
             sleep 40
             adb exec-out screencap -p > p0_start.png
@@ -239,7 +252,7 @@ jobs:
           echo "== German text without translation"; grep FofUntranslated marks.txt | sed 's/^.*FofUntranslated: //' | sort -u | head -80 || true
           # Screens as small JPEGs in the log (artifacts cannot be downloaded from here): between ==IMG name and the end of line
           which convert >/dev/null || sudo apt-get install -y -qq imagemagick >/dev/null
-          for f in p0_start.png p_search.png p5_sports.png p7_livetv.png p8_settings.png p9_sports_again.png p3_detail.png; do
+          for f in p_profiles.png p_avatars.png p0_start.png p_search.png p5_sports.png p7_livetv.png p8_settings.png p9_sports_again.png p3_detail.png; do
             [ -f "$f" ] || continue
             convert "$f" -resize 960x -quality 55 "${f%.png}.jpg" && echo "==IMG ${f%.png} $(base64 -w0 "${f%.png}.jpg")"
           done

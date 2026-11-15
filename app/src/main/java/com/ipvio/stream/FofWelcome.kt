@@ -4,6 +4,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -79,14 +80,18 @@ fun FofWelcome(onPick: (Int) -> Unit) {
                                 val av = remember(p.id, nm, ProfileAvatars.version) { ProfileAvatars.urlFor(ctx, p.id, nm) }
                                 ProfileTile(
                                     nm, av, AVATAR[p.id % AVATAR.size], Parental.profileLocked(ctx, p.id), manage, p.id == 0, big,
-                                    if (i == startIdx) Modifier.focusRequester(first) else Modifier
+                                    if (i == startIdx) Modifier.focusRequester(first) else Modifier,
+                                    // Hold OK on a profile: choose its picture right here (a locked profile asks in Manage)
+                                    onLong = { if (!Parental.profileLocked(ctx, p.id)) picking = p.id }
                                 ) { if (manage) options = p.id else onPick(p.id) }
                             }
                         }
                     }
                 }
             }
-            Spacer(Modifier.height(if (big) 36.dp else 56.dp))
+            Spacer(Modifier.height(if (big) 26.dp else 40.dp))
+            if (!manage) Text("Hold OK on a profile to change its picture", color = Color(0x80FFFFFF), fontSize = 15.sp, raw = true)
+            Spacer(Modifier.height(18.dp))
             OutlinePill(if (manage) "Done" else "Manage Profiles") {
                 if (manage) manage = false
                 else if (Parental.profileLocked(ctx, 0)) { askPin = true; pinErr = null }
@@ -130,33 +135,35 @@ fun FofWelcome(onPick: (Int) -> Unit) {
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun ProfileTile(name: String, avatar: String, ring: Color, locked: Boolean, manage: Boolean, master: Boolean, small: Boolean, modifier: Modifier, onClick: () -> Unit) {
+private fun ProfileTile(name: String, avatar: String, ring: Color, locked: Boolean, manage: Boolean, master: Boolean, small: Boolean, modifier: Modifier, onLong: () -> Unit = {}, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     val s by animateFloatAsState(if (f) 1.08f else 1f, androidx.compose.animation.core.tween(160), label = "pt")
+    // Rounded picture tile (as on Netflix / Apple TV): the portrait fills it, focus = white frame and a slight lift
+    val shape = RoundedCornerShape(if (small) 18.dp else 22.dp)
     Column(
-        modifier.onFocusChanged { f = it.isFocused }.clickable(onClick = onClick).graphicsLayer { scaleX = s; scaleY = s },
+        modifier.onFocusChanged { f = it.isFocused }.combinedClickable(onClick = onClick, onLongClick = onLong).graphicsLayer { scaleX = s; scaleY = s },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(Modifier.size(if (small) 118.dp else 148.dp)) {
+        Box(Modifier.size(if (small) 128.dp else 168.dp)) {
             Box(
-                Modifier.fillMaxSize().clip(CircleShape).background(ring)
-                    .border(4.dp, if (f) Color.White else ring.copy(alpha = 0.5f), CircleShape).padding(8.dp).clip(CircleShape)
-                    .background(ring.copy(alpha = 0.9f)),
+                Modifier.fillMaxSize().clip(shape).background(ring.copy(alpha = 0.85f))
+                    .border(if (f) 4.dp else 0.dp, Color.White, shape),
                 contentAlignment = Alignment.Center
             ) {
-                Text(name.take(1).uppercase(), color = Color.White, fontSize = 56.sp, fontWeight = FontWeight.ExtraBold, raw = true)
+                Text(name.take(1).uppercase(), color = Color.White, fontSize = 60.sp, fontWeight = FontWeight.ExtraBold, raw = true)
                 coil.compose.AsyncImage(avatar, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                if (!f) Box(Modifier.fillMaxSize().background(Color(0x26000000)))
             }
             if (locked || manage) Box(
-                Modifier.align(Alignment.BottomEnd).size(40.dp).clip(CircleShape).background(Color(0xFF1C1C20)).border(2.dp, Color.Black, CircleShape),
+                Modifier.align(Alignment.BottomEnd).padding(6.dp).size(36.dp).clip(CircleShape).background(Color(0xE61C1C20)),
                 contentAlignment = Alignment.Center
-            ) { AppIcon(if (manage) AIcon.Edit else AIcon.Lock, Color(0xFFB0B0B8), size = 18.dp) }
+            ) { AppIcon(if (manage) AIcon.Edit else AIcon.Lock, Color.White, size = 18.dp) }
         }
-        Spacer(Modifier.height(18.dp))
-        Text(name, color = if (f) Color.White else Color(0xE6FFFFFF), fontSize = if (small) 19.sp else 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, raw = true)
-        // Subtle master mark
-        if (master) Text("MASTER", color = Color(0x80FFFFFF), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp, raw = true)
+        Spacer(Modifier.height(16.dp))
+        Text(name, color = if (f) Color.White else Color(0xB3FFFFFF), fontSize = if (small) 19.sp else 22.sp, fontWeight = if (f) FontWeight.Bold else FontWeight.SemiBold, maxLines = 1, raw = true)
+        if (master) Text("MASTER", color = Color(0x66FFFFFF), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp, raw = true)
     }
 }
 
@@ -169,8 +176,8 @@ private fun AddTile(small: Boolean, onClick: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            Modifier.size(if (small) 118.dp else 148.dp).clip(CircleShape).background(Color(0x14FFFFFF))
-                .border(3.dp, if (f) Color.White else Color(0x33FFFFFF), CircleShape),
+            Modifier.size(if (small) 128.dp else 168.dp).clip(RoundedCornerShape(if (small) 18.dp else 22.dp)).background(Color(0x14FFFFFF))
+                .border(3.dp, if (f) Color.White else Color(0x33FFFFFF), RoundedCornerShape(if (small) 18.dp else 22.dp)),
             contentAlignment = Alignment.Center
         ) { Text("+", color = Color.White, fontSize = 64.sp, fontWeight = FontWeight.Light, raw = true) }
         Spacer(Modifier.height(18.dp))

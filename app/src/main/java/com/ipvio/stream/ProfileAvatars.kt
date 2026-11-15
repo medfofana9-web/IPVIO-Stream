@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,49 +30,70 @@ import kotlinx.coroutines.delay
  * so the same avatar always looks the same. Profiles without a choice keep the avatar drawn from their name.
  */
 object ProfileAvatars {
-    class Preset(val key: String, val skin: String, val hair: String, val hairColor: String, val beard: String?, val bg: String)
+    /**
+     * One fixed look. [style] "avataaars" (detailed cartoon portraits, the default set) or "personas" (flat style, kept so
+     * avatars chosen before still show the same picture). [opts] are the style's options (skin, hair, beard, clothes).
+     */
+    class Preset(val key: String, val style: String, val opts: String, val bg: String)
 
-    private const val DARK = "623d36"
-    private const val BROWN = "92594b"
-    private const val BLACK_HAIR = "1c1714"
+    private fun aa(key: String, skin: String, top: String, hair: String, beard: String?, clothes: String, color: String, bg: String) =
+        Preset(key, "avataaars", "skinColor=$skin&top=$top&hairColor=$hair&topProbability=100" +
+            "&facialHairProbability=" + (if (beard != null) "100&facialHair=$beard&facialHairColor=$hair" else "0") +
+            "&clothing=$clothes&clothesColor=$color&accessoriesProbability=0&eyes=happy&eyebrows=defaultNatural&mouth=smile", bg)
+
+    private fun pe(key: String, skin: String, hair: String, hairColor: String, beard: String?, bg: String) =
+        Preset(key, "personas", "skinColor=$skin&hair=$hair&hairColor=$hairColor&facialHairProbability=" +
+            (if (beard != null) "100&facialHair=$beard" else "0"), bg)
+
+    private const val DARK = "614335"
+    private const val BROWN = "ae5d29"
+    private const val TAN = "d08b5b"
+    private const val LIGHT = "edb98a"
+    private const val BLACK = "2c1b18"
 
     val PRESETS = listOf(
         // Black men
-        Preset("m1", DARK, "fade", BLACK_HAIR, "beardMustache", "1f2a44"),
-        Preset("m2", BROWN, "buzzcut", BLACK_HAIR, "goatee", "3b2a4a"),
-        Preset("m3", DARK, "curlyHighTop", BLACK_HAIR, null, "244038"),
-        Preset("m4", BROWN, "bald", BLACK_HAIR, "beardMustache", "4a2c2a"),
-        Preset("m5", DARK, "fade", BLACK_HAIR, "shadow", "2d3a4a"),
-        Preset("m6", BROWN, "cap", BLACK_HAIR, "beardMustache", "3a3524"),
-        Preset("m7", DARK, "curly", BLACK_HAIR, "soulPatch", "1f2a44"),
+        aa("a1", DARK, "shortFlat", BLACK, "beardMedium", "hoodie", "262e33", "1f2a44"),
+        aa("a2", BROWN, "theCaesar", BLACK, "beardLight", "blazerAndShirt", "3c4f5c", "3b2a4a"),
+        aa("a3", DARK, "dreads01", BLACK, null, "graphicShirt", "e6e6e6", "244038"),
+        aa("a4", DARK, "shortCurly", BLACK, "beardMajestic", "shirtCrewNeck", "929598", "4a2c2a"),
+        aa("a5", BROWN, "fro", BLACK, null, "collarAndSweater", "65c9ff", "2d3a4a"),
+        aa("a6", DARK, "theCaesarAndSidePart", BLACK, "moustacheFancy", "blazerAndSweater", "262e33", "3a3524"),
         // Black women
-        Preset("w1", DARK, "curlyBun", BLACK_HAIR, null, "4a2c3a"),
-        Preset("w2", BROWN, "curly", BLACK_HAIR, null, "244038"),
-        Preset("w3", DARK, "extraLong", BLACK_HAIR, null, "3b2a4a"),
-        Preset("w4", BROWN, "bobCut", BLACK_HAIR, null, "4a2c2a"),
-        Preset("w5", DARK, "bunUndercut", BLACK_HAIR, null, "2d3a4a"),
-        Preset("w6", BROWN, "straightBun", "6c4545", null, "3a3524"),
-        Preset("w7", DARK, "long", BLACK_HAIR, null, "1f2a44"),
+        aa("b1", DARK, "curly", BLACK, null, "shirtScoopNeck", "ff488e", "4a2c3a"),
+        aa("b2", BROWN, "bun", BLACK, null, "blazerAndShirt", "262e33", "244038"),
+        aa("b3", DARK, "froBand", BLACK, null, "overall", "5199e4", "3b2a4a"),
+        aa("b4", BROWN, "bob", BLACK, null, "shirtVNeck", "ff5c5c", "1f2a44"),
+        aa("b5", DARK, "curvy", BLACK, null, "collarAndSweater", "a7ffc4", "2d3a4a"),
+        aa("b6", BROWN, "straight01", "4a312c", null, "hoodie", "ffffb1", "4a2c2a"),
         // More looks
-        Preset("o1", "b16a5b", "shortCombover", "362c47", "beardMustache", "244038"),
-        Preset("o2", "d78774", "sideShave", "6c4545", null, "4a2c3a"),
-        Preset("o3", "eeb4a4", "bobBangs", "f29c65", null, "2d3a4a"),
-        Preset("o4", "e5a07e", "long", "362c47", null, "3b2a4a"),
-        Preset("o5", "e7a391", "mohawk", "6c4545", "shadow", "1f2a44"),
-        Preset("o6", "d78774", "beanie", BLACK_HAIR, "goatee", "3a3524"),
-        Preset("o7", "b16a5b", "curly", "6c4545", null, "4a2c2a"),
-        Preset("o8", "eeb4a4", "balding", "dee1f5", "walrus", "244038")
+        aa("c1", TAN, "shortWaved", "4a312c", "beardLight", "hoodie", "3c4f5c", "244038"),
+        aa("c2", LIGHT, "shortRound", "b58143", null, "shirtCrewNeck", "65c9ff", "1f2a44"),
+        aa("c3", TAN, "longButNotTooLong", BLACK, null, "blazerAndSweater", "ff488e", "3a3524"),
+        aa("c4", LIGHT, "bigHair", "a55728", null, "overall", "25557c", "4a2c3a"),
+        // Flat style (the first set)
+        pe("m1", "623d36", "fade", "1c1714", "beardMustache", "1f2a44"),
+        pe("m2", "92594b", "buzzcut", "1c1714", "goatee", "3b2a4a"),
+        pe("m3", "623d36", "curlyHighTop", "1c1714", null, "244038"),
+        pe("m4", "92594b", "bald", "1c1714", "beardMustache", "4a2c2a"),
+        pe("m5", "623d36", "fade", "1c1714", "shadow", "2d3a4a"),
+        pe("m6", "92594b", "cap", "1c1714", "beardMustache", "3a3524"),
+        pe("m7", "623d36", "curly", "1c1714", "soulPatch", "1f2a44"),
+        pe("w1", "623d36", "curlyBun", "1c1714", null, "4a2c3a"),
+        pe("w2", "92594b", "curly", "1c1714", null, "244038"),
+        pe("w3", "623d36", "extraLong", "1c1714", null, "3b2a4a"),
+        pe("w4", "92594b", "bobCut", "1c1714", null, "4a2c2a"),
+        pe("w5", "623d36", "bunUndercut", "1c1714", null, "2d3a4a"),
+        pe("w6", "92594b", "straightBun", "6c4545", null, "3a3524"),
+        pe("w7", "623d36", "long", "1c1714", null, "1f2a44")
     )
 
     private const val BASE = "https://api.dicebear.com/9.x/"
 
-    fun url(p: Preset): String = BASE + "personas/png?size=256&seed=fof" + p.key +
-        "&skinColor=" + p.skin + "&hair=" + p.hair + "&hairColor=" + p.hairColor +
-        "&facialHairProbability=" + (if (p.beard != null) "100&facialHair=" + p.beard else "0") +
-        "&backgroundColor=" + p.bg
+    fun url(p: Preset): String = BASE + p.style + "/png?size=256&seed=fof" + p.key + "&" + p.opts + "&backgroundColor=" + p.bg
 
-    /** Avatar drawn from the name (the look before an avatar was chosen). */
-    private fun byName(name: String) = BASE + "avataaars/png?size=256&seed=" + java.net.URLEncoder.encode(name.ifBlank { "Fof" }, "UTF-8")
+    /** Profiles without a choice get a fixed look by their number (no random cartoon from the name). */
+    private fun default(id: Int): Preset = PRESETS[(id * 5) % 16]
 
     private fun prefs(c: Context) = c.applicationContext.getSharedPreferences("fof_avatars", Context.MODE_PRIVATE)
 
@@ -81,7 +103,10 @@ object ProfileAvatars {
 
     fun chosen(c: Context, id: Int): Preset? = prefs(c).getString("a$id", null)?.let { k -> PRESETS.firstOrNull { it.key == k } }
 
-    fun urlFor(c: Context, id: Int, name: String): String = chosen(c, id)?.let { url(it) } ?: byName(name)
+    fun presetFor(c: Context, id: Int): Preset = chosen(c, id) ?: default(id)
+
+    @Suppress("UNUSED_PARAMETER")
+    fun urlFor(c: Context, id: Int, name: String): String = url(presetFor(c, id))
 
     fun set(c: Context, id: Int, key: String?) {
         prefs(c).edit().apply { if (key == null) remove("a$id") else putString("a$id", key) }.apply()
@@ -89,26 +114,30 @@ object ProfileAvatars {
     }
 }
 
-/** Avatar gallery: OK picks one for the profile, Back closes without a change. */
+/** Avatar gallery: OK picks one for the profile, Back closes without a change. Scrolls when it is taller than the screen. */
 @Composable
 fun AvatarPicker(profileId: Int, onClose: () -> Unit) {
     val ctx = LocalContext.current
-    val current = remember { ProfileAvatars.chosen(ctx, profileId)?.key }
+    val current = remember { ProfileAvatars.presetFor(ctx, profileId).key }
     val start = remember { FocusRequester() }
-    val startKey = current ?: ProfileAvatars.PRESETS.first().key
     BackHandler { onClose() }
     LaunchedEffect(Unit) {
         repeat(8) { delay(60); if (runCatching { start.requestFocus() }.getOrDefault(false)) return@LaunchedEffect }
     }
-    Box(Modifier.fillMaxSize().background(Color(0xF2000000)), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(26.dp)) {
-            Text("Choose an avatar", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Bold, raw = true)
-            Column(verticalArrangement = Arrangement.spacedBy(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                ProfileAvatars.PRESETS.chunked(8).forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+    val groups = listOf("Portraits" to ProfileAvatars.PRESETS.filter { it.style == "avataaars" }, "Flat" to ProfileAvatars.PRESETS.filter { it.style == "personas" })
+    Box(Modifier.fillMaxSize().background(Color(0xF5000000)), contentAlignment = Alignment.TopCenter) {
+        Column(
+            Modifier.fillMaxHeight().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(vertical = 40.dp),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(22.dp)
+        ) {
+            Text("Choose an avatar", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold, raw = true)
+            groups.forEach { (title, list) ->
+                Text(title, color = Color(0x99FFFFFF), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, raw = true)
+                list.chunked(8).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                         row.forEach { p ->
                             AvatarChoice(ProfileAvatars.url(p), p.key == current,
-                                if (p.key == startKey) Modifier.focusRequester(start) else Modifier) {
+                                if (p.key == current) Modifier.focusRequester(start) else Modifier) {
                                 ProfileAvatars.set(ctx, profileId, p.key); onClose()
                             }
                         }
@@ -122,19 +151,19 @@ fun AvatarPicker(profileId: Int, onClose: () -> Unit) {
 @Composable
 private fun AvatarChoice(url: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
-    val s by animateFloatAsState(if (f) 1.12f else 1f, androidx.compose.animation.core.tween(140), label = "av")
+    val s by animateFloatAsState(if (f) 1.1f else 1f, androidx.compose.animation.core.tween(140), label = "av")
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp)
     Box(
-        modifier.size(104.dp).graphicsLayer { scaleX = s; scaleY = s }
+        modifier.size(100.dp).graphicsLayer { scaleX = s; scaleY = s }
             .onFocusChanged { f = it.isFocused }
-            .clip(CircleShape).background(Color(0xFF1C1C20))
-            .border(if (f) 4.dp else if (selected) 3.dp else 0.dp, if (f) Color.White else Color(0xB3FFFFFF), CircleShape)
+            .clip(shape).background(Color(0xFF1C1C20))
+            .border(if (f) 4.dp else if (selected) 2.dp else 0.dp, if (f) Color.White else Color(0x99FFFFFF), shape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        coil.compose.AsyncImage(url, null, Modifier.fillMaxSize().padding(if (f || selected) 4.dp else 0.dp).clip(CircleShape),
-            contentScale = androidx.compose.ui.layout.ContentScale.Crop)
-        if (selected && !f) Box(Modifier.align(Alignment.BottomEnd).size(30.dp).clip(CircleShape).background(Color.White), contentAlignment = Alignment.Center) {
-            AppIcon(AIcon.Check, Color.Black, size = 18.dp)
+        coil.compose.AsyncImage(url, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+        if (selected && !f) Box(Modifier.align(Alignment.BottomEnd).padding(6.dp).size(26.dp).clip(CircleShape).background(Color.White), contentAlignment = Alignment.Center) {
+            AppIcon(AIcon.Check, Color.Black, size = 16.dp)
         }
     }
 }
