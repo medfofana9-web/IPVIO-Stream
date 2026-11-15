@@ -31,6 +31,23 @@ jobs:
           sed -i 's#</application>#<profileable android:shell="true" /></application>#' app/src/main/AndroidManifest.xml
           ./gradlew --no-daemon assembleRelease
           cp app/build/outputs/apk/release/*.apk app.apk
+      - name: Android Lint (report only)
+        continue-on-error: true
+        run: |
+          ./gradlew --no-daemon -q lintRelease > /dev/null 2>&1 || true
+          f=$(ls app/build/reports/lint-results-release.xml 2>/dev/null | head -1)
+          [ -n "$f" ] && python3 - "$f" <<'PY'
+          import sys, xml.etree.ElementTree as ET, collections
+          r = ET.parse(sys.argv[1]).getroot()
+          iss = [i for i in r.iter('issue')]
+          bad = [i for i in iss if i.get('severity') in ('Fatal', 'Error')]
+          print("LINT", len(iss), "issues,", len(bad), "errors")
+          c = collections.Counter(i.get('id') for i in iss)
+          print("LINT top:", ", ".join(f"{k} {v}" for k, v in c.most_common(25)))
+          for i in bad[:40]:
+              loc = i.find('location')
+              print("LINT ERR", i.get('id'), (loc.get('file').split('/java/')[-1] + ':' + str(loc.get('line'))) if loc is not None else '', '-', i.get('message')[:160])
+          PY
       - name: Avatar pictures load
         run: |
           ./gradlew --no-daemon -q testDebugUnitTest --tests 'com.ipvio.stream.AvatarUrlsTest'
@@ -203,6 +220,18 @@ jobs:
             adb shell am broadcast -a com.fof.tv.TAB --ei tab 10
             sleep 8
             adb exec-out screencap -p > p9_sports_again.png
+            # Audit: every other screen once (Movies, Shows, TV guide, Favorites, My list, History), the sports tabs and a
+            # settings page; the app must stay up, nothing may freeze, and each screen goes into the report
+            for t in 1 2 6 7 8 9; do
+              adb shell am broadcast -a com.fof.tv.TAB --ei tab $t >/dev/null; sleep 7
+              adb exec-out screencap -p > p_tab$t.png
+              adb shell input keyevent 4; sleep 2
+            done
+            adb shell am broadcast -a com.fof.tv.TAB --ei tab 10 >/dev/null; sleep 8
+            for k in 1 2 3; do adb shell 'input keyevent 22; sleep 0.6; input keyevent 23'; sleep 6; adb exec-out screencap -p > p_sport$k.png; done
+            adb shell am broadcast -a com.fof.tv.TAB --ei tab 5 >/dev/null; sleep 5
+            adb shell 'input keyevent 20; sleep 0.5; input keyevent 23'; sleep 4; adb exec-out screencap -p > p_settings_page.png
+            (adb shell pidof com.fof.tv > /dev/null && echo "allscreens: app still running" || echo "allscreens: APP CLOSED") | tee -a journey.txt
             adb logcat -d -s FofProfile FofFreeze FofUntranslated > marks.txt
             adb shell dumpsys meminfo com.fof.tv | head -40 > meminfo.txt
             adb logcat -c
@@ -233,7 +262,7 @@ jobs:
             n=$(grep -o "index ready ([0-9]* titles)" marks.txt | head -1 | grep -o "[0-9]*")
             if [ -n "$n" ] && [ "$n" -lt 30000 ]; then echo "CHECK PASS provider movies/series skipped ($n titles)"; else echo "CHECK FAIL provider movies/series skipped (${n:-no index})"; fi
             if grep -q "FofFreeze" marks.txt logcat.txt 2>/dev/null; then echo "CHECK FAIL no frozen screen: $(grep -h FofFreeze marks.txt logcat.txt | head -2)"; else echo "CHECK PASS no frozen screen"; fi
-            if grep -q "APP CLOSED" journey.txt; then echo "CHECK FAIL app stays open (search, Live TV)"; else echo "CHECK PASS app stays open (search, Live TV)"; fi
+            if grep -q "APP CLOSED" journey.txt; then echo "CHECK FAIL app stays open (search, Live TV, every screen)"; else echo "CHECK PASS app stays open (search, Live TV, every screen)"; fi
             if grep -q "FATAL EXCEPTION" logcat.txt crash_search.txt 2>/dev/null; then echo "CHECK FAIL no crash"; else echo "CHECK PASS no crash"; fi
             fp=$(grep -o "first poster card composed after [0-9]* ms" cold_profile.txt logcat.txt 2>/dev/null | head -1 | grep -o "[0-9]* ms" | grep -o "[0-9]*")
             if [ -n "$fp" ] && [ "$fp" -lt 15000 ]; then echo "CHECK PASS home posters after restart ($fp ms)"; else echo "CHECK FAIL home posters after restart (${fp:-none} ms)"; fi
@@ -252,7 +281,7 @@ jobs:
           echo "== German text without translation"; grep FofUntranslated marks.txt | sed 's/^.*FofUntranslated: //' | sort -u | head -80 || true
           # Screens as small JPEGs in the log (artifacts cannot be downloaded from here): between ==IMG name and the end of line
           which convert >/dev/null || sudo apt-get install -y -qq imagemagick >/dev/null
-          for f in p_profiles.png p_avatars.png p0_start.png p_search.png p5_sports.png p7_livetv.png p8_settings.png p9_sports_again.png p3_detail.png; do
+          for f in p_tab1.png p_tab2.png p_tab6.png p_tab7.png p_tab8.png p_tab9.png p_sport1.png p_sport2.png p_sport3.png p_settings_page.png p_profiles.png p_avatars.png p0_start.png p_search.png p5_sports.png p7_livetv.png p8_settings.png p9_sports_again.png p3_detail.png; do
             [ -f "$f" ] || continue
             convert "$f" -resize 960x -quality 55 "${f%.png}.jpg" && echo "==IMG ${f%.png} $(base64 -w0 "${f%.png}.jpg")"
           done
