@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shown while the app starts: the dark app background with the Fof TV mark in the middle (no white or grey flash) -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/fof_bg" />
+    <item android:width="120dp" android:height="120dp" android:gravity="center" android:drawable="@drawable/ic_brand_mark" />
+</layer-list>
