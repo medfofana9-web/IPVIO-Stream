@@ -97,10 +97,11 @@ class HubCtx(val nav: HubNav, val live: List<Item>, private val onPlay: (Item, L
     /** Watch Live: start the best channel directly, otherwise show the Watch Live page (assign by hand). */
     fun watch(g: SportData.Game) {
         // Addon streams of this game (Pengu …): asked first, at most 4 s, then the best channel is chosen
-        if (SportAddons.cached(g).isEmpty() && g.state != 2 && ctxApp != null && pendingAddon != g.key) {
+        val app = ctxApp
+        if (SportAddons.cached(g).isEmpty() && g.state != 2 && app != null && pendingAddon != g.key) {
             pendingAddon = g.key
             scopeApp?.launch {
-                kotlinx.coroutines.withTimeoutOrNull(4_000) { SportAddons.find(ctxApp, g) }
+                kotlinx.coroutines.withTimeoutOrNull(4_000) { SportAddons.find(app, g) }
                 watch(g); pendingAddon = null
             }
             return
