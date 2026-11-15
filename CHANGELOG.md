@@ -1,5 +1,14 @@
 # Changelog
 
+## Fof TV 1.3.79 (November 2026)
+**Every profile is its own account**
+- A new profile first asks "Do you already use Fof TV?". Yes: scan the code, sign in on your phone, and that person's
+  Continue Watching, avatar, name, teams, taste and favorites come right over – no questions. No: the quick taste setup,
+  with "Keep it on every TV" at the end
+- Sign-in on the phone is one form: email and password (the same form creates a new account), name, and an optional
+  family invite code. No avatar or mode to pick first
+- Each profile on a TV signs in on its own, so everyone in the house has their own Continue Watching on every TV
+
 ## Fof TV 1.3.78 (November 2026)
 - Live games: national-team soccer (Spain, France, England … in the Nations League, qualifiers and friendlies) finds
   its channels: FOX, FS1, FS2, FOX Deportes. When ESPN names no channel and nothing else matches, the channels that

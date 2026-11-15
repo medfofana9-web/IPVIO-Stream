@@ -37,7 +37,19 @@ object FofAccount {
     var status by mutableStateOf("")
         private set
 
-    private fun prefs(c: Context) = c.applicationContext.getSharedPreferences("fof_account", Context.MODE_PRIVATE)
+    /** Each profile signs in on its own (profile 0 keeps the original store, so existing sign-ins stay). */
+    private fun prefs(c: Context) = Profiles.sp(c, "fof_account")
+
+    /** Signed in? As Compose state, so screens (sign-in on the TV) react the moment the phone finishes. */
+    var signedInState by mutableStateOf(false)
+        private set
+
+    /** After switching profile: load that profile's sign-in. */
+    fun reload(c: Context) {
+        session = null; email = null; member = null; status = ""
+        init(c)
+        signedInState = session != null
+    }
 
     fun init(c: Context) {
         if (session != null) return
@@ -46,12 +58,13 @@ object FofAccount {
         session = AccountLogic.readSession(raw)
         email = session?.email
         prefs(c).getString("m", null)?.let { member = AccountLogic.readMember(it) }
+        signedInState = session != null
     }
 
     val signedIn: Boolean get() = session != null
 
     private fun save(c: Context, s: Session?) {
-        session = s; email = s?.email
+        session = s; email = s?.email; signedInState = s != null
         prefs(c).edit().apply {
             if (s == null) { remove("s"); remove("m") } else Secrets.encrypt(AccountLogic.writeSession(s))?.let { putString("s", it) }
         }.apply()
@@ -94,12 +107,22 @@ object FofAccount {
             if (code !in 200..299) return@runCatching err(res, if (create) "Could not create the account." else "Email or password is not right.")
             val s = AccountLogic.sessionFrom(res) ?: return@runCatching "Account created – sign in with it now."
             save(c, s)
-            // This TV's active profile becomes the one that follows this person (watching progress, My List, favorites)
+            // This profile now follows this person (watching progress, My List, favorites, avatar, taste)
             CloudSync.link(c, Profiles.active)
             refreshMember(c)
             CloudSync.kick(c, 0)
             null
         }.getOrElse { "No connection to the account service." }
+    }
+
+    /**
+     * One step for people: signs in, and creates the account when the email is new. Null = ok, else a readable error.
+     */
+    suspend fun signInOrCreate(c: Context, mail: String, password: String): String? {
+        val e = signUpOrIn(c, mail, password, create = false) ?: return null
+        val made = signUpOrIn(c, mail, password, create = true) ?: return null
+        // The email exists: the password was wrong
+        return if (made.contains("already", true) || made.contains("registered", true)) "Wrong password for this email." else made
     }
 
     fun signOut(c: Context) { save(c, null); saveMember(c, null); status = ""; CloudSync.unlink(c) }

@@ -130,7 +130,7 @@ private suspend fun loadTeams(leagues: List<String>): List<TeamPick> = withConte
 @Composable
 fun TasteSetup(onDone: () -> Unit) {
     val ctx = LocalContext.current
-    val name = remember { Profiles.activeName().let { n -> if (n == Profiles.defaultName(0)) "" else n } }
+    val name = remember { Profiles.activeName().let { n -> if (n == Profiles.defaultName(Profiles.active) || n == Profiles.defaultName(0)) "" else n } }
     var step by remember { mutableIntStateOf(0) }
     val sports = remember { mutableStateListOf<String>().apply { addAll(Taste.sports(ctx)) } }
     val teams = remember { mutableStateListOf<TeamPick>() }
@@ -150,7 +150,32 @@ fun TasteSetup(onDone: () -> Unit) {
         Taste.apply(ctx, sports.toSet(), teams.map { it.team }, liked.toList(), genres.toList())
         onDone()
     }
-    BackHandler { if (step > 0) step-- else { Taste.skip(ctx); onDone() } }
+    // First: does this person already use Fof TV? Then signing in brings their whole profile; else the questions
+    var askAccount by remember { mutableStateOf(!FofAccount.signedInState) }
+    var signingIn by remember { mutableStateOf(false) }
+    var saveAtEnd by remember { mutableStateOf(false) }
+    LaunchedEffect(FofAccount.signedInState, signingIn) {
+        if (signingIn && FofAccount.signedInState) {
+            CloudSync.run(ctx)
+            signingIn = false
+            if (saveAtEnd) finish()
+            else if (!Taste.needed(ctx)) onDone()          // their taste came with the account
+            else askAccount = false
+        }
+    }
+    BackHandler {
+        when {
+            signingIn -> signingIn = false
+            askAccount -> { Taste.skip(ctx); onDone() }
+            step > 0 -> step--
+            else -> askAccount = true
+        }
+    }
+    if (signingIn) { SignInWithPhone { signingIn = false }; return }
+    if (askAccount) {
+        AccountQuestion(name, onSignIn = { signingIn = true }, onNew = { askAccount = false })
+        return
+    }
 
     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF111218), Color(0xFF050507))))) {
         Column(Modifier.fillMaxSize().padding(horizontal = 64.dp, vertical = 40.dp)) {
@@ -202,6 +227,7 @@ fun TasteSetup(onDone: () -> Unit) {
                     PillButton("Skip setup", raw = true) { Taste.skip(ctx); onDone() }
                 } else {
                     PillButton("Start watching", Modifier.focusRequester(next), light = true, icon = AIcon.Play, raw = true) { finish() }
+                    if (!FofAccount.signedInState) PillButton("Keep it on every TV", icon = AIcon.Phone, raw = true) { saveAtEnd = true; signingIn = true }
                     PillButton("Back", raw = true) { step-- }
                 }
                 LaunchedEffect(step) { if (step == steps - 1) { delay(100); runCatching { next.requestFocus() } } }
@@ -310,3 +336,58 @@ private fun Summary(sports: List<String>, teams: List<String>, titles: List<Stri
         }
     }
 }
+
+/** "Already use Fof TV?": sign in with the phone (the whole profile comes back) or set up a new one. */
+@Composable
+private fun AccountQuestion(name: String, onSignIn: () -> Unit, onNew: () -> Unit) {
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) { repeat(8) { delay(60); if (runCatching { first.requestFocus() }.getOrDefault(false)) return@LaunchedEffect } }
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF111218), Color(0xFF050507)))), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            FofLogo(44.dp, 30.sp)
+            Spacer(Modifier.height(30.dp))
+            Text(if (name.isBlank()) "Welcome" else "Welcome, $name", color = Color.White, fontSize = 40.sp, fontWeight = FontWeight.Bold, raw = true)
+            Spacer(Modifier.height(8.dp))
+            Text("Do you already use Fof TV on another TV?", color = Color(0xA6FFFFFF), fontSize = 19.sp, raw = true)
+            Spacer(Modifier.height(36.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                ChoiceCard("Yes, sign me in", "Scan a code with your phone. Your Continue Watching, avatar, teams and favorites come right over.",
+                    AIcon.Phone, Modifier.focusRequester(first), onSignIn)
+                ChoiceCard("No, I'm new", "Answer a few quick questions so Fof TV fits you.", AIcon.Play, Modifier, onNew)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChoiceCard(title: String, sub: String, icon: AIcon, modifier: Modifier, onClick: () -> Unit) {
+    var f by remember { mutableStateOf(false) }
+    val s by animateFloatAsState(if (f) 1.04f else 1f, tween(140), label = "cc")
+    val shape = RoundedCornerShape(20.dp)
+    Column(
+        modifier.width(360.dp).height(210.dp).graphicsLayer { scaleX = s; scaleY = s }.onFocusChanged { f = it.isFocused }
+            .clip(shape).background(if (f) Color(0xFFF2F2F5) else Color(0x14FFFFFF)).border(if (f) 0.dp else 1.dp, Color(0x22FFFFFF), shape)
+            .clickable(onClick = onClick).padding(28.dp)
+    ) {
+        AppIcon(icon, if (f) Color.Black else Color.White, size = 30.dp)
+        Spacer(Modifier.height(18.dp))
+        Text(title, color = if (f) Color.Black else Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold, raw = true)
+        Spacer(Modifier.height(8.dp))
+        Text(sub, color = if (f) Color(0xB3000000) else Color(0x99FFFFFF), fontSize = 15.sp, raw = true)
+    }
+}
+
+/** Sign in with the phone: QR code to the phone page; closes by itself once the phone has signed this profile in. */
+@Composable
+fun SignInWithPhone(onClose: () -> Unit) {
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF111218), Color(0xFF050507))))) {
+        Column(Modifier.align(Alignment.TopCenter).padding(top = 44.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("Sign in with your phone", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Bold, raw = true)
+            Spacer(Modifier.height(6.dp))
+            Text("Scan the code, then enter your email and password under “Family account”. New here? The same form creates your account.",
+                color = Color(0xA6FFFFFF), fontSize = 17.sp, raw = true, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 760.dp))
+        }
+        RemoteOverlay(Modifier.align(Alignment.Center).padding(top = 90.dp), onClose = onClose)
+    }
+}
+

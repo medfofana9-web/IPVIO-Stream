@@ -30,7 +30,8 @@ object CloudSync {
     @Volatile var status: String = ""
         private set
 
-    private fun prefs(c: Context) = c.applicationContext.getSharedPreferences("fof_account", Context.MODE_PRIVATE)
+    // Sync state lives with the profile's own sign-in
+    private fun prefs(c: Context) = Profiles.sp(c, "fof_account")
 
     /** Profile on this TV that follows the signed-in person. */
     fun linked(c: Context): Int = prefs(c).getInt("sync_profile", -1)
@@ -70,8 +71,9 @@ object CloudSync {
 
     private suspend fun once(c: Context) {
         withContext(Dispatchers.Main) { Profiles.init(c) }
-        var pid = linked(c)
-        if (pid < 0 || Profiles.list.none { it.id == pid }) { pid = Profiles.active; link(c, pid) }
+        // Every profile has its own account: the profile in use is the one that syncs
+        val pid = Profiles.active
+        if (linked(c) != pid) link(c, pid)
         val p = prefs(c)
         val local = read(c, pid)
         val localChanged = SyncLogic.fingerprint(local) != p.getString("sync_hash", null)
@@ -112,6 +114,13 @@ object CloudSync {
     private fun read(c: Context, pid: Int): JSONObject {
         val o = JSONObject()
         for (n in SyncLogic.STORES) {
+            if (n == SyncLogic.NAME) {
+                Profiles.list.firstOrNull { it.id == pid }?.let { p ->
+                    val nm = Profiles.displayName(p)
+                    if (nm.isNotBlank() && nm != Profiles.defaultName(pid)) o.put(n, SyncLogic.encode(mapOf("n" to nm)))
+                }
+                continue
+            }
             if (n == SyncLogic.AVATAR) {
                 ProfileAvatars.keyOf(c, pid)?.let { k ->
                     val m = HashMap<String, Any>(); m["a"] = k
@@ -130,6 +139,13 @@ object CloudSync {
     private fun write(c: Context, pid: Int, files: JSONObject) {
         for (n in SyncLogic.STORES) {
             val o = files.optJSONObject(n) ?: continue
+            if (n == SyncLogic.NAME) {
+                (SyncLogic.decodeValue(o.optJSONArray("n")) as? String)?.trim()?.take(40)?.takeIf { it.isNotBlank() }?.let { nm ->
+                    if (Profiles.list.firstOrNull { it.id == pid }?.let { Profiles.displayName(it) } != nm)
+                        kotlinx.coroutines.runBlocking(Dispatchers.Main) { Profiles.rename(c, pid, nm) }
+                }
+                continue
+            }
             if (n == SyncLogic.AVATAR) {
                 val k = SyncLogic.decodeValue(o.optJSONArray("a")) as? String
                 val ph = (SyncLogic.decodeValue(o.optJSONArray("ph")) as? String)?.let { runCatching { android.util.Base64.decode(it, android.util.Base64.NO_WRAP) }.getOrNull() }

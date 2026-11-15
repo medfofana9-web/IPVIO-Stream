@@ -230,7 +230,7 @@ fun App(pick: Boolean = false) {
         // First time on a profile (or "Your taste" in Manage Profiles): a few questions to tailor it
         var tasting by remember { mutableStateOf(false) }
         LaunchedEffect(picked) { if (picked && Taste.needed(c)) tasting = true }
-        if (!picked) ProfilePicker { id -> MainSampler.mark("profile picked"); Profiles.select(c, id); AppSettings.init(c); Parental.init(c); LangFilter.init(c); Boomer.init(c); HomeLayout.init(c); BoomerLayout.init(c); picked = true }
+        if (!picked) ProfilePicker { id -> MainSampler.mark("profile picked"); Profiles.select(c, id); FofAccount.reload(c); AppSettings.init(c); Parental.init(c); LangFilter.init(c); Boomer.init(c); HomeLayout.init(c); BoomerLayout.init(c); picked = true }
         else if (tasting) TasteSetup { tasting = false }
         else {
             LaunchedEffect(Unit) { delay(10_000); runCatching { SportAlerts.run(c.applicationContext) } }   // after the start: the playlist and the home screen come first

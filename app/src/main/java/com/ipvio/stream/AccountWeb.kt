@@ -35,19 +35,25 @@ object AccountWeb {
         val av = ""
         if (!FofAccount.signedIn) {
             if (mail.isBlank() || pw.length < 6) return err("Enter your email and a password of at least 6 characters.")
-            FofAccount.signUpOrIn(c, mail, pw, create = p["mode"] == "up")?.let { return err(it) }
+            FofAccount.signInOrCreate(c, mail, pw)?.let { return err(it) }
         }
+        // Family: join with an invite code, or start one (owner); without either the account is just personal
         if (FofAccount.member == null) {
-            if (name.isBlank()) return err("Enter your name.")
-            val e = if (p["kind"] == "owner") FofAccount.createFamily(c, p["fam"].orEmpty().take(40), name, av)
-                else FofAccount.join(c, p["code"].orEmpty().take(12), name, av)
+            val code = p["code"].orEmpty().trim().take(12)
+            val fam = p["fam"].orEmpty().trim().take(40)
+            val e = when {
+                code.isNotBlank() -> FofAccount.join(c, code, name.ifBlank { mail.substringBefore('@') }, av)
+                p["kind"] == "owner" && fam.isNotBlank() -> FofAccount.createFamily(c, fam, name.ifBlank { mail.substringBefore('@') }, av)
+                else -> null
+            }
             if (e != null) return err(e)
         }
-        // This TV's main profile gets the person's name and picture
-        val m = FofAccount.member
+        // The profile in use gets the person's name (when it still has its default name)
+        val nm = name.ifBlank { FofAccount.member?.name.orEmpty() }
         main.post {
-            m?.name?.takeIf { it.isNotBlank() }?.let { Profiles.rename(c, 0, it) }
-            m?.avatar?.takeIf { it.isNotBlank() }?.let { ProfileAvatars.set(c, 0, it) }
+            val pid = Profiles.active
+            val cur = Profiles.list.firstOrNull { it.id == pid }?.let { Profiles.displayName(it) }
+            if (nm.isNotBlank() && (cur == null || cur == Profiles.defaultName(pid) || cur == "New profile")) Profiles.rename(c, pid, nm)
         }
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch { runCatching { FofAccount.sync(c) } }
         return "{\"ok\":true}"

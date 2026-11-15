@@ -22,10 +22,12 @@ object SyncLogic {
         "fof_taste",          // taste setup (sports, liked titles, genres)
         "ipvio_sportfavs",    // favorite teams
         "ipvio_sportleagues", // leagues on/off
-        AVATAR                // the profile's avatar (not a file: written through ProfileAvatars)
+        AVATAR,               // the profile's avatar (not a file: written through ProfileAvatars)
+        NAME                  // the profile's name (shown on every TV)
     )
 
     const val AVATAR = "fof_avatar"
+    const val NAME = "fof_pname"
 
     /** A saved version that is bigger than this is not applied (a real one is far smaller). */
     const val MAX_CHARS = 2_000_000

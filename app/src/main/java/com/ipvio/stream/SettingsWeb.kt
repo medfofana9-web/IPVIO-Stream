@@ -161,17 +161,14 @@ if(s.member.owner)h+='<div class="r"><div>Share this TV\'s setup<small>Playlist 
 '<div class="r"><div>Invite someone<small id="invc">They enter the code when they sign up on their TV</small></div><button class="g" onclick="acctInv()">New code</button></div>'+
 '<div class="r"><div>Problems on family TVs<small>Crashes, frozen screens and forced closes</small></div><button class="g" onclick="acctProb()">Show</button></div><div id="probs"></div>';
 b.innerHTML=h;return}
-var av=s.avatars.map(function(a){return '<img src="'+esc(a.u)+'" data-k="'+esc(a.k)+'" title="'+esc(a.n)+'" loading="lazy" style="width:60px;height:60px;box-sizing:border-box;border-radius:12px;margin:3px;cursor:pointer;border:3px solid '+(acc.av==a.k?'#fff':'transparent')+'" onclick="acc.av=this.getAttribute(\'data-k\');acctLoad()">'}).join('');
 b.innerHTML=(s.signedIn?'<div class="r"><div>Signed in<small>'+esc(s.email)+'</small></div><button class="g" onclick="acctOut()">Sign out</button></div>':
-'<div class="r"><div>'+(acc.mode=='up'?'New account':'I already have an account')+'</div><button class="g" onclick="acc.mode=acc.mode==\'up\'?\'in\':\'up\';acctLoad()">'+(acc.mode=='up'?'I have one':'New account')+'</button></div>'+
-'<div style="padding:8px 0"><input type="text" id="ae" placeholder="Email" autocomplete="email"><input type="password" id="ap" placeholder="Password (6+ characters)" style="margin-top:8px"></div>')+
-'<div class="r"><div>'+(acc.kind=='join'?'Join my family':'I am the owner')+'<small>'+(acc.kind=='join'?'Use the code you got from the owner':'Your playlist and addons are shared with the family')+'</small></div><button class="g" onclick="acc.kind=acc.kind==\'join\'?\'owner\':\'join\';acctLoad()">'+(acc.kind=='join'?'I am the owner':'Join instead')+'</button></div>'+
-'<div style="padding:8px 0"><input type="text" id="an" placeholder="Your name"><input type="text" id="ac" placeholder="'+(acc.kind=='join'?'Invite code':'Family name (e.g. Fofana family)')+'" style="margin-top:8px"></div>'+
-'
-'<div style="display:flex;justify-content:flex-end;padding-top:10px"><button onclick="acctGo()">Continue</button></div>';
+'<div style="padding:4px 0 8px;color:#8a8a92">Sign in to keep your Continue Watching, My List, avatar and favorites on every TV. New here? The same form creates your account.</div>'+
+'<div style="padding:4px 0"><input type="text" id="ae" placeholder="Email" autocomplete="email" inputmode="email"><input type="password" id="ap" placeholder="Password (6+ characters)" autocomplete="current-password" style="margin-top:8px"></div>')+
+'<div style="padding:4px 0"><input type="text" id="an" placeholder="Your name"><input type="text" id="ac" placeholder="'+(acc.kind=='owner'?'Family name (e.g. Fofana family)':'Family invite code (if you got one)')+'" style="margin-top:8px"></div>'+
+'<div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px"><a href="#" style="color:#8a8a92;font-size:13px" onclick="acc.kind=acc.kind==\'owner\'?\'join\':\'owner\';acctLoad();return false">'+(acc.kind=='owner'?'I have an invite code instead':'Start a new family instead')+'</a><button onclick="acctGo()">Continue</button></div>';
 }).catch(function(){})}
 function v(id){var e=document.getElementById(id);return e?e.value:''}
-function acctGo(){if(!acc.av){toast('Choose your avatar');return}toast('Working...');var c=v('ac');
+function acctGo(){toast('Working...');var c=v('ac');
 api('acctgo',{mode:acc.mode,kind:acc.kind,e:v('ae'),p:v('ap'),name:v('an'),av:acc.av,code:acc.kind=='join'?c:'',fam:acc.kind=='owner'?c:''}).then(function(r){if(r.err)toast(r.err);else{toast('Done');setTimeout(acctLoad,600)}}).catch(function(){toast('Not done')})}
 function acctOut(){api('acctout').then(function(){setTimeout(acctLoad,400)})}
 function acctProb(){var d=document.getElementById('probs');d.innerHTML='<small>Loading...</small>';api('acctprob').then(function(r){if(r.err){d.innerHTML='<small>'+esc(r.err)+'</small>';return}
