@@ -365,13 +365,16 @@ object Library {
 
     fun toggleFav(c: Context, id: String) {
         if (!favs.remove(id)) favs.add(0, id)
-        prefs(c).edit().putString("favs", favs.joinToString("\n")).apply()
+        prefs(c).edit().putString("favs", favs.joinToString("\n")).apply(); CloudSync.kick(c)
     }
 
     fun toggleWatch(c: Context, id: String) {
         if (!watch.remove(id)) watch.add(0, id)
-        prefs(c).edit().putString("watch", watch.joinToString("\n")).apply()
+        prefs(c).edit().putString("watch", watch.joinToString("\n")).apply(); CloudSync.kick(c)
     }
+
+    /** Read again after the account brought newer data (CloudSync). */
+    fun reload(c: Context) { favs.clear(); watch.clear(); init(c) }
 }
 
 object QualityStore {
@@ -405,13 +408,15 @@ object History {
         ids.remove(id)
         ids.add(0, id)
         while (ids.size > 80) ids.removeAt(ids.lastIndex)
-        prefs(c).edit().putString("ids", ids.joinToString("\n")).apply()
+        prefs(c).edit().putString("ids", ids.joinToString("\n")).apply(); CloudSync.kick(c)
     }
+
+    fun reload(c: Context) { ids.clear(); init(c) }
 
     /** Removes a single title from "Recently watched". */
     fun remove(c: Context, id: String) {
         if (!ids.remove(id)) return
-        prefs(c).edit().putString("ids", ids.joinToString("\n")).apply()
+        prefs(c).edit().putString("ids", ids.joinToString("\n")).apply(); CloudSync.kick(c)
     }
 }
 
@@ -494,8 +499,10 @@ object WatchStore {
         val a = JSONArray()
         for (x in entries) a.put(JSONObject().put("i", x.itemId).put("t", x.title).put("u", x.url)
             .put("p", x.pos).put("d", x.dur).put("ts", x.ts).put("s", x.season).put("e", x.ep).put("n", x.next))
-        prefs(c).edit().putString("e", a.toString()).apply()
+        prefs(c).edit().putString("e", a.toString()).apply(); CloudSync.kick(c)
     }
+
+    fun reload(c: Context) { entries.clear(); init(c) }
 
     /**
      * What "Resume" plays: title and a CURRENT address from the loaded playlist
@@ -559,7 +566,7 @@ object EpProgress {
         }
         if (m.isEmpty()) {
             cache.remove(seriesId)
-            prefs(c).edit().remove(seriesId).apply()
+            prefs(c).edit().remove(seriesId).apply(); CloudSync.kick(c)
         } else store(c, seriesId, m)
     }
 
@@ -572,8 +579,12 @@ object EpProgress {
                 .sortedBy { (it.value as? String)?.substringBefore('|')?.toLongOrNull() ?: 0L }
                 .take(p.all.size - MAX_SERIES).forEach { e.remove(it.key); cache.remove(it.key) }
         }
-        e.apply()
+        e.apply(); CloudSync.kick(c)
     }
+
+    /** Forget the read copies (CloudSync wrote newer progress). */
+    @Synchronized
+    fun dropCache() = cache.clear()
 
     @Synchronized
     fun clear(c: Context) {

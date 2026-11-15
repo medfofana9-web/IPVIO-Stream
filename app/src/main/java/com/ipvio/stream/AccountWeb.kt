@@ -15,7 +15,16 @@ object AccountWeb {
         val m = FofAccount.member
         val avatars = ProfileAvatars.PRESETS.joinToString(",") { "{\"k\":${q(it.key)},\"u\":${q(ProfileAvatars.url(it))}}" }
         val mem = if (m == null) "null" else "{\"name\":${q(m.name)},\"avatar\":${q(m.avatar)},\"owner\":${m.owner}}"
-        return "{\"signedIn\":${FofAccount.signedIn},\"email\":${q(FofAccount.email.orEmpty())},\"member\":$mem,\"status\":${q(FofAccount.status)},\"avatars\":[$avatars]}"
+        return "{\"signedIn\":${FofAccount.signedIn},\"email\":${q(FofAccount.email.orEmpty())},\"member\":$mem,\"status\":${q(FofAccount.status)},\"sync\":${q(syncLine(c))},\"avatars\":[$avatars]}"
+    }
+
+    /** Which profile on this TV follows the person, and when it last synced. */
+    private fun syncLine(c: Context): String {
+        if (!FofAccount.signedIn) return ""
+        Profiles.init(c)
+        val p = Profiles.list.firstOrNull { it.id == CloudSync.linked(c) } ?: return ""
+        return "Continue watching, My List and favorites follow you (profile " + Profiles.displayName(p) + ")" +
+            (if (CloudSync.status.isNotBlank()) " · " + CloudSync.status else "")
     }
 
     /** Sign up or in, then start a family (owner) or join one (code). Name and avatar become this TV's main profile. */

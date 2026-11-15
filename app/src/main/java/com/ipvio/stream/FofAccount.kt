@@ -64,8 +64,9 @@ object FofAccount {
 
     // ---------------------------------------------------------------- HTTP
 
-    private fun call(method: String, path: String, body: String?, token: String?): Pair<Int, String> {
+    private fun call(method: String, path: String, body: String?, token: String?, prefer: String? = null): Pair<Int, String> {
         val b = Request.Builder().url(URL + path).header("apikey", KEY).header("Authorization", "Bearer " + (token ?: KEY))
+        if (prefer != null) b.header("Prefer", prefer)
         if (method == "POST") b.post((body ?: "{}").toRequestBody(JSON)) else if (method == "PATCH") b.patch((body ?: "{}").toRequestBody(JSON)).header("Prefer", "return=minimal")
         Net.withTimeouts(8, 12).newCall(b.build()).execute().use { r -> return r.code to (r.body?.string().orEmpty()) }
     }
@@ -93,12 +94,45 @@ object FofAccount {
             if (code !in 200..299) return@runCatching err(res, if (create) "Could not create the account." else "Email or password is not right.")
             val s = AccountLogic.sessionFrom(res) ?: return@runCatching "Account created – sign in with it now."
             save(c, s)
+            // This TV's active profile becomes the one that follows this person (watching progress, My List, favorites)
+            CloudSync.link(c, Profiles.active)
             refreshMember(c)
+            CloudSync.kick(c, 0)
             null
         }.getOrElse { "No connection to the account service." }
     }
 
-    fun signOut(c: Context) { save(c, null); saveMember(c, null); status = "" }
+    fun signOut(c: Context) { save(c, null); saveMember(c, null); status = ""; CloudSync.unlink(c) }
+
+    // ---------------------------------------------------------------- Personal data (CloudSync)
+
+    /** Time of the last change of this person's saved data (null = nothing saved yet), or an error. */
+    internal fun userDataAt(c: Context): Result<String?> = runCatching {
+        val t = token(c) ?: error("signed out")
+        val uid = session?.userId ?: error("signed out")
+        val (code, body) = call("GET", "/rest/v1/user_data?select=updated_at&user_id=eq.$uid", null, t)
+        if (code !in 200..299) error("HTTP $code")
+        org.json.JSONArray(body).optJSONObject(0)?.optString("updated_at")?.ifBlank { null }
+    }
+
+    /** This person's saved data and its time. */
+    internal fun userDataGet(c: Context): Result<Pair<JSONObject, String>?> = runCatching {
+        val t = token(c) ?: error("signed out")
+        val uid = session?.userId ?: error("signed out")
+        val (code, body) = call("GET", "/rest/v1/user_data?select=data,updated_at&user_id=eq.$uid", null, t)
+        if (code !in 200..299) error("HTTP $code")
+        org.json.JSONArray(body).optJSONObject(0)?.let { (it.optJSONObject("data") ?: JSONObject()) to it.optString("updated_at") }
+    }
+
+    /** Saves this person's data; returns the server's time of the change. */
+    internal fun userDataPut(c: Context, data: JSONObject): Result<String> = runCatching {
+        val t = token(c) ?: error("signed out")
+        val uid = session?.userId ?: error("signed out")
+        val body = JSONObject().put("user_id", uid).put("data", data).toString()
+        val (code, res) = call("POST", "/rest/v1/user_data?on_conflict=user_id", body, t, "resolution=merge-duplicates,return=representation")
+        if (code !in 200..299) error("HTTP $code")
+        org.json.JSONArray(res).optJSONObject(0)?.optString("updated_at")?.ifBlank { null } ?: error("no time")
+    }
 
     /** Reads this person's family membership. */
     suspend fun refreshMember(c: Context): Member? = withContext(Dispatchers.IO) {

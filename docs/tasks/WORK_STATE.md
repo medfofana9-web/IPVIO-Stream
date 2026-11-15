@@ -1,5 +1,13 @@
 # Work state
 
+## 15 Nov 2026 – 1.3.72: personal data sync (CloudSync)
+- `CloudSync.kt` (Android) + `CloudSyncLogic.kt` (`SyncLogic`, pure, tested in `SyncLogicTest`).
+- Stores: ipvio_watch, ipvio_eprog, ipvio_hist, ipvio_lib, fof_catalog_items, ipvio_catfavs, ipvio_chlists of the
+  profile linked at sign-in (`fof_account` keys sync_profile, sync_hash, sync_at).
+- Supabase `user_data` (one row per person, RLS self only) + trigger `user_data_touch` (server time). Live-tested with a
+  throwaway user (save, update, read back, anon blocked); test user deleted.
+- Not synced: sports teams, settings, avatar (device-wide).
+
 ## Last session (15 Nov 2026) – release 1.3.70
 - Done: full audit on the test TV (all CHECK PASS, screenshots of every screen reviewed; fixed German design names,
   "0 seasons", sports row order), premium neutral accent (no red), Home live row NBA + soccer, join-family on first start,

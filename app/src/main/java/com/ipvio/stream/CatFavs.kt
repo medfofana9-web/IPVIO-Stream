@@ -8,6 +8,8 @@ object CatFavs {
     private var inited = false
     private fun prefs(c: Context) = Profiles.sp(c, "ipvio_catfavs")
 
+    fun reload(c: Context) { inited = false; list.clear(); init(c) }
+
     fun init(c: Context) {
         if (inited) return
         inited = true
@@ -17,6 +19,6 @@ object CatFavs {
     fun toggle(c: Context, name: String) {
         init(c)
         if (!list.remove(name)) list.add(0, name)
-        prefs(c).edit().putString("c", list.joinToString("\n")).apply()
+        prefs(c).edit().putString("c", list.joinToString("\n")).apply(); CloudSync.kick(c)
     }
 }

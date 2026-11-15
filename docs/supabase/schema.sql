@@ -158,3 +158,11 @@ drop policy if exists rep_owner_delete on public.reports;
 create policy rep_owner_delete on public.reports for delete to authenticated using (public.i_am_owner(household_id));
 revoke all on public.reports from anon;
 create index if not exists reports_household on public.reports (household_id, happened_at desc);
+
+-- ---------------------------------------------------------------- Personal data sync (added in 1.3, CloudSync)
+-- The server sets the time of every change, so TVs with wrong clocks still sync in the right order.
+create or replace function public.touch_updated_at() returns trigger
+language plpgsql set search_path = public as $$ begin new.updated_at = now(); return new; end $$;
+drop trigger if exists user_data_touch on public.user_data;
+create trigger user_data_touch before insert or update on public.user_data for each row execute function public.touch_updated_at();
+revoke all on public.user_data from anon;

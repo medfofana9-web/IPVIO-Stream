@@ -1,5 +1,15 @@
 # Changelog
 
+## Fof TV 1.3.72 (November 2026)
+**Your watching follows you**
+- Signed in with a Fof account, your Continue watching (to the second), watched episodes and movies, Recently watched,
+  My List, favorites and channel lists are saved to your account and come back on every TV you sign in on
+- It syncs a few seconds after you stop watching or change a list, when you leave the app, when you come back, and
+  every 2 minutes. If two TVs changed something at the same time, both are kept (per title the newer state wins)
+- The account is linked to the profile that was active when you signed in on that TV; the phone page shows which one
+  and when it last synced (Family account → Your watching)
+- Only you can read your saved data (checked on the account service)
+
 ## Fof TV 1.3.70 (November 2026)
 **Look**
 - Premium neutral look: the red accent is gone. Buttons, focus, the player's seek bar and progress bars are platinum white; intro and credits marks on the seek bar are soft amber; no glow under the played part

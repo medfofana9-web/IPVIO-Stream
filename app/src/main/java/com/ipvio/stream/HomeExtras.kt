@@ -25,6 +25,8 @@ object CatalogItems {
 
     private fun sp(c: Context) = Profiles.sp(c, "fof_catalog_items")
 
+    fun reload(c: Context) { loadedFor = null; init(c) }
+
     fun init(c: Context) {
         val key = Profiles.active.toString()
         if (loadedFor == key) return
@@ -55,7 +57,7 @@ object CatalogItems {
             x.year?.let { o.put("y", it) }; x.logo?.let { o.put("p", it) }
             a.put(o)
         }
-        sp(c).edit().putString("a", a.toString()).apply()
+        sp(c).edit().putString("a", a.toString()).apply(); CloudSync.kick(c)
     }
 }
 

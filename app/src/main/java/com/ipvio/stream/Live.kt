@@ -23,6 +23,8 @@ object ChannelLists {
     private var inited = false
     private fun prefs(c: Context) = Profiles.sp(c, "ipvio_chlists")
 
+    fun reload(c: Context) { inited = false; lists.clear(); init(c) }
+
     fun init(c: Context) {
         if (inited) return
         inited = true
@@ -31,7 +33,7 @@ object ChannelLists {
 
     private fun set(c: Context, l: List<ChList>) {
         lists.clear(); lists.addAll(l)
-        prefs(c).edit().putString("l", ChannelListLogic.encode(l)).apply()
+        prefs(c).edit().putString("l", ChannelListLogic.encode(l)).apply(); CloudSync.kick(c)
     }
 
     fun byKey(k: String): ChList? = ChannelListLogic.idOfKey(k)?.let { id -> lists.firstOrNull { it.id == id } }

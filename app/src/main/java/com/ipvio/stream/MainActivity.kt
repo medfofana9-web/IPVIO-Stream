@@ -67,6 +67,15 @@ class MainActivity : ComponentActivity() {
             kotlinx.coroutines.delay(10_000)
             while (true) { runCatching { FofAccount.sync(this@MainActivity) }; kotlinx.coroutines.delay(3 * 3600_000L) }
         }
+        // Personal data (Continue watching, watched, My List, favorites) follows the signed-in person: every 2 minutes
+        // while the app is open (cheap: only a time stamp is fetched when nothing changed); also on return and on leaving
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+            kotlinx.coroutines.delay(4_000)
+            while (true) {
+                if (FofAccount.signedIn && Reminders.foreground) CloudSync.run(applicationContext)
+                kotlinx.coroutines.delay(120_000)
+            }
+        }
         // Search index built once in the background after Home settled, so the first key press in Search finds it ready
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
             kotlinx.coroutines.delay(12_000)
@@ -139,6 +148,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         Reminders.foreground = false
+        // Leaving the app or the TV goes to sleep: save where this person stopped right away
+        CloudSync.now(applicationContext)
         super.onStop()
     }
 
@@ -158,6 +169,8 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // After standby or app switch set the window flag again in case the system dropped it
         ScreenAwake.apply()
+        // Back in the app: pick up what this person watched on another TV
+        CloudSync.now(applicationContext)
     }
 
     override fun onDestroy() {
