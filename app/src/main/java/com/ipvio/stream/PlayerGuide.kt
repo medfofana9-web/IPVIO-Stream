@@ -199,12 +199,13 @@ fun Guide(
                     addRect(androidx.compose.ui.geometry.Rect(0f, 0f, size.width, size.height))
                     addRoundRect(hole)
                 }
-                drawPath(path, Color(0xF7090B12))
+                drawPath(path, Color(0xFC1E2930))
             }
             .padding(start = 24.dp, top = 14.dp, bottom = 10.dp, end = 24.dp)
     ) {
         Row(Modifier.fillMaxWidth().height(238.dp)) {
-            Column(Modifier.weight(1f).fillMaxHeight().padding(end = 20.dp)) {
+            Spacer(Modifier.width(400.dp))
+            Column(Modifier.weight(1f).fillMaxHeight().padding(start = 20.dp)) {
                 // Header: title, date and time, Now and View
                 Row(Modifier.fillMaxWidth().height(58.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     MenuIcon(3, Accent1, Modifier.size(30.dp))
@@ -258,12 +259,11 @@ fun Guide(
                 }
                 GuideDetailPanel(infoE, infoItem, nowSec, Modifier.weight(1f).fillMaxWidth().padding(top = 4.dp))
             }
-            Spacer(Modifier.width(400.dp))
         }
         Row(Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp)) {
             // Categories
             LazyColumn(
-                Modifier.width(206.dp).fillMaxHeight().clip(RoundedCornerShape(DS.RadiusL)).background(Color(0x0FFFFFFF)),
+                Modifier.width(206.dp).fillMaxHeight().background(Color(0xFF243139)),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(8.dp),
                 verticalArrangement = Arrangement.spacedBy(3.dp)
             ) {
@@ -273,7 +273,7 @@ fun Guide(
                 }
             }
             Spacer(Modifier.width(12.dp))
-            BoxWithConstraints(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(DS.RadiusL)).background(Color(0x0AFFFFFF)).padding(horizontal = 8.dp, vertical = 6.dp)) {
+            BoxWithConstraints(Modifier.weight(1f).fillMaxHeight().background(Color(0xFF1E2930)).padding(horizontal = 0.dp, vertical = 4.dp)) {
                 val vm = ((maxWidth - 208.dp).value / dpm).toInt().coerceAtLeast(40)
                 SideEffect { if (viewMin != vm) viewMin = vm }
                 Column(Modifier.fillMaxSize()) {
@@ -334,9 +334,12 @@ fun Guide(
 }
 
 /** Opaque colors of the show fields (no transparency, see GuideRow). */
-private val BlockBase = Color(0xFF1C202B)
-private val BlockPast = Color(0xFF15181F)
-private val BlockLine = Color(0xFF2A2F3B)
+// TiviMate-style guide cells: slate blocks, darker past, thin dark gaps, light focus
+private val BlockBase = Color(0xFF2C3A42)
+private val BlockPast = Color(0xFF25323A)
+private val BlockLine = Color(0xFF1E2930)
+private val BlockFocus = Color(0xFFDDE4E8)
+private val BlockNow = Color(0xFF34444D)
 
 /** A category on the left in the TV guide. */
 class GuideCat(val name: String, val items: List<Item>, val icon: AIcon?)
@@ -363,11 +366,11 @@ fun guideCategories(list: List<Item>, all: List<Item>): List<GuideCat> {
 @Composable
 private fun GuideCatRow(c: GuideCat, selected: Boolean, modifier: Modifier, onFocus: () -> Unit, onLeft: () -> Unit, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(DS.RadiusS)
+    // TiviMate: the chosen group is a light bar, focus a lighter slate
+    val shape = RoundedCornerShape(2.dp)
     Row(
         modifier.fillMaxWidth().clip(shape)
-            .background(if (f) RowFocus else if (selected) Accent1.copy(alpha = .18f) else Color.Transparent)
-            .border(if (f) DS.Border else 1.dp, if (f) Accent2 else if (selected) Accent1.copy(alpha = .55f) else Color.Transparent, shape)
+            .background(if (selected) BlockFocus else if (f) Color(0xFF34444D) else Color.Transparent)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
             // Left in the categories: close the guide (like Back)
             .onPreviewKeyEvent { ev -> if (ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionLeft) { onLeft(); true } else false }
@@ -375,11 +378,11 @@ private fun GuideCatRow(c: GuideCat, selected: Boolean, modifier: Modifier, onFo
             .padding(horizontal = 10.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        if (c.icon != null) AppIcon(c.icon, if (c.icon == AIcon.Star) DS.Gold else if (selected) Accent1 else Muted, size = 15.dp)
+        if (c.icon != null) AppIcon(c.icon, if (c.icon == AIcon.Star) DS.Gold else if (selected) Color(0xFF263238) else Muted, size = 15.dp)
         // Provider names stay as they are; the app's own labels are translated
-        Text(c.name, color = Color.White, fontSize = 14.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+        Text(c.name, color = if (selected) Color(0xFF111619) else Color.White, fontSize = 16.sp, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f), raw = c.icon == null || c.icon == AIcon.Lists)
-        Text(raw = true, text = c.items.size.toString(), color = Muted, fontSize = 13.sp)
+        Text(raw = true, text = c.items.size.toString(), color = if (selected) Color(0x99111619) else Muted, fontSize = 13.sp)
     }
 }
 
@@ -405,7 +408,7 @@ private fun GuideHint(key: String?, text: String, vararg keys: AIcon) {
 private fun GuideDetailPanel(e: EpgEntry?, ch: Item?, nowSec: Long, modifier: Modifier) {
     val shape = RoundedCornerShape(DS.RadiusL)
     Row(
-        modifier.clip(shape).background(Color(0x0FFFFFFF)).border(1.dp, Color(0x14FFFFFF), shape).padding(horizontal = 18.dp, vertical = 12.dp),
+        modifier.padding(horizontal = 4.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -481,13 +484,12 @@ private fun GuideRow(
     val blockReqs = remember(entries) { HashMap<Long, FocusRequester>() }
     val from = winStart - 120 * 60L
     val to = winStart + (viewMin + 120) * 60L
-    Row(Modifier.height(rowH).padding(vertical = 3.dp)) {
+    Row(Modifier.height(rowH).padding(vertical = 1.dp)) {
         var f by remember { mutableStateOf(false) }
-        val shape = RoundedCornerShape(DS.RadiusS)
+        val shape = RoundedCornerShape(2.dp)
         Row(
-            Modifier.focusRequester(cellReq).width(208.dp).fillMaxHeight().padding(end = 8.dp).clip(shape)
-                .background(if (f) Accent1.copy(alpha = .30f) else if (current) DS.Overlay2 else Color(0x12FFFFFF))
-                .border(if (f) DS.Border else 1.dp, if (f) Accent1 else Color(0x0FFFFFFF), shape)
+            Modifier.focusRequester(cellReq).width(230.dp).fillMaxHeight().padding(end = 2.dp).clip(shape)
+                .background(if (f) BlockFocus else if (current) BlockNow else Color(0xFF26343C))
                 .onFocusChanged {
                     f = it.isFocused
                     if (it.isFocused) {
@@ -504,16 +506,16 @@ private fun GuideRow(
                 .padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Box(Modifier.size(38.dp).clip(RoundedCornerShape(DS.RadiusXs)).background(DS.Overlay2), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(width = 52.dp, height = 34.dp), contentAlignment = Alignment.Center) {
                 // No logo (or it fails): the channel's short name, e.g. "TNT" for "US: TNT East"
                 var bad by remember(ch.logo) { mutableStateOf(false) }
                 if (ch.logo.isNullOrBlank() || bad) Text(raw = true, text = SportNet.stripPrefix(ch.title).split(' ').firstOrNull { it.isNotBlank() }.orEmpty().take(4).uppercase(),
-                    color = Color(0xCCFFFFFF), fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    color = if (f) Color(0xFF263238) else Color(0xCCFFFFFF), fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                 else AsyncImage(ch.logo, null, Modifier.fillMaxSize().padding(3.dp), contentScale = ContentScale.Fit, onError = { bad = true })
             }
             Text(
-                ch.title, color = Color.White, fontSize = 14.sp,
-                fontWeight = if (current || f) FontWeight.ExtraBold else FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis
+                ch.title, color = if (f) Color(0xFF111619) else Color.White, fontSize = 15.sp,
+                fontWeight = if (current || f) FontWeight.Bold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis
             )
         }
         Box(Modifier.weight(1f).fillMaxHeight().clipToBounds()) {
@@ -534,17 +536,17 @@ private fun GuideRow(
                     val dw = if (bf) maxOf(w, 200f) else w
                     val frac = if (isNow) ((nowSec - e.start).toFloat() / (e.end - e.start)).coerceIn(0f, 1f) else 0f
                     val req = blockReqs.getOrPut(e.start) { FocusRequester() }
-                    val blockShape = RoundedCornerShape(DS.RadiusS)
+                    val blockShape = RoundedCornerShape(2.dp)
                     Box(
                         Modifier.offset(x = x.dp).zIndex(if (bf) 2f else 0f).width(dw.dp).fillMaxHeight().clip(blockShape)
                             .then(
                                 // All fields opaque (round 14): the selected show becomes wider and lies over its neighbors –
                                 // semi-transparent, the texts of short shows would overlap
-                                if (bf) Modifier.background(Brush.horizontalGradient(listOf(lerp(BlockBase, Accent1, .62f), lerp(BlockBase, Accent1, .42f))))
-                                else if (isNow) Modifier.background(lerp(BlockBase, Accent1, .16f))
+                                if (bf) Modifier.background(BlockFocus)
+                                else if (isNow) Modifier.background(BlockNow)
                                 else Modifier.background(if (past && !inArchive) BlockPast else BlockBase)
                             )
-                            .border(if (bf) 2.dp else 1.dp, if (bf) Accent1 else if (isNow) lerp(BlockBase, Accent1, .40f) else BlockLine, blockShape)
+                            .border(1.dp, BlockLine, blockShape)
                             .focusRequester(req)
                             .onPreviewKeyEvent { ev ->
                                 // Seek keys: one day back/forward (quickly to older shows in the archive)
@@ -602,20 +604,20 @@ private fun GuideRow(
                         // Design: title on top, time below
                         if (dw >= 44f) Column {
                             if (dw >= 72f) Text(
-                                e.title, color = if (past && !inArchive && !bf) Color(0xFF9AA0B2) else Color.White,
-                                fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, raw = true
+                                e.title, color = if (bf) Color(0xFF111619) else if (past && !inArchive) Color(0xFF8A99A1) else Color.White,
+                                fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, raw = true
                             )
                             Text(
-                                raw = true, text = hhmm(e.start) + " – " + hhmm(e.end), color = if (bf) Color(0xE6FFFFFF) else Muted,
+                                raw = true, text = hhmm(e.start) + " – " + hhmm(e.end), color = if (bf) Color(0xB3111619) else Color(0xFF8FA1AA),
                                 fontSize = 13.sp, style = TNUM, maxLines = 1
                             )
                         }
-                        if (isNow) Box(Modifier.align(Alignment.BottomStart).height(3.dp).width((dw * frac).dp).background(if (bf) Color.White else Accent1))
+                        if (isNow) Box(Modifier.align(Alignment.BottomStart).height(2.dp).width((dw * frac).dp).background(if (bf) Color(0xFF263238) else Color(0xFF8FB3C4)))
                     }
                 }
             }
             val nx = (nowSec - winStart) / 60f * dpm
-            if (nx > 0f && nx < viewMin * dpm) Box(Modifier.offset(x = nx.dp).width(2.dp).fillMaxHeight().background(Accent2.copy(alpha = 0.8f)))
+            if (nx > 0f && nx < viewMin * dpm) Box(Modifier.offset(x = nx.dp).width(1.dp).fillMaxHeight().background(Color(0xCCB0C4CE)))
         }
     }
 }

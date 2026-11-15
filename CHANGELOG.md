@@ -4,6 +4,8 @@
 - Live games also come from your Stremio addons (Pengu and other live/sports addons): their live channels and events
   are searched for the game, and matching streams are offered right after channels named after the game. Watch Live
   asks the addons first (up to 4 seconds)
+- Live TV guide restyled like TiviMate: video preview top left with the show info beside it, flat slate rows with thin
+  lines, channel logos without boxes, the chosen group as a light bar, light focus with dark text, thin time line
 
 ## Fof TV 1.3.79 (November 2026)
 **Live games: right channel, fresh scores**
