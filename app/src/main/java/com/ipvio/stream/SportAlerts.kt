@@ -134,16 +134,14 @@ object SportAlerts {
                         val a = g.away.score?.toIntOrNull()
                         val prev = last[id]
                         last[id] = Snap(g.state, h, a)
-                        val line = g.home.short + " " + (h ?: 0) + " : " + (a ?: 0) + " " + g.away.short
                         if (!enabled) continue
                         if (g.state == 0 && g.start - now in 0..600 && soonDone.add(id)) {
                             post(Alert(Lang.tr("Dein Team spielt gleich"), g.home.short + " – " + g.away.short + "  ·  " + hhmm(g.start)), 0)
                         }
                         if (prev == null) continue
+                        // Start of the game only: no alert for every score (close games are announced by Game Day)
                         if (prev.state == 0 && g.state == 1) {
                             post(Alert(Lang.tr("Dein Team spielt jetzt"), g.home.short + " – " + g.away.short + "  ·  " + g.league), 0)
-                        } else if (g.state == 1 && prev.state == 1 && (prev.h != h || prev.a != a)) {
-                            launch { post(Alert(Lang.tr("Punkte!"), line), delaySec) }
                         }
                     }
                 } else { last.clear(); live = emptyList() }
