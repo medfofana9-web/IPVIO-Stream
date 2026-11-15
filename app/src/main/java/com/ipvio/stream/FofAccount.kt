@@ -221,12 +221,12 @@ object FofAccount {
     // ---------------------------------------------------------------- Shared setup
 
     /** Owner: put this TV's playlist and addons into the family setup. */
-    suspend fun share(c: Context): String? = withContext(Dispatchers.IO) {
+    suspend fun share(c: Context, keepUrl: String? = null): String? = withContext(Dispatchers.IO) {
         val m = member ?: return@withContext "Not in a family yet."
         if (!m.owner) return@withContext "Only the owner can share the setup."
         val t = token(c) ?: return@withContext "Sign in first."
         Stremio.ensure(c)
-        val url = PlaylistStore.savedUrl(c).orEmpty()
+        val url = keepUrl?.takeIf { it.isNotBlank() } ?: PlaylistStore.savedUrl(c).orEmpty()
         val addons = JSONArray().apply { Stremio.addons.forEach { put(it.base) } }
         val body = JSONObject().put("playlist_url", url).put("addons", addons).put("updated_at", "now").toString()
         runCatching {
@@ -250,8 +250,19 @@ object FofAccount {
         runCatching { report(c, m, t) }
         if (cfg == null) { status = "Could not reach the family setup"; return }
         // The owner's TV is the source of the setup; only a fresh install of it (no playlist yet) takes the saved setup back
-        if (m.owner && PlaylistStore.savedUrl(c) != null) { status = "Owner of the family setup"; return }
         Stremio.ensure(c)
+        if (m.owner) {
+            // Every TV of the owner gets the owner's addons and playlist; nothing local is removed or replaced
+            val have0 = Stremio.addons.map { it.base.lowercase() }.toSet()
+            for (a in cfg.second) if (a.lowercase() !in have0) Stremio.add(c, a)
+            if (PlaylistStore.savedUrl(c) == null && cfg.first.isNotBlank()) withContext(Dispatchers.Main) { PlaylistStore.load(c, cfg.first, save = true) }
+            // Keep the shared setup complete: publish addons added on this TV (and the playlist when none is shared yet)
+            val shared = cfg.second.map { it.lowercase() }.toSet()
+            val missing = Stremio.addons.any { it.base.lowercase() !in shared }
+            if (missing || (cfg.first.isBlank() && PlaylistStore.savedUrl(c) != null)) runCatching { share(c, keepUrl = cfg.first) }
+            status = "Owner of the family setup"
+            return
+        }
         val fromFamily = prefs(c).getStringSet("fam_addons", emptySet()).orEmpty()
         val have = Stremio.addons.map { it.base.lowercase() }.toSet()
         for (a in cfg.second) if (a.lowercase() !in have) Stremio.add(c, a)

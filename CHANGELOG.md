@@ -1,5 +1,11 @@
 # Changelog
 
+## Fof TV 1.3.82 (November 2026)
+- Signing in to your account on another TV now brings your Stremio addons (and your playlist, when that TV has none)
+  automatically, also for the family owner. Nothing already on that TV is removed or replaced
+- The owner's TVs keep the shared family setup up to date on their own: addons added on any of them are shared
+  without pressing Share
+
 ## Fof TV 1.3.80 (November 2026)
 - Live games also come from your Stremio addons (Pengu and other live/sports addons): their live channels and events
   are searched for the game, and matching streams are offered right after channels named after the game. Watch Live
