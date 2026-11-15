@@ -67,6 +67,8 @@ class MainActivity : ComponentActivity() {
             kotlinx.coroutines.delay(10_000)
             while (true) { runCatching { FofAccount.sync(this@MainActivity) }; kotlinx.coroutines.delay(3 * 3600_000L) }
         }
+        // Extra audio decoder (AC3/DTS): checked in the background so the first player never waits for it
+        SoftAudio.warmUp(this)
         // Personal data (Continue watching, watched, My List, favorites) follows the signed-in person: every 2 minutes
         // while the app is open (cheap: only a time stamp is fetched when nothing changed); also on return and on leaving
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {

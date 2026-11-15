@@ -10,6 +10,10 @@
   and when it last synced (Family account → Your watching)
 - Only you can read your saved data (checked on the account service)
 
+**Fixed**
+- Opening the first video after starting the app could freeze the screen for several seconds and Android closed the app
+  ("not responding"): the check for the extra audio decoder (AC3/DTS) now runs in the background at start
+
 ## Fof TV 1.3.70 (November 2026)
 **Look**
 - Premium neutral look: the red accent is gone. Buttons, focus, the player's seek bar and progress bars are platinum white; intro and credits marks on the seek bar are soft amber; no glow under the played part

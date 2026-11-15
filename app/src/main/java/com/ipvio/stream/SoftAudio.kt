@@ -14,12 +14,21 @@ import androidx.media3.exoplayer.audio.DefaultAudioSink
  * decoder once on trial before it is switched on and catches every error (no crash during playback).
  */
 object SoftAudio {
-    private var checked = false
-    private var ok = false
+    @Volatile private var checked = false
+    @Volatile private var ok = false
 
+    /**
+     * The check loads the large FFmpeg library: done once in the background shortly after start ([warmUp]).
+     * On a Fire TV it took over 4 s on the main thread when the first player opened (Android "app not responding").
+     */
+    fun warmUp(ctx: Context) {
+        val app = ctx.applicationContext
+        Thread({ runCatching { available(app) } }, "SoftAudioCheck").apply { priority = Thread.MIN_PRIORITY }.start()
+    }
+
+    @Synchronized
     fun available(ctx: Context): Boolean {
         if (checked) return ok
-        checked = true
         ok = try {
             val c = Class.forName("androidx.media3.decoder.ffmpeg.FfmpegAudioRenderer")
                 .getConstructor(Handler::class.java, AudioRendererEventListener::class.java, AudioSink::class.java)
@@ -28,11 +37,13 @@ object SoftAudio {
         } catch (t: Throwable) {
             false
         }
+        checked = true
         return ok
     }
 
+    /** Never waits: until the background check is done the player starts without the extra decoder (device audio). */
     fun factory(ctx: Context): DefaultRenderersFactory =
         DefaultRenderersFactory(ctx)
-            .setExtensionRendererMode(if (available(ctx)) DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON else DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
+            .setExtensionRendererMode(if (checked && ok) DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON else DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
             .setEnableDecoderFallback(true)
 }
