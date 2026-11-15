@@ -152,9 +152,16 @@ private class Choice(val value: String, val image: String, val name: String, val
 
 /** Choices from what the app already shows: scenes of shows and movies, players of the teams in Sports. */
 private object AvatarSources {
-    fun titles(kind: Kind): List<Choice> {
+    /** Your titles first, then the popular ones (loaded from the saved list or the internet if not in memory yet). */
+    suspend fun titles(c: Context, kind: Kind): List<Choice> = withContext(Dispatchers.IO) {
+        withContext(Dispatchers.Main) { CatalogItems.init(c) }
+        Catalog.init(c)
+        val pop = Catalog.cached(Catalog.popular(kind), 3).ifEmpty { runCatching { Catalog.items(Catalog.popular(kind), 3) }.getOrDefault(emptyList()) }
+        titlesOf(CatalogItems.all().filter { it.kind == kind } + pop, kind)
+    }
+
+    private fun titlesOf(src: List<Item>, kind: Kind): List<Choice> {
         val seen = HashSet<String>()
-        val src = CatalogItems.all().filter { it.kind == kind } + Catalog.cached(Catalog.popular(kind), 3)
         return src.mapNotNull { i ->
             val m = Catalog.meta(i)
             val pic = m?.backdrop?.takeIf { it.startsWith("https://") } ?: i.logo?.takeIf { it.startsWith("https://") } ?: return@mapNotNull null
@@ -199,10 +206,11 @@ fun AvatarPicker(profileId: Int, onClose: () -> Unit) {
     var preview by remember { mutableStateOf<Choice?>(null) }
     var saved by remember { mutableStateOf(false) }
     var focused by remember { mutableStateOf<Choice?>(null) }
-    val shows = remember { AvatarSources.titles(Kind.SERIES) }
-    val movies = remember { AvatarSources.titles(Kind.MOVIE) }
+    val shows by produceState<List<Choice>?>(null) { value = AvatarSources.titles(ctx, Kind.SERIES) }
+    val movies by produceState<List<Choice>?>(null) { value = AvatarSources.titles(ctx, Kind.MOVIE) }
     val players by produceState<List<Choice>?>(null, tab) { if (tab == "pl" && value == null) value = AvatarSources.players() }
-    val all = when (tab) { "tv" -> shows; "mo" -> movies; "pl" -> players.orEmpty(); else -> emptyList() }
+    val cur = when (tab) { "tv" -> shows; "mo" -> movies; "pl" -> players; else -> emptyList() }
+    val all = cur.orEmpty()
     val shown = remember(all, query) { val q = query.trim().lowercase(); if (q.isEmpty()) all else all.filter { it.name.lowercase().contains(q) || it.sub.lowercase().contains(q) } }
     val gridStart = remember { FocusRequester() }
     val tabFirst = remember { FocusRequester() }
@@ -216,8 +224,9 @@ fun AvatarPicker(profileId: Int, onClose: () -> Unit) {
             else -> onClose()
         }
     }
-    LaunchedEffect(Unit) {
-        repeat(10) { delay(60); if (runCatching { gridStart.requestFocus() }.getOrDefault(false) || runCatching { tabFirst.requestFocus() }.getOrDefault(false)) return@LaunchedEffect }
+    // Start on the first picture as soon as there is one (else on the tabs)
+    LaunchedEffect(shown.isNotEmpty()) {
+        repeat(10) { delay(60); if (runCatching { gridStart.requestFocus() }.getOrDefault(false) || (shown.isEmpty() && runCatching { tabFirst.requestFocus() }.getOrDefault(false))) return@LaunchedEffect }
     }
     val profileName = remember { Profiles.list.firstOrNull { it.id == profileId }?.let { Profiles.displayName(it) } ?: "" }
 
@@ -252,7 +261,7 @@ fun AvatarPicker(profileId: Int, onClose: () -> Unit) {
             Spacer(Modifier.height(10.dp))
             when {
                 tab == "ph" -> PhotoHelp()
-                tab == "pl" && players == null -> Text("Loading players …", color = Color(0x99FFFFFF), fontSize = 18.sp, raw = true)
+                cur == null -> Text(if (tab == "pl") "Loading players …" else "Loading …", color = Color(0x99FFFFFF), fontSize = 18.sp, raw = true)
                 shown.isEmpty() -> Text(
                     if (query.isNotBlank()) "Nothing matches “$query”." else if (tab == "pl") "No players yet – open Sports once, or follow a team." else "Nothing here yet – browse some titles first.",
                     color = Color(0x99FFFFFF), fontSize = 18.sp, raw = true)
