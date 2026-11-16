@@ -173,6 +173,11 @@ object CloudSync {
                 }
                 continue
             }
+            if (n == SyncLogic.KIDS) {
+                val hide = c.applicationContext.getSharedPreferences(Profiles.scopedName("ipvio_general", pid), Context.MODE_PRIVATE).getBoolean("parental_hide", false)
+                o.put(n, SyncLogic.encode(mapOf("k" to hide)))
+                continue
+            }
             if (n == SyncLogic.AVATAR) {
                 ProfileAvatars.keyOf(c, pid)?.let { k ->
                     val m = HashMap<String, Any>(); m["a"] = k
@@ -196,6 +201,10 @@ object CloudSync {
                     if (Profiles.list.firstOrNull { it.id == pid }?.let { Profiles.displayName(it) } != nm)
                         kotlinx.coroutines.runBlocking(Dispatchers.Main) { Profiles.rename(c, pid, nm) }
                 }
+                continue
+            }
+            if (n == SyncLogic.KIDS) {
+                (SyncLogic.decodeValue(o.optJSONArray("k")) as? Boolean)?.let { Parental.setHideFor(c, pid, it) }
                 continue
             }
             if (n == SyncLogic.AVATAR) {

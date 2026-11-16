@@ -23,8 +23,11 @@ object SyncLogic {
         "ipvio_sportfavs",    // favorite teams
         "ipvio_sportleagues", // leagues on/off
         AVATAR,               // the profile's avatar (not a file: written through ProfileAvatars)
-        NAME                  // the profile's name (shown on every TV)
+        NAME,                 // the profile's name (shown on every TV)
+        KIDS                  // kids profile: adult content hidden (the PIN itself stays on the server)
     )
+
+    const val KIDS = "fof_kids"
 
     const val AVATAR = "fof_avatar"
     const val NAME = "fof_pname"

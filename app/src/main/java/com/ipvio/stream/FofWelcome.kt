@@ -49,6 +49,8 @@ fun FofWelcome(onPick: (Int) -> Unit) {
     var newFlow by remember { mutableStateOf<Int?>(null) }
     // New profile, after the picture: who it is for (kids = adult content hidden)
     var audience by remember { mutableStateOf<Int?>(null) }
+    // A profile saved on this TV before sign-in: add it to the account or remove it from this TV (explicit)
+    var legacy by remember { mutableStateOf<Int?>(null) }
     var note by remember { mutableStateOf<String?>(null) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val first = remember { FocusRequester() }
@@ -69,17 +71,15 @@ fun FofWelcome(onPick: (Int) -> Unit) {
             FofLogo(44.dp, 30.sp)
             Spacer(Modifier.weight(1f))
             Column(horizontalAlignment = Alignment.End) {
-                Text(android.text.format.DateFormat.getTimeFormat(ctx).format(java.util.Date(now)), color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.SemiBold, raw = true)
-                Text(greeting(now), color = Color(0x99FFFFFF), fontSize = 16.sp, raw = true)
+                Text(android.text.format.DateFormat.getTimeFormat(ctx).format(java.util.Date(now)), color = Color(0xB3FFFFFF), fontSize = 24.sp, fontWeight = FontWeight.Medium, raw = true)
             }
         }
         Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(if (manage) "Manage profiles" else "Who's watching?", color = Color.White, fontSize = 52.sp, fontWeight = FontWeight.Bold, raw = true)
             // The account this TV is signed in to, as a quiet line under the title
             Spacer(Modifier.height(8.dp))
-            if (FofAccount.signedInState) Text("Fof TV account · " + FofAccount.email.orEmpty(), color = Color(0x99FFFFFF), fontSize = 16.sp, raw = true)
             // Not signed in: say plainly what is missing (this TV shows nothing from the account until it signs in)
-            else Text("This TV is not signed in. Sign in to bring your profiles, addons and Continue Watching here.",
+            if (!FofAccount.signedInState) Text("This TV is not signed in. Sign in to bring your profiles, addons and Continue Watching here.",
                 color = Color(0xCCFFFFFF), fontSize = 17.sp, raw = true)
             Spacer(Modifier.height(56.dp))
             // Up to 10 profiles: one row up to 5, then two rows; the "+" tile adds one (master PIN asked when set)
@@ -88,11 +88,13 @@ fun FofWelcome(onPick: (Int) -> Unit) {
             val tiles: List<Int?> = Profiles.list.indices.filter { Profiles.list[it].id !in lo } +
                 (if (Profiles.list.size < Profiles.MAX) listOf(null) else emptyList())
             val big = tiles.size > 5
+            // Focus starts on the last used profile; if that one is not shown here (saved on this TV only), the first tile
+            val focusIdx = if (startIdx in tiles) startIdx else tiles.firstOrNull()
             Column(verticalArrangement = Arrangement.spacedBy(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 tiles.chunked(if (big) (tiles.size + 1) / 2 else 5).forEach { rowTiles ->
                     Row(horizontalArrangement = Arrangement.spacedBy(if (big) 30.dp else 44.dp), verticalAlignment = Alignment.Top) {
                         rowTiles.forEach { i ->
-                            if (i == null) AddTile(big) {
+                            if (i == null) AddTile(big, if (focusIdx == null) Modifier.focusRequester(first) else Modifier) {
                                 if (!manage && Parental.profileLocked(ctx, 0)) { addAfterPin = true; askPin = true; pinErr = null }
                                 else if (Profiles.add(ctx)) { naming = Profiles.list.last().id; newFlow = naming; name = "" }
                             }
@@ -101,10 +103,9 @@ fun FofWelcome(onPick: (Int) -> Unit) {
                                 val nm = Profiles.displayName(p)
                                 val av = remember(p.id, ProfileAvatars.version) { ProfileAvatars.presetFor(ctx, p.id) }
                                 val pinned = AccountCloud.cloudId(ctx, p.id)?.let { AccountCloud.pins[it]?.set } == true
-                                val owner = FofAccount.signedInState && AccountCloud.cloudId(ctx, p.id)?.let { it == AccountCloud.ownerCloudId } == true
                                 ProfileTile(
-                                    if (owner) "$nm · Owner" else nm, av, Parental.profileLocked(ctx, p.id) || pinned, manage, big,
-                                    if (i == startIdx) Modifier.focusRequester(first) else Modifier,
+                                    nm, av, Parental.profileLocked(ctx, p.id) || pinned, manage, big,
+                                    if (i == focusIdx) Modifier.focusRequester(first) else Modifier,
                                     // Hold OK on a profile: choose its picture right here (a locked profile asks in Manage)
                                     onLong = { if (!Parental.profileLocked(ctx, p.id)) picking = p.id }
                                 ) { if (manage) options = p.id else onPick(p.id) }
@@ -115,14 +116,13 @@ fun FofWelcome(onPick: (Int) -> Unit) {
             }
             // This TV's own profiles from before it signed in: not part of the account, never mixed into it
             val loList = Profiles.list.filter { it.id in lo }
-            if (loList.isNotEmpty()) {
+            // Shown in Manage profiles only, with an explicit choice (never merged on their own)
+            if (manage && loList.isNotEmpty()) {
                 Spacer(Modifier.height(28.dp))
-                Text("On this TV only (not in your account)", color = Color(0x80FFFFFF), fontSize = 15.sp, raw = true)
+                Text("Saved on this TV from before sign-in", color = Color(0x80FFFFFF), fontSize = 15.sp, raw = true)
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    loList.forEach { p -> OutlinePill(Profiles.displayName(p) + (if (manage) "  ·  Add to account" else "")) {
-                        if (manage) { AccountCloud.addToAccount(ctx, p.id); note = "Adding " + Profiles.displayName(p) + " to your account …" } else onPick(p.id)
-                    } }
+                    loList.forEach { p -> OutlinePill(Profiles.displayName(p)) { legacy = p.id } }
                 }
             }
             Spacer(Modifier.height(if (big) 40.dp else 64.dp))
@@ -131,7 +131,7 @@ fun FofWelcome(onPick: (Int) -> Unit) {
             if (!manage && !FofAccount.signedInState) OutlinePill("Sign in") { phone = true }
             // Sign out lives in Manage profiles: the main screen only picks a profile
             if (manage && FofAccount.signedInState) OutlinePill("Sign out of this TV") { FofAccount.signOut(ctx); manage = false }
-            OutlinePill(if (manage) "Done" else "Manage Profiles") {
+            SubtleAction(if (manage) "Done" else "Manage Profiles") {
                 if (manage) manage = false
                 else if (Parental.profileLocked(ctx, 0)) { askPin = true; pinErr = null }
                 else manage = true
@@ -157,6 +157,17 @@ fun FofWelcome(onPick: (Int) -> Unit) {
                         if (addAfterPin) { addAfterPin = false; if (Profiles.add(ctx)) { naming = Profiles.list.last().id; newFlow = naming; name = "" } } else manage = true
                     } else pinErr = Parental.pinError() },
                     { askPin = false; addAfterPin = false })
+            }
+        }
+        legacy?.let { id ->
+            val nm = Profiles.list.firstOrNull { it.id == id }?.let { Profiles.displayName(it) } ?: ""
+            val acts = listOf("Add \"$nm\" to my account as a new profile") + (if (id != 0 && id != Profiles.active) listOf("Remove from this TV") else emptyList()) + "Cancel"
+            OptionPopup(acts, -1, { legacy = null }) { a ->
+                legacy = null
+                when {
+                    acts[a].startsWith("Add") -> { AccountCloud.addToAccount(ctx, id); note = "Adding $nm to your account …" }
+                    acts[a] == "Remove from this TV" -> if (Profiles.remove(ctx, id)) { ProfileAvatars.set(ctx, id, null); note = "$nm removed from this TV" }
+                }
             }
         }
         options?.let { id ->
@@ -248,11 +259,11 @@ private fun ProfileTile(name: String, avatar: ProfileAvatars.Preset, locked: Boo
 }
 
 @Composable
-private fun AddTile(small: Boolean, onClick: () -> Unit) {
+private fun AddTile(small: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     val s by animateFloatAsState(if (f) 1.08f else 1f, androidx.compose.animation.core.tween(160), label = "pa")
     Column(
-        Modifier.onFocusChanged { f = it.isFocused }.clickable(onClick = onClick).graphicsLayer { scaleX = s; scaleY = s },
+        modifier.onFocusChanged { f = it.isFocused }.clickable(onClick = onClick).graphicsLayer { scaleX = s; scaleY = s },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
@@ -310,4 +321,15 @@ internal fun PosterWall() {
     // Soft light from above instead of a colored glow
     Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x1FFFFFFF), Color.Transparent),
         center = androidx.compose.ui.geometry.Offset(960f, 0f), radius = 1200f)))
+}
+
+/** Quiet text action under the profiles (Manage Profiles, Done): no box until focused. */
+@Composable
+private fun SubtleAction(label: String, onClick: () -> Unit) {
+    var f by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(50)
+    Box(Modifier.onFocusChanged { f = it.isFocused }.clip(shape).background(if (f) Color.White else Color.Transparent)
+        .border(1.dp, if (f) Color.White else Color(0x33FFFFFF), shape).clickable(onClick = onClick).padding(horizontal = 28.dp, vertical = 12.dp)) {
+        Text(label, color = if (f) Color.Black else Color(0x99FFFFFF), fontSize = 18.sp, fontWeight = FontWeight.Medium, raw = true)
+    }
 }

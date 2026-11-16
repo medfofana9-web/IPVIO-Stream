@@ -1,5 +1,12 @@
 # Changelog
 
+## Fof TV 1.3.111 (November 2026)
+
+- "Who's watching?" is cleaner: only the account's profiles, no account email, no "Owner" label, no greeting; Manage Profiles is a quiet action below the profiles.
+- Profiles saved on a TV before it signed in (such as an old "Main profile") no longer show on the picker. In Manage Profiles you choose for each one: add it to your account as a new profile, or remove it from this TV. Nothing is merged on its own.
+- Focus starts on the last used profile, or the first one shown.
+- Kids profile setting now follows the profile to every TV.
+
 ## Fof TV 1.3.109 (November 2026)
 
 - Continue Watching sync: progress goes to the account right away on pause, leaving the player, next episode and source change (plus every ~10 s while playing).
