@@ -473,6 +473,17 @@ private fun AppContent() {
         start(ch, ch.title, ch.url)
     }
     // Phone search: title the phone wants to start (movie, episode, channel), as soon as the playlist is loaded
+    // Joined a watch party: open the host's title here, from this TV's own sources (the party then keeps it in sync)
+    LaunchedEffect(WatchParty.openReq) {
+        val p = WatchParty.openReq ?: return@LaunchedEffect
+        WatchParty.openReq = null
+        val kind = runCatching { Kind.valueOf(p.kind) }.getOrDefault(Kind.MOVIE)
+        if (p.itemId.startsWith("stremio:")) {
+            val item = CatalogItems.get(p.itemId) ?: Item(p.itemId, kind, p.title.substringBefore(" S").ifBlank { p.title }, null, "", null, "")
+            AppNav.autoStream = p.itemId; AppNav.autoResume = Triple(p.season, p.ep, p.posMs); AppNav.autoResumeId = p.itemId
+            pushTop(item)
+        } else RemoteHub.playReq = RemoteHub.Play(p.itemId, p.season, p.ep)
+    }
     LaunchedEffect(RemoteHub.playReq, all) {
         val r = RemoteHub.playReq ?: return@LaunchedEffect
         val it = all.firstOrNull { x -> x.id == r.id } ?: return@LaunchedEffect

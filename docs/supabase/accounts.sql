@@ -353,3 +353,7 @@ begin
 end $$;
 revoke all on function public.fof_delete_account() from public, anon;
 grant execute on function public.fof_delete_account() to authenticated;
+
+-- ---------------------------------------------------------------- Watch Together (1.3.102, applied 15 Nov 2026)
+-- Tables fof_parties, fof_party_members, fof_party_msgs with RLS (fof_in_party), fof_join_party(code, device, name),
+-- realtime on all three. Full text: see the SQL run in the dashboard on 15 Nov 2026 (kept in docs/supabase/party.sql).

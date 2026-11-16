@@ -268,6 +268,7 @@ fun HomeScreen(
     // Header (search, reminders, profile) and quick access as in the design
     var picker by remember { mutableStateOf(false) }
     var profileMenu by remember { mutableStateOf(false) }
+    var joinParty by remember { mutableStateOf(false) }
     val ready = remember { mutableStateListOf<Item>() }
     // Also use the sizes of movies/series as a key: if the computed home screen arrives only after the list (and without trend titles,
     // i.e. the same empty trend list), the selection stayed empty and the big picture was missing.
@@ -804,10 +805,12 @@ fun HomeScreen(
                     QuickRow(QuickMenu.Action("Manage profiles", AIcon.Edit) { }, Modifier) { profileMenu = false; picker = true }
                     QuickRow(QuickMenu.Action("Profile settings", AIcon.Person) { }, Modifier) { profileMenu = false; SettingsNav.openPage = SettingsNav.PROFILES; onTab(MenuLogic.SETTINGS) }
                     QuickRow(QuickMenu.Action("Account & devices", AIcon.Gear) { }, Modifier) { profileMenu = false; SettingsNav.openPage = SettingsNav.ACCOUNT; onTab(MenuLogic.SETTINGS) }
+                    if (FofAccount.signedInState) QuickRow(QuickMenu.Action("Join a watch party", AIcon.Play) { }, Modifier) { profileMenu = false; joinParty = true }
                     if (FofAccount.signedInState) QuickRow(QuickMenu.Action("Sign out", AIcon.Close) { }, Modifier) { profileMenu = false; FofAccount.signOut(ctx); Profiles.restartToPicker(ctx) }
                 }
             }
         }
+        if (joinParty) { BackHandler { joinParty = false }; JoinPartyDialog { joinParty = false } }
         if (picker) {
             BackHandler { picker = false }
             ProfilePicker { id -> picker = false; if (id != Profiles.active) Profiles.switchTo(ctx, id) else if (Taste.needed(ctx)) Profiles.reopen(ctx) }

@@ -188,6 +188,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     var msg by remember { mutableStateOf<String?>(null) }
     // Playback could not be restored: the message gets "Retry" and "Change source" buttons (no dead end)
     var failed by remember { mutableStateOf(false) }
+    // Watch Together panel (start / code / reactions / leave)
+    var partyPanel by remember { mutableStateOf(false) }
     // Network recovery: tries so far (reset once the picture plays) and when the wait for the internet began
     var netTries by remember { mutableIntStateOf(0) }
     val netWaitStart = remember { longArrayOf(0L) }
@@ -816,6 +818,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         if (now - lastBackAt < 350) return
         lastBackAt = now
         when {
+            partyPanel -> partyPanel = false
             scrubTarget >= 0 -> { scrubTarget = -1L; if (resumeAfterScrub) { resumeAfterScrub = false; player.play() } }
             panel != Panel.NONE -> closePanel()
             // Guide: own back step (show → channel → category → close)
@@ -833,6 +836,11 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
 
     // Phone search shows what is playing now (also after switching / next episode)
     LaunchedEffect(cur) { RemoteHub.nowTitle = cur.title; RemoteHub.nowLive = cur.live }
+    // Watch Together: the host's player sends its state, a guest's player follows the host (same title only)
+    DisposableEffect(player, cur.itemId, cur.season, cur.episode) {
+        val detach = WatchParty.attach(ctx, player, cur.itemId, cur.season, cur.episode)
+        onDispose { detach() }
+    }
     DisposableEffect(Unit) {
         // If the player hangs in buffering for a long time (dead connection without an error): reconnect up to twice
         var bufSince = 0L
@@ -840,6 +848,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         val tick = object : Runnable {
             override fun run() {
                 saveProgress()
+                WatchParty.tick(ctx, player, cur.itemId, cur.season, cur.episode)
                 val nowT = System.currentTimeMillis()
                 if (cur.live && cur.archive == null && !readyOnce && SportSession.owns(cur.itemId) && sportT[0] > 0 && nowT - sportT[0] > 6_000L) sportFailover()
                 if (player.playbackState == Player.STATE_BUFFERING && player.playWhenReady && !pError) {
@@ -1312,7 +1321,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             .onKeyEvent { e ->
                 if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
                 // Retry / Change source buttons are shown: the remote moves between them
-                if (failed) return@onKeyEvent false
+                if (failed || partyPanel) return@onKeyEvent false
                 val k = e.key
                 if (e.nativeKeyEvent.repeatCount > 0) {
                     if ((k == Key.DirectionLeft || k == Key.DirectionRight) && !cur.live && !controls && panel == Panel.NONE && !showChannels && !showGuide) {
@@ -1486,6 +1495,13 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 )
             }
         )
+
+        // ---------------------------------------------------------------- Watch Together
+        WatchPartyOverlay(Modifier.align(Alignment.BottomStart))
+        if (partyPanel) WatchPartyPanel(Modifier.align(Alignment.Center), start = {
+            WatchParty.start(ctx, cur.itemId, cur.title, if (cur.live) Kind.LIVE else if (cur.season > 0 || cur.episode > 0) Kind.SERIES else Kind.MOVIE,
+                cur.season, cur.episode, cur.live && cur.archive == null, player.currentPosition, player.isPlaying)
+        }) { partyPanel = false }
 
         // ---------------------------------------------------------------- Messages
         if (buffering && msg == null && !showGuide) {
@@ -1878,6 +1894,10 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                                     if (addonContent || currentAlts().size > 1) PRoundButton(label = "Sources", onLabel = setLabel, onClick = {
                                         if (addonContent) { controls = false; srcPanel = true } else openPanel(Panel.QUALITY)
                                     }) { AppIcon(AIcon.Lists, it, size = 26.dp) }
+                                    // Watch together with friends and family (signed-in TVs)
+                                    if (FofAccount.signedInState) PRoundButton(label = "Watch together", onLabel = setLabel, onClick = { controls = false; partyPanel = true }) {
+                                        AppIcon(AIcon.Person, it, size = 26.dp)
+                                    }
                                     if (epList.size > 1) {
                                         PRoundButton(Modifier.focusRequester(btn.getValue(Panel.EPISODES)), label = "Folgen", onLabel = setLabel, onClick = { openPanel(Panel.EPISODES) }) {
                                             PlayerIcon(PIcon.Episodes, it)

@@ -1,5 +1,16 @@
 # Changelog
 
+## Fof TV 1.3.102 (November 2026)
+**Watch Together**
+- In the player: Watch together → Start a watch party gives a 6-digit code. On another TV (any Fof TV account):
+  profile circle → Join a watch party → enter the code. The title opens there from that TV's own sources and follows
+  the host: play, pause and seek (re-synced when more than 2.5 s apart); live channels and games share the channel
+  and stay at the live edge
+- Reactions (👍 😂 😮 🔥 ❤️ 👏) show over the picture for a few seconds; the chip shows the code and how many are watching
+- Leave as a guest without stopping anyone; the host's "End the party" ends it for all. Only members can see a party
+  (server rules); nothing is streamed through the party
+- Quick menu: "Not interested" leaves a title out of this profile's recommendations
+
 ## Fof TV 1.3.101 (November 2026)
 **Taste discovery is part of creating a profile**
 - Also: genres rated Love / Like / Not interested; an "Actors and creators" step (TMDB popular people, search for

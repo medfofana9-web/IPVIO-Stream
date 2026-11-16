@@ -72,6 +72,8 @@ object QuickMenu {
             out += Action("Mark as unwatched", AIcon.Close) { c -> EpProgress.mark(c, it.id, listOf(k), false) }
         }
         if (e != null) out += Action("Remove from Continue watching", AIcon.Close) { c -> WatchStore.remove(c, it.id) }
+        // Taste: left out of this profile's recommendations from now on
+        if (it.id !in QuickMenuNope.ids) out += Action("Not interested", AIcon.Close) { c -> Taste.addNope(c, it.id); QuickMenuNope.ids += it.id }
         return out
     }
 }
@@ -137,3 +139,6 @@ internal fun QuickRow(a: QuickMenu.Action, modifier: Modifier, onClick: () -> Un
         Text(a.label, color = if (f) DS.FocusInk else Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, raw = true)
     }
 }
+
+/** Titles marked "Not interested" in this session (the menu stops offering it). */
+object QuickMenuNope { val ids = HashSet<String>() }

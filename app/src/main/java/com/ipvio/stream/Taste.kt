@@ -90,6 +90,12 @@ object Taste {
     fun draft(c: Context): org.json.JSONObject? = prefs(c).getString("draft", null)?.let { runCatching { org.json.JSONObject(it) }.getOrNull() }
     fun saveDraft(c: Context, d: org.json.JSONObject) { prefs(c).edit().putString("draft", d.toString()).apply() }
 
+    /** "Not interested" from the quick menu: left out of this profile's recommendations. */
+    fun addNope(c: Context, id: String) {
+        val n = nope(c) + id
+        prefs(c).edit().putString("nope", n.joinToString("|")).apply(); CloudSync.kick(c)
+    }
+
     /** Loved actors and creators (TMDB id -> name). */
     fun people(c: Context): List<Pair<Int, String>> = prefs(c).getString("people", "").orEmpty().split('|').mapNotNull { p ->
         val i = p.indexOf(':'); if (i <= 0) null else p.substring(0, i).toIntOrNull()?.let { it to p.substring(i + 1) }
