@@ -21,23 +21,24 @@ class AccountCloudLogicTest {
         assertTrue(p.createLocal.isEmpty()); assertTrue(p.links.isEmpty())
     }
 
-    @Test fun freshSecondTvGetsAccountProfiles() {
-        // Fresh install: only the untouched first profile; the account has Med and Naya
-        val p = AccountCloudLogic.plan(listOf(lp(0, "Main profile", blank = true)), listOf(cp("med", 0, "Med"), cp("naya", 1, "Naya")), emptyMap())
-        assertEquals(mapOf(0 to "med"), p.links)
-        assertEquals(listOf("naya"), p.createLocal.map { it.id })
+    @Test fun freshSecondTvGetsAccountProfilesAndKeepsItsOwnApart() {
+        // The TV had only its untouched first profile; the account has Med and Naya: nothing is merged into them
+        val p = AccountCloudLogic.plan(listOf(lp(0, "Main profile", blank = true)), listOf(cp("med", 0, "Med"), cp("naya", 1, "Naya")), emptyMap(), localOnly = setOf(0))
+        assertTrue(p.links.isEmpty())
+        assertEquals(listOf("med", "naya"), p.createLocal.map { it.id })
         assertTrue(p.upload.isEmpty())
     }
 
-    @Test fun sameNamesLinkWhateverTheLocalOrder() {
-        val p = AccountCloudLogic.plan(listOf(lp(0, "Naya"), lp(1, " med ")), listOf(cp("med", 0, "Med"), cp("naya", 1, "Naya")), emptyMap())
-        assertEquals(mapOf(0 to "naya", 1 to "med"), p.links)
-        assertTrue(p.upload.isEmpty()); assertTrue(p.createLocal.isEmpty())
+    @Test fun sameNamesAreNeverMerged() {
+        // A local profile called like an account profile stays apart (this mixed profiles before)
+        val p = AccountCloudLogic.plan(listOf(lp(0, "Naya"), lp(1, "Med")), listOf(cp("med", 0, "Med"), cp("naya", 1, "Naya")), emptyMap(), localOnly = setOf(0, 1))
+        assertTrue(p.links.isEmpty()); assertTrue(p.upload.isEmpty())
+        assertEquals(2, p.createLocal.size)
     }
 
-    @Test fun unknownLocalProfileIsAddedNotLost() {
-        val p = AccountCloudLogic.plan(listOf(lp(0, "Med"), lp(1, "Guest")), listOf(cp("med", 0, "Med"), cp("naya", 1, "Naya")), emptyMap())
-        assertEquals(listOf(1 to 2), p.upload)          // next free slot
+    @Test fun profileCreatedAfterSignInBecomesItsOwnAccountProfile() {
+        val p = AccountCloudLogic.plan(listOf(lp(0, "Med"), lp(1, "Guest")), listOf(cp("med", 0, "Med"), cp("naya", 1, "Naya")), mapOf(0 to "med"))
+        assertEquals(listOf(1 to 2), p.upload)          // next free slot, never Naya's
         assertEquals(listOf("naya"), p.createLocal.map { it.id })
     }
 

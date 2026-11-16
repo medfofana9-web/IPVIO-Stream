@@ -267,6 +267,7 @@ fun HomeScreen(
 
     // Header (search, reminders, profile) and quick access as in the design
     var picker by remember { mutableStateOf(false) }
+    var profileMenu by remember { mutableStateOf(false) }
     val ready = remember { mutableStateListOf<Item>() }
     // Also use the sizes of movies/series as a key: if the computed home screen arrives only after the list (and without trend titles,
     // i.e. the same empty trend list), the selection stayed empty and the big picture was missing.
@@ -338,7 +339,7 @@ fun HomeScreen(
             onReminder = { r -> byId[r.chId]?.let(onOpen) },
             onNewEpisode = { id -> byId[id]?.let(onOpen) },
             // Only one profile: go directly to the profile page of settings (before: general settings)
-            onProfile = { if (Profiles.list.size > 1) picker = true else { SettingsNav.openPage = SettingsNav.PROFILES; onTab(MenuLogic.SETTINGS) } },
+            onProfile = { profileMenu = true },
             tabs = navTabs,
             areaTab = tab,
             // Round 20: the View button is gone (now in Settings > View), only bell and profile at the top right
@@ -763,6 +764,32 @@ fun HomeScreen(
             }
             // Design settings: the preview stays fixed at the top right, the settings scroll away below
             if (DesignPreview.visible) DesignPreviewPanel(Modifier.align(Alignment.TopEnd).padding(top = dpx(84), end = DS.PageX))
+        }
+        // Profile circle: who is watching, and the ways to switch or manage (Netflix style)
+        if (profileMenu) {
+            BackHandler { profileMenu = false }
+            Box(Modifier.fillMaxSize().background(Color(0x99000000)).clickable { profileMenu = false }, contentAlignment = Alignment.TopEnd) {
+                Column(
+                    Modifier.padding(top = dpx(84), end = DS.PageX).width(dpx(380)).glass(RoundedCornerShape(DS.RadiusL), 2)
+                        .clickable(enabled = false) {}.padding(dpx(14)),
+                    verticalArrangement = Arrangement.spacedBy(dpx(4))
+                ) {
+                    val me = Profiles.list.firstOrNull { it.id == Profiles.active }?.let { Profiles.displayName(it) }.orEmpty()
+                    Row(Modifier.padding(dpx(10)), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(14))) {
+                        ActiveAvatar(dpx(52))
+                        Column {
+                            Text("Watching as", color = Muted, fontSize = spx(14), raw = true)
+                            Text(me, color = Color.White, fontSize = spx(22), fontWeight = FontWeight.Bold, raw = true, maxLines = 1)
+                            if (FofAccount.signedInState) Text(FofAccount.email.orEmpty(), color = Muted, fontSize = spx(13), raw = true, maxLines = 1)
+                        }
+                    }
+                    val first = remember { FocusRequester() }
+                    LaunchedEffect(Unit) { delay(60); runCatching { first.requestFocus() } }
+                    QuickRow(QuickMenu.Action("Switch profile", AIcon.Person) { profileMenu = false; picker = true }, Modifier.focusRequester(first)) { profileMenu = false; picker = true }
+                    QuickRow(QuickMenu.Action("Manage profiles", AIcon.Edit) { }, Modifier) { profileMenu = false; SettingsNav.openPage = SettingsNav.PROFILES; onTab(MenuLogic.SETTINGS) }
+                    QuickRow(QuickMenu.Action("Account & devices", AIcon.Gear) { }, Modifier) { profileMenu = false; SettingsNav.openPage = SettingsNav.ACCOUNT; onTab(MenuLogic.SETTINGS) }
+                }
+            }
         }
         if (picker) {
             BackHandler { picker = false }

@@ -45,6 +45,8 @@ fun FofWelcome(onPick: (Int) -> Unit) {
     var options by remember { mutableStateOf<Int?>(null) }
     var phone by remember { mutableStateOf(false) }
     var changePin by remember { mutableStateOf<Int?>(null) }
+    // New profile: name, then picture, then it opens (PIN create/skip and the optional taste questions follow)
+    var newFlow by remember { mutableStateOf<Int?>(null) }
     var note by remember { mutableStateOf<String?>(null) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val first = remember { FocusRequester() }
@@ -103,7 +105,10 @@ fun FofWelcome(onPick: (Int) -> Unit) {
                 color = Color(0xCCFFFFFF), fontSize = 17.sp, raw = true)
             Spacer(Modifier.height(56.dp))
             // Up to 10 profiles: one row up to 5, then two rows; the "+" tile adds one (master PIN asked when set)
-            val tiles: List<Int?> = Profiles.list.indices.toList() + (if (Profiles.list.size < Profiles.MAX) listOf(null) else emptyList())
+            // Signed in: only the account's profiles here; this TV's own older profiles are listed apart below
+            val lo = if (FofAccount.signedInState) AccountCloud.localOnly(ctx) else emptySet()
+            val tiles: List<Int?> = Profiles.list.indices.filter { Profiles.list[it].id !in lo } +
+                (if (Profiles.list.size < Profiles.MAX) listOf(null) else emptyList())
             val big = tiles.size > 5
             Column(verticalArrangement = Arrangement.spacedBy(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 tiles.chunked(if (big) (tiles.size + 1) / 2 else 5).forEach { rowTiles ->
@@ -111,15 +116,16 @@ fun FofWelcome(onPick: (Int) -> Unit) {
                         rowTiles.forEach { i ->
                             if (i == null) AddTile(big) {
                                 if (!manage && Parental.profileLocked(ctx, 0)) { addAfterPin = true; askPin = true; pinErr = null }
-                                else if (Profiles.add(ctx)) { naming = Profiles.list.last().id; name = "" }
+                                else if (Profiles.add(ctx)) { naming = Profiles.list.last().id; newFlow = naming; name = "" }
                             }
                             else {
                                 val p = Profiles.list[i]
                                 val nm = Profiles.displayName(p)
                                 val av = remember(p.id, ProfileAvatars.version) { ProfileAvatars.presetFor(ctx, p.id) }
                                 val pinned = AccountCloud.cloudId(ctx, p.id)?.let { AccountCloud.pins[it]?.set } == true
+                                val owner = FofAccount.signedInState && AccountCloud.cloudId(ctx, p.id)?.let { it == AccountCloud.ownerCloudId } == true
                                 ProfileTile(
-                                    nm, av, Parental.profileLocked(ctx, p.id) || pinned, manage, big,
+                                    if (owner) "$nm · Owner" else nm, av, Parental.profileLocked(ctx, p.id) || pinned, manage, big,
                                     if (i == startIdx) Modifier.focusRequester(first) else Modifier,
                                     // Hold OK on a profile: choose its picture right here (a locked profile asks in Manage)
                                     onLong = { if (!Parental.profileLocked(ctx, p.id)) picking = p.id }
@@ -129,10 +135,23 @@ fun FofWelcome(onPick: (Int) -> Unit) {
                     }
                 }
             }
+            // This TV's own profiles from before it signed in: not part of the account, never mixed into it
+            val loList = Profiles.list.filter { it.id in lo }
+            if (loList.isNotEmpty()) {
+                Spacer(Modifier.height(28.dp))
+                Text("On this TV only (not in your account)", color = Color(0x80FFFFFF), fontSize = 15.sp, raw = true)
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    loList.forEach { p -> OutlinePill(Profiles.displayName(p) + (if (manage) "  ·  Add to account" else "")) {
+                        if (manage) { AccountCloud.addToAccount(ctx, p.id); note = "Adding " + Profiles.displayName(p) + " to your account …" } else onPick(p.id)
+                    } }
+                }
+            }
             Spacer(Modifier.height(if (big) 40.dp else 64.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             // Not signed in: one sign-in for the whole TV (email and password on the phone); the account's profiles appear
             if (!manage && !FofAccount.signedInState) OutlinePill("Sign in") { phone = true }
+            if (!manage && FofAccount.signedInState) OutlinePill("Sign out") { FofAccount.signOut(ctx); note = "Signed out of this TV" }
             OutlinePill(if (manage) "Done" else "Manage Profiles") {
                 if (manage) manage = false
                 else if (Parental.profileLocked(ctx, 0)) { askPin = true; pinErr = null }
@@ -183,7 +202,7 @@ fun FofWelcome(onPick: (Int) -> Unit) {
                 }
             }
         }
-        picking?.let { id -> AvatarPicker(id) { picking = null } }
+        picking?.let { id -> AvatarPicker(id) { picking = null; if (newFlow == id) { newFlow = null; onPick(id) } } }
         naming?.let { id ->
             Box(Modifier.fillMaxSize().background(Color(0xCC000000)), contentAlignment = Alignment.Center) {
                 Column(
@@ -191,10 +210,10 @@ fun FofWelcome(onPick: (Int) -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(18.dp)
                 ) {
                     Text("Profile name", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold, raw = true)
-                    Field(name, { name = it }, "Name", autoOpen = true, onDone = { Profiles.rename(ctx, id, name); naming = null })
+                    Field(name, { name = it }, "Name", autoOpen = true, onDone = { Profiles.rename(ctx, id, name); naming = null; if (newFlow == id) picking = id })
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        PillButton("Save", light = true, icon = AIcon.Check) { Profiles.rename(ctx, id, name); naming = null }
-                        PillButton("Cancel") { naming = null }
+                        PillButton("Save", light = true, icon = AIcon.Check) { Profiles.rename(ctx, id, name); naming = null; if (newFlow == id) picking = id }
+                        PillButton("Cancel") { naming = null; newFlow = null }
                     }
                 }
             }

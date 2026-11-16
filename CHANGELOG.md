@@ -1,5 +1,16 @@
 # Changelog
 
+## Fof TV 1.3.98 (November 2026)
+**Profiles never mix any more**
+- Cause: signing in renamed the profile in use to the account owner's name, and profiles were then linked to account
+  profiles by name (or the TV's untouched first profile to the account's first profile), so a new profile could take
+  over the owner's history. Now nothing is renamed on sign-in and nothing is merged by name or position
+- A TV that signs in to an account that already has profiles keeps its earlier profiles apart under "On this TV only
+  (not in your account)"; Manage Profiles can add one to the account as its own profile
+- Who's watching: only the account's profiles, the owner's marked "Owner", Sign out next to Manage Profiles
+- New profile: name, then picture, then it opens (create a PIN or skip it, then the optional taste questions)
+- Profile circle at the top: "Watching as …" with Switch profile, Manage profiles and Account & devices
+
 ## Fof TV 1.3.96 (November 2026)
 - Opening a movie or episode shows its sources: first your addon sources, then a "Your IPTV" section (checking,
   the provider's copy, or "not on your IPTV"). It no longer starts the first addon stream by itself before the IPTV

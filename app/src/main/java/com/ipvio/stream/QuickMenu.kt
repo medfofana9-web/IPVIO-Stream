@@ -124,7 +124,7 @@ fun QuickMenuHost() {
 }
 
 @Composable
-private fun QuickRow(a: QuickMenu.Action, modifier: Modifier, onClick: () -> Unit) {
+internal fun QuickRow(a: QuickMenu.Action, modifier: Modifier, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(DS.RadiusM)
     Row(

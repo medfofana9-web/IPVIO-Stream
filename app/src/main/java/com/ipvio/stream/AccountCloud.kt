@@ -57,6 +57,21 @@ object AccountCloud {
 
     private fun psKey(lid: Int) = "ps_" + (FofAccount.userId ?: "") + "_" + lid
 
+    /** Profiles this TV had before signing in to an account that already had profiles: on this TV only. */
+    fun localOnly(c: Context): Set<Int> =
+        prefs(c).getString("lo_" + (FofAccount.userId ?: ""), null).orEmpty().split(',').mapNotNull { it.trim().toIntOrNull() }.toSet()
+
+    /** "Add to account" on a profile that was on this TV only: it becomes its own profile in the account. */
+    fun addToAccount(c: Context, localId: Int) {
+        val lo = localOnly(c) - localId
+        prefs(c).edit().putString("lo_" + (FofAccount.userId ?: ""), lo.joinToString(",")).apply()
+        kick(c, 0)
+    }
+
+    /** Owner's profile: the account's lowest slot (fof_owner_profile on the server). */
+    @Volatile var ownerCloudId: String? = null
+        private set
+
     fun cloudId(c: Context, localId: Int): String? = if (FofAccount.signedIn) map(c)[localId] else null
 
     /** May this TV sync the profile's data now? (Not while it has a PIN and was not opened here.) */
@@ -169,7 +184,13 @@ object AccountCloud {
         for (p in Profiles.list.toList()) runCatching { legacyMerge(c, p.id) }
         val local = Profiles.list.map { AccountCloudLogic.LocalP(it.id, Profiles.displayName(it), it.id == 0 && it.name == Profiles.defaultName(0)) }
         val old = map(c)
-        val plan = AccountCloudLogic.plan(local, cloud, old, Profiles.MAX)
+        // Once per account on this TV: if the account already has profiles, the TV's unlinked profiles are its own
+        val loKey = "lo_" + (FofAccount.userId ?: "")
+        if (!prefs(c).contains(loKey)) {
+            val lo = if (cloud.none { !it.deleted }) emptySet() else Profiles.list.map { it.id }.filter { it !in old }.toSet()
+            prefs(c).edit().putString(loKey, lo.joinToString(",")).apply()
+        }
+        val plan = AccountCloudLogic.plan(local, cloud, old, Profiles.MAX, localOnly(c))
         val links = plan.links.toMutableMap()
         for (id in plan.removeLocal) {
             val gone = withContext(Dispatchers.Main) { id != Profiles.active && Profiles.remove(c, id) }
@@ -192,6 +213,7 @@ object AccountCloud {
             prefs(c).edit().putString(psKey(lid), AccountCloudLogic.snap(cp.name, "")).apply()
         }
         saveMap(c, links)
+        ownerCloudId = cloud.filter { !it.deleted }.minByOrNull { it.slot }?.id
         // Names and pictures: the side that changed since the last run wins
         for ((lid, cid) in links) {
             val cp = byId[cid] ?: continue
@@ -443,12 +465,12 @@ object AccountCloudLogic {
     /**
      * Lines up this TV's profiles with the account's.
      * - Existing links stay; a link to a profile deleted in the account removes the local copy.
-     * - An unlinked local profile joins the account profile with the same name; the untouched first profile of a new
-     *   TV joins the account's first free profile; any other local profile is added to the account (nothing is lost).
+     * - Profiles this TV had before it signed in to an account that already had profiles ([localOnly]) stay on this TV
+     *   only (shown apart, never mixed in); any other unlinked profile is added to the account as its own profile.
      * - Account profiles this TV does not have yet are added here.
      * Both sides stay within [max] profiles.
      */
-    fun plan(local: List<LocalP>, cloud: List<CloudP>, map: Map<Int, String>, max: Int = 10): Plan {
+    fun plan(local: List<LocalP>, cloud: List<CloudP>, map: Map<Int, String>, max: Int = 10, localOnly: Set<Int> = emptySet()): Plan {
         val live = cloud.filter { !it.deleted }
         val liveIds = live.map { it.id }.toSet()
         val deletedIds = cloud.filter { it.deleted }.map { it.id }.toSet()
@@ -461,11 +483,11 @@ object AccountCloudLogic {
         }
         val taken = links.values.toMutableSet()
         val upload = ArrayList<Int>()
+        // Never merged by name or position: a profile that is not linked is either this TV's own ([localOnly], kept apart)
+        // or new on this TV (added to the account as its own profile)
         for (lp in local.sortedBy { it.id }) {
-            if (lp.id in links || lp.id in remove) continue
-            var m = live.firstOrNull { it.id !in taken && norm(lp.name).isNotEmpty() && norm(it.name) == norm(lp.name) }
-            if (m == null && lp.blank && live.isNotEmpty()) m = live.filter { it.id !in taken }.minByOrNull { it.slot }
-            if (m != null) { links[lp.id] = m.id; taken += m.id } else upload += lp.id
+            if (lp.id in links || lp.id in remove || lp.id in localOnly) continue
+            upload += lp.id
         }
         val usedSlots = cloud.map { it.slot }.toMutableSet()
         val room = (max - live.size).coerceAtLeast(0)

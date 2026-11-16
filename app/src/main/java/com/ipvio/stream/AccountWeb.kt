@@ -48,13 +48,8 @@ object AccountWeb {
             }
             if (e != null) return err(e)
         }
-        // The profile in use gets the person's name (when it still has its default name)
-        val nm = name.ifBlank { FofAccount.member?.name.orEmpty() }
-        main.post {
-            val pid = Profiles.active
-            val cur = Profiles.list.firstOrNull { it.id == pid }?.let { Profiles.displayName(it) }
-            if (nm.isNotBlank() && (cur == null || cur == Profiles.defaultName(pid) || cur == "New profile")) Profiles.rename(c, pid, nm)
-        }
+        // No profile is renamed on sign-in: the account is not a profile (renaming made a profile take on the owner's
+        // name, and the name then linked it to the owner's profile - the profile mixing of 15 Nov 2026)
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch { runCatching { FofAccount.sync(c) } }
         return "{\"ok\":true}"
     }

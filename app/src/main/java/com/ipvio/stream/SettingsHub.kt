@@ -74,6 +74,7 @@ private val CATS = listOf(
 object SettingsNav {
     const val PROFILES = 10
     const val HOME = 17
+    const val ACCOUNT = 20
     var openPage by androidx.compose.runtime.mutableIntStateOf(-1)
 }
 
