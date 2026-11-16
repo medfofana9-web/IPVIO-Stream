@@ -24,6 +24,9 @@ object StremioLogic {
      * DragonStreams: its MP4 links often play the wrong title, so they are never used. Only MKV and CDN links play;
      * links without any marker are kept only when the addon sent no MKV or CDN link at all.
      */
+    /** Label start of DragonStreams MP4 links offered only because nothing else exists (never auto-played). */
+    const val LAST_RESORT = "MP4 · may be wrong content · "
+
     fun dragonFilter(l: List<Pair<String, String>>): List<Int> {
         val kinds = l.map { streamKind(it.first, it.second) }
         val hasGood = kinds.any { it == "mkv" || it == "cdn" }

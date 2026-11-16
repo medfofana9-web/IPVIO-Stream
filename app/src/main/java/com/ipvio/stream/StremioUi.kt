@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
 /**
@@ -62,7 +63,11 @@ fun StremioSourcesPopup(
     LaunchedEffect(imdb, season, ep) {
         val id = imdb ?: return@LaunchedEffect
         sources = null; partial = emptyList()
-        sources = Stremio.streams(item.kind, id, season, ep) { partial = it }
+        // Your IPTV's copy of this movie/episode joins the list when the provider has it (looked up alongside)
+        val iptv = async { runCatching { ProviderVod.source(ctx, series, want.title, want.year, season, ep) }.getOrNull() }
+        val addon = Stremio.streams(item.kind, id, season, ep) { partial = it }
+        sources = addon
+        iptv.await()?.let { s -> sources = listOf(s) + addon.filter { it.url != s.url } }
     }
     fun choose(s: Stremio.Source) {
         NowSources.set(item.id, imdb, want, Stremio.rank(sources ?: partial, want, cid), s)

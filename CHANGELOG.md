@@ -1,5 +1,13 @@
 # Changelog
 
+## Fof TV 1.3.95 (November 2026)
+- Your IPTV as a source for addon movies and shows: the provider's movie and series names are kept as a small index
+  (built once, refreshed daily; Xtream login). The source list of an addon title now also offers "Your IPTV" when the
+  provider has the same title (cleaned name, year within one, English copy first) – the movie, or exactly that
+  episode. The player can switch to it when an addon stream fails
+- DragonStreams: when a title has only MP4 links (no MKV or CDN), they are no longer hidden completely: they appear at
+  the end of the list marked "MP4 · may be wrong content" and are never started automatically
+
 ## Fof TV 1.3.94 (November 2026)
 - Phone sign-in sends email and password in the request body instead of the web address (addresses end up in logs
   and browser history); the old address form is refused

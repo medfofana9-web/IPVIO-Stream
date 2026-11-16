@@ -256,12 +256,12 @@ object Stremio {
      * best other confirmed one. Only sources whose file name confirms this very episode.
      */
     fun pickLike(l: List<Source>, w: Want, contentId: String, likeAddon: String?, likeQ: Int?): Source? {
-        val ok = rank(l, w, contentId).filter { match(it, w) == StremioLogic.VERIFIED && !SourceMemory.isWrong(contentId, it.key) }
+        val ok = rank(l, w, contentId).filter { match(it, w) == StremioLogic.VERIFIED && !SourceMemory.isWrong(contentId, it.key) && !it.label.startsWith(StremioLogic.LAST_RESORT) }
         return ok.firstOrNull { it.addon == likeAddon && it.q == likeQ } ?: ok.firstOrNull { it.addon == likeAddon } ?: ok.firstOrNull()
     }
 
     fun bestVerified(l: List<Source>, w: Want, contentId: String): Source? =
-        rank(l, w, contentId).firstOrNull { match(it, w) == StremioLogic.VERIFIED && !SourceMemory.isWrong(contentId, it.key) }
+        rank(l, w, contentId).firstOrNull { match(it, w) == StremioLogic.VERIFIED && !SourceMemory.isWrong(contentId, it.key) && !it.label.startsWith(StremioLogic.LAST_RESORT) }
 
     /** One-click choice: 1080p direct link first (smooth on a Fire TV), then 720p, 4K, unknown; Real-Debrid last. */
     fun best(l: List<Source>): Source {
@@ -286,7 +286,11 @@ object Stremio {
                     val raw = runCatching { JSONObject(b).optJSONArray("streams")?.length() ?: 0 }.getOrDefault(0)
                     val l = runCatching { parse(a.name, b) }.getOrDefault(emptyList()).let { all ->
                         if (!a.name.contains("dragon", true)) all
-                        else StremioLogic.dragonFilter(all.map { it.info + "\n" + it.label to it.url }).map { all[it] }
+                        else {
+                            val keep = StremioLogic.dragonFilter(all.map { it.info + "\n" + it.label to it.url }).map { all[it] }
+                            // Only MP4 links for this title: offered at the end, marked, never started automatically
+                            keep.ifEmpty { all.map { it.copy(label = StremioLogic.LAST_RESORT + it.label, q = 0) } }
+                        }
                     }
                     if (onPart != null && l.isNotEmpty()) { partial.addAll(l); val snap = synchronized(partial) { partial.toList() }; withContext(Dispatchers.Main) { onPart(snap) } }
                     l to (a.name + ": " + when {

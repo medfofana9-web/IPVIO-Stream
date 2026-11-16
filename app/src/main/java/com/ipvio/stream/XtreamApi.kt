@@ -96,6 +96,21 @@ class XtreamApi(private val client: OkHttpClient, private val ua: String) {
         }
     }
 
+    /** The provider's movie or series list ([action] get_vod_streams / get_series), one flat entry at a time ([ProviderVod]). */
+    internal fun titles(a: XtreamLogic.Acct, action: String, each: (Map<String, String>) -> Unit) {
+        client.newCall(req(XtreamLogic.api(a, action))).execute().use { r ->
+            if (!r.isSuccessful) throw PlaylistError(PlaylistLogic.httpError(r.code))
+            val body = r.body ?: return
+            JsonReader(body.charStream()).use { jr ->
+                jr.isLenient = true
+                if (jr.peek() != JsonToken.BEGIN_ARRAY) return
+                jr.beginArray()
+                while (jr.hasNext()) { if (jr.peek() == JsonToken.BEGIN_OBJECT) each(flat(jr)) else jr.skipValue() }
+                jr.endArray()
+            }
+        }
+    }
+
     /**
      * Goes through the episodes of a series and reports each to [sink] (episode as flat fields, season from the key).
      * "episodes" is, depending on the provider, an object (season → list) or a list. false = error (after a second attempt).
