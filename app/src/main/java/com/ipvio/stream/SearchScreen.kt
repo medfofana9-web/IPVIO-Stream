@@ -175,6 +175,17 @@ fun SearchScreen(
             Triple(SearchSports.findGames(g, q), SearchSports.findTeams(g, q), SearchSports.findLeagues(q))
         }
     }
+    // A genre name ("comedy", "horror", "sci fi"): popular titles of that genre, movies and shows
+    val genreHit by produceState<Triple<String, List<Item>, List<Item>>?>(null, q) {
+        value = null
+        val g = SearchAllLogic.genre(q, (Catalog.genres(Kind.MOVIE) + Catalog.genres(Kind.SERIES)).map { it.title }.distinct()) ?: return@produceState
+        delay(300)
+        value = safely<Triple<String, List<Item>, List<Item>>?>(null) {
+            val m = Catalog.genres(Kind.MOVIE).firstOrNull { it.title == g }?.let { Catalog.items(it) }.orEmpty()
+            val s = Catalog.genres(Kind.SERIES).firstOrNull { it.title == g }?.let { Catalog.items(it) }.orEmpty()
+            Triple(g, m, s)
+        }
+    }
     val shows by produceState(emptyList<GuideSearchLogic.Hit>(), q, live) {
         value = emptyList()
         if (q.length < 3) return@produceState
@@ -331,6 +342,10 @@ fun SearchScreen(
                     if (moreM.isNotEmpty()) item(key = "cmm2") { SearchTitleRow("Movies", moreM, cardW, null, report, openS) }
                     if (moreS.isNotEmpty()) item(key = "cms2") { SearchTitleRow("TV Shows", moreS, cardW, null, report, openS) }
                     if (per != null) item(key = "person") { SearchTitleRow(per.first, per.second, cardW, fr("person"), report, openS) }
+                    genreHit?.let { (g, gm, gs) ->
+                        if (gm.isNotEmpty() && (fl == 0 || fl == 1)) item(key = "genre_m") { SearchTitleRow("$g movies", gm, cardW, null, report, openS) }
+                        if (gs.isNotEmpty() && (fl == 0 || fl == 2)) item(key = "genre_s") { SearchTitleRow("$g shows", gs, cardW, null, report, openS) }
+                    }
                     if (sg.isNotEmpty() && sg.none { it.state == 1 }) item(key = "games") { SearchGameRow(sg, fr("games"), onGame) }
                     if (st.isNotEmpty() || sl.isNotEmpty()) item(key = "teams") {
                         SearchTeamRow(st, sl, fr("teams"),

@@ -47,4 +47,16 @@ class SearchAllLogicTest {
         assertFalse(SearchAllLogic.matches(hay, SearchAllLogic.tokens("seasonal")))
         assertTrue(SearchAllLogic.dist("kitten", "sitting", 3) == 3)
     }
+
+    @Test
+    fun genreQueries() {
+        val g = listOf("Action", "Comedy", "Sci-Fi", "Horror", "Reality-TV", "Documentary")
+        assertEquals("Comedy", SearchAllLogic.genre("comedy", g))
+        assertEquals("Comedy", SearchAllLogic.genre("comdy", g))
+        assertEquals("Sci-Fi", SearchAllLogic.genre("sci fi", g))
+        assertEquals("Horror", SearchAllLogic.genre("horror movies".substringBefore(' '), g))
+        assertEquals("Documentary", SearchAllLogic.genre("docs", g))
+        assertEquals(null, SearchAllLogic.genre("reasonable doubt", g))
+        assertEquals(null, SearchAllLogic.genre("ac", g))
+    }
 }

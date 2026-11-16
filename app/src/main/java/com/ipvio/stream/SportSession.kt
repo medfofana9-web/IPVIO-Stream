@@ -172,6 +172,7 @@ internal fun teamColor(t: SportData.Team): Color = runCatching {
  */
 @Composable
 fun BoxScope.SportPlayerOverlay() {
+    SportPrefs.init(androidx.compose.ui.platform.LocalContext.current)
     val ch = SportSession.watching ?: return
     @Suppress("UNUSED_VARIABLE") val v = SportSession.version
     val g = SportSession.game(ch) ?: return
@@ -192,7 +193,7 @@ fun BoxScope.SportPlayerOverlay() {
             delay(if ((SportFeed.latest[gameKey] ?: cur).state == 1) 8_000L else 30_000L)
         }
     }
-    if (!SportSession.busy) Box(Modifier.align(Alignment.TopEnd).padding(top = 26.dp, end = 34.dp)) { ScoreBug(g) }
+    if (!SportSession.busy && !SportPrefs.bugOff) Box(Modifier.align(Alignment.TopEnd).padding(top = 26.dp, end = 34.dp)) { ScoreBug(g) }
     var tick by remember { mutableIntStateOf(0) }
     LaunchedEffect(SportSession.switchedAt) { tick++; delay(7000); tick++ }
     val showTicker = System.currentTimeMillis() - SportSession.switchedAt < 7000 && !SportSession.busy

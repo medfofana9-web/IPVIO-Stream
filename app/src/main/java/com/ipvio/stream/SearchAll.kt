@@ -43,6 +43,17 @@ object SearchAllLogic {
         return tokens.all { t -> words.any { it.startsWith(t) || typo(t, it) } || (t.length >= 4 && words.any { t in it }) }
     }
 
+    /** Genre the query names ("comedy", "scifi", "horor"), or null. Aliases cover common spellings. */
+    fun genre(q: String, genres: List<String>): String? {
+        val t = ChannelSearch.norm(q).replace(" ", "")
+        if (t.length < 3) return null
+        val alias = mapOf("scifi" to "Sci-Fi", "sciencefiction" to "Sci-Fi", "reality" to "Reality-TV", "realitytv" to "Reality-TV",
+            "docs" to "Documentary", "documentaries" to "Documentary", "cartoon" to "Animation", "cartoons" to "Animation", "anime" to "Animation",
+            "kids" to "Family", "romcom" to "Romance", "scary" to "Horror")
+        alias[t]?.let { a -> return genres.firstOrNull { it == a } }
+        return genres.firstOrNull { g -> val n = ChannelSearch.norm(g).replace(" ", ""); n == t || (t.length >= 4 && n.startsWith(t)) || typo(t, n) || (t.endsWith("s") && n == t.dropLast(1)) }
+    }
+
     /** Typo tolerance: 1 edit for words of 5+ letters, 2 for 9+ (also against the word's prefix while typing). */
     fun typo(t: String, w: String): Boolean {
         val max = when { t.length >= 9 -> 2; t.length >= 5 -> 1; else -> 0 }

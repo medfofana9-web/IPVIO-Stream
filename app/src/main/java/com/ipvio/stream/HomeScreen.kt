@@ -638,6 +638,11 @@ fun HomeScreen(
                                         if (tasteTop.isNotEmpty()) item(key = "taste:new") { ExtraRow("Discover something new", "taste:new:" + Profiles.active, cardW, onOpen, onBrowse) { TasteRows.discover(ctx, tasteTop) } }
                                         // Curated discovery rows
                                         item(key = "cur:acclaimed") { CatalogRow(Catalog.Spec("Critically acclaimed", "movie", "imdbRating"), cardW, onOpen, onBrowse, topIds) }
+                                        // Hidden gems: highly rated titles beyond the most famous ones (the top of the rating list and today's popular titles are left out)
+                                        item(key = "cur:gems") { ExtraRow("Hidden gems", "cur:gems", cardW, onOpen, onBrowse) {
+                                            val famous = (Catalog.cached(Catalog.popular(Kind.MOVIE)) + Catalog.cached(Catalog.popular(Kind.SERIES))).map { it.id }.toSet()
+                                            val m = Catalog.items(Catalog.featured(Kind.MOVIE), 4).drop(40); val s = Catalog.items(Catalog.featured(Kind.SERIES), 4).drop(40)
+                                            (0 until maxOf(m.size, s.size)).flatMap { listOfNotNull(m.getOrNull(it), s.getOrNull(it)) }.filter { it.id !in famous }.distinctBy { it.id }.take(30) } }
                                         item(key = "cur:binge") { CatalogRow(Catalog.Spec("Binge-worthy series", "series", "imdbRating"), cardW, onOpen, onBrowse, topIds) }
                                         item(key = "cur:short") { ExtraRow("Short movies for tonight", "cur:short", cardW, onOpen, onBrowse) {
                                             Catalog.items(Catalog.popular(Kind.MOVIE), 3).filter { Catalog.meta(it)?.runtime?.let { r -> r in 60..100 } == true } } }

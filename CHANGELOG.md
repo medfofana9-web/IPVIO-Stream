@@ -1,5 +1,11 @@
 # Changelog
 
+## Fof TV 1.3.114 (November 2026)
+
+- Search: typing a genre ("comedy", "sci fi", "horor", "docs") adds rows of popular movies and shows in that genre.
+- Home: "Hidden gems" (well rated titles beyond the most famous ones) and "Your teams today" (your teams' games today that are not live: upcoming, then final).
+- Sports in the player: Show/Hide score button for the score box over a game (remembered).
+
 ## Fof TV 1.3.112 (November 2026)
 
 - Sync: a seek is saved and sent to the account within a few seconds; the audio and subtitle language chosen per title now follows the profile to every TV.

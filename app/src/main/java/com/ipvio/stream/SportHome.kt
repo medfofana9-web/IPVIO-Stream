@@ -39,7 +39,13 @@ object SportPrefs {
         if (inited) return
         inited = true
         hideScores = prefs(c).getBoolean("hide_scores", false)
+        bugOff = prefs(c).getBoolean("bug_off", false)
     }
+
+    /** Score box over a game in the player turned off (Show/Hide score button in the player). */
+    var bugOff by mutableStateOf(false)
+        private set
+    fun setBugOff(c: Context, off: Boolean) { bugOff = off; prefs(c).edit().putBoolean("bug_off", off).apply() }
 
     fun setHideScores(c: Context, on: Boolean) {
         hideScores = on
@@ -63,6 +69,7 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
     val ctx = LocalContext.current
     SportFavs.init(ctx); SportLeagues.init(ctx); SportFix.init(ctx); SportLearn.init(ctx); SportPrefs.init(ctx)
     val scope = rememberCoroutineScope()
+    var teamGames by remember { mutableStateOf(emptyList<SportData.Game>()) }
     val games by produceState(emptyList<SportData.Game>(), SportPrefs.version) {
         while (true) {
             val ymd = SportData.ymd(0, General.zone())
@@ -71,11 +78,19 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
                 coroutineScope { leagues.map { l -> async { runCatching { SportData.fetch(l, ymd, 8_000) }.getOrDefault(emptyList()) } }.awaitAll().flatten() }
             }.getOrDefault(emptyList())
             SportFeed.put(all)
+            // Your teams today, not live: upcoming first, then final scores
+            teamGames = all.filter { SportFavs.isFavGame(it) && it.state != 1 }.sortedWith(compareBy<SportData.Game> { if (it.state == 0) 0 else 1 }.thenBy { it.start })
             val now = System.currentTimeMillis() / 1000
             value = all.filter { g ->
                 g.state == 1 || (g.state == 0 && SportFavs.isFavGame(g) && g.start - now in 0..3600)
             }.sortedWith(compareByDescending<SportData.Game> { GameDayLogic.isClose(it) }.thenByDescending { SportFavs.isFavGame(it) }.thenByDescending { it.state }.thenBy { it.start })
             delay(if (value.isNotEmpty()) 10_000L else 180_000L)
+        }
+    }
+    if (teamGames.isNotEmpty()) Column(Modifier.padding(top = dpx(10)), verticalArrangement = Arrangement.spacedBy(dpx(10))) {
+        Text("Your teams today", color = Color.White, fontSize = spx(24), fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = RowPadX))
+        LazyRow(contentPadding = PaddingValues(horizontal = RowPadX, vertical = dpx(10)), horizontalArrangement = Arrangement.spacedBy(dpx(18))) {
+            items(teamGames, key = { "t" + it.key }) { g -> GameTileCard(g) { onSports() } }
         }
     }
     if (games.isEmpty()) return
