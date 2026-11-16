@@ -1,5 +1,11 @@
 # Changelog
 
+## Fof TV 1.3.120 (November 2026)
+
+- Smoother remote navigation: screens follow the focus with a spring instead of a 300 ms tween that restarted from standstill on every press (the uneven, jumpy movement on quick or held presses). Applies to Home, Movies, Shows, Search, details and menus.
+- Home rows that load later (taste rows, Hidden gems, curated rows) keep their place while loading, so the screen no longer shifts when one appears.
+- Title page: going back up to the top is one smooth move instead of four quick snaps.
+
 ## Fof TV 1.3.119 (November 2026)
 
 - Forgot password on the TV (email → 6-digit code → new password) is built but switched off until the account service has its own email sender; see docs/RELEASE-READINESS.md.

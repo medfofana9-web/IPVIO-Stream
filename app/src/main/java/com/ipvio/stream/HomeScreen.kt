@@ -854,9 +854,12 @@ object PillMemory {
 /** A row from TMDB (needs the TMDB key); left out while empty, so it never leaves a gap. */
 @Composable
 private fun ExtraRow(title: String, key: String, cardW: Int, onOpen: (Item) -> Unit, onBrowse: (BrowseReq) -> Unit, load: suspend () -> List<Item>) {
-    val list by produceState(TmdbExtra.cached(key), key) { value = load() }
-    if (list.size < 3) return
-    ItemsRow(title, list, cardW, onOpen) { onBrowse(BrowseReq(title, list, SORT_PLAYLIST)) }
+    // null = still loading: the row keeps its place (a row popping in later pushed the screen while moving through it)
+    val list by produceState(TmdbExtra.cached(key).takeIf { it.size >= 3 }, key) { value = runCatching { load() }.getOrDefault(emptyList()) }
+    val l = list
+    if (l == null) { Spacer(Modifier.fillMaxWidth().height(dpx(300))); return }
+    if (l.size < 3) return
+    ItemsRow(title, l, cardW, onOpen) { onBrowse(BrowseReq(title, l, SORT_PLAYLIST)) }
 }
 
 /** Collections (sagas): wide picture cards; OK opens the movies in order. */

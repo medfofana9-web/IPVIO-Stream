@@ -218,7 +218,9 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalFoundationApi::class)
 val SmoothSpec = object : BringIntoViewSpec {
-    override val scrollAnimationSpec = tween<Float>(280, easing = FastOutSlowInEasing)
+    // Spring (no restart from standstill per press): lists, details, search and menus move evenly under quick presses
+    override val scrollAnimationSpec: androidx.compose.animation.core.AnimationSpec<Float> =
+        androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 380f)
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
         val peek = 90f
         val leading = offset

@@ -81,7 +81,10 @@ val LocalRowFocus = compositionLocalOf { false }
 @OptIn(ExperimentalFoundationApi::class)
 class PivotSpec(private val pivot: Float, private val list: () -> androidx.compose.foundation.lazy.LazyListState) : BringIntoViewSpec {
     @Suppress("OVERRIDE_DEPRECATION")
-    override val scrollAnimationSpec = tween<Float>(if (Look.motion == 0) 1 else 300, easing = FastOutSlowInEasing)
+    // A spring, not a tween: each Down press only moves the target and the list keeps its speed. A 300 ms tween started
+    // again from standstill on every press (accelerate, brake, accelerate …), which made held or quick presses look uneven.
+    override val scrollAnimationSpec: androidx.compose.animation.core.AnimationSpec<Float> =
+        if (Look.motion == 0) tween(1) else androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 380f)
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
         if (size >= containerSize * 0.45f) return SmoothSpec.calculateScrollDistance(offset, size, containerSize)
         val d = offset - containerSize * pivot

@@ -139,7 +139,12 @@ private fun DetailScreenFull(
     val listState = rememberLazyListState()
     var heroFocused by remember { mutableStateOf(false) }
     LaunchedEffect(heroFocused) {
-        if (heroFocused) repeat(4) { delay(70); listState.scrollToItem(0) }
+        // Back to the top in one smooth move; a quick check afterwards only corrects a late layout (no repeated snapping)
+        if (heroFocused) {
+            runCatching { listState.animateScrollToItem(0) }
+            delay(160)
+            if (listState.firstVisibleItemIndex != 0 || listState.firstVisibleItemScrollOffset != 0) listState.scrollToItem(0)
+        }
     }
     BackHandler(enabled = !embedded, onBack = onBack)
     // Catalog titles bring Cinemeta's picture and text, so the page is complete even without a TMDB key
