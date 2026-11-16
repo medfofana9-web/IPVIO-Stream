@@ -87,3 +87,8 @@ U-1: move the Media3-dependent code out of `PlayerLogic.kt` (see `docs/REFACTORI
 - Checks: release build + unit tests pass; test TV run 43649087244: all 7 checks pass.
 - Open: real-TV numbers after 1.3.61 (Speed / App health); which unused features to remove (list in the report);
   ESPN single live request for Sports; search typo tolerance for catalog titles; Back/focus rules of the search brief.
+
+## 1.3.105 (released, latest)
+- Done: search typo tolerance (SearchAllLogic.typo/dist), curated Home rows, Surprise me (SurpriseMe.kt), sports game quick menu with multiview + My Teams, Watch Together text chat.
+- Tests: CI unit tests and release build passed (SearchAllLogicTest.typoTolerance, SurpriseLogicTest new). No device or emulator run for this batch.
+- Open: device check of the sports menu, Surprise me and party chat on Fire TV; scroll smoothness (520/1088 slow frames on d18ee8f).
