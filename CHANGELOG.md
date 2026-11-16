@@ -1,5 +1,10 @@
 # Changelog
 
+## Fof TV 1.3.115 (November 2026)
+
+- IPTV movies and shows: a provider title without a year is only matched when no other film of the same name is in the list (a plain "Dune" next to "Dune (1984)" is not offered for the 2021 film).
+- docs/RELEASE-READINESS.md: verification results, backup and recovery, content-rights notes.
+
 ## Fof TV 1.3.114 (November 2026)
 
 - Search: typing a genre ("comedy", "sci fi", "horor", "docs") adds rows of popular movies and shows in that genre.

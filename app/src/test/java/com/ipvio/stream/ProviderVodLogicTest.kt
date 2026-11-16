@@ -24,6 +24,10 @@ class ProviderVodLogicTest {
         assertEquals(1, ProviderVodLogic.pick(c, 2021))
         assertEquals(2, ProviderVodLogic.pick(c, 1984))
         assertNull(ProviderVodLogic.pick(listOf(ProviderVodLogic.Cand("Dune (1984)", 1984)), 2021))
+        // No year on the provider side: trusted only when no other film of that name is in the list
+        assertEquals(0, ProviderVodLogic.pick(listOf(ProviderVodLogic.Cand("Dune", null)), 2021))
+        assertEquals(1, ProviderVodLogic.pick(listOf(ProviderVodLogic.Cand("FR - Dune", null), ProviderVodLogic.Cand("EN - Dune", null)), 2021))
+        assertNull(ProviderVodLogic.pick(listOf(ProviderVodLogic.Cand("Dune", null), ProviderVodLogic.Cand("Dune (1984)", 1984)), 2021))
         assertEquals(2024, ProviderVodLogic.year("Show (2024)", null))
         assertEquals(2019, ProviderVodLogic.year("Show", "2019-05-01"))
     }

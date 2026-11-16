@@ -109,7 +109,10 @@ object ProviderVodLogic {
      * known; English copies (or ones without a tag) first, then the exact year. Null = none fits.
      */
     fun pick(c: List<Cand>, year: Int?): Int? {
-        val ok = c.indices.filter { i -> val y = c[i].year; year == null || y == null || kotlin.math.abs(y - year) <= 1 }
+        // A provider title without a year is only trusted when nothing shows a second film of that name: with "Dune (1984)"
+        // in the list, a plain "Dune" could be either film, and the wrong film must never start
+        val otherFilm = year != null && c.any { it.year != null && kotlin.math.abs(it.year - year) > 1 }
+        val ok = c.indices.filter { i -> val y = c[i].year; year == null || (y == null && !otherFilm) || (y != null && kotlin.math.abs(y - year) <= 1) }
         return ok.minWithOrNull(compareBy<Int>(
             { when (lang(c[it].name)) { null, "EN", "US", "UK", "ENG" -> 0; else -> 1 } },
             { if (year != null && c[it].year == year) 0 else 1 }
