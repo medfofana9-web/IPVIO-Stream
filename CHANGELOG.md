@@ -1,5 +1,13 @@
 # Changelog
 
+## Fof TV 1.3.99 (November 2026)
+- The update prompt never appears over playback any more (it waited only for sports before); it shows after the
+  player closes, and "Later" still hides that version
+- Profiles that come from the account (set up on another TV) no longer get the taste questions again on a new TV
+- Taste setup posters: 7 even columns with titles under them; the focused poster lifts with a light rim, picked ones
+  get a lavender frame, a tint and a check (before, focus and picked looked the same); Next shows how many are picked,
+  or "Skip" when nothing is
+
 ## Fof TV 1.3.98 (November 2026)
 **Profiles never mix any more**
 - Cause: signing in renamed the profile in use to the account owner's name, and profiles were then linked to account

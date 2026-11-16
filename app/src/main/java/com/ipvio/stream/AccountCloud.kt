@@ -209,6 +209,8 @@ object AccountCloud {
         for (cp in plan.createLocal) {
             val lid = withContext(Dispatchers.Main) { Profiles.addNamed(c, cp.name) } ?: break
             links[lid] = cp.id
+            // Set up already (on another TV, or skipped there): no taste questions again on this TV
+            c.applicationContext.getSharedPreferences(Profiles.scopedName("fof_taste", lid), Context.MODE_PRIVATE).edit().putBoolean("done", true).apply()
             // The account's name and picture win on this new copy
             prefs(c).edit().putString(psKey(lid), AccountCloudLogic.snap(cp.name, "")).apply()
         }

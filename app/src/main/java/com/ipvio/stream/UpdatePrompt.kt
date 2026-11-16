@@ -30,7 +30,8 @@ fun UpdatePromptHost() {
     val upd = AppUpdate.available
     // Fof TV: appears by itself as soon as a new version is found (checked every 15 minutes and whenever the app comes back),
     // "Later" hides only that version, and it waits while something is playing
-    if (upd == null || AppUpdate.dismissedFor == upd.name || SportSession.watching != null) return
+    // Never over playback (movies, shows, live, sports): the prompt waits until the player is closed
+    if (upd == null || AppUpdate.dismissedFor == upd.name || SportSession.watching != null || AppNav.playing) return
     val scope = rememberCoroutineScope()
     var status by remember(upd) { mutableStateOf("") }
     var busy by remember(upd) { mutableStateOf(false) }

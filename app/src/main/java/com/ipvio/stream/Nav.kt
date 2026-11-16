@@ -92,7 +92,8 @@ object AppNav {
     /** View settings preview: scroll the home screen to the first of these block keys ("a|b"); "" = nothing, "top" = to the top. */
     var homeScrollKey by androidx.compose.runtime.mutableStateOf("")
     /** Player open? Then the background refresh postpones reloading the playlist (no stutter in the middle of a movie). */
-    @Volatile var playing = false
+    /** A player is open (state, so the update prompt waits and comes back after playback). */
+    var playing by androidx.compose.runtime.mutableStateOf(false)
     /** Channel to be opened (tapping a reminder notification). */
     var openChannel by androidx.compose.runtime.mutableStateOf<String?>(null)
     @Volatile var leftByUser = false
