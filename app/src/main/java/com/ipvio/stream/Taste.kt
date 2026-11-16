@@ -79,6 +79,28 @@ object Taste {
     fun sports(c: Context): Set<String> = prefs(c).getStringSet("sports", emptySet()).orEmpty()
     fun genres(c: Context): List<String> = prefs(c).getString("genres", "").orEmpty().split('|').filter { it.isNotBlank() }
     fun titles(c: Context): List<String> = prefs(c).getString("titles", "").orEmpty().split('|').filter { it.isNotBlank() }
+    /** Titles rated "Not for me" in the setup (left out of recommendations). */
+    fun nope(c: Context): Set<String> = prefs(c).getString("nope", "").orEmpty().split('|').filter { it.isNotBlank() }.toSet()
+    /** Genres that the ratings point to, best first (feeds "Picked for you" and the other taste rows). */
+    fun topGenres(c: Context): List<String> = prefs(c).getString("tg", "").orEmpty().split('|').filter { it.isNotBlank() }
+    /** Viewing preference answers (key -> choice, see PREF_QUESTIONS). */
+    fun pref(c: Context, k: String): String? = prefs(c).getString("p_$k", null)
+
+    /** Unfinished setup of this profile (resumed the next time it is opened). */
+    fun draft(c: Context): org.json.JSONObject? = prefs(c).getString("draft", null)?.let { runCatching { org.json.JSONObject(it) }.getOrNull() }
+    fun saveDraft(c: Context, d: org.json.JSONObject) { prefs(c).edit().putString("draft", d.toString()).apply() }
+
+    /** Saves ratings, preferences and the genres they point to (one write, together with [apply]). */
+    fun applyDiscovery(c: Context, ratings: Map<String, Int>, prefsMap: Map<String, String>, topGenres: List<String>) {
+        val e = prefs(c).edit()
+        e.putString("nope", ratings.filterValues { it == Discovery.NOPE }.keys.joinToString("|"))
+        e.putString("loved", ratings.filterValues { it == Discovery.LOVED }.keys.joinToString("|"))
+        e.putString("tg", topGenres.joinToString("|"))
+        for (k in prefs(c).all.keys.filter { it.startsWith("p_") }) e.remove(k)
+        for ((k, v) in prefsMap) e.putString("p_$k", v)
+        e.remove("draft")
+        e.apply()
+    }
 
     /** Ask the questions again the next time profile [id] is picked. */
     fun reset(c: Context, id: Int) {
@@ -86,7 +108,7 @@ object Taste {
         if (BuildConfig.VERSION_NAME.endsWith("-test")) testForce = true
     }
 
-    fun skip(c: Context) { prefs(c).edit().putBoolean("done", true).apply(); CloudSync.kick(c) }
+    fun skip(c: Context) { prefs(c).edit().putBoolean("done", true).remove("draft").apply(); CloudSync.kick(c) }
 
     /** Saves the answers and applies them: leagues, favorite teams, liked titles (for the "Because you like" rows), genres. */
     fun apply(c: Context, sports: Set<String>, teams: List<SportData.Team>, liked: List<Item>, genres: List<String>) {
@@ -131,32 +153,56 @@ private suspend fun loadTeams(leagues: List<String>): List<TeamPick> = withConte
 fun TasteSetup(onDone: () -> Unit) {
     val ctx = LocalContext.current
     val name = remember { Profiles.activeName().let { n -> if (n == Profiles.defaultName(Profiles.active) || n == Profiles.defaultName(0)) "" else n } }
-    var step by remember { mutableIntStateOf(0) }
-    val sports = remember { mutableStateListOf<String>().apply { addAll(Taste.sports(ctx)) } }
+    // A blank slate: only this profile's own (draft) answers, never another profile's
+    val draft = remember { Taste.draft(ctx) }
+    var step by remember { mutableIntStateOf(draft?.optInt("step", 0) ?: 0) }
+    val ratings = remember { mutableStateMapOf<String, Int>().apply {
+        draft?.optJSONObject("r")?.let { o -> o.keys().forEach { k -> put(k, o.optInt(k)) } }
+    } }
+    val rated = remember { mutableStateMapOf<String, Item>().apply { ratings.keys.forEach { id -> CatalogItems.get(id)?.let { put(id, it) } } } }
+    val genres = remember { mutableStateListOf<String>().apply {
+        draft?.optJSONArray("g")?.let { a -> for (i in 0 until a.length()) add(a.optString(i)) }
+    } }
+    val prefsMap = remember { mutableStateMapOf<String, String>().apply {
+        draft?.optJSONObject("p")?.let { o -> o.keys().forEach { k -> put(k, o.optString(k)) } }
+    } }
+    val sports = remember { mutableStateListOf<String>().apply {
+        draft?.optJSONArray("s")?.let { a -> for (i in 0 until a.length()) add(a.optString(i)) }
+    } }
     val teams = remember { mutableStateListOf<TeamPick>() }
-    val liked = remember { mutableStateListOf<Item>() }
-    val genres = remember { mutableStateListOf<String>().apply { addAll(Taste.genres(ctx)) } }
     val teamLeagues = TasteLogic.teamLeagues(sports.toSet())
     val teamList by produceState<List<TeamPick>?>(null, teamLeagues) { value = null; value = if (teamLeagues.isEmpty()) emptyList() else loadTeams(teamLeagues) }
-    val shows by produceState<List<Item>?>(null) {
-        value = withContext(Dispatchers.IO) { Catalog.init(ctx); runCatching { Catalog.items(Catalog.popular(Kind.SERIES), 2) }.getOrDefault(emptyList()) }.filter { !it.logo.isNullOrBlank() }.take(40)
-    }
-    val movies by produceState<List<Item>?>(null) {
-        value = withContext(Dispatchers.IO) { Catalog.init(ctx); runCatching { Catalog.items(Catalog.popular(Kind.MOVIE), 2) }.getOrDefault(emptyList()) }.filter { !it.logo.isNullOrBlank() }.take(40)
-    }
+    val moviePool by produceState<Discovery.Pool?>(null) { value = runCatching { Discovery.pool(ctx, Kind.MOVIE) }.getOrNull() ?: Discovery.Pool(emptyList(), emptyMap(), emptyMap()) }
+    val showPool by produceState<Discovery.Pool?>(null) { value = runCatching { Discovery.pool(ctx, Kind.SERIES) }.getOrNull() ?: Discovery.Pool(emptyList(), emptyMap(), emptyMap()) }
     val allGenres = remember { listOf("Action", "Comedy", "Drama", "Crime", "Thriller", "Sci-Fi", "Horror", "Romance", "Mystery", "Fantasy", "Animation", "Family", "Documentary", "Reality-TV", "Adventure") }
-    val steps = 6
+    // Steps: movies, shows, genres, viewing preferences, sports, teams, review
+    val steps = 7
+    fun saveDraft() {
+        val d = org.json.JSONObject().put("step", step)
+            .put("r", org.json.JSONObject().apply { ratings.forEach { (k, v) -> put(k, v) } })
+            .put("g", org.json.JSONArray(genres.toList())).put("s", org.json.JSONArray(sports.toList()))
+            .put("p", org.json.JSONObject().apply { prefsMap.forEach { (k, v) -> put(k, v) } })
+        Taste.saveDraft(ctx, d)
+    }
+    LaunchedEffect(step) { saveDraft() }
+    fun topGenres(): List<String> {
+        val m = HashMap<String, Set<String>>()
+        moviePool?.genresOf?.let { m.putAll(it) }; showPool?.genresOf?.let { m.putAll(it) }
+        val fromRatings = DiscoveryLogic.genreScores(ratings, m).filter { it.second > 0 }.map { it.first }
+        return (genres + fromRatings).distinct().take(5)
+    }
     fun finish() {
-        Taste.apply(ctx, sports.toSet(), teams.map { it.team }, liked.toList(), genres.toList())
+        val liked = ratings.filterValues { it == Discovery.LOVED || it == Discovery.LIKED }.keys.mapNotNull { rated[it] ?: CatalogItems.get(it) }
+        Taste.apply(ctx, sports.toSet(), teams.map { it.team }, liked, genres.toList())
+        Taste.applyDiscovery(ctx, ratings.toMap(), prefsMap.toMap(), topGenres())
         onDone()
     }
-    // First: does this person already use Fof TV? Then signing in brings their whole profile; else the questions
-    var askAccount by remember { mutableStateOf(!FofAccount.signedInState) }
+    // First (TV not signed in): does this person already use Fof TV? Then signing in brings their whole profile
+    var askAccount by remember { mutableStateOf(!FofAccount.signedInState && draft == null) }
     var signingIn by remember { mutableStateOf(false) }
     var saveAtEnd by remember { mutableStateOf(false) }
     LaunchedEffect(FofAccount.signedInState, signingIn) {
         if (signingIn && FofAccount.signedInState) {
-            // The whole TV is on the account now: its profiles come in, then "Who's watching?" with each profile's PIN
             if (saveAtEnd) finish()
             AccountCloud.run(ctx)
             CloudSync.run(ctx)
@@ -168,7 +214,7 @@ fun TasteSetup(onDone: () -> Unit) {
             signingIn -> signingIn = false
             askAccount -> { Taste.skip(ctx); onDone() }
             step > 0 -> step--
-            else -> askAccount = true
+            else -> askAccount = !FofAccount.signedInState
         }
     }
     if (signingIn) { SignInWithPhone { signingIn = false }; return }
@@ -176,34 +222,43 @@ fun TasteSetup(onDone: () -> Unit) {
         AccountQuestion(name, onSignIn = { signingIn = true }, onNew = { askAccount = false })
         return
     }
+    val loved = ratings.values.count { it == Discovery.LOVED || it == Discovery.LIKED }
 
     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF111218), Color(0xFF050507))))) {
-        Column(Modifier.fillMaxSize().padding(horizontal = 64.dp, vertical = 40.dp)) {
-            // Header: mark, step dots
+        Column(Modifier.fillMaxSize().padding(horizontal = 64.dp, vertical = 36.dp)) {
+            // Header: mark, progress
             Row(verticalAlignment = Alignment.CenterVertically) {
                 FofLogo(36.dp, 24.sp)
                 Spacer(Modifier.weight(1f))
+                Text("Step ${step + 1} of $steps", color = Color(0x80FFFFFF), fontSize = 14.sp, raw = true)
+                Spacer(Modifier.width(14.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     repeat(steps) { i -> Box(Modifier.size(if (i == step) 26.dp else 8.dp, 8.dp).clip(CircleShape).background(if (i <= step) Color.White else Color(0x33FFFFFF))) }
                 }
             }
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(22.dp))
+            val hi = if (name.isBlank()) "" else ", $name"
             val (title, sub) = when (step) {
-                0 -> (if (name.isBlank()) "Let's make Fof TV yours" else "Let's make Fof TV yours, $name") to "Which sports do you follow? Pick all you like – Sports, Home and alerts will focus on them."
-                1 -> "Your teams" to "Pick the teams you root for. Their games come first, everywhere."
-                2 -> "Shows you love" to "Pick a few. We'll recommend more like them."
-                3 -> "Movies you love" to "Pick a few favorites."
-                4 -> "What do you like to watch?" to "Pick your favorite genres."
-                else -> "All set" + (if (name.isBlank()) "" else ", $name") to "Fof TV is now tuned to you. You can change this any time: Manage Profiles → your profile → Your taste."
+                0 -> "Movies you love$hi" to "We know nothing about you yet. Rate the movies you have seen – about 10 to 15 helps most. Search finds any movie."
+                1 -> "Shows you love" to "Now series – rate what you have watched. Your movie picks do not decide this part."
+                2 -> "Your genres" to "Pick the kinds of stories you enjoy most."
+                3 -> "How you like to watch" to "A few quick choices so we can tell you apart from people with the same favorites. All optional."
+                4 -> "Sports you follow" to "Sports, Home and alerts will focus on them."
+                5 -> "Your teams" to "Their games come first, everywhere."
+                else -> "Ready" + hi to "Here is what Fof TV knows about you now. You can change it any time: Manage Profiles → your profile → Your taste."
             }
-            Text(title, color = Color.White, fontSize = 38.sp, fontWeight = FontWeight.Bold, raw = true)
+            Text(title, color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Bold, raw = true)
             Spacer(Modifier.height(6.dp))
-            Text(sub, color = Color(0xA6FFFFFF), fontSize = 18.sp, raw = true)
-            Spacer(Modifier.height(26.dp))
+            Text(sub, color = Color(0xA6FFFFFF), fontSize = 17.sp, raw = true)
+            Spacer(Modifier.height(20.dp))
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (step) {
-                    0 -> ChipGrid(TasteLogic.SPORTS.map { it.first to it.second }, sports)
-                    1 -> {
+                    0 -> DiscoverStep(Kind.MOVIE, moviePool, ratings, rated) { saveDraft() }
+                    1 -> DiscoverStep(Kind.SERIES, showPool, ratings, rated) { saveDraft() }
+                    2 -> ChipGrid(allGenres.map { it to it }, genres)
+                    3 -> PrefsStep(prefsMap) { saveDraft() }
+                    4 -> ChipGrid(TasteLogic.SPORTS.map { it.first to it.second }, sports)
+                    5 -> {
                         val l = teamList
                         when {
                             sports.isEmpty() || (l != null && l.isEmpty()) -> Text("No teams to pick for these sports – go on.", color = Color(0x99FFFFFF), fontSize = 18.sp, raw = true)
@@ -211,28 +266,27 @@ fun TasteSetup(onDone: () -> Unit) {
                             else -> TeamGrid(l, teams)
                         }
                     }
-                    2 -> PosterGrid(shows, liked)
-                    3 -> PosterGrid(movies, liked)
-                    4 -> ChipGrid(allGenres.map { it to it }, genres)
-                    else -> Summary(sports.mapNotNull { s -> TasteLogic.SPORTS.firstOrNull { it.first == s }?.second }, teams.map { it.team.short }, liked.map { it.title }, genres.toList())
+                    else -> Summary(
+                        sports.mapNotNull { s -> TasteLogic.SPORTS.firstOrNull { it.first == s }?.second } + teams.map { it.team.short },
+                        prefsMap.values.toList(),
+                        ratings.filterValues { it == Discovery.LOVED || it == Discovery.LIKED }.keys.mapNotNull { (rated[it] ?: CatalogItems.get(it))?.title },
+                        topGenres()
+                    )
                 }
             }
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
                 val next = remember { FocusRequester() }
                 if (step < steps - 1) {
-                    val picked = when (step) { 0 -> sports.size; 1 -> teams.size; 2, 3 -> liked.size; 4 -> genres.size; else -> 0 }
-                    PillButton(when {
-                        step == 0 && sports.isEmpty() -> "Skip sports"
-                        picked > 0 -> "Next  ·  $picked picked"
-                        step in 1..4 -> "Skip"
-                        else -> "Next"
-                    }, Modifier.focusRequester(next), light = true, raw = true) { step++ }
+                    val picked = when (step) { 0, 1 -> loved; 2 -> genres.size; 3 -> prefsMap.size; 4 -> sports.size; 5 -> teams.size; else -> 0 }
+                    PillButton(if (picked > 0) "Next  ·  $picked picked" else "Skip this step", Modifier.focusRequester(next), light = true, raw = true) { step++ }
                     if (step > 0) PillButton("Back", raw = true) { step-- }
                     Spacer(Modifier.weight(1f))
+                    // Leave and come back later: the answers so far stay with this profile only
+                    PillButton("Save & exit", raw = true) { saveDraft(); Profiles.restartToPicker(ctx) }
                     PillButton("Skip setup", raw = true) { Taste.skip(ctx); onDone() }
                 } else {
-                    PillButton("Start watching", Modifier.focusRequester(next), light = true, icon = AIcon.Play, raw = true) { finish() }
+                    PillButton("Create my Fof TV", Modifier.focusRequester(next), light = true, icon = AIcon.Play, raw = true) { finish() }
                     if (!FofAccount.signedInState) PillButton("Keep it on every TV", icon = AIcon.Phone, raw = true) { saveAtEnd = true; signingIn = true }
                     PillButton("Back", raw = true) { step-- }
                 }
@@ -338,10 +392,10 @@ private fun SelectTile(on: Boolean, focus: Modifier, size: Modifier, onClick: ()
 }
 
 @Composable
-private fun Summary(sports: List<String>, teams: List<String>, titles: List<String>, genres: List<String>) {
+private fun Summary(sports: List<String>, howYouWatch: List<String>, titles: List<String>, genres: List<String>) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         fun line(label: String, v: List<String>) = label to (if (v.isEmpty()) "—" else v.joinToString(", "))
-        listOf(line("Sports", sports), line("Teams", teams), line("Shows and movies", titles), line("Genres", genres)).forEach { (l, v) ->
+        listOf(line("Loved and liked", titles), line("Genres", genres), line("How you watch", howYouWatch), line("Sports and teams", sports)).forEach { (l, v) ->
             Row {
                 Text(l, color = Color(0x99FFFFFF), fontSize = 18.sp, raw = true, modifier = Modifier.width(220.dp))
                 Text(v, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Medium, maxLines = 2, raw = true)

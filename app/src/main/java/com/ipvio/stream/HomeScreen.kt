@@ -476,6 +476,7 @@ fun HomeScreen(
     // Taste setup of this profile: liked titles feed "Because you like …", liked genres come first
     val tasteSeeds = remember(Profiles.active) { Taste.titles(ctx).mapNotNull { CatalogItems.get(it) }.shuffled() }
     val likedGenres = remember(Profiles.active) { Taste.genres(ctx) }
+    val tasteTop = remember(Profiles.active) { Taste.topGenres(ctx) }
     fun tasteOrder(l: List<Catalog.Spec>) = l.sortedBy { sp -> likedGenres.indexOfFirst { it.equals(sp.title, true) }.let { if (it < 0) 99 else it } }
     // A title watched on another TV (or from another source) stays in Continue watching even when this TV's playlist has
     // it under another id or not at all: exact title + kind match first, else the saved entry itself (ResumeMatch)
@@ -620,7 +621,14 @@ fun HomeScreen(
                                                 ExtraRow("Because you like " + ts.title, "because:" + ts.id.removePrefix("stremio:"), cardW, onOpen, onBrowse) { TmdbExtra.because(ts) }
                                             }
                                         }
+                                        // From this profile's own setup answers (nothing for a profile that skipped it)
+                                        if (tasteTop.isNotEmpty()) {
+                                            item(key = "taste:picked") { ExtraRow("Picked for you", "taste:picked:" + Profiles.active, cardW, onOpen, onBrowse) { TasteRows.picked(ctx, tasteTop) } }
+                                            item(key = "taste:movies") { ExtraRow("Movies you might love", "taste:movies:" + Profiles.active, cardW, onOpen, onBrowse) { TasteRows.forKind(ctx, Kind.MOVIE, tasteTop) } }
+                                            item(key = "taste:shows") { ExtraRow("Shows matching your taste", "taste:shows:" + Profiles.active, cardW, onOpen, onBrowse) { TasteRows.forKind(ctx, Kind.SERIES, tasteTop) } }
+                                        }
                                         Catalog.home().forEach { sp -> item(key = "cm" + sp.title) { CatalogRow(sp, cardW, onOpen, onBrowse, topIds) } }
+                                        if (tasteTop.isNotEmpty()) item(key = "taste:new") { ExtraRow("Discover something new", "taste:new:" + Profiles.active, cardW, onOpen, onBrowse) { TasteRows.discover(ctx, tasteTop) } }
                                         // What just came out on the big streaming services
                                         TmdbExtra.SERVICES.take(4).forEach { sv ->
                                             item(key = "new" + sv.id) { ExtraRow("New on " + sv.name, "new:" + sv.id, cardW, onOpen, onBrowse) { TmdbExtra.newOn(sv) } }

@@ -1,5 +1,20 @@
 # Changelog
 
+## Fof TV 1.3.101 (November 2026)
+**Taste discovery is part of creating a profile**
+- Add profile: name and picture → PIN (or none) → movies → shows → genres → how you like to watch → sports and teams
+  → review → "Create my Fof TV". Every step can be skipped; the profile starts as a blank slate (nothing from another
+  profile or the owner)
+- Movies and shows: a balanced start of 48 titles (every genre, four decades, popular, top rated and new), search for
+  any title, and "Show more". OK on a poster: Love it → Like it → Not for me → clear. Every third "Love it" adds more of
+  the genres rated well plus one genre not touched yet, so the choice never narrows to one kind
+- How you like to watch: movies or shows, mood, pace, real or fantasy, documentaries, reality TV, subtitles,
+  episode length
+- Save & exit keeps the answers as a draft of this profile only; opening the profile again continues where it stopped
+- The new profile's Home: "Picked for you", "Movies you might love", "Shows matching your taste" and "Discover
+  something new", from real catalog titles of the genres its ratings point to (titles rated "Not for me", already liked
+  or watched are left out). A profile that skipped gets the normal varied rows
+
 ## Fof TV 1.3.100 (November 2026)
 - Coming back to the app no longer throws away the screen you were on: it returns to the home screen only after more
   than 30 minutes away. Android also reports "left by the user" when the app opens another screen on top (voice
