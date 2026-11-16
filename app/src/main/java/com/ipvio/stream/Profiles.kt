@@ -111,7 +111,10 @@ object Profiles {
         val force = m.getBoolean("force", false)
         if (force) m.edit().putBoolean("force", false).commit()
         // Fof TV: the "Who's watching?" welcome shows on every start (also with one profile), unless turned off
-        return force || (askAtStart && !skip)
+        // Not signed in (and "use without an account" not chosen): the welcome / sign-in screen
+        FofAccount.init(c)
+        val welcome = !FofAccount.signedIn && !SignInGate.skipped(c)
+        return force || welcome || (askAtStart && !skip)
     }
 
     fun add(c: Context): Boolean {
@@ -229,6 +232,10 @@ fun ProfilePicker(onPick: (Int) -> Unit) {
         else if (FofAccount.signedIn) gate = id
         else onPick(id)
     }
+    // Not signed in and not chosen to use the TV without an account: the welcome / sign-in screen first
+    FofAccount.init(ctx)
+    var skipped by remember { mutableStateOf(SignInGate.skipped(ctx)) }
+    if (!FofAccount.signedInState && !skipped) { FofSignInScreen(onSkip = { SignInGate.skip(ctx, true); skipped = true }); return }
     FofWelcome(pick)
 }
 

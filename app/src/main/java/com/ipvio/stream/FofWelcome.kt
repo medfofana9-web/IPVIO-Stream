@@ -47,6 +47,8 @@ fun FofWelcome(onPick: (Int) -> Unit) {
     var changePin by remember { mutableStateOf<Int?>(null) }
     // New profile: name, then picture, then it opens (PIN create/skip and the optional taste questions follow)
     var newFlow by remember { mutableStateOf<Int?>(null) }
+    // New profile, after the picture: who it is for (kids = adult content hidden)
+    var audience by remember { mutableStateOf<Int?>(null) }
     var note by remember { mutableStateOf<String?>(null) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val first = remember { FocusRequester() }
@@ -59,32 +61,8 @@ fun FofWelcome(onPick: (Int) -> Unit) {
     FofAccount.init(ctx)
     // The account's profiles and their PIN state (new profiles from other TVs appear here)
     LaunchedEffect(FofAccount.signedInState) { if (FofAccount.signedInState) AccountCloud.refreshPins(ctx) }
-    // Poster wall behind the profiles (the catalog's popular titles, already on the device), faded into black
-    val wall = remember {
-        val m = Catalog.cached(Catalog.popular(Kind.MOVIE)); val s = Catalog.cached(Catalog.popular(Kind.SERIES))
-        (0 until maxOf(m.size, s.size)).flatMap { listOfNotNull(m.getOrNull(it), s.getOrNull(it)) }.mapNotNull { it.logo }.distinct().take(40)
-    }
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        // The wall drifts slowly sideways (layer move only: nothing is redrawn, smooth on a Fire TV)
-        val drift = androidx.compose.animation.core.rememberInfiniteTransition(label = "wall")
-        val dx by drift.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(
-            androidx.compose.animation.core.tween(70_000, easing = androidx.compose.animation.core.LinearEasing),
-            androidx.compose.animation.core.RepeatMode.Reverse), label = "dx")
-        if (wall.size >= 8) Column(Modifier.fillMaxSize().graphicsLayer {
-            alpha = 0.24f; rotationZ = -6f; scaleX = 1.3f; scaleY = 1.3f
-            translationX = -dx * 260.dp.toPx(); translationY = -dx * 40.dp.toPx()
-        }, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            wall.chunked(10).forEach { row ->
-                Row(Modifier.wrapContentWidth(Alignment.Start, unbounded = true), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    row.forEach { u -> coil.compose.AsyncImage(u, null, Modifier.width(150.dp).height(225.dp).clip(RoundedCornerShape(10.dp)),
-                        contentScale = androidx.compose.ui.layout.ContentScale.Crop) }
-                }
-            }
-        }
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xCC000000), Color(0xE6000000), Color.Black))))
-        // Soft light from above instead of a colored glow
-        Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x1FFFFFFF), Color.Transparent),
-            center = androidx.compose.ui.geometry.Offset(960f, 0f), radius = 1200f)))
+        PosterWall()
         // Top bar: Fof TV mark on the left, greeting and time on the right
         val now by produceState(System.currentTimeMillis()) { while (true) { value = System.currentTimeMillis(); delay(15_000) } }
         Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(horizontal = 56.dp, vertical = 36.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -151,7 +129,8 @@ fun FofWelcome(onPick: (Int) -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             // Not signed in: one sign-in for the whole TV (email and password on the phone); the account's profiles appear
             if (!manage && !FofAccount.signedInState) OutlinePill("Sign in") { phone = true }
-            if (!manage && FofAccount.signedInState) OutlinePill("Sign out") { FofAccount.signOut(ctx); note = "Signed out of this TV" }
+            // Sign out lives in Manage profiles: the main screen only picks a profile
+            if (manage && FofAccount.signedInState) OutlinePill("Sign out of this TV") { FofAccount.signOut(ctx); manage = false }
             OutlinePill(if (manage) "Done" else "Manage Profiles") {
                 if (manage) manage = false
                 else if (Parental.profileLocked(ctx, 0)) { askPin = true; pinErr = null }
@@ -161,7 +140,7 @@ fun FofWelcome(onPick: (Int) -> Unit) {
         }
         if (phone) {
             LaunchedEffect(FofAccount.signedInState) { if (FofAccount.signedInState) { phone = false; AccountCloud.refreshPins(ctx) } }
-            SignInWithPhone(onClose = { phone = false })
+            FofSignInScreen(start = "signin", onSkip = null, onClose = { phone = false })
         }
         note?.let { n ->
             LaunchedEffect(n) { delay(4_000); note = null }
@@ -175,7 +154,7 @@ fun FofWelcome(onPick: (Int) -> Unit) {
                 PinPad("Master PIN", "Only the master profile can add or manage profiles.", pinErr,
                     { if (Parental.verifyFor(ctx, 0, it)) {
                         askPin = false
-                        if (addAfterPin) { addAfterPin = false; if (Profiles.add(ctx)) { naming = Profiles.list.last().id; name = "" } } else manage = true
+                        if (addAfterPin) { addAfterPin = false; if (Profiles.add(ctx)) { naming = Profiles.list.last().id; newFlow = naming; name = "" } } else manage = true
                     } else pinErr = Parental.pinError() },
                     { askPin = false; addAfterPin = false })
             }
@@ -204,18 +183,37 @@ fun FofWelcome(onPick: (Int) -> Unit) {
                 }
             }
         }
-        picking?.let { id -> AvatarPicker(id) { picking = null; if (newFlow == id) { newFlow = null; onPick(id) } } }
+        picking?.let { id -> AvatarPicker(id) { picking = null; if (newFlow == id) { newFlow = null; audience = id } } }
+        audience?.let { id ->
+            androidx.activity.compose.BackHandler { audience = null; onPick(id) }
+            Box(Modifier.fillMaxSize().background(Color(0xE6000000)), contentAlignment = Alignment.Center) {
+                Column(Modifier.width(720.dp).glass(RoundedCornerShape(DS.RadiusL), 2).padding(34.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                    Text("Step 3 of 4 · Who is this profile for?", color = Color(0x99FFFFFF), fontSize = 16.sp, raw = true)
+                    Text("Who is this profile for?", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold, raw = true)
+                    Text("Kids profiles hide adult channels and titles. You can change this later in Settings → Parental control.", color = Color(0xB3FFFFFF), fontSize = 17.sp, raw = true)
+                    val f = remember { FocusRequester() }
+                    LaunchedEffect(Unit) { delay(80); runCatching { f.requestFocus() } }
+                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        PillButton("Everyone", Modifier.focusRequester(f), light = true, icon = AIcon.Person, raw = true) { Parental.setHideFor(ctx, id, false); audience = null; onPick(id) }
+                        PillButton("Kids", icon = AIcon.Star, raw = true) { Parental.setHideFor(ctx, id, true); audience = null; onPick(id) }
+                    }
+                    Text("Next: an optional PIN, then a few quick taste questions you can skip.", color = Color(0x80FFFFFF), fontSize = 15.sp, raw = true)
+                }
+            }
+        }
         naming?.let { id ->
             Box(Modifier.fillMaxSize().background(Color(0xCC000000)), contentAlignment = Alignment.Center) {
                 Column(
                     Modifier.width(520.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFF141416)).padding(28.dp),
                     verticalArrangement = Arrangement.spacedBy(18.dp)
                 ) {
+                    if (newFlow == id) Text("Step 1 of 4 · New profile", color = Color(0x99FFFFFF), fontSize = 16.sp, raw = true)
                     Text("Profile name", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold, raw = true)
                     Field(name, { name = it }, "Name", autoOpen = true, onDone = { Profiles.rename(ctx, id, name); naming = null; if (newFlow == id) picking = id })
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         PillButton("Save", light = true, icon = AIcon.Check) { Profiles.rename(ctx, id, name); naming = null; if (newFlow == id) picking = id }
-                        PillButton("Cancel") { naming = null; newFlow = null }
+                        // Cancel while creating: the half-made profile goes away again
+                        PillButton("Cancel") { if (newFlow == id && id != Profiles.active) Profiles.remove(ctx, id); naming = null; newFlow = null }
                     }
                 }
             }
@@ -282,4 +280,34 @@ private fun OutlinePill(label: String, onClick: () -> Unit) {
 private fun greeting(now: Long): String {
     val h = java.util.Calendar.getInstance().apply { timeInMillis = now }.get(java.util.Calendar.HOUR_OF_DAY)
     return when { h in 5..11 -> "Good morning"; h in 12..17 -> "Good afternoon"; else -> "Good evening" }
+}
+
+/** Slowly drifting poster wall faded into black (welcome, sign-in and "Who's watching?"). */
+@Composable
+internal fun PosterWall() {
+    // Poster wall behind the profiles (the catalog's popular titles, already on the device), faded into black
+    val wall = remember {
+    val m = Catalog.cached(Catalog.popular(Kind.MOVIE)); val s = Catalog.cached(Catalog.popular(Kind.SERIES))
+    (0 until maxOf(m.size, s.size)).flatMap { listOfNotNull(m.getOrNull(it), s.getOrNull(it)) }.mapNotNull { it.logo }.distinct().take(40)
+    }
+    // The wall drifts slowly sideways (layer move only: nothing is redrawn, smooth on a Fire TV)
+    val drift = androidx.compose.animation.core.rememberInfiniteTransition(label = "wall")
+    val dx by drift.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(
+        androidx.compose.animation.core.tween(70_000, easing = androidx.compose.animation.core.LinearEasing),
+        androidx.compose.animation.core.RepeatMode.Reverse), label = "dx")
+    if (wall.size >= 8) Column(Modifier.fillMaxSize().graphicsLayer {
+        alpha = 0.24f; rotationZ = -6f; scaleX = 1.3f; scaleY = 1.3f
+        translationX = -dx * 260.dp.toPx(); translationY = -dx * 40.dp.toPx()
+    }, verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        wall.chunked(10).forEach { row ->
+            Row(Modifier.wrapContentWidth(Alignment.Start, unbounded = true), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                row.forEach { u -> coil.compose.AsyncImage(u, null, Modifier.width(150.dp).height(225.dp).clip(RoundedCornerShape(10.dp)),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop) }
+            }
+        }
+    }
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xCC000000), Color(0xE6000000), Color.Black))))
+    // Soft light from above instead of a colored glow
+    Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x1FFFFFFF), Color.Transparent),
+        center = androidx.compose.ui.geometry.Offset(960f, 0f), radius = 1200f)))
 }

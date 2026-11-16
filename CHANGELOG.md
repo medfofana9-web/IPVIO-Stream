@@ -1,5 +1,12 @@
 # Changelog
 
+## Fof TV 1.3.107 (November 2026)
+
+- New welcome screen on a TV that is not signed in: Sign in, Create account, or use the TV without an account (asked once).
+- Sign-in screen: QR code and short code for the phone with live progress ("Waiting for your phone", "Phone connected", "Signing in"), a 10-minute expiry and "Get a new code"; email and password on the TV as the alternative, with clear errors (offline, wrong password, confirm email).
+- "Who's watching?": Sign out moved into Manage profiles; the main screen only picks a profile.
+- New profile: numbered steps, and a "Who is this profile for?" step (Everyone or Kids; Kids hides adult content). Cancel while naming removes the half-made profile. Adding a profile after the master PIN now runs the full setup.
+
 ## Fof TV 1.3.105 (November 2026)
 
 - Search: small typos still find titles (1 wrong letter from 5 letters, 2 from 9).

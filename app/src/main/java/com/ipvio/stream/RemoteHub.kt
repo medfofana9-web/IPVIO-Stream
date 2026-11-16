@@ -39,6 +39,9 @@ object RemoteHub {
 
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var appCtx: Context? = null
+    /** Last time a phone used the page (any call but the state poll) and sent a sign-in: progress on the TV sign-in screen. */
+    @Volatile var phoneAt = 0L
+    @Volatile var phoneSignInAt = 0L
 
     fun start(ctx: Context): PhoneImport? {
         appCtx = ctx.applicationContext
@@ -48,12 +51,13 @@ object RemoteHub {
         s.api = { name, q ->
             // The phone opened the page or used it: close the QR card on the TV (it would otherwise stay in front of the player).
             // "state" is polled all the time and must not count.
-            if (name != "state") main.post { RemoteUi.show = false }
+            if (name != "state") { phoneAt = System.currentTimeMillis(); main.post { RemoteUi.show = false } }
             runCatching { handle(name, q) }.getOrNull()
         }
         // Avatar photo from the phone page, and the saved photos shown on that page
         s.apiPost = { what, q, body -> appCtx?.let { c -> runCatching {
             if (what == "acct") {
+                phoneSignInAt = System.currentTimeMillis()
                 val o = org.json.JSONObject(String(body, Charsets.UTF_8))
                 kotlinx.coroutines.runBlocking { AccountWeb.go(c, o.keys().asSequence().associateWith { k -> o.optString(k) }) }
             } else AccountWeb.avatarUpload(c, q, body)
