@@ -59,6 +59,9 @@ fun StremioSourcesPopup(
     val want = Stremio.Want(series, item.title, item.year ?: Catalog.meta(item)?.year?.toString()?.take(4)?.toIntOrNull(), season, ep)
     val cid = SourceMemory.contentId(imdb, series, season, ep)
     var partial by remember { mutableStateOf<List<Stremio.Source>>(emptyList()) }
+    // Your IPTV: its own section under the addon sources (needs no IMDb id; the provider's copy is found by name)
+    var iptv by remember { mutableStateOf<Stremio.Source?>(null) }
+    var iptvState by remember { mutableStateOf("loading") }   // loading, found, none
     LaunchedEffect(imdb, season, ep) {
         val id = imdb ?: return@LaunchedEffect
         sources = null; partial = emptyList()
@@ -77,9 +80,6 @@ fun StremioSourcesPopup(
             }
         }
     }
-    // Your IPTV: its own section under the addon sources (needs no IMDb id; the provider's copy is found by name)
-    var iptv by remember { mutableStateOf<Stremio.Source?>(null) }
-    var iptvState by remember { mutableStateOf("loading") }   // loading, found, none
     LaunchedEffect(season, ep) {
         iptv = null; iptvState = "loading"
         val s = runCatching { ProviderVod.source(ctx, series, want.title, want.year, season, ep) }.getOrNull()
