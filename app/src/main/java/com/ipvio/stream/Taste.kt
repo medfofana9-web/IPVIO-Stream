@@ -251,7 +251,8 @@ fun TasteSetup(onDone: () -> Unit) {
         onDone()
     }
     // First (TV not signed in): does this person already use Fof TV? Then signing in brings their whole profile
-    var askAccount by remember { mutableStateOf(!FofAccount.signedInState && draft == null) }
+    // The welcome screen before "Who's watching?" already asked about the account: not asked twice
+    var askAccount by remember { mutableStateOf(!FofAccount.signedInState && draft == null && !SignInGate.skipped(ctx)) }
     var signingIn by remember { mutableStateOf(false) }
     var saveAtEnd by remember { mutableStateOf(false) }
     LaunchedEffect(FofAccount.signedInState, signingIn) {
@@ -267,7 +268,7 @@ fun TasteSetup(onDone: () -> Unit) {
             signingIn -> signingIn = false
             askAccount -> { Taste.skip(ctx); onDone() }
             step > 0 -> step--
-            else -> askAccount = !FofAccount.signedInState
+            else -> if (!FofAccount.signedInState && !SignInGate.skipped(ctx)) askAccount = true else { Taste.skip(ctx); onDone() }
         }
     }
     if (signingIn) { SignInWithPhone { signingIn = false }; return }
