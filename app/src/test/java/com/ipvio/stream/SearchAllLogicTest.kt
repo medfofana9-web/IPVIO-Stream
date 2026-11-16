@@ -34,4 +34,17 @@ class SearchAllLogicTest {
         assertEquals("denzel", SearchAllLogic.expand("denzel"))
         assertEquals(listOf("reasonable doub", "reasonable"), SearchAllLogic.retries("reasonable doubt"))
     }
+
+    @Test
+    fun typoTolerance() {
+        val hay = "Reasonable Doubt"
+        assertTrue(SearchAllLogic.matches(hay, SearchAllLogic.tokens("resonable")))   // missing letter
+        assertTrue(SearchAllLogic.matches(hay, SearchAllLogic.tokens("reasonalbe")))  // swap = 2 edits, 10 letters
+        assertTrue(SearchAllLogic.matches(hay, SearchAllLogic.tokens("doubr")))       // 1 edit, 5 letters
+        assertTrue(SearchAllLogic.matches("Breaking Bad", SearchAllLogic.tokens("braking")))
+        assertFalse(SearchAllLogic.matches(hay, SearchAllLogic.tokens("dobt x")))
+        assertFalse(SearchAllLogic.matches("Lost", SearchAllLogic.tokens("last")))     // short words: exact only
+        assertFalse(SearchAllLogic.matches(hay, SearchAllLogic.tokens("seasonal")))
+        assertTrue(SearchAllLogic.dist("kitten", "sitting", 3) == 3)
+    }
 }

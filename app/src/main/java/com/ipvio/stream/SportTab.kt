@@ -136,8 +136,12 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     // Which channels show which game (team names in the show title, start not more than 3 hours away)
     SportFix.init(ctx)
     var fixGame by remember { mutableStateOf<SportData.Game?>(null) }
+    // Hold OK on a game: quick actions (watch, choose stream, my teams, multiview)
+    var gameMenu by remember { mutableStateOf<SportData.Game?>(null) }
+    var multiStart by remember { mutableStateOf<List<Item>?>(null) }
     var tableLeague by remember { mutableStateOf<SportData.League?>(null) }
     tableLeague?.let { SportTableDialog(it) { tableLeague = null } }
+    multiStart?.let { st -> MultiViewScreen(live, start = st) { multiStart = null }; return }
     val matched = remember(games, allNow, allSoon, channels, live, SportFix.map.toMap()) {
         val all = allNow + allSoon
         games.associate { g ->
@@ -147,6 +151,20 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
             val fixed = SportFix.map[SportFix.key(g)]?.let { id -> (live + channels).firstOrNull { it.id == id } }
             g.id + "|" + g.league to (if (fixed != null) listOf(fixed) + auto.filter { it.id != fixed.id } else auto)
         }
+    }
+    gameMenu?.let { g ->
+        val chs = matched[g.id + "|" + g.league].orEmpty()
+        val acts = ArrayList<QuickMenu.Action>()
+        if (chs.isNotEmpty()) acts += QuickMenu.Action(if (g.state == 1) "Watch live" else "Watch", AIcon.Play) { _ -> onPlay(chs.first(), channels.ifEmpty { chs }) }
+        acts += QuickMenu.Action("Choose stream", AIcon.Lists) { _ -> fixGame = g }
+        // Multiview: this game first, then other games live right now (up to 4 tiles)
+        if (chs.isNotEmpty()) acts += QuickMenu.Action("Watch in multiview", AIcon.Grid) { _ ->
+            val others = games.filter { it.state == 1 && it.id != g.id }.mapNotNull { o -> matched[o.id + "|" + o.league]?.firstOrNull() }
+            multiStart = (listOf(chs.first()) + others).distinctBy { it.id }.take(4)
+        }
+        for (t in listOf(g.away, g.home)) if (t.name.isNotBlank())
+            acts += QuickMenu.Action(if (SportFavs.has(t)) "Remove ${t.short} from My Teams" else "Add ${t.short} to My Teams", AIcon.Star) { c -> SportFavs.toggle(c, t) }
+        SportGameMenu(g.away.short + " at " + g.home.short, acts) { gameMenu = null }
     }
     fixGame?.let { g ->
         Dialog(onDismissRequest = { fixGame = null }) {
@@ -319,7 +337,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                                 LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(14)), contentPadding = PaddingValues(vertical = dpx(8), horizontal = dpx(4))) {
                                     itemsIndexed(list, key = { i, g -> g.id + "#" + i }) { _, g ->
                                         val chs = matched[g.id + "|" + g.league].orEmpty()
-                                        GameCard(g, chs, Modifier, onLong = { fixGame = g }) {
+                                        GameCard(g, chs, Modifier, onLong = { gameMenu = g }) {
                                             if (chs.isEmpty()) { android.widget.Toast.makeText(ctx, Lang.tr("Kein Sender gefunden. Lange drücken zum Korrigieren."), android.widget.Toast.LENGTH_SHORT).show(); fixGame = g }
                                             else onPlay(chs.first(), channels.ifEmpty { chs })
                                         }
@@ -517,5 +535,22 @@ private fun FixRow(label: String, modifier: Modifier, onClick: () -> Unit) {
             .padding(horizontal = dpx(12), vertical = dpx(10))
     ) {
         Text(label, color = Color.White, fontSize = spx(16), maxLines = 1, overflow = TextOverflow.Ellipsis, raw = true)
+    }
+}
+
+
+/** Quick actions for a game (same glass menu as titles). */
+@Composable
+private fun SportGameMenu(title: String, acts: List<QuickMenu.Action>, onClose: () -> Unit) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    androidx.activity.compose.BackHandler { onClose() }
+    Box(Modifier.fillMaxSize().background(Color(0x99000000)).clickable { onClose() }, contentAlignment = Alignment.CenterEnd) {
+        Column(Modifier.padding(end = 72.dp).width(440.dp).glass(RoundedCornerShape(DS.RadiusL), 2).clickable(enabled = false) {}.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(title, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold, raw = true, modifier = Modifier.padding(start = 12.dp, bottom = 10.dp))
+            val first = remember { androidx.compose.ui.focus.FocusRequester() }
+            LaunchedEffect(Unit) { kotlinx.coroutines.delay(60); runCatching { first.requestFocus() } }
+            acts.forEachIndexed { i, a -> QuickRow(a, if (i == 0) Modifier.focusRequester(first) else Modifier) { onClose(); a.run(ctx) } }
+        }
     }
 }

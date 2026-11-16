@@ -40,7 +40,32 @@ object SearchAllLogic {
     fun matches(hay: String, tokens: List<String>): Boolean {
         if (tokens.isEmpty()) return false
         val words = ChannelSearch.norm(hay).split(' ')
-        return tokens.all { t -> words.any { it.startsWith(t) } || (t.length >= 4 && words.any { t in it }) }
+        return tokens.all { t -> words.any { it.startsWith(t) || typo(t, it) } || (t.length >= 4 && words.any { t in it }) }
+    }
+
+    /** Typo tolerance: 1 edit for words of 5+ letters, 2 for 9+ (also against the word's prefix while typing). */
+    fun typo(t: String, w: String): Boolean {
+        val max = when { t.length >= 9 -> 2; t.length >= 5 -> 1; else -> 0 }
+        if (max == 0 || w.length < t.length - max) return false
+        if (dist(t, w, max) <= max) return true
+        return w.length > t.length && dist(t, w.substring(0, t.length), max) <= max
+    }
+
+    /** Levenshtein distance with early exit once every cell exceeds [max]. */
+    fun dist(a: String, b: String, max: Int): Int {
+        if (kotlin.math.abs(a.length - b.length) > max) return max + 1
+        var prev = IntArray(b.length + 1) { it }
+        var cur = IntArray(b.length + 1)
+        for (i in 1..a.length) {
+            cur[0] = i; var best = i
+            for (j in 1..b.length) {
+                cur[j] = minOf(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + if (a[i - 1] == b[j - 1]) 0 else 1)
+                if (cur[j] < best) best = cur[j]
+            }
+            if (best > max) return max + 1
+            val tmp = prev; prev = cur; cur = tmp
+        }
+        return prev[b.length]
     }
 
     /** Common short forms people type on a remote, searched by the full title. */

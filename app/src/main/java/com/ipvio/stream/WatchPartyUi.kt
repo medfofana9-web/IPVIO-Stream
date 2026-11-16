@@ -50,6 +50,13 @@ fun WatchPartyPanel(modifier: Modifier, start: suspend () -> String?, onClose: (
                     SmallPill(r, if (i == 0) Modifier.focusRequester(first) else Modifier) { WatchParty.send(ctx, r) }
                 }
             }
+            // Text chat: short messages appear over the picture for everyone in the party
+            var msg by remember { mutableStateOf("") }
+            val sendMsg = { val t = msg.trim().take(140); if (t.isNotEmpty()) { WatchParty.send(ctx, t); msg = "" } }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) { Field(msg, { msg = it.take(140) }, "Say something …", onDone = { sendMsg() }) }
+                PillButton("Send", raw = true) { sendMsg() }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 PillButton(if (s.host) "End the party" else "Leave the party", raw = true) { WatchParty.leave(ctx); onClose() }
                 PillButton("Close", raw = true) { onClose() }

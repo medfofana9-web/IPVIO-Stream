@@ -1,5 +1,13 @@
 # Changelog
 
+## Fof TV 1.3.105 (November 2026)
+
+- Search: small typos still find titles (1 wrong letter from 5 letters, 2 from 9).
+- Home: new rows "Critically acclaimed", "Binge-worthy series", "Short movies for tonight" and "Rediscover a classic".
+- Surprise me (profile menu): pick movie or show, genre, length and new or seen before; one pick with the reason, then Play, Details or Another.
+- Sports: hold OK on a game for Watch live, Choose stream, Watch in multiview (this game plus other live games) and Add or remove either team from My Teams.
+- Watch Together: text chat in the party panel; messages show over the picture for everyone.
+
 ## Fof TV 1.3.102 (November 2026)
 **Watch Together**
 - In the player: Watch together → Start a watch party gives a 6-digit code. On another TV (any Fof TV account):

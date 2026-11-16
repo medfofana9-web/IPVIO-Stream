@@ -269,6 +269,7 @@ fun HomeScreen(
     var picker by remember { mutableStateOf(false) }
     var profileMenu by remember { mutableStateOf(false) }
     var joinParty by remember { mutableStateOf(false) }
+    var surprise by remember { mutableStateOf(false) }
     val ready = remember { mutableStateListOf<Item>() }
     // Also use the sizes of movies/series as a key: if the computed home screen arrives only after the list (and without trend titles,
     // i.e. the same empty trend list), the selection stayed empty and the big picture was missing.
@@ -635,6 +636,13 @@ fun HomeScreen(
                                         }
                                         Catalog.home().forEach { sp -> item(key = "cm" + sp.title) { CatalogRow(sp, cardW, onOpen, onBrowse, topIds) } }
                                         if (tasteTop.isNotEmpty()) item(key = "taste:new") { ExtraRow("Discover something new", "taste:new:" + Profiles.active, cardW, onOpen, onBrowse) { TasteRows.discover(ctx, tasteTop) } }
+                                        // Curated discovery rows
+                                        item(key = "cur:acclaimed") { CatalogRow(Catalog.Spec("Critically acclaimed", "movie", "imdbRating"), cardW, onOpen, onBrowse, topIds) }
+                                        item(key = "cur:binge") { CatalogRow(Catalog.Spec("Binge-worthy series", "series", "imdbRating"), cardW, onOpen, onBrowse, topIds) }
+                                        item(key = "cur:short") { ExtraRow("Short movies for tonight", "cur:short", cardW, onOpen, onBrowse) {
+                                            Catalog.items(Catalog.popular(Kind.MOVIE), 3).filter { Catalog.meta(it)?.runtime?.let { r -> r in 60..100 } == true } } }
+                                        item(key = "cur:classic") { val y = remember { listOf(1975, 1985, 1990, 1995, 1999).random() }
+                                            CatalogRow(Catalog.Spec("Rediscover a classic", "movie", "year", y.toString()), cardW, onOpen, onBrowse, topIds) }
                                         // What just came out on the big streaming services
                                         TmdbExtra.SERVICES.take(4).forEach { sv ->
                                             item(key = "new" + sv.id) { ExtraRow("New on " + sv.name, "new:" + sv.id, cardW, onOpen, onBrowse) { TmdbExtra.newOn(sv) } }
@@ -805,12 +813,14 @@ fun HomeScreen(
                     QuickRow(QuickMenu.Action("Manage profiles", AIcon.Edit) { }, Modifier) { profileMenu = false; picker = true }
                     QuickRow(QuickMenu.Action("Profile settings", AIcon.Person) { }, Modifier) { profileMenu = false; SettingsNav.openPage = SettingsNav.PROFILES; onTab(MenuLogic.SETTINGS) }
                     QuickRow(QuickMenu.Action("Account & devices", AIcon.Gear) { }, Modifier) { profileMenu = false; SettingsNav.openPage = SettingsNav.ACCOUNT; onTab(MenuLogic.SETTINGS) }
+                    QuickRow(QuickMenu.Action("Surprise me", AIcon.Sparkle) { }, Modifier) { profileMenu = false; surprise = true }
                     if (FofAccount.signedInState) QuickRow(QuickMenu.Action("Join a watch party", AIcon.Play) { }, Modifier) { profileMenu = false; joinParty = true }
                     if (FofAccount.signedInState) QuickRow(QuickMenu.Action("Sign out", AIcon.Close) { }, Modifier) { profileMenu = false; FofAccount.signOut(ctx); Profiles.restartToPicker(ctx) }
                 }
             }
         }
         if (joinParty) { BackHandler { joinParty = false }; JoinPartyDialog { joinParty = false } }
+        if (surprise) SurpriseMeDialog(onOpen, heroPlay) { surprise = false }
         if (picker) {
             BackHandler { picker = false }
             ProfilePicker { id -> picker = false; if (id != Profiles.active) Profiles.switchTo(ctx, id) else if (Taste.needed(ctx)) Profiles.reopen(ctx) }
