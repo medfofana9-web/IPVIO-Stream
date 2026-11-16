@@ -404,6 +404,16 @@ class PhoneImport(private val onReceive: (PhoneInput) -> Unit) {
                 else if (h.len <= 0 || h.len > 300_000) Reply(413, "{\"err\":\"Picture too big\"}".toByteArray(), "application/json; charset=utf-8")
                 else Reply(200, (cb("avatar", h.query, readBody(ins, h.len)) ?: "{}").toByteArray(Charsets.UTF_8), "application/json; charset=utf-8")
             }
+            // Sign-in from the phone: email and password travel in the request body, never in the address
+            // (addresses end up in logs and browser history)
+            "POST /apip/acct" -> {
+                val cb = apiPost
+                val c = codeOk(h.query["code"])
+                if (cb == null) Reply(404, "{}".toByteArray(), "application/json; charset=utf-8")
+                else if (c != 200) Reply(c, "{}".toByteArray(), "application/json; charset=utf-8")
+                else if (h.len <= 0 || h.len > 4_000) Reply(413, "{}".toByteArray(), "application/json; charset=utf-8")
+                else Reply(200, (cb("acct", h.query, readBody(ins, h.len)) ?: "{}").toByteArray(Charsets.UTF_8), "application/json; charset=utf-8")
+            }
             "GET /r" -> if (api != null) html(200, RemoteLogic.page(li)) else html(404, PhoneImportLogic.message(li, "bad"))
             else -> {
                 val a = api

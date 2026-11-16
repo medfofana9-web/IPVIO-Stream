@@ -78,6 +78,30 @@ internal fun AccountPage(ctx: Context) {
         }
         ConfirmPill("Sign out of this TV") { FofAccount.signOut(ctx); Profiles.restartToPicker(ctx) }
     }
+    // Password and deleting the account
+    SectionTitle("Security")
+    var pwMode by remember { mutableStateOf("") }   // "", "change", "delete"
+    var pw by remember { mutableStateOf("") }
+    if (pwMode.isEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        PillButton("Change password", raw = true) { pw = ""; pwMode = "change" }
+        PillButton("Delete account", raw = true) { pw = ""; pwMode = "delete" }
+    } else Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(if (pwMode == "change") "New password (at least 8 characters)" else
+            "Deleting removes every profile, PIN, addon list, device and all saved progress for good. Enter the account password to confirm.",
+            color = Color.White, fontSize = 16.sp, raw = true)
+        Field(pw, { pw = it }, if (pwMode == "change") "New password" else "Account password", password = true, autoOpen = true)
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (pwMode == "change") PillButton("Save password", light = true, raw = true) {
+                val p = pw; scope.launch { msg = FofAccount.changePassword(ctx, p) ?: "Password changed."; pwMode = ""; pw = "" }
+            } else ConfirmPill("Delete account for good") {
+                val p = pw; scope.launch {
+                    val e = FofAccount.deleteAccount(ctx, p)
+                    if (e == null) Profiles.restartToPicker(ctx) else { msg = e; pwMode = ""; pw = "" }
+                }
+            }
+            PillButton("Cancel", raw = true) { pwMode = ""; pw = "" }
+        }
+    }
     val st = listOf(AccountCloud.status, CloudSync.status).filter { it.isNotBlank() }.joinToString(" · ")
     if (st.isNotBlank()) Text(st, color = Muted, fontSize = 13.sp, raw = true)
 

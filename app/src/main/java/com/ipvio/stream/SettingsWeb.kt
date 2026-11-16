@@ -112,11 +112,11 @@ button{width:100%;background:#f2f2f5;color:#0b0b0e;border:0;border-radius:12px;p
 var code='';try{code=new URLSearchParams(location.search).get('code')||''}catch(e){}
 function m(t){document.getElementById('m').textContent=t}
 function done(){document.getElementById('w').innerHTML='<div class="ok"><h1>You\u2019re in</h1><p>Your things are syncing to the TV now. You can put your phone away.</p></div>'}
-function api(q){return fetch('/api/acctgo?code='+encodeURIComponent(code)+q).then(function(r){if(r.status==403)throw 'The code on the TV changed. Scan it again.';if(!r.ok)throw 'The TV did not answer.';return r.json()})}
+function api(o){return fetch('/apip/acct?code='+encodeURIComponent(code),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)}).then(function(r){if(r.status==403)throw 'The code on the TV changed. Scan it again.';if(!r.ok)throw 'The TV did not answer.';return r.json()})}
 function go(){var e=document.getElementById('e').value.trim(),p=document.getElementById('p').value;
 if(!e||p.length<6){m('Enter your email and password (6+ characters).');return}
 var b=document.getElementById('b');b.disabled=true;b.textContent='Signing in...';m('');
-api('&e='+encodeURIComponent(e)+'&p='+encodeURIComponent(p)).then(function(r){if(r.err){m(r.err);b.disabled=false;b.textContent='Sign in'}else done()})
+api({e:e,p:p}).then(function(r){if(r.err){m(r.err);b.disabled=false;b.textContent='Sign in'}else done()})
 .catch(function(x){m(typeof x=='string'?x:'Not signed in. Try again.');b.disabled=false;b.textContent='Sign in'})}
 document.getElementById('p').addEventListener('keydown',function(ev){if(ev.key=='Enter')go()})
 </script></body></html>"""
@@ -196,7 +196,7 @@ b.innerHTML=(s.signedIn?'<div class="r"><div>Signed in<small>'+esc(s.email)+'</s
 }).catch(function(){})}
 function v(id){var e=document.getElementById(id);return e?e.value:''}
 function acctGo(){toast('Working...');var c=v('ac');
-api('acctgo',{mode:acc.mode,kind:acc.kind,e:v('ae'),p:v('ap'),name:v('an'),av:acc.av,code:acc.kind=='join'?c:'',fam:acc.kind=='owner'?c:''}).then(function(r){if(r.err)toast(r.err);else{toast('Done');setTimeout(acctLoad,600)}}).catch(function(){toast('Not done')})}
+fetch('/apip/acct?code='+encodeURIComponent(code),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:acc.mode,kind:acc.kind,e:v('ae'),p:v('ap'),name:v('an'),av:acc.av,code:acc.kind=='join'?c:'',fam:acc.kind=='owner'?c:''})}).then(function(r){if(r.status==403){ask();throw 0}return r.json()}).then(function(r){if(r.err)toast(r.err);else{toast('Done');setTimeout(acctLoad,600)}}).catch(function(){toast('Not done')})}
 function acctOut(){api('acctout').then(function(){setTimeout(acctLoad,400)})}
 function acctProb(){var d=document.getElementById('probs');d.innerHTML='<small>Loading...</small>';api('acctprob').then(function(r){if(r.err){d.innerHTML='<small>'+esc(r.err)+'</small>';return}
 d.innerHTML=r.list.length?r.list.map(function(p){return '<div class="r"><div>'+esc(p.who||'Someone')+' · '+esc(p.at)+'<small>'+esc(p.kind)+' · '+esc(p.v)+' · '+esc(p.dev)+'</small></div></div>'}).join(''):'<small>No problems reported. Everything runs smoothly.</small>'}).catch(function(){d.innerHTML='<small>Not loaded</small>'})}

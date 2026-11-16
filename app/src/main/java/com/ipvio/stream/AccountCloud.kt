@@ -123,6 +123,7 @@ object AccountCloud {
                 pinStatus(c)
                 settings(c)
                 secrets(c)
+                runCatching { FofAccount.reportToAccount(c) }
                 status = ""
             }.onFailure { status = "Not synced: " + (it.message ?: "no connection").take(60) }
         }

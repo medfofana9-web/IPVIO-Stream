@@ -52,7 +52,12 @@ object RemoteHub {
             runCatching { handle(name, q) }.getOrNull()
         }
         // Avatar photo from the phone page, and the saved photos shown on that page
-        s.apiPost = { _, q, body -> appCtx?.let { c -> runCatching { AccountWeb.avatarUpload(c, q, body) }.getOrNull() } }
+        s.apiPost = { what, q, body -> appCtx?.let { c -> runCatching {
+            if (what == "acct") {
+                val o = org.json.JSONObject(String(body, Charsets.UTF_8))
+                kotlinx.coroutines.runBlocking { AccountWeb.go(c, o.keys().asSequence().associateWith { k -> o.optString(k) }) }
+            } else AccountWeb.avatarUpload(c, q, body)
+        }.getOrNull() } }
         s.image = { path ->
             val id = Regex("^p(\\d{1,3})\\.jpg$").find(path.substringBefore('?'))?.groupValues?.get(1)?.toIntOrNull()
             appCtx?.let { c -> id?.let { ProfileAvatars.photoBytes(c, it) } }?.let { it to "image/jpeg" }
@@ -114,7 +119,7 @@ object RemoteHub {
             "cfgset" -> { val c = appCtx ?: return "{\"err\":\"TV not ready\"}"; SettingsWeb.set(c, q["k"].orEmpty(), q["id"].orEmpty().take(500), q["v"].orEmpty().take(20)) }
             // Family account (phone settings page): state, sign up / sign in with name, avatar and invite code, invite, share
             "acct" -> { val c = appCtx ?: return "{\"err\":\"TV not ready\"}"; AccountWeb.state(c) }
-            "acctgo" -> { val c = appCtx ?: return "{\"err\":\"TV not ready\"}"; kotlinx.coroutines.runBlocking { AccountWeb.go(c, q) } }
+            "acctgo" -> "{\"err\":\"Update this page: reload it on the phone.\"}"
             "acctinv" -> { val c = appCtx ?: return "{\"err\":\"TV not ready\"}"; kotlinx.coroutines.runBlocking { AccountWeb.invite(c, q["n"]?.toIntOrNull() ?: 1) } }
             "avstate" -> { val c = appCtx ?: return "{\"err\":\"TV not ready\"}"; AccountWeb.avatarState(c) }
             "acctprob" -> { val c = appCtx ?: return "{\"err\":\"TV not ready\"}"; kotlinx.coroutines.runBlocking { AccountWeb.problems(c) } }

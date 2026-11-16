@@ -322,3 +322,34 @@ do $$ begin
     alter publication supabase_realtime add table public.fof_profile_data;
   end if;
 end $$;
+
+-- ---------------------------------------------------------------- reports and account deletion (1.3.94, applied 15 Nov 2026)
+create table if not exists public.fof_reports (
+  id bigint generated always as identity primary key,
+  account_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  profile text not null default '' check (length(profile) <= 60),
+  kind text not null default '' check (length(kind) <= 400),
+  version text not null default '' check (length(version) <= 30),
+  device text not null default '' check (length(device) <= 80),
+  happened_at timestamptz,
+  created_at timestamptz not null default now()
+);
+alter table public.fof_reports enable row level security;
+drop policy if exists frp_rw on public.fof_reports;
+create policy frp_rw on public.fof_reports for all using (account_id = auth.uid() and public.fof_ok()) with check (account_id = auth.uid() and public.fof_ok());
+revoke all on public.fof_reports from anon;
+grant select, insert on public.fof_reports to authenticated;
+
+-- Deletes the signed-in account (password confirmed in the last 10 minutes); everything owned cascades
+create or replace function public.fof_delete_account() returns jsonb language plpgsql security definer set search_path = public as $$
+declare u uuid := auth.uid();
+begin
+  if u is null or not public.fof_ok() then return jsonb_build_object('ok', false); end if;
+  if not public.fof_recent_password() then return jsonb_build_object('ok', false, 'err', 'password'); end if;
+  delete from households where owner = u;
+  delete from members where user_id = u;
+  delete from auth.users where id = u;
+  return jsonb_build_object('ok', true);
+end $$;
+revoke all on function public.fof_delete_account() from public, anon;
+grant execute on function public.fof_delete_account() to authenticated;

@@ -1,5 +1,15 @@
 # Changelog
 
+## Fof TV 1.3.94 (November 2026)
+- Phone sign-in sends email and password in the request body instead of the web address (addresses end up in logs
+  and browser history); the old address form is refused
+- Crash and freeze reports go to the account (table fof_reports), so they arrive without a family household; the
+  owner sees them on the phone page as before
+- Settings > Account & devices > Security: Change password; Delete account (password asked again; removes every
+  profile, PIN, addon list, device and saved progress)
+- Releases keep the R8 map (90 days), so crash reports of a build can be read
+- docs/INSTALL.md: one-page install guide for Fire TV and Google TV
+
 ## Fof TV 1.3.93 (November 2026)
 **Playback that recovers by itself**
 - Lost internet is no longer treated as a broken source: the player waits for the connection (up to 5 minutes),

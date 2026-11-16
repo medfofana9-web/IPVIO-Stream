@@ -41,6 +41,14 @@ jobs:
         run: |
           ./gradlew --no-daemon assembleRelease
           cp app/build/outputs/apk/release/*.apk FofTV.apk
+      # R8 renames classes and lines: keep the map so crash and freeze reports of this build can be read
+      - name: Keep the R8 mapping
+        uses: actions/upload-artifact@v4
+        with:
+          name: mapping-${{ github.run_number }}
+          path: app/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: ignore
+          retention-days: 90
       - name: Sign with the private key (key rotation)
         # FOF_SIGNING (repository secret) holds the old and the new key. Android 9+ moves to the new key through a
         # signing lineage, so installed apps update without a reinstall; the old key can no longer sign updates for them

@@ -268,11 +268,51 @@ object FofAccount {
 
     class Report(val who: String, val kind: String, val version: String, val device: String, val at: String)
 
-    /** Owner: the latest problem reports of all family TVs. */
+    /** Owner: the latest problem reports of all TVs on the account (and of older family TVs). */
     suspend fun problems(c: Context): List<Report> = withContext(Dispatchers.IO) {
         val t = token(c) ?: return@withContext emptyList()
-        runCatching { call("GET", "/rest/v1/reports?select=member_name,kind,version,device,happened_at&order=happened_at.desc&limit=25", null, t) }.getOrNull()
+        val acct = runCatching { call("GET", "/rest/v1/fof_reports?select=member_name:profile,kind,version,device,happened_at&order=happened_at.desc&limit=25", null, t) }.getOrNull()
             ?.takeIf { it.first in 200..299 }?.second?.let { AccountLogic.reportsFrom(it) } ?: emptyList()
+        val fam = runCatching { call("GET", "/rest/v1/reports?select=member_name,kind,version,device,happened_at&order=happened_at.desc&limit=25", null, t) }.getOrNull()
+            ?.takeIf { it.first in 200..299 }?.second?.let { AccountLogic.reportsFrom(it) } ?: emptyList()
+        (acct + fam).sortedByDescending { it.at }.take(25)
+    }
+
+    /** This TV's last crash or freeze, to the account (once per problem, nothing older than a week). */
+    suspend fun reportToAccount(c: Context) = withContext(Dispatchers.IO) {
+        val t = token(c) ?: return@withContext
+        val (kind, at) = CrashLog.last(c) ?: return@withContext
+        if (at <= prefs(c).getLong("rep_acct_at", 0L) || System.currentTimeMillis() - at > 7 * 86_400_000L) return@withContext
+        val body = JSONObject().put("profile", Profiles.activeName().take(60)).put("kind", kind.take(400)).put("version", AppUpdate.currentName(c).take(30))
+            .put("device", (android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL).trim().take(80))
+            .put("happened_at", java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.format(java.util.Date(at)))
+        val (code, _) = runCatching { call("POST", "/rest/v1/fof_reports", body.toString(), t) }.getOrDefault(0 to "")
+        if (code in 200..299) prefs(c).edit().putLong("rep_acct_at", at).apply()
+    }
+
+    /** New account password (this TV stays signed in). Null = ok, else a readable error. */
+    suspend fun changePassword(c: Context, password: String): String? = withContext(Dispatchers.IO) {
+        if (password.length < 8) return@withContext "Use at least 8 characters."
+        val t = token(c) ?: return@withContext "Sign in first."
+        runCatching {
+            val b = Request.Builder().url("$URL/auth/v1/user").header("apikey", KEY).header("Authorization", "Bearer $t")
+                .put(JSONObject().put("password", password).toString().toRequestBody(JSON)).build()
+            Net.withTimeouts(8, 12).newCall(b).execute().use { r -> if (r.isSuccessful) null else err(r.body?.string().orEmpty(), "Not changed (${r.code}).") }
+        }.getOrElse { "No connection to the account service." }
+    }
+
+    /**
+     * Deletes the account with every profile, PIN, addon list, device and saved progress (after the password is
+     * confirmed again). This TV is signed out. Null = done, else a readable error.
+     */
+    suspend fun deleteAccount(c: Context, password: String): String? {
+        confirmPassword(c, password)?.let { return it }
+        val t = withContext(Dispatchers.IO) { token(c) } ?: return "Sign in first."
+        val r = withContext(Dispatchers.IO) { runCatching { call("POST", "/rest/v1/rpc/fof_delete_account", "{}", t) }.getOrNull() }
+            ?: return "No connection to the account service."
+        if (r.first !in 200..299 || !r.second.contains("\"ok\": true") && !r.second.contains("\"ok\":true")) return "The account was not deleted."
+        withContext(Dispatchers.Main) { signOut(c, revoked = true) }
+        return null
     }
 
     // ---------------------------------------------------------------- Shared setup
