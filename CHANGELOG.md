@@ -1,5 +1,11 @@
 # Changelog
 
+## Fof TV 1.3.96 (November 2026)
+- Opening a movie or episode shows its sources: first your addon sources, then a "Your IPTV" section (checking,
+  the provider's copy, or "not on your IPTV"). It no longer starts the first addon stream by itself before the IPTV
+  check finishes; one-click play can be turned back on in Settings
+- The IPTV lookup no longer needs an IMDb match, and its quality no longer mis-sorts the list
+
 ## Fof TV 1.3.95 (November 2026)
 - Your IPTV as a source for addon movies and shows: the provider's movie and series names are kept as a small index
   (built once, refreshed daily; Xtream login). The source list of an addon title now also offers "Your IPTV" when the

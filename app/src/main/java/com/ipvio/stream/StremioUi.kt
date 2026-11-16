@@ -24,7 +24,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
-import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
 /**
@@ -63,14 +62,10 @@ fun StremioSourcesPopup(
     LaunchedEffect(imdb, season, ep) {
         val id = imdb ?: return@LaunchedEffect
         sources = null; partial = emptyList()
-        // Your IPTV's copy of this movie/episode joins the list when the provider has it (looked up alongside)
-        val iptv = async { runCatching { ProviderVod.source(ctx, series, want.title, want.year, season, ep) }.getOrNull() }
-        val addon = Stremio.streams(item.kind, id, season, ep) { partial = it }
-        sources = addon
-        iptv.await()?.let { s -> sources = listOf(s) + addon.filter { it.url != s.url } }
+        sources = Stremio.streams(item.kind, id, season, ep) { partial = it }
     }
     fun choose(s: Stremio.Source) {
-        NowSources.set(item.id, imdb, want, Stremio.rank(sources ?: partial, want, cid), s)
+        NowSources.set(item.id, imdb, want, Stremio.rank((sources ?: partial) + listOfNotNull(iptv), want, cid), s)
         val title = item.title + if (series) " S${season}E$ep" else ""
         if (s.hash == null) { onDismiss(); onPlay(s.url, title, 0L) }
         else if (!resolving) {
@@ -82,6 +77,17 @@ fun StremioSourcesPopup(
             }
         }
     }
+    // Your IPTV: its own section under the addon sources (needs no IMDb id; the provider's copy is found by name)
+    var iptv by remember { mutableStateOf<Stremio.Source?>(null) }
+    var iptvState by remember { mutableStateOf("loading") }   // loading, found, none
+    LaunchedEffect(season, ep) {
+        iptv = null; iptvState = "loading"
+        val s = runCatching { ProviderVod.source(ctx, series, want.title, want.year, season, ep) }.getOrNull()
+        iptv = s; iptvState = if (s != null) "found" else "none"
+    }
+    val iptvFocus = remember { FocusRequester() }
+    // No addon stream (yet) but the IPTV copy is there: focus goes to it, so OK plays it
+    LaunchedEffect(iptv) { if (iptv != null && sources.isNullOrEmpty()) { kotlinx.coroutines.delay(80); runCatching { iptvFocus.requestFocus() } } }
     var autoDone by remember { mutableStateOf(false) }
     var noVerified by remember { mutableStateOf(false) }
     LaunchedEffect(sources, partial) {
@@ -95,6 +101,7 @@ fun StremioSourcesPopup(
         }
         if (sources == null) return@LaunchedEffect
         if (sources?.isNotEmpty() == true) runCatching { first.requestFocus() }
+        else if (iptv != null) runCatching { iptvFocus.requestFocus() }
         else if (series) runCatching { stepFocus.requestFocus() }
     }
 
@@ -105,7 +112,7 @@ fun StremioSourcesPopup(
                 .background(Surf.copy(alpha = 0.98f)).border(1.dp, DS.Overlay3, shape).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("Stremio sources", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text("Sources", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold, raw = true)
             Text(item.title + if (series) "  ·  S$season E$ep" else "", color = Muted, fontSize = 16.sp, maxLines = 1, raw = true)
             if (series) {
                 Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -133,12 +140,25 @@ fun StremioSourcesPopup(
                     // Per addon: down, no links, or only links this app cannot play – tells whether to wait or fix an addon
                     Stremio.lastReport.forEach { Text(it, color = Muted, fontSize = 15.sp, raw = true) }
                 }
-                else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                else -> LazyColumn(Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     itemsIndexed(list) { i, s ->
                         SourceRow(s, Stremio.match(s, want), SourceMemory.isWrong(cid, s.key), s.key == SourceMemory.lastGood(cid),
                             if (i == 0) Modifier.focusRequester(first) else Modifier) { choose(s) }
                     }
                 }
+            }
+            // Your IPTV section (always shown, under the addon sources)
+            Text("Your IPTV", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, raw = true)
+            when (iptvState) {
+                "loading" -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Spinner(Accent2, Modifier.size(20.dp))
+                    Text("Checking your IPTV (the first time takes a little longer)…", color = Muted, fontSize = 15.sp, raw = true)
+                }
+                "found" -> iptv?.let { s ->
+                    SourceRow(s, StremioLogic.VERIFIED, false, s.key == SourceMemory.lastGood(cid), Modifier.focusRequester(iptvFocus)) { choose(s) }
+                }
+                else -> Text(if (PlaylistStore.savedUrl(ctx)?.let { XtreamLogic.fromUrl(it) } == null) "Your IPTV is not an Xtream login, so it cannot be searched."
+                    else "Not on your IPTV" + (if (series) " (this episode)" else "") + ".", color = Muted, fontSize = 15.sp, raw = true)
             }
         }
     }

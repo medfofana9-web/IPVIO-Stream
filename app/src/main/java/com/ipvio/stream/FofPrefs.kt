@@ -9,7 +9,7 @@ import androidx.compose.runtime.setValue
 object FofPrefs {
     private const val NAME = "fof_flags"
     /** Play starts the best addon stream at once instead of showing the list. */
-    var oneClick by mutableStateOf(true)
+    var oneClick by mutableStateOf(false)
         private set
 
     /** Movies and series from the IPTV provider in search (off: the Stremio addons are the only source for them). */
@@ -47,7 +47,7 @@ object FofPrefs {
         spoilerPics = p.getBoolean("spoiler_pics", true)
         cleanLook = p.getBoolean("clean_look", true)
         spoilerText = p.getBoolean("spoiler_text", false)
-        oneClick = p.getBoolean("one_click", true)
+        oneClick = p.getBoolean("one_click", false)
         providerVod = p.getBoolean("provider_vod", false)
     }
 

@@ -30,10 +30,10 @@ object ProviderVod {
         val hit = ProviderVodLogic.pick(idx[ProviderVodLogic.key(title, series)].orEmpty().map { ProviderVodLogic.Cand(it.name, it.year) }, year)
             ?.let { i -> idx[ProviderVodLogic.key(title, series)]!![i] } ?: return@withContext null
         val info = if (series) title + " S" + season.toString().padStart(2, '0') + "E" + ep.toString().padStart(2, '0') else (title + " " + (year ?: "")).trim()
-        if (!series) return@withContext Stremio.Source(ProviderVodLogic.ADDON, "Your IPTV · " + hit.name, XtreamLogic.movieUrl(acct, hit.id, hit.ext), 1080, info = info)
+        if (!series) return@withContext Stremio.Source(ProviderVodLogic.ADDON, "Your IPTV · " + hit.name, XtreamLogic.movieUrl(acct, hit.id, hit.ext), 0, info = info)
         val eps = runCatching { PlaylistStore.xtreamApi().episodeList(acct, hit.id) }.getOrNull() ?: return@withContext null
         val e = eps.firstOrNull { it.season == season && it.num == ep } ?: return@withContext null
-        Stremio.Source(ProviderVodLogic.ADDON, "Your IPTV · " + hit.name + " S${season}E$ep", e.url, 1080, info = info)
+        Stremio.Source(ProviderVodLogic.ADDON, "Your IPTV · " + hit.name + " S${season}E$ep", e.url, 0, info = info)
     }
 
     private suspend fun ensure(c: Context, a: XtreamLogic.Acct): Map<String, List<Entry>>? = lock.withLock {
