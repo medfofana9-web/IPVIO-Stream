@@ -131,6 +131,12 @@ jobs:
             # The emulator's network to the test server is sometimes not up yet: ask again once if the list did not load
             if ! adb logcat -d -s FofProfile | grep -q "playlist: ready"; then echo "playlist not loaded yet, asking again"; adb shell am force-stop com.fof.tv; sleep 2; adb shell am start -W -n com.fof.tv/com.ipvio.stream.MainActivity --es fof_test_playlist http://10.0.2.2:8000/test.m3u; sleep 60; fi
             adb logcat -d -s FofProfile | grep "playlist: ready" | head -1 > playlist_ready.txt || true
+            # Fresh install, not signed in: the welcome screen; open Sign in (QR + email), back, then use the TV without an account
+            adb exec-out screencap -p > p_welcome.png
+            adb shell input keyevent 23; sleep 3
+            adb exec-out screencap -p > p_signin.png
+            adb shell input keyevent 4; sleep 2
+            adb shell input keyevent 20; sleep 1; adb shell input keyevent 23; sleep 3
             # Who's watching screen and the avatar gallery (hold OK)
             adb exec-out screencap -p > p_profiles.png
             adb shell input keyevent --longpress 23
