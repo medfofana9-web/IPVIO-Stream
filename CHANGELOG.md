@@ -1,5 +1,20 @@
 # Changelog
 
+## Fof TV 1.3.93 (November 2026)
+**Playback that recovers by itself**
+- Lost internet is no longer treated as a broken source: the player waits for the connection (up to 5 minutes),
+  then resumes the same stream at the same spot, with growing pauses (1, 2, 4, 8, then 15 s; 12 tries). Before, a
+  movie gave up after about 9 seconds, switched source or showed a dead end, and counted the source as broken
+- When playback really cannot be restored, the message has Retry (same title, same spot) and Change source
+  (other sources of exactly this movie or episode) instead of "press Back"
+- Recovery stops when the player is closed
+
+**Quick actions (hold OK)**
+- Hold OK on a movie or show poster, or on a Continue watching card: a glass menu beside the content with
+  Resume / Play next episode, Start over, View details / Seasons & episodes, My List, favorites, Mark as watched /
+  unwatched (movies), Remove from Continue watching. Back closes it and focus returns to the card. One menu for the
+  whole app; every action is saved in the profile and syncs to your other TVs
+
 ## Fof TV 1.3.92 (November 2026)
 - Instant Continue watching between TVs: each TV listens to the account's realtime feed for the profile in use and
   syncs the moment another TV saves progress (applied 15 Nov 2026: fof_profile_data in supabase_realtime). The

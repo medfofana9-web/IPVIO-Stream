@@ -627,7 +627,7 @@ fun HomeScreen(
                                     "sportlive" -> { item(key = "sportlive") { LiveSportsRow(live, onOpen) { onTab(MenuLogic.SPORT) } } }
                                     "clock" -> { item(key = "clock") { ClockWidget() } }
                                     // Continue watching directly under the tiles: whoever watches a lot wants to continue in few clicks
-                                    "resume" -> { if (resumeList.isNotEmpty()) item(key = "resume") { ResumeRow(resumeList, cardW, onResume) } }
+                                    "resume" -> { if (resumeList.isNotEmpty()) item(key = "resume") { ResumeRow(resumeList, cardW, onResume, onOpen) } }
                                     "favch" -> { if (favLive.isNotEmpty()) item(key = "favch") { ItemsRow("Meine Sender", favLive, cardW, onOpen) { onTab(3) } } }
                                     "chnow" -> { if (nowChannels.isNotEmpty()) item(key = "chnow") { ChannelNowRow("Live TV", nowChannels, onOpen) { onTab(3) } } }
                                     // Top 10 always as whole covers (independent of the picture setting)
@@ -670,7 +670,7 @@ fun HomeScreen(
                             if (ready.isNotEmpty()) item(key = "hero$tab") { Hero(ready.toList(), heroH, false, onOpen, onPlayNow, header, { heroScroll(states[tab]) }) { scope.launch { states[tab].animateScrollToItem(0) } } }
                             else item(key = "top$tab") { header(Modifier) }
                             val rl = resumeK
-                            if (rl.isNotEmpty()) item(key = "res$tab") { ResumeRow(rl, cardW, onResume) }
+                            if (rl.isNotEmpty()) item(key = "res$tab") { ResumeRow(rl, cardW, onResume, onOpen) }
                             val wl = watchK
                             if (wl.isNotEmpty()) item(key = "wl$tab") { ItemsRow("Meine Liste", wl, cardW, onOpen) { onBrowse(BrowseReq("Meine Liste · $noun", wl, SORT_PLAYLIST)) } }
                             val recent = histK
@@ -863,7 +863,7 @@ private fun ItemsRow(
 }
 
 @Composable
-private fun ResumeRow(list: List<Pair<Entry, Item>>, cardW: Int, onResume: (Entry, Item) -> Unit) {
+private fun ResumeRow(list: List<Pair<Entry, Item>>, cardW: Int, onResume: (Entry, Item) -> Unit, onOpen: (Item) -> Unit) {
     val ctx = LocalContext.current
     Column {
         val g = LocalCardGrid.current
@@ -894,10 +894,8 @@ private fun ResumeRow(list: List<Pair<Entry, Item>>, cardW: Int, onResume: (Entr
                 }
                 ResumeCard(
                     item, se, badge, sub, if (e.next || e.dur <= 0) 0f else (e.pos.toFloat() / e.dur).coerceIn(0f, 1f),
-                    Modifier.width(g.wide).restoreFocus(item.id).favKeys {
-                        WatchStore.remove(ctx, e.itemId)
-                        android.widget.Toast.makeText(ctx, Lang.tr("Aus „Weiterschauen“ entfernt"), android.widget.Toast.LENGTH_SHORT).show()
-                    }
+                    // Hold OK: resume, start over, details, My List, remove from Continue watching (QuickMenu)
+                    Modifier.width(g.wide).restoreFocus(item.id).quickActions(item, { onOpen(item) }, e) { en -> onResume(en, item) }
                 ) { onResume(e, item) }
             }
         }

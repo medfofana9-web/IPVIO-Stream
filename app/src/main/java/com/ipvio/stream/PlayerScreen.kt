@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.layout.layout
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -185,6 +186,11 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     var cur by remember { mutableStateOf(req) }
     var zapSrc by remember { mutableStateOf(zapList) }
     var msg by remember { mutableStateOf<String?>(null) }
+    // Playback could not be restored: the message gets "Retry" and "Change source" buttons (no dead end)
+    var failed by remember { mutableStateOf(false) }
+    // Network recovery: tries so far (reset once the picture plays) and when the wait for the internet began
+    var netTries by remember { mutableIntStateOf(0) }
+    val netWaitStart = remember { longArrayOf(0L) }
     var buffering by remember { mutableStateOf(true) }
     var playing by remember { mutableStateOf(true) }
     // Live (round 14): open straight with the control bar showing channel and show instead of the short info box
@@ -849,7 +855,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                         else if (switchSource("Quelle startet nicht", sameFirst = false)) msg = null
                         else if (Marathon.owns(cur.itemId)) { msg = "This episode will not start – next episode …"; marathonNext() }
                         else if (stremioFallback()) msg = "Looking for another source in your Stremio addons …"
-                        else { msg = "This stream does not start. Choose another source on the title page, or press Back."; player.stop() }
+                        else { msg = "This stream does not start."; failed = true; player.stop() }
                     }
                     else if (nowT - bufSince > (if (cur.live) 15_000L else 30_000L) && (cur.live || wdTries < 2)) {
                         // Live: reconnect without limit (like a receiver), movie/series: twice
@@ -914,6 +920,28 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 }
                 if (cur.live && cur.archive == null && !readyOnce && sportFailover()) return
                 val liveNow = cur.live && cur.archive == null
+                // The internet dropped (not the source): wait for it and resume the same stream at the same spot.
+                // Before, a movie gave up after ~9 s (3 quick retries) and then switched source or showed a dead end,
+                // and the source was even counted as broken. Bounded: 12 tries with growing pauses, at most 5 min offline.
+                if (PlayerRecoveryLogic.isNetwork(e.errorCode, status) && netTries < PlayerRecoveryLogic.MAX_NET_TRIES) {
+                    netTries++
+                    if (netWaitStart[0] == 0L) netWaitStart[0] = System.currentTimeMillis()
+                    val started = netWaitStart[0]
+                    h.postDelayed(object : Runnable {
+                        override fun run() {
+                            if (!DeviceCaps.online(ctx)) {
+                                if (System.currentTimeMillis() - started < PlayerRecoveryLogic.MAX_OFFLINE_MS) {
+                                    msg = "No internet connection – playback continues as soon as it is back"
+                                    h.postDelayed(this, 2_000L)
+                                } else { msg = "The internet connection did not come back."; failed = true }
+                                return
+                            }
+                            msg = "Connection lost – reconnecting …"
+                            if (liveNow) LiveTimeshift.reconnect(player) else player.prepare()
+                        }
+                    }, PlayerRecoveryLogic.backoffMs(netTries))
+                    return
+                }
                 if (retries < (if (liveNow) 50 else 3) && !isPermanentHttp(status) && !decoder) {
                     retries++
                     msg = if (liveNow) "Verbindung unterbrochen – neuer Versuch ($retries)" else "Verbindung unterbrochen – neuer Versuch ($retries/3)"
@@ -926,7 +954,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     else if (Marathon.owns(cur.itemId)) { msg = "This episode will not play – next episode …"; marathonNext() }
                     else if (stremioFallback()) { msg = "Looking for another source in your Stremio addons …" }
                     else if (cur.archive != null) msg = "Diese Sendung ist im Archiv des Anbieters nicht abrufbar.  Zurück = Live-Sender."
-                    else { msg = Lang.tr(playbackErrorText(e.errorCode, status, cur.live, TlsFallback.isHostMismatch(e))) + "  " + Lang.tr("Zurück mit der Zurück-Taste."); if (Boomer.enabled) boomerFail = true }
+                    else { msg = Lang.tr(playbackErrorText(e.errorCode, status, cur.live, TlsFallback.isHostMismatch(e))); failed = true; if (Boomer.enabled) boomerFail = true }
                 }
             }
             override fun onPlaybackStateChanged(state: Int) {
@@ -934,7 +962,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 if (state == Player.STATE_BUFFERING || state == Player.STATE_READY) pError = false
                 buffering = state == Player.STATE_BUFFERING
                 if (state == Player.STATE_READY) {
-                    msg = null; retries = 0; boomerFail = false
+                    msg = null; retries = 0; boomerFail = false; failed = false; netTries = 0; netWaitStart[0] = 0L
                     if (player.duration > 0 && player.currentPosition < player.duration - 3000) endGuard = ""
                     if (!readyOnce) {
                         readyOnce = true; DeadLinks.ok(ctx, cur.url); SportSession.started(ctx, cur.itemId); revertTo = null
@@ -1283,6 +1311,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             }
             .onKeyEvent { e ->
                 if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
+                // Retry / Change source buttons are shown: the remote moves between them
+                if (failed) return@onKeyEvent false
                 val k = e.key
                 if (e.nativeKeyEvent.repeatCount > 0) {
                     if ((k == Key.DirectionLeft || k == Key.DirectionRight) && !cur.live && !controls && panel == Panel.NONE && !showChannels && !showGuide) {
@@ -1462,10 +1492,29 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             Spinner(Accent2, Modifier.align(Alignment.Center).size(48.dp))
         }
         msg?.takeIf { !Boomer.enabled }?.let { m ->
-            Box(
-                Modifier.align(Alignment.Center).glass(RoundedCornerShape(DS.RadiusM), 2)
-                    .padding(horizontal = 28.dp, vertical = 18.dp)
-            ) { Text(m, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold) }
+            Column(
+                Modifier.align(Alignment.Center).widthIn(max = 760.dp).glass(RoundedCornerShape(DS.RadiusM), 2)
+                    .padding(horizontal = 28.dp, vertical = 18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(m, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                if (failed) {
+                    val retryFocus = remember { FocusRequester() }
+                    LaunchedEffect(Unit) { delay(100); runCatching { retryFocus.requestFocus() } }
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        // Same title, same source, same spot
+                        PillButton("Retry", Modifier.focusRequester(retryFocus), light = true, raw = true) {
+                            failed = false; msg = null; retries = 0; netTries = 0; netWaitStart[0] = 0L; pError = false
+                            if (cur.live && cur.archive == null) LiveTimeshift.reconnect(player) else player.prepare()
+                        }
+                        // Other sources of exactly this movie/episode (addon streams or the playlist's other qualities)
+                        if (addonContent || currentAlts().size > 1) PillButton("Change source", raw = true) {
+                            failed = false; msg = null
+                            if (addonContent) { controls = false; srcPanel = true } else openPanel(Panel.QUALITY)
+                        }
+                    }
+                }
+            }
         }
         flash?.let { fl ->
             if (fl.icon != null) {

@@ -229,3 +229,25 @@ object PlayerLogic {
     /** Hint when a stream has a format the player cannot open (instead of a crash). */
     const val MSG_FORMAT = "Dieses Stream-Format wird nicht unterstützt."
 }
+
+/**
+ * Playback recovery (1.3.93): network errors are told apart from broken sources. A network error waits for the
+ * internet and resumes the same stream at the same spot; only source errors switch source or count a link as broken.
+ */
+object PlayerRecoveryLogic {
+    const val MAX_NET_TRIES = 12
+    const val MAX_OFFLINE_MS = 5 * 60_000L
+
+    // Media3 PlaybackException codes (kept as numbers so this stays testable without the library)
+    private const val IO_UNSPECIFIED = 2000
+    private const val IO_NETWORK_CONNECTION_FAILED = 2001
+    private const val IO_NETWORK_CONNECTION_TIMEOUT = 2002
+    private const val TIMEOUT = 1003
+
+    /** The connection failed or timed out with no answer from the server (an HTTP status means the source answered). */
+    fun isNetwork(code: Int, httpStatus: Int): Boolean =
+        httpStatus <= 0 && (code == IO_NETWORK_CONNECTION_FAILED || code == IO_NETWORK_CONNECTION_TIMEOUT || code == TIMEOUT || code == IO_UNSPECIFIED)
+
+    /** Pause before network try [n] (1-based): 1, 2, 4, 8 s, then 15 s. */
+    fun backoffMs(n: Int): Long = minOf(1000L shl (n - 1).coerceIn(0, 4), 15_000L)
+}

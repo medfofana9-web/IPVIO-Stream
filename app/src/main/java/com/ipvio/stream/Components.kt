@@ -163,6 +163,7 @@ fun PosterCard(
     Column(
         modifier.graphicsLayer { scaleX = s; scaleY = s }
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
+            .then(if (!live) Modifier.quickActions(item, onClick) else Modifier)
             .clickable(onClick = onClick)
             // The space below the subtitle belongs to the card: when scrolling to the focused card, the
             // enlarged card (focus) also stays fully in view instead of being cut off at the bottom

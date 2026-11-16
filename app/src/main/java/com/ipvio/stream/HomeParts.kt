@@ -815,7 +815,9 @@ fun RowPosterCard(item: Item, baseW: Dp, modifier: Modifier, overlay0: Int = 0, 
     }
     // Position only for the View settings live preview (otherwise this ran for every card on every scroll frame)
     val focusMod = (if (ViewLive.active) Modifier.onGloballyPositioned { c -> geo[0] = (c.positionInRoot().x + c.size.width / 2f) / viewW.width.coerceAtLeast(1); geo[1] = c.positionInRoot().y } else Modifier)
-        .billboardFocus(item) { f = it }.trackFocus().clickable(onClick = onClick)
+        .billboardFocus(item) { f = it }.trackFocus()
+        .then(if (item.kind == Kind.MOVIE || item.kind == Kind.SERIES) Modifier.quickActions(item, onClick) else Modifier)
+        .clickable(onClick = onClick)
     if (clean) Column(modifier.width(w)) {
         Box(Modifier.width(w).height(h).then(focusMod)) { visual(Modifier.fillMaxSize()) }
         Spacer(Modifier.height(dpx(10)))
