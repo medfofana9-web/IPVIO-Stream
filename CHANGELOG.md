@@ -1,5 +1,11 @@
 # Changelog
 
+## Fof TV 1.3.117 (November 2026)
+
+- Player episode list: every episode shows its still, "E4 · Title", runtime, time left or Watched, two lines of synopsis, a progress bar, and Playing / Up next. Season chips at the top jump to a season.
+- One shared episode store (EpisodeInfo): the player shows exactly the titles, stills and synopses of the title page (TMDB, mapped to the app's numbering; catalog episodes as fallback). Progress in both comes from the same per-profile store that syncs with the account.
+- Episode list rows have fixed heights and stable keys, and stills are decoded small, so moving down the list does not re-layout or load full-size pictures.
+
 ## Fof TV 1.3.115 (November 2026)
 
 - IPTV movies and shows: a provider title without a year is only matched when no other film of the same name is in the list (a plain "Dune" next to "Dune (1984)" is not offered for the 2021 film).

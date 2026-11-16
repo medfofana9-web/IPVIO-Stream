@@ -2167,7 +2167,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     }
                 }
 
-                Panel.EPISODES -> EpisodesPanel(epList, cur.season, cur.episode, panelFocus, { closePanel() }) { ep ->
+                Panel.EPISODES -> EpisodesPanel(epList, cur.season, cur.episode, panelFocus, { closePanel() }, seriesItem) { ep ->
                     panel = Panel.NONE
                     panelParent = Panel.NONE
                     controls = false

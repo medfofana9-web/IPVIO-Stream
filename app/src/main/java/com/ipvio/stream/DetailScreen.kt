@@ -277,7 +277,9 @@ private fun DetailScreenFull(
         val g = group ?: return null
         if (g.tmdbSeason < 0) return null
         val n = EpisodeLogic.tmdbNum(g, ep.num)
-        return epMetas.firstOrNull { it.num == n } ?: if (g.offset > 0) epMetas.firstOrNull { it.num == ep.num } else null
+        return (epMetas.firstOrNull { it.num == n } ?: if (g.offset > 0) epMetas.firstOrNull { it.num == ep.num } else null)
+            // Shared with the player's episode list (same titles, stills and synopses there)
+            ?.also { EpisodeInfo.put(item.id, ep.season, ep.num, it) }
     }
 
     val playFocus = remember { FocusRequester() }

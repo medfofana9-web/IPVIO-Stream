@@ -159,8 +159,16 @@ private class EpRow(val header: String?, val ep: Episode?)
 @Composable
 fun BoxScope.EpisodesPanel(
     episodes: List<Episode>, curSeason: Int, curNum: Int,
-    focus: FocusRequester, onClose: () -> Unit, onPick: (Episode) -> Unit
+    focus: FocusRequester, onClose: () -> Unit, seriesItem: Item? = null, onPick: (Episode) -> Unit
 ) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val sid = seriesItem?.id
+    // Episode details shared with the title page; a catalog series opened straight from Continue watching loads them here once
+    var infoVer by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    LaunchedEffect(sid) {
+        if (seriesItem != null && sid != null && !EpisodeInfo.has(sid) && sid.startsWith("stremio:")) { runCatching { LazySeries.load(ctx, seriesItem) }; infoVer++ }
+    }
+    val progress = remember(sid) { if (sid != null) EpProgress.of(ctx, sid).toMap() else emptyMap() }
     val rows = remember(episodes) {
         val out = ArrayList<EpRow>()
         val bySeason = episodes.groupBy { it.season }
@@ -193,17 +201,26 @@ fun BoxScope.EpisodesPanel(
             runCatching { reqs.getOrPut(target) { FocusRequester() }.requestFocus() }
         }
     }
-    PSimplePanel(520.dp, "Folgen", if (long) "Rechts / Vorspulen = 50 weiter · Zurückspulen = zurück · Links schließt" else "Links schließt das Menü", onClose) {
+    val seasons = remember(rows) { rows.indices.filter { rows[it].header?.startsWith("Staffel") == true }.map { it to (rows[it].header ?: "") } }
+    PSimplePanel(if (sid != null) 760.dp else 520.dp, "Folgen", if (long) "Rechts / Vorspulen = 50 weiter · Zurückspulen = zurück · Links schließt" else "Links schließt das Menü", onClose) {
+        // Seasons: one chip each (more than one season), OK jumps to that season's first episode
+        if (seasons.size > 1) {
+            androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 10.dp)) {
+                items(seasons.size) { k ->
+                    val (row, label) = seasons[k]
+                    val n = label.removePrefix("Staffel ").trim()
+                    FilterPill("Season $n", n == curSeason.toString(), raw = true) { starts.firstOrNull { it > row }?.let { jumpTo(it) } }
+                }
+            }
+        }
         LazyColumn(state = st, verticalArrangement = Arrangement.spacedBy(PT.RowGap)) {
-            itemsIndexed(rows) { i, r ->
+            itemsIndexed(rows, key = { i, r -> r.ep?.let { "e${it.season}_${it.num}" } ?: "h$i" }) { i, r ->
                 val ep = r.ep
                 if (ep == null) PColumnHeader(r.header ?: "")
                 else {
                     val req = if (i == focusIdx) focus else reqs.getOrPut(i) { FocusRequester() }
                     if (i == focusIdx) reqs[i] = focus
-                    PPanelRow(
-                        "Folge ${ep.num}", i == curIdx,
-                        Modifier.focusRequester(req).then(if (!long) Modifier else Modifier.onPreviewKeyEvent { e ->
+                    val rowMod = Modifier.focusRequester(req).then(if (!long) Modifier else Modifier.onPreviewKeyEvent { e ->
                             if (e.type != KeyEventType.KeyDown) false
                             else when (e.key) {
                                 Key.DirectionRight, Key.MediaFastForward, Key.ChannelDown, Key.PageDown -> {
@@ -215,9 +232,11 @@ fun BoxScope.EpisodesPanel(
                                 }
                                 else -> false
                             }
-                        }),
-                        trailing = if (i == curIdx) "läuft" else null
-                    ) { onPick(ep) }
+                        })
+                    if (sid != null) {
+                        val meta = remember(sid, ep.season, ep.num, infoVer) { EpisodeInfo.get(sid, ep.season, ep.num) }
+                        PEpisodeRow(ep, meta, progress[ResumeLogic.key(ep.season, ep.num)], i == curIdx, curIdx >= 0 && i == curIdx + 1, rowMod) { onPick(ep) }
+                    } else PPanelRow("Folge ${ep.num}", i == curIdx, rowMod, trailing = if (i == curIdx) "läuft" else null) { onPick(ep) }
                 }
             }
         }
