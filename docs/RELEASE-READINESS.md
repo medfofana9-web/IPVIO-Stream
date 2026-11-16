@@ -9,7 +9,7 @@
 | Start, playlist load, every main screen, no crash, no frozen screen, search, Home after restart | PASS | Emulator journey (perf-test.yml), 1.3.107+ |
 | Cross-TV Continue Watching | PASS (maintainer, two real TVs, 1.3.110) | Reported by the maintainer |
 | Remote focus/Back on real TVs, long sessions, multiview decoder limits, network drop on device, Fire TV speed | NOT TESTED | Needs physical devices |
-| Password reset by email | BLOCKED | Needs a public reset page (Supabase redirect URL); not built |
+| Password reset by email | BLOCKED | In-app code flow built (FofSignIn.ForgotCard, FofAccount.sendReset/resetWithCode), switched off (SignInLogic.RESET_BY_CODE). Needs custom SMTP in Supabase (built-in sender only mails team members and cannot edit templates) and {{ .Token }} in the Reset password template |
 
 ## Backup and recovery
 - All account data lives in Supabase project msooylkizqvdrgxrdjww (tables fof_*). Profile data is one JSON row per profile (fof_profile_data), so a row export restores a profile completely.

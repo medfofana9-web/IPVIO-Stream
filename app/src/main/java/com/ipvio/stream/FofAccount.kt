@@ -301,6 +301,30 @@ object FofAccount {
         }.getOrElse { "No connection to the account service." }
     }
 
+    /** Forgot password, step 1: the account service emails a 6-digit code (also when the email is unknown: says nothing about who has an account). */
+    suspend fun sendReset(mail: String): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            val (code, res) = call("POST", "/auth/v1/recover", JSONObject().put("email", mail.trim()).toString(), null)
+            if (code in 200..299) null else err(res, "Could not send the code (${code}).")
+        }.getOrElse { "No connection to the account service." }
+    }
+
+    /** Forgot password, step 2: the emailed code signs this TV in, then the new password is set. Null = done. */
+    suspend fun resetWithCode(c: Context, mail: String, token: String, password: String): String? = withContext(Dispatchers.IO) {
+        if (password.length < 8) return@withContext "Use at least 8 characters for the password."
+        runCatching {
+            val body = JSONObject().put("type", "recovery").put("email", mail.trim()).put("token", token.trim()).toString()
+            val (code, res) = call("POST", "/auth/v1/verify", body, null)
+            if (code !in 200..299) return@runCatching "That code is not right or has expired. Ask for a new one."
+            val s = AccountLogic.sessionFrom(res) ?: return@runCatching "That code is not right or has expired. Ask for a new one."
+            save(c, s)
+            changePassword(c, password)?.let { return@runCatching it }
+            refreshMember(c)
+            AccountCloud.afterSignIn(c)
+            null
+        }.getOrElse { "No connection to the account service." }
+    }
+
     /**
      * Deletes the account with every profile, PIN, addon list, device and saved progress (after the password is
      * confirmed again). This TV is signed out. Null = done, else a readable error.

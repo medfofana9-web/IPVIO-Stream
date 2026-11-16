@@ -1,5 +1,9 @@
 # Changelog
 
+## Fof TV 1.3.119 (November 2026)
+
+- Forgot password on the TV (email → 6-digit code → new password) is built but switched off until the account service has its own email sender; see docs/RELEASE-READINESS.md.
+
 ## Fof TV 1.3.117 (November 2026)
 
 - Player episode list: every episode shows its still, "E4 · Title", runtime, time left or Watched, two lines of synopsis, a progress bar, and Playing / Up next. Season chips at the top jump to a season.

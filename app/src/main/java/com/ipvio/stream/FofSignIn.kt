@@ -26,6 +26,13 @@ import kotlinx.coroutines.launch
 
 /** Pure rules of the TV sign-in screen (unit-tested). */
 object SignInLogic {
+    /**
+     * Forgot password by emailed code. Off until the account service sends its own emails (custom SMTP) with a
+     * reset template that contains the 6-digit code ({{ .Token }}); the built-in sender only sends a link, and only to
+     * the project's team members.
+     */
+    const val RESET_BY_CODE = false
+
     /** An activation code on screen is valid this long, then a new one is made. */
     const val CODE_TTL_MS = 10 * 60_000L
 
@@ -102,6 +109,7 @@ private fun Welcome(onSignIn: () -> Unit, onCreate: () -> Unit, onSkip: (() -> U
 private fun SignInPanel(create: Boolean, onSwitch: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
+    var forgot by remember { mutableStateOf(false) }
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(if (create) "Create your Fof TV account" else "Sign in to Fof TV", color = Color.White, fontSize = 44.sp, fontWeight = FontWeight.Bold, raw = true)
         Spacer(Modifier.height(8.dp))
@@ -110,7 +118,7 @@ private fun SignInPanel(create: Boolean, onSwitch: () -> Unit) {
         Spacer(Modifier.height(36.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(28.dp), verticalAlignment = Alignment.Top) {
             PhoneCard(create)
-            Column(Modifier.width(520.dp).height(470.dp).glass(RoundedCornerShape(DS.RadiusL), 1).padding(30.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            if (forgot) ForgotCard { forgot = false } else Column(Modifier.width(520.dp).height(470.dp).glass(RoundedCornerShape(DS.RadiusL), 1).padding(30.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text("Or on this TV", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.SemiBold, raw = true)
                 var mail by remember { mutableStateOf("") }
                 var pw by remember { mutableStateOf("") }
@@ -138,6 +146,7 @@ private fun SignInPanel(create: Boolean, onSwitch: () -> Unit) {
                     }
                     PillButton(if (create) "I have an account" else "Create account", raw = true) { onSwitch() }
                 }
+                if (!create && SignInLogic.RESET_BY_CODE) SmallPill("Forgot password?") { forgot = true }
             }
         }
     }
@@ -180,6 +189,55 @@ private fun PhoneCard(create: Boolean) {
                 Text(when (step) { 2 -> "Signing in from your phone …"; 1 -> "Phone connected. Finish on your phone."; else -> "Waiting for your phone …" },
                     color = if (step > 0) DS.Gold else Color(0x80FFFFFF), fontSize = 17.sp, raw = true)
             }
+        }
+    }
+}
+
+/** Forgot password on the TV: email → 6-digit code from the email → new password (twice). Signs the TV in when done. */
+@Composable
+private fun ForgotCard(onBack: () -> Unit) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var mail by remember { mutableStateOf("") }
+    var sent by remember { mutableStateOf(false) }
+    var code by remember { mutableStateOf("") }
+    var pw by remember { mutableStateOf("") }
+    var pw2 by remember { mutableStateOf("") }
+    var err by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    Column(Modifier.width(520.dp).height(470.dp).glass(RoundedCornerShape(DS.RadiusL), 1).padding(30.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text("Reset your password", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.SemiBold, raw = true)
+        if (!sent) {
+            Text("We'll email you a 6-digit code.", color = Color(0xB3FFFFFF), fontSize = 16.sp, raw = true)
+            Field(mail, { mail = it.trim(); err = null }, "Email")
+        } else {
+            Text("Enter the code from the email sent to $mail, then a new password.", color = Color(0xB3FFFFFF), fontSize = 16.sp, raw = true)
+            Field(code, { code = it.filter { ch -> ch.isDigit() }.take(8); err = null }, "Code", number = true)
+            Field(pw, { pw = it; err = null }, "New password", password = true)
+            Field(pw2, { pw2 = it; err = null }, "New password again", password = true)
+        }
+        err?.let { Text(it, color = DS.Gold, fontSize = 16.sp, raw = true) }
+        Spacer(Modifier.weight(1f))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            PillButton(if (busy) "One moment …" else if (!sent) "Send code" else "Set password", light = true, raw = true) {
+                if (busy) return@PillButton
+                if (!sent) {
+                    SignInLogic.check(mail, "x", null, false)?.let { err = it; return@PillButton }
+                    busy = true
+                    scope.launch { err = FofAccount.sendReset(mail); if (err == null) sent = true; busy = false }
+                } else {
+                    if (code.length < 6) { err = "Enter the 6-digit code from the email."; return@PillButton }
+                    SignInLogic.check(mail, pw, pw2, true)?.let { err = it; return@PillButton }
+                    busy = true
+                    scope.launch {
+                        err = FofAccount.resetWithCode(ctx, mail, code, pw)
+                        if (err == null) FofAccount.reload(ctx)
+                        busy = false
+                    }
+                }
+            }
+            if (sent) PillButton("Send again", raw = true) { scope.launch { err = FofAccount.sendReset(mail) ?: "A new code is on its way." } }
+            PillButton("Back", raw = true) { onBack() }
         }
     }
 }
