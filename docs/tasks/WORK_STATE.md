@@ -92,3 +92,14 @@ U-1: move the Media3-dependent code out of `PlayerLogic.kt` (see `docs/REFACTORI
 - Done: search typo tolerance (SearchAllLogic.typo/dist), curated Home rows, Surprise me (SurpriseMe.kt), sports game quick menu with multiview + My Teams, Watch Together text chat.
 - Tests: CI unit tests and release build passed (SearchAllLogicTest.typoTolerance, SurpriseLogicTest new). No device or emulator run for this batch.
 - Open: device check of the sports menu, Surprise me and party chat on Fire TV; scroll smoothness (520/1088 slow frames on d18ee8f).
+
+## Master prompt (16 Nov 2026) – status by phase
+- P0 sync: done in code (pause, leave, seek, episode/source change, ~10 s ticks; conflict-safe PATCH on updated_at; realtime; offline kept locally). Verified on the server: only the onn box (1.3.85) had ever signed in before. Two-TV test reported working by the maintainer after 1.3.110.
+- P0 accounts/profiles: welcome + sign-in (QR with progress/expiry, email on TV), Who's watching cleaned, local-only profiles explicit in Manage, kids flag synced, PINs bcrypt on the server, devices list + revoke + password re-check.
+- P0 playback: network recovery (12 tries, ≤5 min), Retry / Change source on failure, IPTV sources next to addons, DragonStreams last resort.
+- P1 navigation: focus restore on sports cards; quick menu everywhere (hold OK or Menu key). OPEN: full audit of Back targets and row focus jumps on device.
+- P1 search: typo tolerance, filters, people. OPEN: genre/team/league results, suggestions, trending.
+- P2 home: taste rows, curated rows, Show less / Not interested. OPEN: hidden gems, favorite-teams row on Home.
+- P2 sports: quick menu, multiview from a game. OPEN: score overlay toggle, RedZone mode (needs event data).
+- P3 Watch Together: rooms, codes, sync, reactions, text chat. OPEN: voice (not planned yet).
+- Perf: emulator baseline 520/1088 slow frames (d18ee8f) → 202/537 on 1.3.107 run. OPEN: measure on a real Fire TV.
