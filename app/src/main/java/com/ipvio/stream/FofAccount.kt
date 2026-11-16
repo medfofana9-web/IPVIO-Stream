@@ -104,7 +104,7 @@ object FofAccount {
     internal fun call(method: String, path: String, body: String?, token: String?, prefer: String? = null): Pair<Int, String> {
         val b = Request.Builder().url(URL + path).header("apikey", KEY).header("Authorization", "Bearer " + (token ?: KEY))
         if (prefer != null) b.header("Prefer", prefer)
-        if (method == "POST") b.post((body ?: "{}").toRequestBody(JSON)) else if (method == "PATCH") b.patch((body ?: "{}").toRequestBody(JSON)).header("Prefer", "return=minimal")
+        if (method == "POST") b.post((body ?: "{}").toRequestBody(JSON)) else if (method == "PATCH") b.patch((body ?: "{}").toRequestBody(JSON)).header("Prefer", prefer ?: "return=minimal")
         Net.withTimeouts(8, 12).newCall(b.build()).execute().use { r -> return r.code to (r.body?.string().orEmpty()) }
     }
 

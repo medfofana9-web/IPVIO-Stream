@@ -112,7 +112,15 @@ object CloudSync {
     }
 
     private fun upload(c: Context, pid: Int, cid: String, files: JSONObject) {
-        val at = dataPut(c, cid, JSONObject().put("v", 1).put("files", files))
+        // Only over the version this TV last saw: if another TV saved in between, merge instead of overwriting its progress
+        val known = prefs(c).getString(ak(pid, cid), null)
+        val at = if (known != null) dataPatch(c, cid, known, JSONObject().put("v", 1).put("files", files)) ?: run {
+            val (data, _) = dataGet(c, cid) ?: return
+            val merged = SyncLogic.merge(files, filesOf(data) ?: JSONObject())
+            write(c, pid, merged)
+            kotlinx.coroutines.runBlocking { reloadIfActive(c, pid) }
+            dataPut(c, cid, JSONObject().put("v", 1).put("files", read(c, pid)))
+        } else dataPut(c, cid, JSONObject().put("v", 1).put("files", files))
         prefs(c).edit().putString(hk(pid, cid), SyncLogic.fingerprint(files)).putString(ak(pid, cid), at).apply()
     }
 
@@ -138,6 +146,15 @@ object CloudSync {
         val (code, res) = FofAccount.call("POST", "/rest/v1/fof_profile_data?on_conflict=profile_id", body, t, "resolution=merge-duplicates,return=representation")
         if (code !in 200..299) error("HTTP $code")
         return org.json.JSONArray(res).optJSONObject(0)?.optString("updated_at")?.ifBlank { null } ?: error("no time")
+    }
+
+    /** Saves only if the row is still at [known]; null = another TV saved first. */
+    private fun dataPatch(c: Context, cid: String, known: String, data: JSONObject): String? {
+        val t = FofAccount.tokenFor(c) ?: error("signed out")
+        val body = JSONObject().put("data", data).toString()
+        val (code, res) = FofAccount.call("PATCH", "/rest/v1/fof_profile_data?profile_id=eq.$cid&updated_at=eq." + java.net.URLEncoder.encode(known, "UTF-8"), body, t, "return=representation")
+        if (code !in 200..299) error("HTTP $code")
+        return org.json.JSONArray(res).optJSONObject(0)?.optString("updated_at")?.ifBlank { null }
     }
 
     private fun filesOf(data: JSONObject): JSONObject? =

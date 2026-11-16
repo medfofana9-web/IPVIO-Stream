@@ -1,5 +1,10 @@
 # Changelog
 
+## Fof TV 1.3.109 (November 2026)
+
+- Continue Watching sync: progress goes to the account right away on pause, leaving the player, next episode and source change (plus every ~10 s while playing).
+- Two TVs saving the same profile at once no longer overwrite each other: a save only lands over the version the TV last saw, otherwise both are merged (newest progress per title wins).
+
 ## Fof TV 1.3.107 (November 2026)
 
 - New welcome screen on a TV that is not signed in: Sign in, Create account, or use the TV without an account (asked once).

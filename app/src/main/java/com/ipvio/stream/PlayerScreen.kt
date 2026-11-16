@@ -666,7 +666,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         player.trackSelectionParameters = p.build()
     }
 
-    fun saveProgress() {
+    /** [push]: send to the account right away (pause, leave, episode or source change); the 5 s tick only saves locally and the sync follows within ~10 s. */
+    fun saveProgress(push: Boolean = true) {
         if (cur.live || cur.archive != null) return
         // Duration unknown (some provider streams report none): remember the position anyway, otherwise "Continue watching" would stay on the old episode
         val d = player.duration.coerceAtLeast(0L)
@@ -690,6 +691,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         // Movie: remember progress so the detail page shows "Play again" after watching
         if (si == null && cur.season == 0 && cur.episode == 0) EpProgress.put(ctx, cur.itemId, 0, 0, p, d)
         WatchStore.save(ctx, Entry(cur.itemId, cur.title, cur.url, p, d, now, cur.season, cur.episode), next)
+        if (push) CloudSync.now(ctx)
     }
 
     // Addon series (catalog title): the next episode comes from the addons, prepared while this one ends
@@ -847,7 +849,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         var wdTries = 0
         val tick = object : Runnable {
             override fun run() {
-                saveProgress()
+                saveProgress(push = false)
                 WatchParty.tick(ctx, player, cur.itemId, cur.season, cur.episode)
                 val nowT = System.currentTimeMillis()
                 if (cur.live && cur.archive == null && !readyOnce && SportSession.owns(cur.itemId) && sportT[0] > 0 && nowT - sportT[0] > 6_000L) sportFailover()
@@ -1005,7 +1007,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
                 if (reason == Player.DISCONTINUITY_REASON_SEEK || reason == Player.DISCONTINUITY_REASON_SEEK_ADJUSTMENT) lastSeekT = System.currentTimeMillis()
             }
-            override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
+            override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying; if (!isPlaying && player.playbackState == Player.STATE_READY) saveProgress() }
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) { pWhenReady = playWhenReady }
             override fun onTracksChanged(tracks: Tracks) {
                 tracksVer++
