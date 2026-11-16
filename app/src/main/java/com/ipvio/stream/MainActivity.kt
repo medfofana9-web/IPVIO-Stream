@@ -80,7 +80,9 @@ class MainActivity : ComponentActivity() {
                 // shows within seconds; every 2 minutes also the account (still allowed? profiles, PINs, addons)
                 if (FofAccount.signedIn && Reminders.foreground) {
                     if (++syncTick % 6 == 0) AccountCloud.run(applicationContext)
-                    CloudSync.run(applicationContext)
+                    // With the realtime feed up, changes arrive instantly: the check then runs once a minute as a fallback
+                    if (!LiveSync.live || syncTick % 3 == 0) CloudSync.run(applicationContext)
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { LiveSync.ensure(applicationContext) } }
                 }
                 kotlinx.coroutines.delay(20_000)
             }
@@ -160,6 +162,7 @@ class MainActivity : ComponentActivity() {
         Reminders.foreground = false
         // Leaving the app or the TV goes to sleep: save where this person stopped right away
         CloudSync.now(applicationContext)
+        LiveSync.stop()
         super.onStop()
     }
 
@@ -182,6 +185,7 @@ class MainActivity : ComponentActivity() {
         // Back in the app: pick up what this person watched on another TV, and addons added on another TV
         AccountCloud.kick(applicationContext, 0)
         CloudSync.now(applicationContext)
+        Thread { runCatching { LiveSync.ensure(applicationContext) } }.start()
     }
 
     override fun onDestroy() {

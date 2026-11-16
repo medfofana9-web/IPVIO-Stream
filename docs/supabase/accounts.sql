@@ -314,3 +314,11 @@ grant execute on function public.fof_verify_pin(uuid, text), public.fof_set_pin(
   public.fof_session_ok(), public.fof_rename_device(uuid, text), public.fof_revoke_device(uuid), public.fof_revoke_others()
   to authenticated;
 revoke all on function public.fof_unlock(uuid) from authenticated;
+
+-- ---------------------------------------------------------------- realtime (LiveSync, 1.3.92)
+-- Changes of fof_profile_data reach other TVs of the same profile instantly (row level security applies to the feed).
+do $$ begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'fof_profile_data') then
+    alter publication supabase_realtime add table public.fof_profile_data;
+  end if;
+end $$;

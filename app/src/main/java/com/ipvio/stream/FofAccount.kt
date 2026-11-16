@@ -45,6 +45,8 @@ object FofAccount {
     private fun prefs(c: Context) = devicePrefs(c)
 
     val userId: String? get() = session?.userId
+    /** The public (anon) key, for the realtime feed ([LiveSync]); the same one every request sends. */
+    internal val publicKey: String get() = KEY
 
     /** Signed in? As Compose state, so screens (sign-in on the TV) react the moment the phone finishes. */
     var signedInState by mutableStateOf(false)
@@ -160,7 +162,7 @@ object FofAccount {
         if (old != null && !revoked) Thread { runCatching { call("POST", "/auth/v1/logout?scope=local", null, old.access) } }.start()
         save(c, null); saveMember(c, null)
         status = if (revoked) "This TV was signed out from the account." else ""
-        CloudSync.unlink(c); AccountCloud.onSignedOut()
+        CloudSync.unlink(c); AccountCloud.onSignedOut(); LiveSync.stop()
     }
 
     /**

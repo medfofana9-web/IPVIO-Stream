@@ -1,5 +1,10 @@
 # Changelog
 
+## Fof TV 1.3.92 (November 2026)
+- Instant Continue watching between TVs: each TV listens to the account's realtime feed for the profile in use and
+  syncs the moment another TV saves progress (applied 15 Nov 2026: fof_profile_data in supabase_realtime). The
+  check every 20 s stays as a fallback (once a minute while the feed is up)
+
 ## Fof TV 1.3.91 (November 2026)
 - Continue watching keeps titles watched on another TV or from another source: when this TV's playlist has the title
   under another id (or not yet), it is found by its exact name and kind (only one match, so similar names never mix);
