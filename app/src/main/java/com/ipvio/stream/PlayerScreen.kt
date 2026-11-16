@@ -1006,6 +1006,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             }
             override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
                 if (reason == Player.DISCONTINUITY_REASON_SEEK || reason == Player.DISCONTINUITY_REASON_SEEK_ADJUSTMENT) lastSeekT = System.currentTimeMillis()
+                // Seek: saved now and sent to the account within a few seconds (repeated seeks while scrubbing share one sync)
+                if (reason == Player.DISCONTINUITY_REASON_SEEK) { saveProgress(push = false); CloudSync.kick(ctx, 3_000) }
             }
             override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying; if (!isPlaying && player.playbackState == Player.STATE_READY) saveProgress() }
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) { pWhenReady = playWhenReady }

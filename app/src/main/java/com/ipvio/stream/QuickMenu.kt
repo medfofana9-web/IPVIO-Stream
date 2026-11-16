@@ -61,6 +61,13 @@ object QuickMenu {
             out += Action(if (e.next) "Play next episode" else "Resume", AIcon.Play) { _ -> resume(e) }
             if (!e.next && e.pos > 0) out += Action("Start over", AIcon.History) { _ -> resume(e.copy(pos = 0L)) }
         }
+        // Catalog movie not started yet: Play opens its sources (or plays the best one with one-click play on)
+        if (e == null && it.kind == Kind.MOVIE && it.id.startsWith("stremio:")) out += Action("Play", AIcon.Play) { _ -> AppNav.autoStream = it.id; AppNav.autoResume = null; AppNav.autoResumeId = null; t.open() }
+        if (it.id.startsWith("stremio:")) out += Action("View sources", AIcon.Lists) { _ ->
+            AppNav.autoStream = it.id
+            if (e != null) { AppNav.autoResume = Triple(e.season, e.ep, e.pos); AppNav.autoResumeId = it.id } else { AppNav.autoResume = null; AppNav.autoResumeId = null }
+            t.open()
+        }
         out += Action(if (it.kind == Kind.SERIES) "Seasons & episodes" else "View details", AIcon.Info) { _ -> t.open() }
         out += if (Library.isWatch(it.id)) Action("Remove from My List", AIcon.Check) { c -> Library.toggleWatch(c, it.id) }
                else Action("Add to My List", AIcon.Plus) { c -> Library.toggleWatch(c, it.id) }
@@ -74,6 +81,7 @@ object QuickMenu {
         if (e != null) out += Action("Remove from Continue watching", AIcon.Close) { c -> WatchStore.remove(c, it.id) }
         // Taste: left out of this profile's recommendations from now on
         if (it.id !in QuickMenuNope.ids) out += Action("Not interested", AIcon.Close) { c -> Taste.addNope(c, it.id); QuickMenuNope.ids += it.id }
+        Catalog.meta(it)?.genres?.firstOrNull()?.let { g -> out += Action("Show less $g", AIcon.Close) { c -> Taste.lessLike(c, g) } }
         return out
     }
 }

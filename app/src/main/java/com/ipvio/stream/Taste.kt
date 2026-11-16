@@ -100,6 +100,13 @@ object Taste {
     fun people(c: Context): List<Pair<Int, String>> = prefs(c).getString("people", "").orEmpty().split('|').mapNotNull { p ->
         val i = p.indexOf(':'); if (i <= 0) null else p.substring(0, i).toIntOrNull()?.let { it to p.substring(i + 1) }
     }
+    /** "Show less like this" from the quick menu: the title's main genre counts as not interested for recommendations. */
+    fun lessLike(c: Context, genre: String) {
+        val n = genresNo(c) + genre
+        prefs(c).edit().putString("gno", n.joinToString("|")).apply(); CloudSync.kick(c)
+    }
+    /** A recommendation to leave out: its genres include one this profile asked to see less of. */
+    fun isLess(no: Set<String>, i: Item): Boolean = no.isNotEmpty() && Catalog.meta(i)?.genres?.any { g -> no.any { it.equals(g, true) } } == true
     /** Genres rated "Not interested". */
     fun genresNo(c: Context): Set<String> = prefs(c).getString("gno", "").orEmpty().split('|').filter { it.isNotBlank() }.toSet()
     fun loved(c: Context): Set<String> = prefs(c).getString("loved", "").orEmpty().split('|').filter { it.isNotBlank() }.toSet()

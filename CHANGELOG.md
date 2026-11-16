@@ -1,5 +1,11 @@
 # Changelog
 
+## Fof TV 1.3.112 (November 2026)
+
+- Sync: a seek is saved and sent to the account within a few seconds; the audio and subtitle language chosen per title now follows the profile to every TV.
+- Hold OK (or Menu) on a title: new "Play" for catalog movies, "View sources" (opens the source list, at the saved episode and position when there is one) and "Show less <genre>".
+- "Show less <genre>" keeps that genre out of this profile's recommendation rows.
+
 ## Fof TV 1.3.111 (November 2026)
 
 - "Who's watching?" is cleaner: only the account's profiles, no account email, no "Owner" label, no greeting; Manage Profiles is a quiet action below the profiles.

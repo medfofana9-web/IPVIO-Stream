@@ -255,10 +255,11 @@ object TasteRows {
         Catalog.genres(k).firstOrNull { it.title.equals(g, true) }?.let { s -> runCatching { Catalog.items(s, 2) }.getOrDefault(emptyList()) }.orEmpty()
 
     private fun skip(c: android.content.Context): Set<String> = Taste.nope(c) + Taste.titles(c) + History.ids
+    private fun less(c: android.content.Context): Set<String> = Taste.genresNo(c)
 
     suspend fun forKind(c: android.content.Context, k: Kind, top: List<String>): List<Item> {
-        val sk = skip(c)
-        return DiscoveryLogic.balance(top.map { g -> genreItems(k, g).filter { it.id !in sk } }, 30) { it.id }
+        val sk = skip(c); val ls = less(c)
+        return DiscoveryLogic.balance(top.map { g -> genreItems(k, g).filter { it.id !in sk && !Taste.isLess(ls, it) } }, 30) { it.id }
     }
 
     suspend fun picked(c: android.content.Context, top: List<String>): List<Item> {
@@ -271,11 +272,11 @@ object TasteRows {
 
     /** Genres the profile has not shown interest in (documentaries and reality only when the answers allow them). */
     suspend fun discover(c: android.content.Context, top: List<String>): List<Item> {
-        val sk = skip(c)
+        val sk = skip(c); val ls = less(c)
         val noDocs = Taste.pref(c, "docs") == "Rarely"
         val no = Taste.genresNo(c)
         val others = Catalog.genres(Kind.MOVIE).map { it.title }.filter { g -> top.none { it.equals(g, true) } && g !in no && !(noDocs && g == "Documentary") }.shuffled().take(4)
-        return DiscoveryLogic.balance(others.map { g -> genreItems(Kind.MOVIE, g).filter { it.id !in sk } }, 30) { it.id }
+        return DiscoveryLogic.balance(others.map { g -> genreItems(Kind.MOVIE, g).filter { it.id !in sk && !Taste.isLess(ls, it) } }, 30) { it.id }
     }
 }
 
