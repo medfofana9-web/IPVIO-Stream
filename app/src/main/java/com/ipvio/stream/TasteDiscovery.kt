@@ -203,15 +203,18 @@ private fun RatePoster(i: Item, r: Int, modifier: Modifier, onClick: () -> Unit)
 internal val PREF_QUESTIONS = listOf(
     "mix" to listOf("Mostly movies", "Both", "Mostly shows"),
     "mood" to listOf("Make me laugh", "A bit of both", "Serious drama"),
+    "tone" to listOf("Dark and gritty", "Either", "Light and feel-good"),
+    "story" to listOf("One long story", "Either", "Episodes that stand alone"),
     "pace" to listOf("Fast and exciting", "Either", "Slow burn"),
     "world" to listOf("Real life", "Either", "Fantasy and sci-fi"),
     "docs" to listOf("Love documentaries", "Sometimes", "Rarely"),
     "reality" to listOf("Love reality TV", "Sometimes", "Not for me"),
     "subs" to listOf("Subtitles are fine", "English audio only"),
+    "lang" to listOf("English", "Spanish", "Any language"),
     "length" to listOf("Short episodes", "Any length", "Long episodes")
 )
 internal val PREF_TITLES = mapOf(
-    "mix" to "Movies or shows?", "mood" to "Your mood", "pace" to "Story pace", "world" to "Kind of world",
+    "mix" to "Movies or shows?", "mood" to "Your mood", "tone" to "Dark or light?", "story" to "How stories run", "lang" to "Preferred language", "pace" to "Story pace", "world" to "Kind of world",
     "docs" to "Documentaries", "reality" to "Reality TV", "subs" to "Other languages", "length" to "Episode length"
 )
 
@@ -270,7 +273,78 @@ object TasteRows {
     suspend fun discover(c: android.content.Context, top: List<String>): List<Item> {
         val sk = skip(c)
         val noDocs = Taste.pref(c, "docs") == "Rarely"
-        val others = Catalog.genres(Kind.MOVIE).map { it.title }.filter { g -> top.none { it.equals(g, true) } && !(noDocs && g == "Documentary") }.shuffled().take(4)
+        val no = Taste.genresNo(c)
+        val others = Catalog.genres(Kind.MOVIE).map { it.title }.filter { g -> top.none { it.equals(g, true) } && g !in no && !(noDocs && g == "Documentary") }.shuffled().take(4)
         return DiscoveryLogic.balance(others.map { g -> genreItems(Kind.MOVIE, g).filter { it.id !in sk } }, 30) { it.id }
+    }
+}
+
+/** Actors and creators the person loves (TMDB popular people, search for anyone). */
+@Composable
+internal fun PeopleStep(chosen: MutableMap<Int, String>, onChange: () -> Unit) {
+    if (!TmdbExtra.enabled()) { Text("Add a free TMDB key (Settings > API keys) to pick actors and creators – or go on.", color = Color(0x99FFFFFF), fontSize = 18.sp, raw = true); return }
+    var query by remember { mutableStateOf("") }
+    val popular by produceState<List<PersonRef>?>(null) { value = TmdbExtra.popularPeople() }
+    var found by remember { mutableStateOf<List<PersonRef>?>(null) }
+    LaunchedEffect(query) {
+        if (query.trim().length < 2) { found = null; return@LaunchedEffect }
+        delay(350); found = TmdbExtra.searchPeople(query)
+    }
+    val list = found ?: popular
+    val first = remember { FocusRequester() }
+    LaunchedEffect(list?.size) { repeat(8) { delay(60); if (runCatching { first.requestFocus() }.getOrDefault(false)) return@LaunchedEffect } }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Box(Modifier.width(420.dp)) { Field(query, { query = it }, "Search any actor, director or creator") }
+        if (list == null) { Text("Loading …", color = Color(0x99FFFFFF), fontSize = 18.sp, raw = true); return@Column }
+        LazyVerticalGrid(GridCells.Fixed(8), horizontalArrangement = Arrangement.spacedBy(18.dp), verticalArrangement = Arrangement.spacedBy(18.dp),
+            contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
+            items(list, key = { it.id }) { p ->
+                val on = p.id in chosen
+                var f by remember { mutableStateOf(false) }
+                val s by animateFloatAsState(if (f) 1.06f else 1f, tween(140), label = "pp")
+                Column((if (p === list.first()) Modifier.focusRequester(first) else Modifier).graphicsLayer { scaleX = s; scaleY = s }
+                    .onFocusChanged { f = it.isFocused }.clickable { if (on) chosen.remove(p.id) else chosen[p.id] = p.name; onChange() },
+                    horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(Modifier.size(110.dp).clip(CircleShape).background(Color(0xFF15161A))
+                        .border(if (on) 3.dp else if (f) 2.dp else 1.dp, if (on) Color(0xFFB9B4F0) else if (f) Color.White else Color(0x1FFFFFFF), CircleShape)) {
+                        coil.compose.AsyncImage(p.photo, p.name, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                        if (on) Box(Modifier.fillMaxSize().background(Color(0x337B5CFF)))
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(p.name, color = if (f || on) Color.White else Color(0x99FFFFFF), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, raw = true)
+                    p.from?.takeIf { it.isNotBlank() }?.let { Text(if (it == "Acting") "Actor" else it, color = Color(0x66FFFFFF), fontSize = 12.sp, raw = true) }
+                }
+            }
+        }
+    }
+}
+
+/** Genres rated like titles: OK cycles Love → Like → Not interested → neutral. */
+@Composable
+internal fun GenreRateStep(genres: List<String>, ratings: MutableMap<String, Int>, onChange: () -> Unit) {
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) { repeat(8) { delay(60); if (runCatching { first.requestFocus() }.getOrDefault(false)) return@LaunchedEffect } }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("OK once: Love  ·  twice: Like  ·  three times: Not interested", color = Color(0x99FFFFFF), fontSize = 15.sp, raw = true)
+        LazyVerticalGrid(GridCells.Fixed(4), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            items(genres, key = { it }) { g ->
+                val r = ratings[g] ?: Discovery.NONE
+                var f by remember { mutableStateOf(false) }
+                val shape = RoundedCornerShape(16.dp)
+                val (bg, fg, tag) = when (r) {
+                    Discovery.LOVED -> Triple(Color.White, Color.Black, "Love")
+                    Discovery.LIKED -> Triple(Color(0xFFDDE7E0), Color.Black, "Like")
+                    Discovery.NOPE -> Triple(Color(0x14FFFFFF), Color(0x66FFFFFF), "Not interested")
+                    else -> Triple(Color.Transparent, Color.White, null)
+                }
+                Row((if (g == genres.first()) Modifier.focusRequester(first) else Modifier).height(72.dp).onFocusChanged { f = it.isFocused }
+                    .then(if (r == Discovery.NONE || r == Discovery.NOPE) Modifier.glass(shape, 1, f) else Modifier.clip(shape).background(bg))
+                    .clickable { val n = DiscoveryLogic.next(r); if (n == Discovery.NONE) ratings.remove(g) else ratings[g] = n; onChange() }
+                    .padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(g, color = fg, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, raw = true, modifier = Modifier.weight(1f))
+                    if (tag != null) Text(tag, color = fg.copy(alpha = 0.7f), fontSize = 13.sp, fontWeight = FontWeight.Bold, raw = true)
+                }
+            }
+        }
     }
 }

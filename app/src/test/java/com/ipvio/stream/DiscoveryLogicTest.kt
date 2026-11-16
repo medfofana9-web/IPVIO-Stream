@@ -8,7 +8,7 @@ class DiscoveryLogicTest {
     @Test fun balanceTakesFromEveryList() {
         val l = listOf(listOf("a1", "a2", "a3"), listOf("b1", "b2"), listOf("c1"))
         assertEquals(listOf("a1", "b1", "c1", "a2", "b2"), DiscoveryLogic.balance(l, 5) { it })
-        assertEquals(listOf("a1", "b1"), DiscoveryLogic.balance(listOf(listOf("a1", "x"), listOf("x", "b1")), 2) { it })
+        assertEquals(listOf("a1", "x", "b1"), DiscoveryLogic.balance(listOf(listOf("a1", "x"), listOf("x", "b1")), 3) { it })
     }
 
     @Test fun ratingsRankGenres() {

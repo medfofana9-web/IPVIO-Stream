@@ -207,6 +207,33 @@ object TmdbExtra {
         return got?.takeIf { it.second.isNotEmpty() }
     }
 
+    private fun refs(o: JSONObject?): List<PersonRef> = results(o).filter { it.optString("profile_path").isNotBlank() }.map {
+        PersonRef(it.optInt("id"), it.optString("name"), "https://image.tmdb.org/t/p/w185" + it.optString("profile_path"), it.optString("known_for_department"))
+    }
+
+    /** Well-known actors and creators right now (two pages), for the taste setup. */
+    suspend fun popularPeople(): List<PersonRef> = if (!enabled()) emptyList() else runCatching {
+        withContext(Dispatchers.IO) { (1..2).flatMap { pg -> refs(http(url("person/popular?page=$pg"))) }.distinctBy { it.id } }
+    }.getOrDefault(emptyList())
+
+    /** People whose name matches [q] (taste setup search). */
+    suspend fun searchPeople(q: String): List<PersonRef> = if (!enabled() || q.trim().length < 2) emptyList() else runCatching {
+        withContext(Dispatchers.IO) { refs(http(url("search/person?query=" + java.net.URLEncoder.encode(q.trim(), "UTF-8")))).take(21) }
+    }.getOrDefault(emptyList())
+
+    /** What a person is known for (movies and shows, most voted first). */
+    suspend fun personTitles(id: Int): List<Item> = list("person:$id") {
+        withContext(Dispatchers.IO) {
+            val cr = http(url("person/$id/combined_credits"))
+            val skip = setOf(10763, 10764, 10767)
+            val all = listOf("cast", "crew").flatMap { f -> cr?.optJSONArray(f)?.let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it) } }.orEmpty() }
+            toItems(all.filter { o ->
+                val mt = o.optString("media_type"); val g = o.optJSONArray("genre_ids")
+                (mt == "movie" || mt == "tv") && (g == null || (0 until g.length()).none { g.optInt(it) in skip })
+            }.distinctBy { it.optString("media_type") + it.optInt("id") }.sortedByDescending { it.optDouble("vote_count", 0.0) }, null)
+        }
+    }
+
     /** "Because you watched [seed]": TMDB recommendations for the title (found by its IMDb id). */
     suspend fun because(seed: Item): List<Item> {
         val tt = seed.id.removePrefix("stremio:").takeIf { StremioLogic.isImdb(it) } ?: return emptyList()

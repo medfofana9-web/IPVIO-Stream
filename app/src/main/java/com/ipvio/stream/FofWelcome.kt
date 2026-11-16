@@ -181,7 +181,7 @@ fun FofWelcome(onPick: (Int) -> Unit) {
             }
         }
         options?.let { id ->
-            val acts = listOf("Change avatar", "Rename", "Your taste") +
+            val acts = listOf("Change avatar", "Rename", "Your taste", "Reset taste") +
                 (if (FofAccount.signedInState) listOf("Change PIN") else emptyList()) +
                 (if (id != 0) listOf("Delete profile") else emptyList())
             OptionPopup(acts, -1, { options = null }) { a ->
@@ -192,6 +192,8 @@ fun FofWelcome(onPick: (Int) -> Unit) {
                     // The questions come back the next time this profile is picked
                     "Your taste" -> { Taste.reset(ctx, id); manage = false; onPick(id) }
                     "Change PIN" -> changePin = id
+                    // Start the taste setup from scratch the next time this profile is opened
+                    "Reset taste" -> { Taste.clearAll(ctx, id); note = "Taste reset – the setup starts fresh next time" }
                     "Delete profile" -> scope.launch {
                         // In the account: removed there first (owner's profile or that profile open on this TV), then here
                         val e = if (FofAccount.signedIn) AccountCloud.deleteProfile(ctx, id) else null

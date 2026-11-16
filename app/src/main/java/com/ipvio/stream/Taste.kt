@@ -90,9 +90,48 @@ object Taste {
     fun draft(c: Context): org.json.JSONObject? = prefs(c).getString("draft", null)?.let { runCatching { org.json.JSONObject(it) }.getOrNull() }
     fun saveDraft(c: Context, d: org.json.JSONObject) { prefs(c).edit().putString("draft", d.toString()).apply() }
 
+    /** Loved actors and creators (TMDB id -> name). */
+    fun people(c: Context): List<Pair<Int, String>> = prefs(c).getString("people", "").orEmpty().split('|').mapNotNull { p ->
+        val i = p.indexOf(':'); if (i <= 0) null else p.substring(0, i).toIntOrNull()?.let { it to p.substring(i + 1) }
+    }
+    /** Genres rated "Not interested". */
+    fun genresNo(c: Context): Set<String> = prefs(c).getString("gno", "").orEmpty().split('|').filter { it.isNotBlank() }.toSet()
+    fun loved(c: Context): Set<String> = prefs(c).getString("loved", "").orEmpty().split('|').filter { it.isNotBlank() }.toSet()
+    fun genreLoved(c: Context): Set<String> = prefs(c).getString("glove", "").orEmpty().split('|').filter { it.isNotBlank() }.toSet()
+
+    /**
+     * The profile's saved answers as a starting draft ("Your taste" edits them instead of starting over), or null when
+     * there is nothing saved yet.
+     */
+    fun savedAsDraft(c: Context): org.json.JSONObject? {
+        val r = org.json.JSONObject()
+        loved(c).forEach { r.put(it, Discovery.LOVED) }
+        titles(c).forEach { if (!r.has(it)) r.put(it, Discovery.LIKED) }
+        nope(c).forEach { r.put(it, Discovery.NOPE) }
+        val gr = org.json.JSONObject()
+        genres(c).forEach { gr.put(it, if (it in genreLoved(c)) Discovery.LOVED else Discovery.LIKED) }
+        genresNo(c).forEach { gr.put(it, Discovery.NOPE) }
+        val p = org.json.JSONObject(); prefs(c).all.forEach { (k, v) -> if (k.startsWith("p_") && v is String) p.put(k.removePrefix("p_"), v) }
+        val pe = org.json.JSONObject(); people(c).forEach { (id, n) -> pe.put(id.toString(), n) }
+        if (r.length() == 0 && gr.length() == 0 && p.length() == 0 && pe.length() == 0) return null
+        return org.json.JSONObject().put("step", 0).put("r", r).put("gr", gr).put("p", p).put("pe", pe)
+            .put("s", org.json.JSONArray(sports(c).toList()))
+    }
+
+    /** Clears everything the setup saved for profile [id] ("Reset taste"); the setup starts blank next time. */
+    fun clearAll(c: Context, id: Int = Profiles.active) {
+        c.applicationContext.getSharedPreferences(Profiles.scopedName("fof_taste", id), Context.MODE_PRIVATE).edit().clear().commit()
+        if (BuildConfig.VERSION_NAME.endsWith("-test")) testForce = true
+        CloudSync.kick(c)
+    }
+
     /** Saves ratings, preferences and the genres they point to (one write, together with [apply]). */
-    fun applyDiscovery(c: Context, ratings: Map<String, Int>, prefsMap: Map<String, String>, topGenres: List<String>) {
+    fun applyDiscovery(c: Context, ratings: Map<String, Int>, prefsMap: Map<String, String>, topGenres: List<String>,
+                       genreRatings: Map<String, Int> = emptyMap(), people: Map<Int, String> = emptyMap()) {
         val e = prefs(c).edit()
+        e.putString("gno", genreRatings.filterValues { it == Discovery.NOPE }.keys.joinToString("|"))
+        e.putString("glove", genreRatings.filterValues { it == Discovery.LOVED }.keys.joinToString("|"))
+        e.putString("people", people.entries.joinToString("|") { it.key.toString() + ":" + it.value.replace("|", " ") })
         e.putString("nope", ratings.filterValues { it == Discovery.NOPE }.keys.joinToString("|"))
         e.putString("loved", ratings.filterValues { it == Discovery.LOVED }.keys.joinToString("|"))
         e.putString("tg", topGenres.joinToString("|"))
@@ -154,14 +193,19 @@ fun TasteSetup(onDone: () -> Unit) {
     val ctx = LocalContext.current
     val name = remember { Profiles.activeName().let { n -> if (n == Profiles.defaultName(Profiles.active) || n == Profiles.defaultName(0)) "" else n } }
     // A blank slate: only this profile's own (draft) answers, never another profile's
-    val draft = remember { Taste.draft(ctx) }
+    // Unfinished setup first; "Your taste" on a set-up profile starts from its saved answers
+    val draft = remember { Taste.draft(ctx) ?: Taste.savedAsDraft(ctx) }
     var step by remember { mutableIntStateOf(draft?.optInt("step", 0) ?: 0) }
     val ratings = remember { mutableStateMapOf<String, Int>().apply {
         draft?.optJSONObject("r")?.let { o -> o.keys().forEach { k -> put(k, o.optInt(k)) } }
     } }
     val rated = remember { mutableStateMapOf<String, Item>().apply { ratings.keys.forEach { id -> CatalogItems.get(id)?.let { put(id, it) } } } }
-    val genres = remember { mutableStateListOf<String>().apply {
-        draft?.optJSONArray("g")?.let { a -> for (i in 0 until a.length()) add(a.optString(i)) }
+    val genreRatings = remember { mutableStateMapOf<String, Int>().apply {
+        draft?.optJSONObject("gr")?.let { o -> o.keys().forEach { k -> put(k, o.optInt(k)) } }
+    } }
+    val genres = genreRatings.filterValues { it == Discovery.LOVED || it == Discovery.LIKED }.keys.sortedBy { if (genreRatings[it] == Discovery.LOVED) 0 else 1 }
+    val people = remember { mutableStateMapOf<Int, String>().apply {
+        draft?.optJSONObject("pe")?.let { o -> o.keys().forEach { k -> k.toIntOrNull()?.let { put(it, o.optString(k)) } } }
     } }
     val prefsMap = remember { mutableStateMapOf<String, String>().apply {
         draft?.optJSONObject("p")?.let { o -> o.keys().forEach { k -> put(k, o.optString(k)) } }
@@ -175,12 +219,14 @@ fun TasteSetup(onDone: () -> Unit) {
     val moviePool by produceState<Discovery.Pool?>(null) { value = runCatching { Discovery.pool(ctx, Kind.MOVIE) }.getOrNull() ?: Discovery.Pool(emptyList(), emptyMap(), emptyMap()) }
     val showPool by produceState<Discovery.Pool?>(null) { value = runCatching { Discovery.pool(ctx, Kind.SERIES) }.getOrNull() ?: Discovery.Pool(emptyList(), emptyMap(), emptyMap()) }
     val allGenres = remember { listOf("Action", "Comedy", "Drama", "Crime", "Thriller", "Sci-Fi", "Horror", "Romance", "Mystery", "Fantasy", "Animation", "Family", "Documentary", "Reality-TV", "Adventure") }
-    // Steps: movies, shows, genres, viewing preferences, sports, teams, review
-    val steps = 7
+    // Steps: movies, shows, genres, actors and creators, viewing preferences, sports, teams, review
+    val steps = 8
     fun saveDraft() {
         val d = org.json.JSONObject().put("step", step)
             .put("r", org.json.JSONObject().apply { ratings.forEach { (k, v) -> put(k, v) } })
-            .put("g", org.json.JSONArray(genres.toList())).put("s", org.json.JSONArray(sports.toList()))
+            .put("gr", org.json.JSONObject().apply { genreRatings.forEach { (k, v) -> put(k, v) } })
+            .put("pe", org.json.JSONObject().apply { people.forEach { (k, v) -> put(k.toString(), v) } })
+            .put("s", org.json.JSONArray(sports.toList()))
             .put("p", org.json.JSONObject().apply { prefsMap.forEach { (k, v) -> put(k, v) } })
         Taste.saveDraft(ctx, d)
     }
@@ -189,12 +235,13 @@ fun TasteSetup(onDone: () -> Unit) {
         val m = HashMap<String, Set<String>>()
         moviePool?.genresOf?.let { m.putAll(it) }; showPool?.genresOf?.let { m.putAll(it) }
         val fromRatings = DiscoveryLogic.genreScores(ratings, m).filter { it.second > 0 }.map { it.first }
-        return (genres + fromRatings).distinct().take(5)
+        val no = genreRatings.filterValues { it == Discovery.NOPE }.keys
+        return (genres + fromRatings).distinct().filter { it !in no }.take(5)
     }
     fun finish() {
         val liked = ratings.filterValues { it == Discovery.LOVED || it == Discovery.LIKED }.keys.mapNotNull { rated[it] ?: CatalogItems.get(it) }
-        Taste.apply(ctx, sports.toSet(), teams.map { it.team }, liked, genres.toList())
-        Taste.applyDiscovery(ctx, ratings.toMap(), prefsMap.toMap(), topGenres())
+        Taste.apply(ctx, sports.toSet(), teams.map { it.team }, liked, genres)
+        Taste.applyDiscovery(ctx, ratings.toMap(), prefsMap.toMap(), topGenres(), genreRatings.toMap(), people.toMap())
         onDone()
     }
     // First (TV not signed in): does this person already use Fof TV? Then signing in brings their whole profile
@@ -241,10 +288,11 @@ fun TasteSetup(onDone: () -> Unit) {
             val (title, sub) = when (step) {
                 0 -> "Movies you love$hi" to "We know nothing about you yet. Rate the movies you have seen – about 10 to 15 helps most. Search finds any movie."
                 1 -> "Shows you love" to "Now series – rate what you have watched. Your movie picks do not decide this part."
-                2 -> "Your genres" to "Pick the kinds of stories you enjoy most."
-                3 -> "How you like to watch" to "A few quick choices so we can tell you apart from people with the same favorites. All optional."
-                4 -> "Sports you follow" to "Sports, Home and alerts will focus on them."
-                5 -> "Your teams" to "Their games come first, everywhere."
+                2 -> "Your genres" to "Rate the kinds of stories you enjoy – and the ones you don't."
+                3 -> "Actors and creators" to "Pick the people whose work you always watch. Search finds anyone."
+                4 -> "How you like to watch" to "A few quick choices so we can tell you apart from people with the same favorites. All optional."
+                5 -> "Sports you follow" to "Sports, Home and alerts will focus on them."
+                6 -> "Your teams" to "Their games come first, everywhere."
                 else -> "Ready" + hi to "Here is what Fof TV knows about you now. You can change it any time: Manage Profiles → your profile → Your taste."
             }
             Text(title, color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Bold, raw = true)
@@ -255,10 +303,11 @@ fun TasteSetup(onDone: () -> Unit) {
                 when (step) {
                     0 -> DiscoverStep(Kind.MOVIE, moviePool, ratings, rated) { saveDraft() }
                     1 -> DiscoverStep(Kind.SERIES, showPool, ratings, rated) { saveDraft() }
-                    2 -> ChipGrid(allGenres.map { it to it }, genres)
-                    3 -> PrefsStep(prefsMap) { saveDraft() }
-                    4 -> ChipGrid(TasteLogic.SPORTS.map { it.first to it.second }, sports)
-                    5 -> {
+                    2 -> GenreRateStep(allGenres, genreRatings) { saveDraft() }
+                    3 -> PeopleStep(people) { saveDraft() }
+                    4 -> PrefsStep(prefsMap) { saveDraft() }
+                    5 -> ChipGrid(TasteLogic.SPORTS.map { it.first to it.second }, sports)
+                    6 -> {
                         val l = teamList
                         when {
                             sports.isEmpty() || (l != null && l.isEmpty()) -> Text("No teams to pick for these sports – go on.", color = Color(0x99FFFFFF), fontSize = 18.sp, raw = true)
@@ -268,7 +317,7 @@ fun TasteSetup(onDone: () -> Unit) {
                     }
                     else -> Summary(
                         sports.mapNotNull { s -> TasteLogic.SPORTS.firstOrNull { it.first == s }?.second } + teams.map { it.team.short },
-                        prefsMap.values.toList(),
+                        prefsMap.values.toList() + people.values.map { "Loves $it" },
                         ratings.filterValues { it == Discovery.LOVED || it == Discovery.LIKED }.keys.mapNotNull { (rated[it] ?: CatalogItems.get(it))?.title },
                         topGenres()
                     )
@@ -278,7 +327,7 @@ fun TasteSetup(onDone: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
                 val next = remember { FocusRequester() }
                 if (step < steps - 1) {
-                    val picked = when (step) { 0, 1 -> loved; 2 -> genres.size; 3 -> prefsMap.size; 4 -> sports.size; 5 -> teams.size; else -> 0 }
+                    val picked = when (step) { 0, 1 -> loved; 2 -> genreRatings.size; 3 -> people.size; 4 -> prefsMap.size; 5 -> sports.size; 6 -> teams.size; else -> 0 }
                     PillButton(if (picked > 0) "Next  ·  $picked picked" else "Skip this step", Modifier.focusRequester(next), light = true, raw = true) { step++ }
                     if (step > 0) PillButton("Back", raw = true) { step-- }
                     Spacer(Modifier.weight(1f))

@@ -2,6 +2,10 @@
 
 ## Fof TV 1.3.101 (November 2026)
 **Taste discovery is part of creating a profile**
+- Also: genres rated Love / Like / Not interested; an "Actors and creators" step (TMDB popular people, search for
+  anyone); more viewing questions (dark or light, serialized or standalone, preferred language). "Your taste" edits the
+  saved answers instead of starting over; "Reset taste" starts blank. Home adds "Because you love <person>" rows
+- Profile menu: Switch profile, Manage profiles, Profile settings, Account & devices, Sign out
 - Add profile: name and picture → PIN (or none) → movies → shows → genres → how you like to watch → sports and teams
   → review → "Create my Fof TV". Every step can be skipped; the profile starts as a blank slate (nothing from another
   profile or the owner)

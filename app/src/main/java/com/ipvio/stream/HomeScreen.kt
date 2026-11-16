@@ -477,6 +477,7 @@ fun HomeScreen(
     val tasteSeeds = remember(Profiles.active) { Taste.titles(ctx).mapNotNull { CatalogItems.get(it) }.shuffled() }
     val likedGenres = remember(Profiles.active) { Taste.genres(ctx) }
     val tasteTop = remember(Profiles.active) { Taste.topGenres(ctx) }
+    val tastePeople = remember(Profiles.active) { Taste.people(ctx) }
     fun tasteOrder(l: List<Catalog.Spec>) = l.sortedBy { sp -> likedGenres.indexOfFirst { it.equals(sp.title, true) }.let { if (it < 0) 99 else it } }
     // A title watched on another TV (or from another source) stays in Continue watching even when this TV's playlist has
     // it under another id or not at all: exact title + kind match first, else the saved entry itself (ResumeMatch)
@@ -626,6 +627,10 @@ fun HomeScreen(
                                             item(key = "taste:picked") { ExtraRow("Picked for you", "taste:picked:" + Profiles.active, cardW, onOpen, onBrowse) { TasteRows.picked(ctx, tasteTop) } }
                                             item(key = "taste:movies") { ExtraRow("Movies you might love", "taste:movies:" + Profiles.active, cardW, onOpen, onBrowse) { TasteRows.forKind(ctx, Kind.MOVIE, tasteTop) } }
                                             item(key = "taste:shows") { ExtraRow("Shows matching your taste", "taste:shows:" + Profiles.active, cardW, onOpen, onBrowse) { TasteRows.forKind(ctx, Kind.SERIES, tasteTop) } }
+                                        }
+                                        // Actors and creators picked in the setup: what they are known for (TMDB)
+                                        tastePeople.take(2).forEach { (pid, pn) ->
+                                            item(key = "person:$pid") { ExtraRow("Because you love $pn", "person:$pid", cardW, onOpen, onBrowse) { TmdbExtra.personTitles(pid) } }
                                         }
                                         Catalog.home().forEach { sp -> item(key = "cm" + sp.title) { CatalogRow(sp, cardW, onOpen, onBrowse, topIds) } }
                                         if (tasteTop.isNotEmpty()) item(key = "taste:new") { ExtraRow("Discover something new", "taste:new:" + Profiles.active, cardW, onOpen, onBrowse) { TasteRows.discover(ctx, tasteTop) } }
@@ -796,8 +801,10 @@ fun HomeScreen(
                     val first = remember { FocusRequester() }
                     LaunchedEffect(Unit) { delay(60); runCatching { first.requestFocus() } }
                     QuickRow(QuickMenu.Action("Switch profile", AIcon.Person) { profileMenu = false; picker = true }, Modifier.focusRequester(first)) { profileMenu = false; picker = true }
-                    QuickRow(QuickMenu.Action("Manage profiles", AIcon.Edit) { }, Modifier) { profileMenu = false; SettingsNav.openPage = SettingsNav.PROFILES; onTab(MenuLogic.SETTINGS) }
+                    QuickRow(QuickMenu.Action("Manage profiles", AIcon.Edit) { }, Modifier) { profileMenu = false; picker = true }
+                    QuickRow(QuickMenu.Action("Profile settings", AIcon.Person) { }, Modifier) { profileMenu = false; SettingsNav.openPage = SettingsNav.PROFILES; onTab(MenuLogic.SETTINGS) }
                     QuickRow(QuickMenu.Action("Account & devices", AIcon.Gear) { }, Modifier) { profileMenu = false; SettingsNav.openPage = SettingsNav.ACCOUNT; onTab(MenuLogic.SETTINGS) }
+                    if (FofAccount.signedInState) QuickRow(QuickMenu.Action("Sign out", AIcon.Close) { }, Modifier) { profileMenu = false; FofAccount.signOut(ctx); Profiles.restartToPicker(ctx) }
                 }
             }
         }
