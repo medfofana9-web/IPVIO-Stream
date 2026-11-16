@@ -84,7 +84,7 @@ class PivotSpec(private val pivot: Float, private val list: () -> androidx.compo
     // A spring, not a tween: each Down press only moves the target and the list keeps its speed. A 300 ms tween started
     // again from standstill on every press (accelerate, brake, accelerate …), which made held or quick presses look uneven.
     override val scrollAnimationSpec: androidx.compose.animation.core.AnimationSpec<Float> =
-        if (Look.motion == 0) tween(1) else androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 380f)
+        if (Look.motion == 0) tween(1) else androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 700f)
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
         if (size >= containerSize * 0.45f) return SmoothSpec.calculateScrollDistance(offset, size, containerSize)
         val d = offset - containerSize * pivot
@@ -115,7 +115,7 @@ fun <T> rememberSettled(value: T, ms: Long): T {
 /** Full-screen background with the scene image of the title; without an image a gradient from the title color. */
 @Composable
 fun BillboardBackdrop(item0: Item?, modifier: Modifier = Modifier) {
-    val item = rememberSettled(item0, 280)
+    val item = rememberSettled(item0, 450)
     Box(modifier.background(Bg)) {
         // 17c: calm picture (no constant zoom), medium image size (w780) instead of full resolution – saves memory and computing time
         Crossfade(item, animationSpec = tween(if (Look.motion == 0) 0 else 320), label = "bb") { it0 ->
@@ -135,7 +135,7 @@ fun BillboardBackdrop(item0: Item?, modifier: Modifier = Modifier) {
 /** Info about the selected title at the top left (like the big picture, but for every selected title). */
 @Composable
 fun BillboardInfo(item0: Item, modifier: Modifier = Modifier) {
-    val item = rememberSettled(item0, 220)
+    val item = rememberSettled(item0, 350)
     Crossfade(item, animationSpec = tween(if (Look.motion == 0) 0 else 220), label = "bbi", modifier = modifier) { c ->
         val m = rememberFullMeta(c, rememberMeta(c))
         Column(Modifier.widthIn(max = dpx(980)), verticalArrangement = Arrangement.spacedBy(dpx(14))) {

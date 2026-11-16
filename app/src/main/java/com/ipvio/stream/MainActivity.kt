@@ -48,6 +48,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Real frame times on this TV (summaries go to the account's problem list)
+        FrameStats.install(this)
         // Load settings early so colors and size are right in the very first frame.
         Profiles.init(this)
         val pick = Profiles.needsPicker(this)
@@ -80,6 +82,8 @@ class MainActivity : ComponentActivity() {
                 // shows within seconds; every 2 minutes also the account (still allowed? profiles, PINs, addons)
                 if (FofAccount.signedIn && Reminders.foreground) {
                     if (++syncTick % 6 == 0) AccountCloud.run(applicationContext)
+                    // Frame summary every ~5 minutes of use
+                    if (syncTick % 15 == 0) FrameStats.flush(applicationContext)
                     // With the realtime feed up, changes arrive instantly: the check then runs once a minute as a fallback
                     if (!LiveSync.live || syncTick % 3 == 0) CloudSync.run(applicationContext)
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { LiveSync.ensure(applicationContext) } }
@@ -160,6 +164,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         Reminders.foreground = false
+        FrameStats.flush(applicationContext)
         // Leaving the app or the TV goes to sleep: save where this person stopped right away
         CloudSync.now(applicationContext)
         LiveSync.stop()
@@ -220,7 +225,7 @@ class MainActivity : ComponentActivity() {
 val SmoothSpec = object : BringIntoViewSpec {
     // Spring (no restart from standstill per press): lists, details, search and menus move evenly under quick presses
     override val scrollAnimationSpec: androidx.compose.animation.core.AnimationSpec<Float> =
-        androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 380f)
+        androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 700f)
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
         val peek = 90f
         val leading = offset

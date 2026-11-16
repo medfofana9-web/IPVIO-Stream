@@ -1,5 +1,11 @@
 # Changelog
 
+## Fof TV 1.3.121 (November 2026)
+
+- Navigation follows the focus faster (stiffer spring: settles in about a quarter second, no overshoot).
+- The big picture and info at the top of Home change only once the focus rests (450 ms), so no full-screen picture fades while moving through rows.
+- Frame measurement on the TV itself: per screen, share of slow frames and which phase (input, animation, layout, draw, GPU) cost the time; a short summary goes to the account's problem list every few minutes and when the app is left. No titles or names are recorded.
+
 ## Fof TV 1.3.120 (November 2026)
 
 - Smoother remote navigation: screens follow the focus with a spring instead of a 300 ms tween that restarted from standstill on every press (the uneven, jumpy movement on quick or held presses). Applies to Home, Movies, Shows, Search, details and menus.
