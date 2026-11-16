@@ -170,13 +170,22 @@ class MainActivity : ComponentActivity() {
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         AppNav.leftByUser = true
+        leftAt = android.os.SystemClock.elapsedRealtime()
     }
 
-    /** Back in the app after the Home key: to the home screen (see AppContent). */
+    /**
+     * Back in the app: to the home screen only after a long break (30 min, like Netflix). Android also reports "left by
+     * the user" when the app opens another screen on top (voice search, installer, system settings): coming back from
+     * those used to throw away the screen, row and title you were on.
+     */
     override fun onRestart() {
         super.onRestart()
-        if (AppNav.leftByUser) { AppNav.leftByUser = false; AppNav.homeSignal++ }
+        if (AppNav.leftByUser) {
+            AppNav.leftByUser = false
+            if (android.os.SystemClock.elapsedRealtime() - leftAt > 30 * 60_000L) AppNav.homeSignal++
+        }
     }
+    private var leftAt = 0L
 
     override fun onResume() {
         super.onResume()

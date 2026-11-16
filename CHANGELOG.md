@@ -1,5 +1,14 @@
 # Changelog
 
+## Fof TV 1.3.100 (November 2026)
+- Coming back to the app no longer throws away the screen you were on: it returns to the home screen only after more
+  than 30 minutes away. Android also reports "left by the user" when the app opens another screen on top (voice
+  search, installer, system settings), and every return from those reset the app to Home
+- Top picture: a title you started shows "Resume · 23 min left" as its main button, and it resumes at the saved spot
+- Back from a game: focus returns to that game on the sports list, Home's live games and the hub's match cards too
+  (before only on the game tiles)
+- New profile PINs are 4 digits and go in by themselves after the 4th digit (existing longer PINs still work)
+
 ## Fof TV 1.3.99 (November 2026)
 - The update prompt never appears over playback any more (it waited only for sports before); it shows after the
   player closes, and "Later" still hides that version

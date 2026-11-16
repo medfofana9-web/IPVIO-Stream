@@ -301,7 +301,7 @@ internal fun TeamName(t: SportData.Team, state: Int, modifier: Modifier, end: Bo
 /** Card for horizontal rows (Live now, Upcoming). Field events show the leaders instead of two teams. */
 @Composable
 internal fun MatchCard(g: SportData.Game, hasChan: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    HubCardBox(modifier.width(dpx(330)), onClick = onClick) {
+    HubCardBox(modifier.width(dpx(330)).restoreFocus("game:" + g.key), onClick = onClick) {
         // Fof TV: the two team colors as a thin band on top of the card
         if (!g.solo) Row(Modifier.fillMaxWidth().height(dpx(4)).clip(RoundedCornerShape(50))) {
             Box(Modifier.weight(1f).fillMaxHeight().background(teamColor(g.away)))

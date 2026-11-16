@@ -96,8 +96,8 @@ fun ProfileGate(id: Int, change: Boolean = false, onOpen: () -> Unit, onCancel: 
                     "create" -> key("create") {
                         Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
                             PinPad(if (reset) "Choose a new PIN" else "Create a PIN for $name",
-                                "4 to 6 digits, then OK. It opens this profile on every TV.", err,
-                                { p -> first = p; err = null; mode = "again" }, onCancel, minLen = 4, maxLen = 6, raw = true)
+                                "4 digits. It opens this profile on every TV.", err,
+                                { p -> first = p; err = null; mode = "again" }, onCancel, minLen = 4, maxLen = 4, raw = true)
                             // The PIN is optional: a profile can stay open (it can get a PIN later in Manage profiles)
                             if (!reset && !change) PillButton("No PIN for this profile", raw = true) {
                                 AccountCloud.cloudId(ctx, id)?.let { AccountCloud.setNoPin(ctx, it) }
@@ -113,7 +113,7 @@ fun ProfileGate(id: Int, change: Boolean = false, onOpen: () -> Unit, onCancel: 
                                 val e = AccountCloud.setPin(ctx, id, p)
                                 if (e == null) open() else { err = e; mode = "create" }
                             }
-                        }, { mode = "create" }, minLen = 4, maxLen = 6, raw = true)
+                        }, { mode = "create" }, minLen = 4, maxLen = 4, raw = true)
                     }
                     "enter" -> key("enter") {
                         Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {

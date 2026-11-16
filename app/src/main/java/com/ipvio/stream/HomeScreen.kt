@@ -479,6 +479,8 @@ fun HomeScreen(
     fun tasteOrder(l: List<Catalog.Spec>) = l.sortedBy { sp -> likedGenres.indexOfFirst { it.equals(sp.title, true) }.let { if (it < 0) 99 else it } }
     // A title watched on another TV (or from another source) stays in Continue watching even when this TV's playlist has
     // it under another id or not at all: exact title + kind match first, else the saved entry itself (ResumeMatch)
+    // Top picture's main button: resume a started title at its saved spot, otherwise play it
+    val heroPlay: (Item) -> Unit = { it -> WatchStore.entries.firstOrNull { e -> e.itemId == it.id && !e.next && e.pos > 60_000 }?.let { e -> onResume(e, it) } ?: onPlayNow(it) }
     val resumeList by remember(byId) { derivedStateOf { WatchStore.entries.map { e -> e to (lk(e.itemId) ?: ResumeMatch.find(e, byId)) } } }
     // Movies/series tab: the same lists filtered by kind, kept between recompositions
     val vodKind = if (tab == 1) Kind.MOVIE else Kind.SERIES
@@ -595,7 +597,7 @@ fun HomeScreen(
                                     Text("Bearbeiten: Über jeder Reihe kannst du sie verschieben oder ausblenden.", color = Muted, fontSize = 15.sp)
                                 }
                             }
-                            if (ready.isNotEmpty() && HomeLayout.shown("hero")) item(key = "hero") { Hero(ready.toList(), heroH, true, onOpen, onPlayNow, header, { heroScroll(states[0]) }) { scope.launch { states[0].animateScrollToItem(0) } } }
+                            if (ready.isNotEmpty() && HomeLayout.shown("hero")) item(key = "hero") { Hero(ready.toList(), heroH, true, onOpen, heroPlay, header, { heroScroll(states[0]) }) { scope.launch { states[0].animateScrollToItem(0) } } }
                             else item(key = "top") { header(Modifier) }
                             val wl = wlVod
                             for (blockId in HomeLayout.order) {
@@ -668,7 +670,7 @@ fun HomeScreen(
                             val top = if (isM) topM else topS
                             val noun = if (isM) "Filme" else "Serien"
                             val kind = if (isM) Kind.MOVIE else Kind.SERIES
-                            if (ready.isNotEmpty()) item(key = "hero$tab") { Hero(ready.toList(), heroH, false, onOpen, onPlayNow, header, { heroScroll(states[tab]) }) { scope.launch { states[tab].animateScrollToItem(0) } } }
+                            if (ready.isNotEmpty()) item(key = "hero$tab") { Hero(ready.toList(), heroH, false, onOpen, heroPlay, header, { heroScroll(states[tab]) }) { scope.launch { states[tab].animateScrollToItem(0) } } }
                             else item(key = "top$tab") { header(Modifier) }
                             val rl = resumeK
                             if (rl.isNotEmpty()) item(key = "res$tab") { ResumeRow(rl, cardW, onResume, onOpen) }
@@ -1064,7 +1066,10 @@ private fun Hero(
                 horizontalArrangement = Arrangement.spacedBy(dpx(16))
             ) {
                 val h = if (home) 52 else 46
-                HeroButton("Jetzt ansehen", AIcon.Play, true, Modifier.focusRequester(ContentFocus.req), h) { onPlay(item) }
+                // Started already: the main action is Resume, with the time left (it resumes at the saved spot)
+                val resumeE = WatchStore.entries.firstOrNull { it.itemId == item.id && !it.next && it.pos > 60_000 && it.dur > it.pos }
+                HeroButton(if (resumeE != null) "Resume  ·  " + ((resumeE.dur - resumeE.pos) / 60_000).coerceAtLeast(1) + " min left" else "Jetzt ansehen",
+                    AIcon.Play, true, Modifier.focusRequester(ContentFocus.req), h) { onPlay(item) }
                 if (home) HeroButton("Mehr Infos", AIcon.Info, false, Modifier.focusRequester(HeroFocus.second), h = h) { onOpen(item) }
                 else {
                     val inList = Library.isWatch(item.id)

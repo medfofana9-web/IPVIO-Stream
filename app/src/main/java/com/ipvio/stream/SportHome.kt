@@ -113,6 +113,7 @@ private fun LiveGameCard(g: SportData.Game, onClick: () -> Unit) {
             .border(1.dp, if (f) androidx.compose.ui.graphics.SolidColor(DS.FocusFill) else FofGlass.edge(false), shape)
             .onFocusChanged { f = it.isFocused }
             .trackFocus()
+            .restoreFocus("game:" + g.key)
             .clickable(onClick = onClick)
             .padding(dpx(14)),
         verticalArrangement = Arrangement.spacedBy(dpx(8))

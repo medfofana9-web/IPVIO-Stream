@@ -388,6 +388,8 @@ private fun GameCard(g: SportData.Game, chans: List<Item>, modifier: Modifier, o
             .border(if (f) 3.dp else 1.dp, if (f) Accent1 else Color(0x1AFFFFFF), shape)
             .onFocusChanged { f = it.isFocused }
             .trackFocus()
+            // Back from the game: focus returns to this card (SportSession.returnKey)
+            .restoreFocus("game:" + g.key)
             .combinedClickable(onClick = onClick, onLongClick = onLong)
             .padding(dpx(14)),
         verticalArrangement = Arrangement.spacedBy(dpx(10))
