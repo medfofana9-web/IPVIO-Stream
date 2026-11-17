@@ -29,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -116,7 +117,9 @@ fun <T> rememberSettled(value: T, ms: Long): T {
 @Composable
 fun BillboardBackdrop(item0: Item?, modifier: Modifier = Modifier) {
     val item = rememberSettled(item0, 450)
-    Box(modifier.background(Bg)) {
+    // One cached layer: picture and both gradients are painted once and reused every frame while the rows move on
+    // top (measured on an onn 4K: the graphics chip was the bottleneck, with four full-screen fills per frame)
+    Box(modifier.graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }.background(Bg)) {
         // 17c: calm picture (no constant zoom), medium image size (w780) instead of full resolution – saves memory and computing time
         Crossfade(item, animationSpec = tween(if (Look.motion == 0) 0 else 320), label = "bb") { it0 ->
             if (it0 != null) {
@@ -129,6 +132,9 @@ fun BillboardBackdrop(item0: Item?, modifier: Modifier = Modifier) {
         // Gradients: strong on the left (text), at the bottom into the background (rows), subtle at the top
         Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Bg, 0.24f to Bg.copy(alpha = .94f), 0.48f to Bg.copy(alpha = .5f), 0.72f to Color.Transparent)))
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Bg.copy(alpha = .5f), 0.16f to Color.Transparent, 0.38f to Color.Transparent, 0.58f to Bg.copy(alpha = .82f), 0.78f to Bg)))
+        // Each title brings its own mood: a deep glow in the artwork's color
+        val mm = item?.let { rememberMeta(it) }
+        MoodGlow(mm?.backdrop?.let { cardBackdrop(it) } ?: mm?.poster?.let { cardPoster(it) })
     }
 }
 

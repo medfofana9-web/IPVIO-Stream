@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.Request
 import org.json.JSONArray
@@ -221,10 +222,30 @@ object Stremio {
     suspend fun streams(kind: Kind, imdb: String, season: Int, ep: Int, onPart: ((List<Source>) -> Unit)? = null): List<Source> {
         val k = "$kind|$imdb|$season|$ep"
         streamCache[k]?.let { if (System.currentTimeMillis() - it.first < 10 * 60_000L) return it.second }
-        val l = streamsNow(kind, imdb, season, ep, onPart)
-        if (l.isNotEmpty()) streamCache[k] = System.currentTimeMillis() to l
-        return l
+        // Already being looked up (the title page asked ahead): join that lookup instead of asking every addon again,
+        // and show its answers as they arrive. Play then starts as soon as the first lookup has its sources.
+        inflight[k]?.let { (job, part) ->
+            val joined: List<Source>? = kotlinx.coroutines.coroutineScope {
+                val feed = if (onPart == null) null else launch {
+                    var n = -1
+                    while (true) { val snap = synchronized(part) { part.toList() }; if (snap.size != n) { n = snap.size; if (snap.isNotEmpty()) onPart(snap) }; kotlinx.coroutines.delay(250) }
+                }
+                // The first lookup was cancelled (its page closed): look up afresh below
+                val r = runCatching { job.await() }.getOrNull(); feed?.cancel(); r
+            }
+            if (joined != null) return joined
+        }
+        val part = java.util.Collections.synchronizedList(ArrayList<Source>())
+        val job = kotlinx.coroutines.CompletableDeferred<List<Source>>()
+        inflight[k] = job to part
+        try {
+            val l = streamsNow(kind, imdb, season, ep) { p -> synchronized(part) { part.clear(); part.addAll(p) }; onPart?.invoke(p) }
+            if (l.isNotEmpty()) streamCache[k] = System.currentTimeMillis() to l
+            job.complete(l)
+            return l
+        } catch (e: Throwable) { job.completeExceptionally(e); throw e } finally { inflight.remove(k, job to part) }
     }
+    private val inflight = java.util.concurrent.ConcurrentHashMap<String, Pair<kotlinx.coroutines.CompletableDeferred<List<Source>>, MutableList<Source>>>()
 
     /** Requested title for the match check: series or movie, name, year, season and episode. */
     data class Want(val series: Boolean, val title: String, val year: Int?, val season: Int, val ep: Int) {

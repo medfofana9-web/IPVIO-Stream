@@ -96,6 +96,8 @@ internal fun GameTileCard(g: SportData.Game, modifier: Modifier = Modifier, onCl
             // Flat card (no gradients): cleaner, and cheaper to draw on a TV
             Modifier.size(w, h).graphicsLayer { scaleX = sc; scaleY = sc }.clip(shape)
                 .background(FofGlass.body(1, f))
+                // Team colors: away on the left, home on the right, fading into the card (one gradient, cheap to draw)
+                .then(teamTint(g)?.let { Modifier.background(it) } ?: Modifier)
                 .background(FofGlass.sheen(1, f))
                 .border(if (f) 1.5.dp else 1.dp, if (f) FofGlass.rim() else FofGlass.edge(false), shape)
                 .onFocusChanged { f = it.isFocused }
@@ -199,5 +201,26 @@ internal object SportAhead {
             keep(got.filter { it.first.sport == "nfl" }.flatMap { it.second }))
         if (w.soccer.isNotEmpty() || w.nba.isNotEmpty() || w.football.isNotEmpty()) last = w
         w
+    }
+}
+
+/** Pure: "1d428a" / "#1D428A" → ARGB, null when missing or not a color. */
+internal fun teamArgb(hex: String?): Int? {
+    val h = hex?.trim()?.removePrefix("#") ?: return null
+    if (h.length != 6) return null
+    return h.toLongOrNull(16)?.let { (0xFF000000 or it).toInt() }
+}
+
+private val tintCache = java.util.concurrent.ConcurrentHashMap<String, androidx.compose.ui.graphics.Brush>()
+
+/** Away color at the left edge and home color at the right edge, both deep and soft; null without team colors. */
+private fun teamTint(g: SportData.Game): androidx.compose.ui.graphics.Brush? {
+    if (g.solo) return null
+    val a = teamArgb(g.away.color); val h = teamArgb(g.home.color)
+    if (a == null && h == null) return null
+    return tintCache.getOrPut(g.away.color + "|" + g.home.color) {
+        val ca = a?.let { Color(it).copy(alpha = 0.42f) } ?: Color.Transparent
+        val ch = h?.let { Color(it).copy(alpha = 0.42f) } ?: Color.Transparent
+        androidx.compose.ui.graphics.Brush.horizontalGradient(0f to ca, 0.45f to Color.Transparent, 0.55f to Color.Transparent, 1f to ch)
     }
 }

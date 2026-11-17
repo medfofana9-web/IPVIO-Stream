@@ -1,5 +1,13 @@
 # Changelog
 
+## Fof TV 1.3.122 (November 2026)
+
+- Smoother on the TV (measured on an onn 4K Plus: the graphics chip was the bottleneck): the big pictures behind Home, the top of Home and title pages are now painted once into a cached layer with their gradients, instead of four full-screen fills on every frame.
+- Every title brings its own mood: a soft glow in the artwork's main color behind the top of Home and the title page.
+- Faster play: when the title page is already looking up sources, Play joins that lookup instead of asking every addon again.
+- Ambient screen: after 4 minutes without the remote (not while playing), large artwork slowly fades with the title and the clock. Any key returns to where you were.
+- Sports game cards carry both teams' colors (away left, home right).
+
 ## Fof TV 1.3.121 (November 2026)
 
 - Navigation follows the focus faster (stiffer spring: settles in about a quarter second, no overshoot).

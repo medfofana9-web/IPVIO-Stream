@@ -38,7 +38,12 @@ private var syncTick = -1
 
 class MainActivity : ComponentActivity() {
     /** Escape (keyboards, desktop remotes) works like Back everywhere. */
+    private var ambientSwallow = -1
+
     override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        // Ambient screen: a key wakes it and is used up (up and down of that key)
+        if (event.action == android.view.KeyEvent.ACTION_DOWN && Ambient.key()) { ambientSwallow = event.keyCode; return true }
+        if (event.action == android.view.KeyEvent.ACTION_UP && ambientSwallow == event.keyCode) { ambientSwallow = -1; return true }
         if (event.keyCode == android.view.KeyEvent.KEYCODE_ESCAPE) {
             if (event.action == android.view.KeyEvent.ACTION_UP) onBackPressedDispatcher.onBackPressed()
             return true
@@ -263,7 +268,7 @@ fun App(pick: Boolean = false) {
         else {
             LaunchedEffect(Unit) { delay(10_000); runCatching { SportAlerts.run(c.applicationContext) } }   // after the start: the playlist and the home screen come first
             LaunchedEffect(Unit) { delay(15_000); runCatching { GameDay.run(c.applicationContext) } }   // Fof Game Day: reminders and close-game alerts
-            Box(Modifier.fillMaxSize()) { AppContent(); SportPlayerOverlay(); SportAlertHost(); QuickMenuHost() }
+            Box(Modifier.fillMaxSize()) { AppContent(); SportPlayerOverlay(); SportAlertHost(); QuickMenuHost(); AmbientHost() }
         }
         // New version available: dialog with one button (above every screen)
         UpdatePromptHost()

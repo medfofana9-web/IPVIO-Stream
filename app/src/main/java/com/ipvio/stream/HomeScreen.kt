@@ -1067,19 +1067,21 @@ private fun Hero(
     // Round 14: without arrows; the description has more width (up to about the middle of the picture) and is no longer cut off (max. 250 characters).
     // Round 17c: parallax while scrolling (the constant zoom was removed for performance)
     Box(Modifier.fillMaxWidth().height(heroH).background(Bg).clipToBounds().onFocusChanged { if (it.hasFocus) Billboard.cardFocus = false }) {
-        Crossfade(item, animationSpec = tween(1100), label = "heroBg") { c ->
-            val m = rememberMeta(c)
-            // 17c: calm picture (no constant zoom any more, which made the Fire TV redraw constantly); only slight parallax while scrolling
-            Box(Modifier.fillMaxSize().graphicsLayer {
-                translationY = if (Look.motion == 0) 0f else scrollY() * 0.4f
-            }) {
+        // Picture and its three gradients in one cached layer: painted once, then only moved (parallax) while scrolling.
+        // Before: four full-screen fills on every frame, which kept the onn/Fire TV graphics chip behind (measured).
+        Box(Modifier.fillMaxSize().graphicsLayer {
+            translationY = if (Look.motion == 0) 0f else scrollY() * 0.4f
+            compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
+        }) {
+            Crossfade(item, animationSpec = tween(1100), label = "heroBg") { c ->
+                val m = rememberMeta(c)
                 m?.backdrop?.let { AsyncImage(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopEnd) }
             }
+            Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Bg, 0.28f to Bg.copy(alpha = .9f), 0.5f to Bg.copy(alpha = .45f), 0.72f to Color.Transparent)))
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Bg.copy(alpha = .55f), 0.22f to Color.Transparent, 0.62f to Color.Transparent, 0.88f to Bg.copy(alpha = .85f), 1f to Bg)))
+            Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color.Transparent, Bg.copy(alpha = .35f)), radius = 2200f)))
+            MoodGlow(rememberMeta(item)?.backdrop)
         }
-        // Gradients: left and bottom into the background, subtle at the top behind the header; plus a soft vignette
-        Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Bg, 0.28f to Bg.copy(alpha = .9f), 0.5f to Bg.copy(alpha = .45f), 0.72f to Color.Transparent)))
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Bg.copy(alpha = .55f), 0.22f to Color.Transparent, 0.62f to Color.Transparent, 0.88f to Bg.copy(alpha = .85f), 1f to Bg)))
-        Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color.Transparent, Bg.copy(alpha = .35f)), radius = 2200f)))
         header(Modifier.align(Alignment.TopStart))
         Column(
             Modifier.align(Alignment.BottomStart).padding(start = dpx(39), bottom = dpx(if (home) 34 else 26)).widthIn(max = dpx(780)),
