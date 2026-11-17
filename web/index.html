@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#07070c">
+<title>Fof TV · Account</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#07070c;--s1:#101018;--s2:#171722;--line:#ffffff14;--line2:#ffffff26;--tx:#f4f4f8;--mut:#a3a3b5;--dim:#6c6c80;--ac:#7c5cff;--ac2:#a78bfa;--ok:#2ecc8f;--bad:#ff5d6c;--r:16px}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--tx);font-family:Inter,system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+body{min-height:100vh;background:radial-gradient(1200px 600px at 85% -10%,#2a1d6b55,transparent 60%),radial-gradient(900px 500px at -10% 110%,#1d3a6b33,transparent 60%),var(--bg);background-attachment:fixed}
+a{color:var(--ac2);text-decoration:none}
+button,input,select{font:inherit;color:inherit}
+.wrap{max-width:1080px;margin:0 auto;padding:28px 22px 80px}
+header{display:flex;align-items:center;gap:14px;margin-bottom:34px}
+.logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:22px;letter-spacing:-.5px}
+.logo i{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#8b6dff,#4b2bd6);display:grid;place-items:center;box-shadow:0 6px 24px #6d4cff55}
+.logo i:after{content:"";border-left:11px solid #fff;border-top:7px solid transparent;border-bottom:7px solid transparent;margin-left:3px}
+.logo small{font-size:12px;color:var(--mut);font-weight:600;margin-left:2px;letter-spacing:1px}
+.sp{flex:1}
+.btn{border:1px solid var(--line2);background:#ffffff0d;padding:11px 18px;border-radius:999px;font-weight:600;font-size:14px;cursor:pointer;transition:.15s;white-space:nowrap}
+.btn:hover{background:#ffffff1f}
+.btn.pri{background:var(--tx);color:#0a0a10;border-color:transparent}
+.btn.pri:hover{background:#fff}
+.btn.ac{background:var(--ac);border-color:transparent;color:#fff}
+.btn.bad{color:var(--bad);border-color:#ff5d6c55}
+.btn.sm{padding:7px 13px;font-size:13px}
+.btn:disabled{opacity:.5;cursor:default}
+h1{font-size:40px;font-weight:800;letter-spacing:-1.2px;line-height:1.1}
+h2{font-size:22px;font-weight:700;letter-spacing:-.4px;margin-bottom:14px}
+h3{font-size:15px;font-weight:600;color:var(--mut);margin:22px 0 10px}
+p.lead{color:var(--mut);font-size:16px;margin-top:10px;line-height:1.5}
+.card{background:linear-gradient(180deg,#ffffff0c,#ffffff05);border:1px solid var(--line);border-radius:var(--r);padding:22px;backdrop-filter:blur(14px)}
+.grid{display:grid;gap:14px}
+.field{display:block;margin-bottom:14px}
+.field span{display:block;font-size:13px;color:var(--mut);margin-bottom:6px;font-weight:500}
+input[type=text],input[type=email],input[type=password],input[type=search],input[type=tel]{width:100%;background:#0c0c14;border:1px solid var(--line2);border-radius:12px;padding:13px 14px;font-size:15px;outline:none;transition:.15s}
+input:focus{border-color:var(--ac);box-shadow:0 0 0 3px #7c5cff33}
+.err{color:var(--bad);font-size:14px;margin:8px 0}
+.note{color:var(--mut);font-size:13px;line-height:1.5}
+.center{max-width:420px;margin:8vh auto 0}
+.profiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:22px;margin-top:30px}
+.pf{cursor:pointer;text-align:center;transition:.18s}
+.pf:hover{transform:translateY(-3px)}
+.av{aspect-ratio:1;border-radius:22%;overflow:hidden;position:relative;display:grid;place-items:center;font-size:56px;font-weight:800;color:#fff;background:#222;box-shadow:0 10px 30px #0008;border:2px solid transparent;transition:.18s}
+.pf:hover .av{border-color:#fff}
+.av img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
+.av .lock{position:absolute;right:8px;bottom:8px;background:#000a;border-radius:50%;width:28px;height:28px;display:grid;place-items:center;font-size:14px}
+.pf b{display:block;margin-top:12px;font-size:16px;font-weight:600}
+.pf.add .av{background:#ffffff08;border:2px dashed var(--line2);font-size:46px;color:var(--mut);box-shadow:none}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:26px 0 22px;border-bottom:1px solid var(--line);padding-bottom:12px}
+.tab{padding:9px 15px;border-radius:999px;cursor:pointer;color:var(--mut);font-weight:600;font-size:14px}
+.tab.on{background:var(--tx);color:#0a0a10}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.chips{display:flex;flex-wrap:wrap;gap:9px}
+.chip{padding:9px 15px;border-radius:999px;border:1px solid var(--line2);background:#ffffff08;cursor:pointer;font-weight:600;font-size:14px;transition:.12s;user-select:none}
+.chip:hover{background:#ffffff14}
+.chip.on{background:var(--tx);color:#0a0a10;border-color:transparent}
+.chip.love{background:linear-gradient(135deg,#ff5f8a,#ff3d6e);color:#fff;border-color:transparent}
+.chip.no{background:#2a1418;color:#ff8d98;border-color:#ff5d6c44;text-decoration:line-through}
+.posters{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:14px}
+.po{position:relative;cursor:pointer;border-radius:12px;overflow:hidden;aspect-ratio:2/3;background:#1a1a24;border:2px solid transparent;transition:.15s}
+.po img{width:100%;height:100%;object-fit:cover;display:block}
+.po .t{position:absolute;inset:auto 0 0 0;padding:26px 8px 8px;font-size:12px;font-weight:600;background:linear-gradient(transparent,#000d)}
+.po .badge{position:absolute;top:7px;right:7px;border-radius:999px;padding:3px 8px;font-size:11px;font-weight:800}
+.po.liked{border-color:#fff}.po.liked .badge{background:#fff;color:#000}
+.po.loved{border-color:#ff4f7b}.po.loved .badge{background:#ff4f7b;color:#fff}
+.po.nope{opacity:.35}.po.nope .badge{background:#000;color:#fff}
+.list{display:grid;gap:10px}
+.li{display:flex;align-items:center;gap:14px;padding:10px;border-radius:12px;background:#ffffff06;border:1px solid var(--line)}
+.li img{width:46px;height:68px;object-fit:cover;border-radius:8px;background:#222}
+.li .g{flex:1;min-width:0}
+.li .g b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.li .g small{color:var(--mut);font-size:13px}
+.bar{height:4px;background:#ffffff1a;border-radius:4px;margin-top:6px;overflow:hidden}.bar i{display:block;height:100%;background:var(--ac2)}
+.teams{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.tm{display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;border:1px solid var(--line);background:#ffffff06;cursor:pointer;font-size:13px;font-weight:600}
+.tm img{width:30px;height:30px;object-fit:contain}
+.tm.on{background:var(--tx);color:#0a0a10}
+.q{margin-bottom:18px}.q .note{margin-bottom:8px;font-weight:600;color:var(--tx);font-size:14px}
+.switch{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.switch:last-child{border:0}
+.tg{width:48px;height:28px;border-radius:999px;background:#ffffff26;position:relative;cursor:pointer;flex:none;transition:.15s}
+.tg:after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:.15s}
+.tg.on{background:var(--ok)}.tg.on:after{left:23px}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#fff;color:#0a0a10;padding:12px 20px;border-radius:999px;font-weight:600;font-size:14px;box-shadow:0 10px 40px #000a;opacity:0;transition:.25s;pointer-events:none;z-index:9}
+.toast.on{opacity:1}
+.modal{position:fixed;inset:0;background:#000b;display:grid;place-items:center;z-index:8;padding:20px}
+.modal .card{width:100%;max-width:440px;background:#11111a}
+.steps{display:flex;gap:6px;margin:6px 0 22px}.steps i{flex:1;height:4px;border-radius:4px;background:#ffffff1a}.steps i.on{background:var(--ac2)}
+.foot{display:flex;gap:10px;justify-content:space-between;margin-top:24px;flex-wrap:wrap}
+.muted{color:var(--mut)}
+@media(max-width:600px){h1{font-size:30px}.wrap{padding:20px 16px 70px}.profiles{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><div class="logo"><i></i>fof<small>TV</small></div><div class="sp"></div><div id="hdr"></div></header>
+  <main id="app"></main>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+"use strict";
+// Fof TV account website. Same account service as the TVs: everything is protected per account by row level security,
+// so this public key only reaches what the signed-in person may see. Changes reach the TVs by themselves.
+const SB = "https://msooylkizqvdrgxrdjww.supabase.co";
+const KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1zb295bGtpenF2ZHJneHJkand3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ3MTAzMTksImV4cCI6MjExMDI4NjMxOX0.PBF00osXJngq78z74Q2jVKFkc5yvJ41z9d7E0jJjryo";
+const CM = "https://v3-cinemeta.strem.io";
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const TILE = ["#2D5BE3","#C0392B","#13A26B","#7C4DFF","#E07A1F","#0E9AA7","#D6336C","#3F3D9E"];
+const MOVIE_GENRES = ["Action","Comedy","Thriller","Drama","Crime","Horror","Sci-Fi","Adventure","Animation","Family","Romance","Mystery","Fantasy","Documentary"];
+const SERIES_GENRES = ["Reality-TV"];
+const ALL_GENRES = [...MOVIE_GENRES, ...SERIES_GENRES];
+const PREF_Q = [["mix","Movies or shows?",["Mostly movies","Both","Mostly shows"]],["mood","Your mood",["Make me laugh","A bit of both","Serious drama"]],
+ ["tone","Dark or light?",["Dark and gritty","Either","Light and feel-good"]],["story","How stories run",["One long story","Either","Episodes that stand alone"]],
+ ["pace","Story pace",["Fast and exciting","Either","Slow burn"]],["world","Kind of world",["Real life","Either","Fantasy and sci-fi"]],
+ ["docs","Documentaries",["Love documentaries","Sometimes","Rarely"]],["reality","Reality TV",["Love reality TV","Sometimes","Not for me"]],
+ ["subs","Other languages",["Subtitles are fine","English audio only"]],["lang","Preferred language",["English","Spanish","Any language"]],
+ ["length","Episode length",["Short episodes","Any length","Long episodes"]]];
+const SPORTS = [["nfl","NFL"],["nba","NBA"],["wnba","WNBA"],["cfb","College Football"],["cbb","College Basketball"],["soccer","Soccer"]];
+const TEAM_LEAGUES = {nfl:[["NFL","football/nfl"]],nba:[["NBA","basketball/nba"]],wnba:[["WNBA","basketball/wnba"]],
+  soccer:[["Premier League","soccer/eng.1"],["MLS","soccer/usa.1"],["LaLiga","soccer/esp.1"],["Liga MX","soccer/mex.1"]]};
+
+let S = JSON.parse(localStorage.getItem("fof_web_s") || "null");
+const devId = localStorage.getItem("fof_web_dev") || (() => { const v = crypto.randomUUID(); localStorage.setItem("fof_web_dev", v); return v; })();
+let state = { profiles: [], pins: {}, cur: null, tab: "taste" };
+
+function toast(t) { const e = $("#toast"); e.textContent = t; e.classList.add("on"); clearTimeout(e._t); e._t = setTimeout(() => e.classList.remove("on"), 2600); }
+function saveS() { if (S) localStorage.setItem("fof_web_s", JSON.stringify(S)); else localStorage.removeItem("fof_web_s"); }
+
+async function auth(path, body) {
+  const r = await fetch(SB + "/auth/v1/" + path, { method: "POST", headers: { apikey: KEY, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error_description || j.msg || j.message || ("Error " + r.status));
+  return j;
+}
+function keep(j) { S = { a: j.access_token, r: j.refresh_token, exp: Date.now() + (j.expires_in || 3600) * 1000, email: j.user?.email, uid: j.user?.id }; saveS(); }
+async function token() {
+  if (!S) throw new Error("signed out");
+  if (Date.now() > S.exp - 60000) {
+    try { keep(await auth("token?grant_type=refresh_token", { refresh_token: S.r })); }
+    catch (e) { S = null; saveS(); render(); throw e; }
+  }
+  return S.a;
+}
+async function api(method, path, body, prefer) {
+  const h = { apikey: KEY, Authorization: "Bearer " + await token(), "Content-Type": "application/json" };
+  if (prefer) h.Prefer = prefer;
+  const r = await fetch(SB + path, { method, headers: h, body: body == null ? undefined : JSON.stringify(body) });
+  const t = await r.text();
+  if (!r.ok) throw new Error(t || ("Error " + r.status));
+  return t ? JSON.parse(t) : null;
+}
+const rpc = (fn, args) => api("POST", "/rest/v1/rpc/" + fn, args || {});
+
+// ---------- profile data (same format as the TVs: { store: { key: [type, value] } })
+const enc = v => typeof v === "boolean" ? ["b", v] : Array.isArray(v) ? ["t", v] : typeof v === "number" ? ["l", v] : ["s", String(v)];
+const dec = a => Array.isArray(a) ? a[1] : undefined;
+const str = (files, store, key) => dec(files?.[store]?.[key]) ?? "";
+const split = (s, d = "|") => String(s || "").split(d).filter(Boolean);
+
+async function readData(pid) {
+  const r = await api("GET", "/rest/v1/fof_profile_data?select=data,updated_at&profile_id=eq." + pid);
+  return r && r[0] ? { files: r[0].data?.files || {}, at: r[0].updated_at } : { files: {}, at: null };
+}
+// Saves only over the version just read; if a TV saved in between, read again and apply the change again (nothing is lost).
+async function saveData(pid, mutate) {
+  for (let i = 0; i < 4; i++) {
+    const { files, at } = await readData(pid);
+    mutate(files);
+    const data = { v: 1, files };
+    if (at) {
+      const r = await api("PATCH", "/rest/v1/fof_profile_data?profile_id=eq." + pid + "&updated_at=eq." + encodeURIComponent(at), { data }, "return=representation");
+      if (r && r.length) return files;
+    } else {
+      await api("POST", "/rest/v1/fof_profile_data?on_conflict=profile_id", { profile_id: pid, data }, "resolution=merge-duplicates,return=minimal");
+      return files;
+    }
+  }
+  throw new Error("Busy, try again");
+}
+
+// ---------- screens
+function render() {
+  $("#hdr").innerHTML = S ? `<button class="btn sm" onclick="go('home')">Profiles</button> <button class="btn sm" onclick="go('account')">Account</button>` : "";
+  if (!S) return signInView();
+  if (state.view === "account") return accountView();
+  if (state.view === "profile" && state.cur) return profileView();
+  return homeView();
+}
+function go(v) { state.view = v; render(); window.scrollTo(0, 0); }
+
+function signInView() {
+  $("#app").innerHTML = `<div class="center card">
+    <h2>Sign in to Fof TV</h2><p class="note" style="margin-bottom:18px">Use the same email and password as on your TV. Changes here show up on every TV signed in to this account.</p>
+    <label class="field"><span>Email</span><input type="email" id="em" autocomplete="username"></label>
+    <label class="field"><span>Password</span><input type="password" id="pw" autocomplete="current-password"></label>
+    <div class="err" id="er"></div>
+    <button class="btn pri" style="width:100%" id="go">Sign in</button></div>`;
+  const doIt = async () => {
+    $("#er").textContent = ""; $("#go").disabled = true;
+    try {
+      keep(await auth("token?grant_type=password", { email: $("#em").value.trim(), password: $("#pw").value }));
+      await rpc("fof_register_device", { p_id: devId, p_name: "Website", p_kind: "Web browser", p_version: "web-1" }).catch(() => {});
+      state.view = "home"; await loadProfiles(); render();
+    } catch (e) { $("#er").textContent = /invalid/i.test(e.message) ? "Wrong email or password." : e.message; }
+    $("#go").disabled = false;
+  };
+  $("#go").onclick = doIt; $("#pw").onkeydown = e => { if (e.key === "Enter") doIt(); };
+}
+
+async function loadProfiles() {
+  state.profiles = (await api("GET", "/rest/v1/fof_profiles?select=id,slot,name,avatar,photo&deleted=eq.false&order=slot")) || [];
+  const st = (await rpc("fof_pin_status").catch(() => [])) || [];
+  state.pins = Object.fromEntries(st.map(x => [x.profile_id, x]));
+}
+function avatarHtml(p) {
+  const a = p.avatar || "";
+  let img = "";
+  if (a.startsWith("img:")) img = a.slice(4).split("|")[0];
+  else if (a.startsWith("photo:") && p.photo) img = "data:image/jpeg;base64," + p.photo;
+  const lock = state.pins[p.id]?.pin_set ? `<span class="lock">🔒</span>` : "";
+  return `<div class="av" style="background:${TILE[p.slot % TILE.length]}">${img ? `<img src="${esc(img)}" alt="">` : esc((p.name || "?").trim().charAt(0).toUpperCase())}${lock}</div>`;
+}
+async function homeView() {
+  $("#app").innerHTML = `<h1>Who's watching?</h1><p class="lead">Pick a profile to change its name, picture, PIN, tastes, lists and teams.</p><div class="profiles" id="pl"><p class="muted">Loading…</p></div>`;
+  try { await loadProfiles(); } catch (e) { $("#pl").innerHTML = `<p class="err">${esc(e.message)}</p>`; return; }
+  $("#pl").innerHTML = state.profiles.map(p => `<div class="pf" onclick="openProfile('${p.id}')">${avatarHtml(p)}<b>${esc(p.name || "Profile")}</b></div>`).join("") +
+    (state.profiles.length < 10 ? `<div class="pf add" onclick="addProfile()"><div class="av">+</div><b>Add profile</b></div>` : "");
+}
+
+function modal(html) { const m = document.createElement("div"); m.className = "modal"; m.innerHTML = `<div class="card">${html}</div>`; m.onclick = e => { if (e.target === m) m.remove(); }; document.body.appendChild(m); return m; }
+
+function addProfile() {
+  const m = modal(`<h2>New profile</h2><label class="field"><span>Name</span><input type="text" id="nn" maxlength="40"></label><div class="err" id="ne"></div>
+    <div class="row"><button class="btn pri" id="ok">Create</button><button class="btn" onclick="this.closest('.modal').remove()">Cancel</button></div>`);
+  m.querySelector("#nn").focus();
+  m.querySelector("#ok").onclick = async () => {
+    const name = m.querySelector("#nn").value.trim(); if (!name) return;
+    const used = new Set(state.profiles.map(p => p.slot)); let slot = 0; while (used.has(slot)) slot++;
+    try {
+      const r = await api("POST", "/rest/v1/fof_profiles", { slot, name, avatar: "" }, "return=representation");
+      m.remove(); toast("Profile created. Your TVs add it within 2 minutes."); await loadProfiles(); openProfile(r[0].id, "taste");
+    } catch (e) { m.querySelector("#ne").textContent = /up to 10/.test(e.message) ? "An account can have up to 10 profiles." : e.message; }
+  };
+}
+
+async function openProfile(id, tab) {
+  const p = state.profiles.find(x => x.id === id); if (!p) return;
+  const ps = state.pins[id];
+  if (ps?.pin_set && !ps.unlocked) {
+    const m = modal(`<h2>${esc(p.name)}</h2><p class="note">Enter this profile's PIN.</p><label class="field" style="margin-top:14px"><input type="tel" id="pin" maxlength="6" inputmode="numeric" autocomplete="off"></label><div class="err" id="pe"></div><button class="btn pri" id="ok">Open</button>`);
+    const inp = m.querySelector("#pin"); inp.focus();
+    const tryIt = async () => {
+      const r = await rpc("fof_verify_pin", { p_profile: id, p_pin: inp.value.trim() });
+      if (r?.ok) { ps.unlocked = true; m.remove(); openProfile(id, tab); }
+      else m.querySelector("#pe").textContent = r?.err === "locked" ? `Too many tries. Wait ${r.wait_s || 60} seconds.` : "Wrong PIN.";
+    };
+    m.querySelector("#ok").onclick = tryIt; inp.onkeydown = e => { if (e.key === "Enter") tryIt(); };
+    return;
+  }
+  state.cur = p; state.tab = tab || state.tab || "taste"; state.view = "profile"; render(); window.scrollTo(0, 0);
+}
+
+const TABS = [["taste","Preferences"],["lists","My List"],["resume","Continue Watching"],["sports","Sports"],["profile","Name & picture"],["security","PIN & Kids"]];
+async function profileView() {
+  const p = state.cur;
+  $("#app").innerHTML = `<div class="row" style="gap:18px"><div style="width:84px">${avatarHtml(p)}</div><div><h1>${esc(p.name)}</h1><p class="lead" style="margin-top:4px">Changes save right away and reach this profile on every TV.</p></div></div>
+    <div class="tabs">${TABS.map(([k, t]) => `<div class="tab ${state.tab === k ? "on" : ""}" onclick="state.tab='${k}';render()">${t}</div>`).join("")}</div><div id="pane"><p class="muted">Loading…</p></div>`;
+  try {
+    const d = await readData(p.id); state.files = d.files;
+    ({ taste: tasteView, lists: listsView, resume: resumeView, sports: sportsView, profile: nameView, security: securityView })[state.tab]();
+  } catch (e) { $("#pane").innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+}
+
+// ---------- preferences (same answers the TV setup collects, saved in the same place)
+let T;
+function loadTaste() {
+  const f = state.files;
+  const get = k => str(f, "fof_taste", k);
+  T = { step: 0, genres: {}, titles: {}, prefs: {}, sports: new Set(dec(f.fof_taste?.sports) || []), items: {} };
+  split(get("genres")).forEach(g => T.genres[g] = 2); split(get("glove")).forEach(g => T.genres[g] = 1); split(get("gno")).forEach(g => T.genres[g] = 3);
+  split(get("titles")).forEach(t => T.titles[t] = 2); split(get("loved")).forEach(t => T.titles[t] = 1); split(get("nope")).forEach(t => T.titles[t] = 3);
+  for (const [k] of PREF_Q) { const v = get("p_" + k); if (v) T.prefs[k] = v; }
+  try { JSON.parse(str(f, "fof_catalog_items", "a") || "[]").forEach(o => T.items[o.i] = o); } catch {}
+}
+const STEP_NAMES = ["Genres", "Movies & shows", "Your style", "Review"];
+function tasteView() {
+  loadTaste();
+  const done = str(state.files, "fof_taste", "done") === true || dec(state.files.fof_taste?.done) === true;
+  $("#pane").innerHTML = `<div class="card"><h2>${done ? "Your preferences" : "Set up your preferences"}</h2>
+    <p class="note">Pick what you like and Fof TV builds this profile's Home around it: "Picked for you", "Movies you might love", "Shows matching your taste" and more. Tap once to like, twice to love, three times for "not for me".</p>
+    <div class="steps" id="steps"></div><div id="step"></div><div class="foot"><button class="btn" id="back">Back</button><button class="btn pri" id="next">Next</button></div></div>`;
+  $("#back").onclick = () => { if (T.step > 0) { T.step--; tasteStep(); } };
+  $("#next").onclick = async () => { if (T.step < 3) { T.step++; tasteStep(); } else await saveTaste(); };
+  tasteStep();
+}
+const cycle = v => v === 2 ? 1 : v === 1 ? 3 : v === 3 ? undefined : 2;
+function tasteStep() {
+  $("#steps").innerHTML = STEP_NAMES.map((_, i) => `<i class="${i <= T.step ? "on" : ""}"></i>`).join("");
+  $("#back").style.visibility = T.step ? "visible" : "hidden";
+  $("#next").textContent = T.step === 3 ? "Save to my profile" : "Next";
+  const el = $("#step");
+  if (T.step === 0) {
+    el.innerHTML = `<h3>Genres you enjoy</h3><div class="chips">${ALL_GENRES.map(g => { const v = T.genres[g]; return `<div class="chip ${v === 2 ? "on" : v === 1 ? "love" : v === 3 ? "no" : ""}" data-g="${g}">${v === 1 ? "♥ " : ""}${g}</div>`; }).join("")}</div>`;
+    el.querySelectorAll(".chip").forEach(c => c.onclick = () => { const g = c.dataset.g; const n = cycle(T.genres[g]); if (n) T.genres[g] = n; else delete T.genres[g]; tasteStep(); });
+  } else if (T.step === 1) {
+    el.innerHTML = `<h3>Movies and shows you like</h3><input type="search" id="q" placeholder="Search any movie or show…"><div class="row" style="margin:12px 0"><div class="chips" id="src">
+      <div class="chip on" data-s="movie">Popular movies</div><div class="chip" data-s="series">Popular shows</div><div class="chip" data-s="picked">Your picks (${Object.keys(T.titles).length})</div></div></div><div class="posters" id="po"></div>`;
+    let src = "movie";
+    const show = list => {
+      $("#po").innerHTML = list.map(m => { const v = T.titles[m.i]; return `<div class="po ${v === 2 ? "liked" : v === 1 ? "loved" : v === 3 ? "nope" : ""}" data-i="${m.i}">${m.p ? `<img loading="lazy" src="${esc(m.p)}">` : ""}<div class="t">${esc(m.t)}${m.y ? " · " + m.y : ""}</div>${v ? `<span class="badge">${v === 1 ? "♥ Love" : v === 2 ? "Like" : "Not for me"}</span>` : ""}</div>`; }).join("") || `<p class="muted">Nothing found.</p>`;
+      $("#po").querySelectorAll(".po").forEach(e => e.onclick = () => { const i = e.dataset.i; const n = cycle(T.titles[i]); if (n) T.titles[i] = n; else delete T.titles[i]; show(list); });
+    };
+    const loadSrc = async () => {
+      if (src === "picked") return show(Object.keys(T.titles).map(i => T.items[i] || { i, t: i.replace("stremio:", ""), p: null }));
+      show((await cmList(src, "top")).slice(0, 60));
+    };
+    $("#src").querySelectorAll(".chip").forEach(c => c.onclick = () => { $("#src").querySelectorAll(".chip").forEach(x => x.classList.remove("on")); c.classList.add("on"); src = c.dataset.s; $("#q").value = ""; loadSrc(); });
+    let tm; $("#q").oninput = () => { clearTimeout(tm); tm = setTimeout(async () => { const q = $("#q").value.trim(); if (!q) return loadSrc(); const [a, b] = await Promise.all([cmList("movie", "top", q), cmList("series", "top", q)]); show([...a.slice(0, 18), ...b.slice(0, 18)]); }, 300); };
+    loadSrc();
+  } else if (T.step === 2) {
+    el.innerHTML = PREF_Q.map(([k, title, opts]) => `<div class="q"><div class="note">${title}</div><div class="chips">${opts.map(o => `<div class="chip ${T.prefs[k] === o ? "on" : ""}" data-k="${k}" data-o="${esc(o)}">${esc(o)}</div>`).join("")}</div></div>`).join("");
+    el.querySelectorAll(".chip").forEach(c => c.onclick = () => { const k = c.dataset.k, o = c.dataset.o; if (T.prefs[k] === o) delete T.prefs[k]; else T.prefs[k] = o; tasteStep(); });
+  } else {
+    const g = k => Object.entries(T.genres).filter(([, v]) => v === k).map(([n]) => n);
+    const t = k => Object.entries(T.titles).filter(([, v]) => v === k).map(([i]) => T.items[i]?.t || i);
+    el.innerHTML = `<h3>Loved genres</h3><p>${esc(g(1).join(", ") || "—")}</p><h3>Liked genres</h3><p>${esc(g(2).join(", ") || "—")}</p><h3>Not for me</h3><p>${esc(g(3).join(", ") || "—")}</p>
+      <h3>Titles</h3><p>${esc([...t(1).map(x => "♥ " + x), ...t(2)].join(", ") || "—")}</p><h3>Style</h3><p>${esc(Object.values(T.prefs).join(" · ") || "—")}</p>
+      <p class="note" style="margin-top:16px">Sports and favorite teams are under the Sports tab.</p>`;
+  }
+}
+const metaCache = {};
+async function cmList(type, cat, q) {
+  const k = type + cat + (q || "");
+  if (metaCache[k]) return metaCache[k];
+  const url = CM + "/catalog/" + type + "/" + cat + (q ? "/search=" + encodeURIComponent(q) : "") + ".json";
+  const j = await fetch(url).then(r => r.json()).catch(() => ({ metas: [] }));
+  const l = (j.metas || []).filter(m => m.imdb_id || m.id).map(m => {
+    const it = { i: "stremio:" + (m.imdb_id || m.id), t: m.name, s: type === "series", y: parseInt(m.releaseInfo || m.year) || undefined, p: m.poster || null };
+    T && (T.items[it.i] = it); return it;
+  });
+  return metaCache[k] = l;
+}
+async function saveTaste() {
+  const b = $("#next"); b.disabled = true; b.textContent = "Saving…";
+  const gb = k => Object.entries(T.genres).filter(([, v]) => v === k).map(([n]) => n);
+  const tb = k => Object.entries(T.titles).filter(([, v]) => v === k).map(([n]) => n);
+  try {
+    await saveData(state.cur.id, files => {
+      const t = files.fof_taste = files.fof_taste || {};
+      delete t.draft;
+      t.done = enc(true);
+      t.genres = enc([...gb(1), ...gb(2)].join("|")); t.glove = enc(gb(1).join("|")); t.gno = enc(gb(3).join("|"));
+      t.tg = enc([...gb(1), ...gb(2)].join("|"));
+      t.titles = enc([...tb(1), ...tb(2)].join("|")); t.loved = enc(tb(1).join("|")); t.nope = enc(tb(3).join("|"));
+      for (const k of Object.keys(t)) if (k.startsWith("p_")) delete t[k];
+      for (const [k, v] of Object.entries(T.prefs)) t["p_" + k] = enc(v);
+      // The liked titles themselves, so every TV can show them (kept newest 400)
+      let items = []; try { items = JSON.parse(str(files, "fof_catalog_items", "a") || "[]"); } catch {}
+      const have = new Set(items.map(o => o.i));
+      for (const i of [...tb(1), ...tb(2)]) if (!have.has(i) && T.items[i]) { const o = T.items[i]; items.push({ i: o.i, t: o.t, s: !!o.s, ...(o.y ? { y: o.y } : {}), ...(o.p ? { p: o.p } : {}) }); }
+      files.fof_catalog_items = { ...(files.fof_catalog_items || {}), a: enc(JSON.stringify(items.slice(-400))) };
+    });
+    toast("Saved. Your TV's Home updates within a few seconds.");
+    render();
+  } catch (e) { toast(e.message); b.disabled = false; b.textContent = "Save to my profile"; }
+}
+
+// ---------- My List
+function listsView() {
+  const f = state.files;
+  let items = {}; try { JSON.parse(str(f, "fof_catalog_items", "a") || "[]").forEach(o => items[o.i] = o); } catch {}
+  const favs = split(str(f, "ipvio_lib", "favs"), "\n"), watch = split(str(f, "ipvio_lib", "watch"), "\n");
+  const row = (id, key) => { const o = items[id] || {}; return `<div class="li">${o.p ? `<img src="${esc(o.p)}">` : `<img>`}<div class="g"><b>${esc(o.t || id.replace(/^stremio:/, ""))}</b><small>${o.s ? "Show" : o.t ? "Movie" : ""}${o.y ? " · " + o.y : ""}</small></div><button class="btn sm bad" onclick="libRemove('${key}','${esc(id)}')">Remove</button></div>`; };
+  $("#pane").innerHTML = `<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr))">
+    <div class="card"><h2>My List</h2><div class="list">${watch.map(i => row(i, "watch")).join("") || `<p class="muted">Empty.</p>`}</div></div>
+    <div class="card"><h2>Favorites</h2><div class="list">${favs.map(i => row(i, "favs")).join("") || `<p class="muted">Empty.</p>`}</div></div></div>
+    <div class="card" style="margin-top:14px"><h2>Add to My List</h2><input type="search" id="q" placeholder="Search a movie or show…"><div class="posters" id="po" style="margin-top:14px"></div></div>`;
+  let tm; $("#q").oninput = () => { clearTimeout(tm); tm = setTimeout(async () => {
+    const q = $("#q").value.trim(); if (!q) { $("#po").innerHTML = ""; return; }
+    T = T || { items: {} };
+    const [a, b] = await Promise.all([cmList("movie", "top", q), cmList("series", "top", q)]);
+    const l = [...a.slice(0, 12), ...b.slice(0, 12)];
+    $("#po").innerHTML = l.map(m => `<div class="po ${watch.includes(m.i) ? "liked" : ""}" data-i="${m.i}">${m.p ? `<img loading="lazy" src="${esc(m.p)}">` : ""}<div class="t">${esc(m.t)}</div>${watch.includes(m.i) ? `<span class="badge">In list</span>` : ""}</div>`).join("");
+    $("#po").querySelectorAll(".po").forEach(e => e.onclick = () => libAdd(l.find(x => x.i === e.dataset.i)));
+  }, 300); };
+}
+async function libAdd(o) {
+  await saveData(state.cur.id, files => {
+    const lib = files.ipvio_lib = files.ipvio_lib || {};
+    const w = split(dec(lib.watch), "\n").filter(x => x !== o.i); w.unshift(o.i); lib.watch = enc(w.join("\n"));
+    let items = []; try { items = JSON.parse(str(files, "fof_catalog_items", "a") || "[]"); } catch {}
+    if (!items.some(x => x.i === o.i)) items.push({ i: o.i, t: o.t, s: !!o.s, ...(o.y ? { y: o.y } : {}), ...(o.p ? { p: o.p } : {}) });
+    files.fof_catalog_items = { ...(files.fof_catalog_items || {}), a: enc(JSON.stringify(items.slice(-400))) };
+  });
+  toast("Added to My List"); render();
+}
+async function libRemove(key, id) {
+  await saveData(state.cur.id, files => { const lib = files.ipvio_lib = files.ipvio_lib || {}; lib[key] = enc(split(dec(lib[key]), "\n").filter(x => x !== id).join("\n")); });
+  toast("Removed"); render();
+}
+
+// ---------- Continue Watching
+function resumeView() {
+  let l = []; try { l = JSON.parse(str(state.files, "ipvio_watch", "e") || "[]"); } catch {}
+  l.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  const fmt = ms => { const m = Math.round(ms / 60000); return m >= 60 ? Math.floor(m / 60) + " h " + (m % 60) + " min" : m + " min"; };
+  $("#pane").innerHTML = `<div class="card"><h2>Continue Watching</h2><p class="note" style="margin-bottom:14px">Exactly what this profile sees on every TV. Remove anything you don't want to finish.</p><div class="list">${
+    l.map((e, k) => `<div class="li"><div class="g"><b>${esc(e.t)}</b><small>${e.d ? fmt(e.p) + " of " + fmt(e.d) : ""}${e.ts ? " · " + new Date(e.ts).toLocaleString() : ""}</small>${e.d ? `<div class="bar"><i style="width:${Math.min(100, Math.round(e.p / e.d * 100))}%"></i></div>` : ""}</div><button class="btn sm bad" onclick="resumeRemove(${k})">Remove</button></div>`).join("") || `<p class="muted">Nothing in progress.</p>`
+  }</div></div>`;
+  state.resume = l;
+}
+async function resumeRemove(k) {
+  const gone = state.resume[k];
+  await saveData(state.cur.id, files => {
+    let l = []; try { l = JSON.parse(str(files, "ipvio_watch", "e") || "[]"); } catch {}
+    l = l.filter(e => !(e.i === gone.i && e.s === gone.s && e.e === gone.e));
+    files.ipvio_watch = { ...(files.ipvio_watch || {}), e: enc(JSON.stringify(l)) };
+  });
+  toast("Removed from Continue Watching"); render();
+}
+
+// ---------- Sports
+const normTeam = s => s.toLowerCase().normalize("NFD").replace(/\p{M}+/gu, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+async function sportsView() {
+  const f = state.files;
+  const sports = new Set(dec(f.fof_taste?.sports) || []);
+  const favs = new Set(split(str(f, "ipvio_sportfavs", "k")));
+  $("#pane").innerHTML = `<div class="card"><h2>Sports you follow</h2><div class="chips" id="sp">${SPORTS.map(([k, n]) => `<div class="chip ${sports.has(k) ? "on" : ""}" data-k="${k}">${n}</div>`).join("")}</div>
+    <h3>Favorite teams</h3><p class="note">Their games show first on Sports and Home, with alerts when they start.</p><div id="tms" style="margin-top:12px"><p class="muted">Pick a sport above.</p></div>
+    <div class="foot"><span></span><button class="btn pri" id="sv">Save</button></div></div>`;
+  const drawTeams = async () => {
+    const lg = [...sports].flatMap(s => TEAM_LEAGUES[s] || []);
+    if (!lg.length) { $("#tms").innerHTML = `<p class="muted">Pick NFL, NBA, WNBA or Soccer to choose teams.</p>`; return; }
+    const parts = await Promise.all(lg.map(async ([name, path]) => {
+      const j = await fetch("https://site.api.espn.com/apis/site/v2/sports/" + path + "/teams").then(r => r.json()).catch(() => null);
+      const teams = (j?.sports?.[0]?.leagues?.[0]?.teams || []).map(x => x.team).filter(t => t?.displayName).sort((a, b) => a.displayName.localeCompare(b.displayName));
+      return `<h3>${esc(name)}</h3><div class="teams">${teams.map(t => { const k = normTeam(t.displayName); return `<div class="tm ${favs.has(k) ? "on" : ""}" data-k="${esc(k)}">${t.logos?.[0]?.href ? `<img src="${esc(t.logos[0].href)}">` : ""}${esc(t.displayName)}</div>`; }).join("")}</div>`;
+    }));
+    $("#tms").innerHTML = parts.join("");
+    $("#tms").querySelectorAll(".tm").forEach(e => e.onclick = () => { const k = e.dataset.k; favs.has(k) ? favs.delete(k) : favs.add(k); e.classList.toggle("on"); });
+  };
+  $("#sp").querySelectorAll(".chip").forEach(c => c.onclick = () => { const k = c.dataset.k; sports.has(k) ? sports.delete(k) : sports.add(k); c.classList.toggle("on"); drawTeams(); });
+  drawTeams();
+  $("#sv").onclick = async () => {
+    $("#sv").disabled = true;
+    try {
+      await saveData(state.cur.id, files => {
+        const t = files.fof_taste = files.fof_taste || {}; t.sports = enc([...sports]);
+        files.ipvio_sportfavs = { ...(files.ipvio_sportfavs || {}), k: enc([...favs].join("|")) };
+      });
+      toast("Saved. Your TV picks it up in a few seconds.");
+    } catch (e) { toast(e.message); }
+    $("#sv").disabled = false;
+  };
+}
+
+// ---------- Name & picture
+function nameView() {
+  const p = state.cur;
+  $("#pane").innerHTML = `<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr))">
+    <div class="card"><h2>Name</h2><label class="field"><input type="text" id="nm" maxlength="40" value="${esc(p.name)}"></label><button class="btn pri" id="svn">Save name</button></div>
+    <div class="card"><h2>Picture</h2><p class="note">Upload your own photo, use artwork from a movie or show, or the first letter of the name.</p>
+      <div class="row" style="margin-top:14px"><label class="btn ac">Upload photo<input type="file" accept="image/*" id="ph" hidden></label><button class="btn" id="lt">Use letter</button></div>
+      <h3>Or pick artwork</h3><input type="search" id="aq" placeholder="Search a movie or show…"><div class="posters" id="ap" style="margin-top:12px"></div></div></div>`;
+  $("#svn").onclick = async () => {
+    const name = $("#nm").value.trim(); if (!name) return;
+    await api("PATCH", "/rest/v1/fof_profiles?id=eq." + p.id, { name });
+    await saveData(p.id, files => { files.fof_pname = { n: enc(name) }; }).catch(() => {});
+    p.name = name; toast("Name saved. Your TVs show it within 2 minutes."); render();
+  };
+  $("#lt").onclick = () => setAvatar("", "");
+  $("#ph").onchange = async e => {
+    const file = e.target.files[0]; if (!file) return;
+    const img = await createImageBitmap(file); const c = document.createElement("canvas"); c.width = c.height = 320;
+    const s = Math.min(img.width, img.height); c.getContext("2d").drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 320, 320);
+    const b64 = c.toDataURL("image/jpeg", 0.82).split(",")[1];
+    await setAvatar("photo:" + (Math.floor(Date.now() / 1000) % 1000000), b64);
+  };
+  let tm; $("#aq").oninput = () => { clearTimeout(tm); tm = setTimeout(async () => {
+    const q = $("#aq").value.trim(); if (!q) { $("#ap").innerHTML = ""; return; }
+    T = T || { items: {} };
+    const l = [...(await cmList("movie", "top", q)).slice(0, 9), ...(await cmList("series", "top", q)).slice(0, 9)].filter(m => m.p);
+    $("#ap").innerHTML = l.map(m => `<div class="po" data-u="${esc(m.p)}" data-n="${esc(m.t)}"><img loading="lazy" src="${esc(m.p)}"><div class="t">${esc(m.t)}</div></div>`).join("");
+    $("#ap").querySelectorAll(".po").forEach(e => e.onclick = () => setAvatar("img:" + e.dataset.u + "|" + e.dataset.n.replace(/\|/g, " ").slice(0, 60), ""));
+  }, 300); };
+}
+async function setAvatar(avatar, photo) {
+  const p = state.cur;
+  await api("PATCH", "/rest/v1/fof_profiles?id=eq." + p.id, { avatar, photo });
+  p.avatar = avatar; p.photo = photo;
+  toast("Picture saved. Your TVs show it within 2 minutes."); render();
+}
+
+// ---------- PIN & Kids
+function securityView() {
+  const p = state.cur, ps = state.pins[p.id] || {};
+  const kids = dec(state.files.fof_kids?.k) === true;
+  $("#pane").innerHTML = `<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr))">
+    <div class="card"><h2>Profile PIN</h2><p class="note">${ps.pin_set ? "This profile asks for a PIN on every TV." : "No PIN: anyone can open this profile."}</p>
+      <label class="field" style="margin-top:14px"><span>${ps.pin_set ? "New PIN" : "PIN"} (4 to 6 digits)</span><input type="tel" id="p1" maxlength="6" inputmode="numeric" autocomplete="off"></label>
+      <label class="field"><span>Same PIN again</span><input type="tel" id="p2" maxlength="6" inputmode="numeric" autocomplete="off"></label><div class="err" id="pe"></div>
+      <div class="row"><button class="btn pri" id="sp">${ps.pin_set ? "Change PIN" : "Set PIN"}</button>${ps.pin_set ? `<button class="btn bad" id="cp">Remove PIN</button>` : ""}</div></div>
+    <div class="card"><h2>Kids</h2><div class="switch"><div><b>Kids profile</b><p class="note">Hides adult channels and titles on every TV.</p></div><div class="tg ${kids ? "on" : ""}" id="kd"></div></div></div></div>`;
+  const pinCall = async (fn, args) => {
+    let r = await rpc(fn, args);
+    if (r?.err === "denied") { if (!(await reauth())) return null; r = await rpc(fn, args); }
+    return r;
+  };
+  $("#sp").onclick = async () => {
+    const a = $("#p1").value.trim(), b = $("#p2").value.trim();
+    if (!/^\d{4,6}$/.test(a)) return $("#pe").textContent = "Use 4 to 6 digits.";
+    if (a !== b) return $("#pe").textContent = "The two PINs are different.";
+    const r = await pinCall("fof_set_pin", { p_profile: p.id, p_pin: a });
+    if (r?.ok) { toast("PIN saved. Every TV asks for it now."); await loadProfiles(); render(); } else if (r) $("#pe").textContent = "Could not save the PIN (" + (r.err || "error") + ").";
+  };
+  if ($("#cp")) $("#cp").onclick = async () => {
+    const r = await pinCall("fof_clear_pin", { p_profile: p.id });
+    if (r?.ok) { toast("PIN removed."); await loadProfiles(); render(); } else if (r) $("#pe").textContent = "Could not remove the PIN (" + (r.err || "error") + ").";
+  };
+  $("#kd").onclick = async () => {
+    const v = !kids;
+    await saveData(p.id, files => { files.fof_kids = { k: enc(v) }; });
+    toast(v ? "Kids profile on." : "Kids profile off."); render();
+  };
+}
+// Sensitive changes need the password again after 10 minutes (same rule as the TV)
+function reauth() {
+  return new Promise(res => {
+    const m = modal(`<h2>Confirm it's you</h2><p class="note">Enter your account password.</p><label class="field" style="margin-top:14px"><input type="password" id="rp" autocomplete="current-password"></label><div class="err" id="re"></div><button class="btn pri" id="ok">Confirm</button>`);
+    m.querySelector("#rp").focus();
+    m.querySelector("#ok").onclick = async () => {
+      try { keep(await auth("token?grant_type=password", { email: S.email, password: m.querySelector("#rp").value })); m.remove(); res(true); }
+      catch { m.querySelector("#re").textContent = "Wrong password."; }
+    };
+  });
+}
+
+// ---------- Account
+async function accountView() {
+  $("#app").innerHTML = `<h1>Account</h1><p class="lead">${esc(S.email || "")}</p><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));margin-top:26px">
+    <div class="card"><h2>TVs and devices</h2><div class="list" id="dv"><p class="muted">Loading…</p></div></div>
+    <div class="card"><h2>Password</h2><label class="field"><span>New password (8+ characters)</span><input type="password" id="np" autocomplete="new-password"></label><div class="err" id="ae"></div>
+      <button class="btn pri" id="cp">Change password</button><h3>This website</h3><button class="btn bad" id="so">Sign out here</button></div></div>`;
+  const devs = await api("GET", "/rest/v1/fof_devices?select=id,name,kind,app_version,last_seen,revoked&order=last_seen.desc").catch(() => []);
+  $("#dv").innerHTML = (devs || []).filter(d => !d.revoked).map(d => `<div class="li"><div class="g"><b>${esc(d.name || d.kind)}${d.id === devId ? " (this website)" : ""}</b><small>${esc(d.kind)} · ${esc(d.app_version)} · last used ${new Date(d.last_seen).toLocaleString()}</small></div>${d.id === devId ? "" : `<button class="btn sm bad" onclick="revoke('${d.id}')">Sign out</button>`}</div>`).join("") || `<p class="muted">None.</p>`;
+  $("#cp").onclick = async () => {
+    const np = $("#np").value; if (np.length < 8) return $("#ae").textContent = "Use at least 8 characters.";
+    try { await api("PUT", "/auth/v1/user", { password: np }); toast("Password changed. TVs stay signed in."); $("#np").value = ""; }
+    catch (e) { if (/reauth|recent/i.test(e.message) && await reauth()) { await api("PUT", "/auth/v1/user", { password: np }); toast("Password changed."); } else $("#ae").textContent = e.message; }
+  };
+  $("#so").onclick = async () => { await api("POST", "/auth/v1/logout", {}).catch(() => {}); S = null; saveS(); render(); };
+}
+async function revoke(id) { if (!confirm("Sign this TV out of the account?")) return; await rpc("fof_revoke_device", { p_id: id }); toast("Signed out. That TV asks to sign in again."); accountView(); }
+
+render();
+if (S) loadProfiles().then(render).catch(() => {});
+</script>
+</body>
+</html>

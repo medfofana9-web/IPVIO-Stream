@@ -357,3 +357,19 @@ grant execute on function public.fof_delete_account() to authenticated;
 -- ---------------------------------------------------------------- Watch Together (1.3.102, applied 15 Nov 2026)
 -- Tables fof_parties, fof_party_members, fof_party_msgs with RLS (fof_in_party), fof_join_party(code, device, name),
 -- realtime on all three. Full text: see the SQL run in the dashboard on 15 Nov 2026 (kept in docs/supabase/party.sql).
+
+-- ---------------------------------------------------------------- remove a profile PIN (website and TV)
+
+create or replace function public.fof_clear_pin(p_profile uuid) returns jsonb
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.fof_ok() or public.fof_session() = '' then return jsonb_build_object('ok', false, 'err', 'signed_out'); end if;
+  if not exists (select 1 from fof_profiles where id = p_profile and account_id = auth.uid() and not deleted) then
+    return jsonb_build_object('ok', false, 'err', 'no_profile');
+  end if;
+  if not public.fof_can_manage(p_profile) then return jsonb_build_object('ok', false, 'err', 'denied'); end if;
+  delete from fof_profile_pins where profile_id = p_profile;
+  return jsonb_build_object('ok', true);
+end $$;
+revoke all on function public.fof_clear_pin(uuid) from public, anon;
+grant execute on function public.fof_clear_pin(uuid) to authenticated;
