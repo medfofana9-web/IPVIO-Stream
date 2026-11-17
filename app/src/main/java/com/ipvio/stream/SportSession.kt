@@ -68,6 +68,7 @@ object SportSession {
 
     @Volatile private var app: Context? = null
     fun init(c: Context) { app = c.applicationContext }
+    fun appCtx(): Context? = app
 
     private var okSet: MutableSet<String>? = null
     private fun prefs(c: Context) = c.applicationContext.getSharedPreferences("fof_sport_ok", Context.MODE_PRIVATE)
@@ -99,7 +100,8 @@ object SportSession {
     fun start(g: SportData.Game, first: List<Item>, live: List<Item>) {
         val verified = app?.let { ok(it) } ?: emptySet()
         // Channels that worked before go first (same reason order otherwise)
-        val sorted = first.sortedBy { if (it.id in verified) 0 else 1 }
+        // Order from SportWatch.channels: how surely a feed shows the game, then how well it played here
+        val sorted = first
         startedAt = System.currentTimeMillis()
         returnKey = lastTile ?: "game:" + g.key
         lastTile = null
@@ -123,7 +125,7 @@ object SportSession {
         val keys = ArrayList<String>()
         keys.add(start.key)
         for (o in others) {
-            val ch = runCatching { SportWatch.channels(o, live) }.getOrDefault(emptyList()).sortedBy { if (it.id in verified) 0 else 1 }
+            val ch = runCatching { SportWatch.channels(o, live) }.getOrDefault(emptyList())
             if (ch.isEmpty()) continue
             cands[o.key] = ch
             pick.putIfAbsent(o.key, ch[0])

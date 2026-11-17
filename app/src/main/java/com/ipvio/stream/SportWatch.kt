@@ -189,7 +189,16 @@ object SportWatch {
         return r
     }
 
-    fun channels(g: SportData.Game, live: List<Item>): List<Item> = resolve(g, live).map { it.ch }
+    /**
+     * Feeds of the game in play order: by how surely they show this game (fixed, learned, exact event/addon, guide,
+     * team channel, network, usual network), and inside each group the feed that played best on this TV first.
+     */
+    fun channels(g: SportData.Game, live: List<Item>): List<Item> {
+        val hits = resolve(g, live)
+        val c = SportSession.appCtx() ?: return hits.map { it.ch }
+        val tier = mapOf(0 to 0, 5 to 1, 2 to 2, 1 to 3, 4 to 4, 3 to 5, 6 to 6)
+        return hits.withIndex().sortedWith(compareBy({ tier[it.value.why] ?: 7 }, { -FeedScore.score(c, it.value.ch.id) }, { it.index })).map { it.value.ch }
+    }
 }
 
 /** Watch Live page: the event, all matching channels with reason and availability, play, assign by hand. */

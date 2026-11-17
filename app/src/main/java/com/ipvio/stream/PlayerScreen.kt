@@ -380,10 +380,14 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
 
     // Fof TV sports: the stream of a game did not start: try the next channel that carries it
     val sportT = remember { longArrayOf(0L) }
-    fun sportFailover(): Boolean {
+    // When the current stream was asked for (start time of a feed, for FeedScore)
+    val feedStartT = remember { longArrayOf(System.currentTimeMillis()) }
+    LaunchedEffect(cur.url) { feedStartT[0] = System.currentTimeMillis() }
+    fun sportFailover(midGame: Boolean = false): Boolean {
+        FeedScore.failed(ctx, cur.itemId)
         val n = SportSession.next(cur.itemId) ?: return false
         sportT[0] = System.currentTimeMillis()
-        notice = "Stream didn't start – trying " + n.title
+        notice = (if (midGame) "Feed froze – switched to " else "Stream didn't start – trying ") + n.title
         switchTo(n, SportSession.zapList())
         return true
     }
@@ -868,6 +872,10 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                         else if (stremioFallback()) msg = "Looking for another source in your Stremio addons …"
                         else { msg = "This stream does not start."; failed = true; player.stop() }
                     }
+                    else if (cur.live && cur.archive == null && readyOnce && SportSession.owns(cur.itemId) && nowT - bufSince > 8_000L &&
+                        SportSession.streams(cur.itemId).size > 1 && sportFailover(midGame = true)) {
+                        bufSince = 0L; wdTries = 0
+                    }
                     else if (nowT - bufSince > (if (cur.live) 15_000L else 30_000L) && (cur.live || wdTries < 2)) {
                         // Live: reconnect without limit (like a receiver), movie/series: twice
                         wdTries++; bufSince = nowT
@@ -977,6 +985,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     if (player.duration > 0 && player.currentPosition < player.duration - 3000) endGuard = ""
                     if (!readyOnce) {
                         readyOnce = true; DeadLinks.ok(ctx, cur.url); SportSession.started(ctx, cur.itemId); revertTo = null
+                        if (cur.live && cur.archive == null) { FeedScore.started(ctx, cur.itemId, System.currentTimeMillis() - feedStartT[0]); FeedScore.height(ctx, cur.itemId, player.videoSize.height) }
                         // Remember the source that played this title/episode (preferred next time)
                         if (NowSources.owns(cur.itemId, cur.season, cur.episode)) NowSources.currentKey?.let { SourceMemory.played(ctx, NowSources.contentId, it) }
                     }
@@ -986,13 +995,16 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     System.currentTimeMillis() - lastSeekT > 4000
                 ) {
                     val now = System.currentTimeMillis()
+                    if (cur.live) FeedScore.stalled(ctx, cur.itemId)
                     stalls = StallLogic.add(stalls, now)
                     if (StallLogic.tooMany(stalls, now)) {
                         // Automatic: enlarge the buffer for the next playback (slow internet)
                         val before = AppSettings.bufferLearned
                         AppSettings.learnBuffer(ctx)
                         if (AppSettings.bufferLearned != before) notice = "Ruckelt – Puffer wird beim nächsten Start größer"
-                        if (!cur.live) switchSource("Ruckelt") else stalls = emptyList()
+                        if (!cur.live) switchSource("Ruckelt")
+                        // Sports: a feed that keeps stuttering is swapped for the next-best feed of the same game
+                        else { stalls = emptyList(); if (SportSession.owns(cur.itemId) && cur.archive == null) sportFailover(midGame = true) }
                     }
                 }
                 if (state == Player.STATE_ENDED) {
@@ -1018,7 +1030,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 val vf = player.videoFormat
                 if (vf != null) showInfo(vf.width, vf.height)
             }
-            override fun onVideoSizeChanged(videoSize: VideoSize) { showInfo(videoSize.width, videoSize.height) }
+            override fun onVideoSizeChanged(videoSize: VideoSize) { showInfo(videoSize.width, videoSize.height); if (cur.live) FeedScore.height(ctx, cur.itemId, videoSize.height) }
         }
         player.addListener(l)
         applyTrackPrefs()

@@ -1,5 +1,11 @@
 # Changelog
 
+## Fof TV 1.3.123 (November 2026)
+
+- Sports feeds are scored on this TV: how often a channel starts, how fast, how often it freezes and its picture size (4K, FHD, HD). For every game the best-playing feed goes first, among feeds that match the game equally surely (a channel that clearly shows the game always beats a sharper guess).
+- Automatic failover during a game: a feed frozen for 8 seconds, or one that keeps stuttering, is swapped for the next-best feed of the same game ("Feed froze – switched to …"). Feeds from every playlist count, so a second IPTV subscription acts as a backup.
+- Account website (web/index.html, published on GitHub Pages from the gh-pages branch) and the fof_clear_pin server function for removing a profile PIN.
+
 ## Fof TV 1.3.122 (November 2026)
 
 - Smoother on the TV (measured on an onn 4K Plus: the graphics chip was the bottleneck): the big pictures behind Home, the top of Home and title pages are now painted once into a cached layer with their gradients, instead of four full-screen fills on every frame.
