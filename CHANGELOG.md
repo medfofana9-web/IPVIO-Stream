@@ -1,5 +1,9 @@
 # Changelog
 
+## Fof TV 1.3.124 (November 2026)
+
+- Addon streams that need extra request headers (Stremio `proxyHeaders`, e.g. Referer/Origin – common with PenguPlay) are no longer thrown away: the player now sends those headers for that link (playlist, segments and keys). Before, such titles showed "none playable here". New file `StreamHeaders.kt`; any other stream (IPTV, plain links) is opened without them.
+
 ## Fof TV 1.3.123 (November 2026)
 
 - Sports feeds are scored on this TV: how often a channel starts, how fast, how often it freezes and its picture size (4K, FHD, HD). For every game the best-playing feed goes first, among feeds that match the game equally surely (a channel that clearly shows the game always beats a sharper guess).

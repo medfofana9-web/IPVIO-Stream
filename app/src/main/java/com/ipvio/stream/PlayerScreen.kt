@@ -165,7 +165,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             // "tap://" = live buffer on the device (rewind, recording), everything else as before
             .setMediaSourceFactory(
                 DefaultMediaSourceFactory(ctx)
-                    .setDataSourceFactory(TapAwareDataSource.Factory(HostFailover.DataSourceWrapper.Factory(DefaultDataSource.Factory(ctx, http))))
+                    .setDataSourceFactory(TapAwareDataSource.Factory(HostFailover.DataSourceWrapper.Factory(StreamHeaders.wrap(DefaultDataSource.Factory(ctx, http)))))
                     // Short network hiccups are retried inside the player (several times) instead of ending in an error
                     .setLoadErrorHandlingPolicy(IptvLoadErrorPolicy())
             )
@@ -2249,6 +2249,7 @@ private fun NextPill(remain: () -> Long, auto: Boolean, showOk: Boolean, onClick
  * (formerly with .mpd without the DASH module: crash on this line). false = not playable.
  */
 internal fun openStream(player: androidx.media3.exoplayer.ExoPlayer, url: String, startMs: Long): Boolean = try {
+    StreamHeaders.begin(url)
     player.setMediaItem(MediaItem.fromUri(url), startMs)
     player.prepare()
     player.playWhenReady = true

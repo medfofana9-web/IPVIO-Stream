@@ -317,7 +317,7 @@ object Stremio {
                     l to (a.name + ": " + when {
                         l.isNotEmpty() -> "${l.size} playable"
                         raw == 0 -> "no links for this title"
-                        else -> "$raw links, none playable here (torrent-only or special headers)"
+                        else -> "$raw links, none playable here (torrent-only, no direct link)"
                     })
                 }, { e ->
                     val why = e.message?.takeIf { it.startsWith("HTTP") } ?: if (e is java.net.SocketTimeoutException) "timed out" else "not responding"
@@ -339,9 +339,12 @@ object Stremio {
             val hash = s.optString("infoHash").takeIf { it.length >= 32 }
             // Torrent result: playable through Real-Debrid when a token is saved, otherwise skipped
             if (!url.startsWith("http") && (hash == null || !Debrid.on)) continue
-            // Streams that only work with extra request headers cannot be played by address alone
-            val headers = s.optJSONObject("behaviorHints")?.optJSONObject("proxyHeaders")?.optJSONObject("request")
-            if (headers != null && headers.length() > 0) continue
+            // Streams that need extra request headers (Referer, Origin …): the player sends them for this link
+            s.optJSONObject("behaviorHints")?.optJSONObject("proxyHeaders")?.optJSONObject("request")?.let { h ->
+                val m = LinkedHashMap<String, String>()
+                for (n in h.keys()) { val v = h.optString(n); if (StreamHeaders.allowed(n) && v.isNotBlank()) m[n] = v }
+                if (url.startsWith("http")) StreamHeaders.remember(url, m)
+            }
             val title = s.optString("title").ifBlank { s.optString("description") }
             val name = s.optString("name").ifBlank { addon }
             val fname = s.optJSONObject("behaviorHints")?.optString("filename")?.takeIf { it.isNotBlank() }
