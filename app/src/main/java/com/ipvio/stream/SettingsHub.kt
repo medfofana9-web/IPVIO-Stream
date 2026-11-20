@@ -193,23 +193,23 @@ fun SettingsHub(onAdd: () -> Unit, reload: () -> Unit) {
     }
 }
 
-/** Accent per area: only the icon carries color, the tile itself stays a calm dark surface. */
-private fun catInk(i: Int): Color = Color.hsv((i * 360f / CATS.size + 18f) % 360f, 0.55f, 1f)
-
-private val CardBody = Color(0xFF1B1E26)
-private val CardBodyFocus = Color(0xFF2A2F3B)
+/** One quiet Fof violet icon accent instead of a different hue on every settings card.
+ * Keep the same cheap glass surfaces used elsewhere, without live blur on TV GPUs.
+ */
+private val SettingsIconInk = Color(0xFFB9B4F0)
 
 @Composable
 private fun SettingsCard(cat: Cat, idx: Int, modifier: Modifier, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
-    val s by animateFloatAsState(if (f) focusScale(1.06f) else 1f, label = "sc")
+    val s by animateFloatAsState(if (f) focusScale(1.035f) else 1f, label = "sc")
     val shape = RoundedCornerShape(dpx(14))
-    val ink = catInk(idx)
+    val ink = SettingsIconInk
     Row(
         modifier.height(dpx(96)).graphicsLayer { scaleX = s; scaleY = s; shadowElevation = if (f) 24f else 0f; this.shape = shape }
             .clip(shape)
-            .background(if (f) CardBodyFocus else CardBody)
-            .border(if (f) 3.dp else 1.dp, if (f) Color.White else Color(0x14FFFFFF), shape)
+            .background(if (f) Look.surf2 else Look.surf)
+            .background(FofGlass.sheen(1, f))
+            .border(if (f) 2.dp else 1.dp, if (f) FofGlass.rim() else FofGlass.edge(false), shape)
             .onFocusChanged { f = it.isFocused }
             .trackFocus()
             .clickable(onClick = onClick)
