@@ -296,10 +296,15 @@ private fun greeting(now: Long): String {
 /** Slowly drifting poster wall faded into black (welcome, sign-in and "Who's watching?"). */
 @Composable
 internal fun PosterWall() {
-    // Poster wall behind the profiles (the catalog's popular titles, already on the device), faded into black
-    val wall = remember {
-    val m = Catalog.cached(Catalog.popular(Kind.MOVIE)); val s = Catalog.cached(Catalog.popular(Kind.SERIES))
-    (0 until maxOf(m.size, s.size)).flatMap { listOfNotNull(m.getOrNull(it), s.getOrNull(it)) }.mapNotNull { it.logo }.distinct().take(40)
+    // Keep the cinematic poster wall, but decode fewer offscreen posters on low-memory sticks.
+    // The same cached thumbnails and slow GPU-only drift remain; no live blur or new animation.
+    val ctx = LocalContext.current
+    val maxPosters = remember(ctx) { when (Mem.tier(ctx)) { 0 -> 20; 1 -> 30; else -> 40 } }
+    val wall = remember(maxPosters) {
+        val m = Catalog.cached(Catalog.popular(Kind.MOVIE))
+        val s = Catalog.cached(Catalog.popular(Kind.SERIES))
+        (0 until maxOf(m.size, s.size)).flatMap { listOfNotNull(m.getOrNull(it), s.getOrNull(it)) }
+            .mapNotNull { it.logo }.distinct().take(maxPosters)
     }
     // The wall drifts slowly sideways (layer move only: nothing is redrawn, smooth on a Fire TV)
     val drift = androidx.compose.animation.core.rememberInfiniteTransition(label = "wall")
