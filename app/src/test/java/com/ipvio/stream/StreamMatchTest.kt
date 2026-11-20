@@ -4,6 +4,7 @@ import com.ipvio.stream.StremioLogic.MISMATCH
 import com.ipvio.stream.StremioLogic.UNVERIFIED
 import com.ipvio.stream.StremioLogic.VERIFIED
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -26,6 +27,13 @@ class StreamMatchTest {
         // The 1991 series "Reasonable Doubts": right numbers, wrong show and year
         assertEquals(UNVERIFIED, ep("Reasonable.Doubts.1991.S01E01.DVDRip.avi", 1, 1))
         assertEquals(UNVERIFIED, ep("Other.Show.S01E01.720p.mkv", 1, 1))
+    }
+
+    @Test fun automaticPlaybackOnlyUsesVerifiedNonLastResortSources() {
+        assertTrue(StremioLogic.safeForAutomaticPlay(VERIFIED, "1080p confirmed"))
+        assertFalse(StremioLogic.safeForAutomaticPlay(UNVERIFIED, "1080p unclear"))
+        assertFalse(StremioLogic.safeForAutomaticPlay(MISMATCH, "wrong episode"))
+        assertFalse(StremioLogic.safeForAutomaticPlay(VERIFIED, StremioLogic.LAST_RESORT + "unknown.mp4"))
     }
 
     @Test fun noInformationStaysUnverified() {
