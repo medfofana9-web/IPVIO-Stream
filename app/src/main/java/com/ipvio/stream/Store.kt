@@ -364,13 +364,21 @@ object Library {
     fun isWatch(id: String) = watch.contains(id)
 
     fun toggleFav(c: Context, id: String) {
-        if (!favs.remove(id)) favs.add(0, id)
-        prefs(c).edit().putString("favs", favs.joinToString("\n")).apply(); CloudSync.kick(c)
+        val present = if (favs.remove(id)) false else { favs.add(0, id); true }
+        val p = prefs(c)
+        p.edit().putString("favs", favs.joinToString("\n"))
+            .putString("favs_edits", SyncLogic.recordEdit(p.getString("favs_edits", null), id, present, System.currentTimeMillis()))
+            .apply()
+        CloudSync.kick(c)
     }
 
     fun toggleWatch(c: Context, id: String) {
-        if (!watch.remove(id)) watch.add(0, id)
-        prefs(c).edit().putString("watch", watch.joinToString("\n")).apply(); CloudSync.kick(c)
+        val present = if (watch.remove(id)) false else { watch.add(0, id); true }
+        val p = prefs(c)
+        p.edit().putString("watch", watch.joinToString("\n"))
+            .putString("watch_edits", SyncLogic.recordEdit(p.getString("watch_edits", null), id, present, System.currentTimeMillis()))
+            .apply()
+        CloudSync.kick(c)
     }
 
     /** Read again after the account brought newer data (CloudSync). */
@@ -487,19 +495,24 @@ object WatchStore {
         if (!fin) entries.add(0, e)
         else if (next != null) entries.add(0, next.copy(pos = 0L, dur = 0L, next = true))
         while (entries.size > 30) entries.removeAt(entries.lastIndex)
-        persist(c)
+        persist(c, e.itemId, entries.any { it.itemId == e.itemId })
     }
 
     /** Remove from "Continue watching" (menu key on the card). */
     fun remove(c: Context, itemId: String) {
-        if (entries.removeAll { it.itemId == itemId }) persist(c)
+        if (entries.removeAll { it.itemId == itemId }) persist(c, itemId, false)
     }
 
-    private fun persist(c: Context) {
+    private fun persist(c: Context, editedId: String? = null, present: Boolean = true) {
         val a = JSONArray()
         for (x in entries) a.put(JSONObject().put("i", x.itemId).put("t", x.title).put("u", x.url)
             .put("p", x.pos).put("d", x.dur).put("ts", x.ts).put("s", x.season).put("e", x.ep).put("n", x.next))
-        prefs(c).edit().putString("e", a.toString()).apply(); CloudSync.kick(c)
+        val p = prefs(c)
+        val edit = p.edit().putString("e", a.toString())
+        if (editedId != null) edit.putString("edits",
+            SyncLogic.recordEdit(p.getString("edits", null), editedId, present, System.currentTimeMillis()))
+        edit.apply()
+        CloudSync.kick(c)
     }
 
     fun reload(c: Context) { entries.clear(); init(c) }
