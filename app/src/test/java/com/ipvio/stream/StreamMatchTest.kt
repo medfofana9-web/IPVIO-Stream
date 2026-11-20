@@ -28,6 +28,13 @@ class StreamMatchTest {
         assertEquals(UNVERIFIED, ep("Other.Show.S01E01.720p.mkv", 1, 1))
     }
 
+    @Test fun automaticPlaybackOnlyUsesVerifiedNonLastResortSources() {
+        assertTrue(StremioLogic.safeForAutomaticPlay(VERIFIED, "1080p confirmed"))
+        assertFalse(StremioLogic.safeForAutomaticPlay(UNVERIFIED, "1080p unclear"))
+        assertFalse(StremioLogic.safeForAutomaticPlay(MISMATCH, "wrong episode"))
+        assertFalse(StremioLogic.safeForAutomaticPlay(VERIFIED, StremioLogic.LAST_RESORT + "unknown.mp4"))
+    }
+
     @Test fun noInformationStaysUnverified() {
         assertEquals(UNVERIFIED, ep("DragonStreams 1080p (CDN)", 4, 1))
     }
