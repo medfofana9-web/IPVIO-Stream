@@ -515,7 +515,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         val cid = NowSources.contentId
         return Stremio.rank(NowSources.list, w, cid).firstOrNull {
             it.key != NowSources.currentKey && (it.url.isEmpty() || it.url !in triedUrls) && it.url != cur.url &&
-                !SourceMemory.isWrong(cid, it.key) && Stremio.match(it, w) != StremioLogic.MISMATCH
+                !SourceMemory.isWrong(cid, it.key) && StremioLogic.safeForAutomaticPlay(Stremio.match(it, w), it.label)
         }
     }
 

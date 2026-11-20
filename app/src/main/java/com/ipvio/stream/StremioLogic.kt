@@ -96,6 +96,12 @@ object StremioLogic {
     const val UNVERIFIED = 1
     const val VERIFIED = 2
 
+    /** Automatic recovery must never replace a show or movie with an uncertain match.
+     * Unverified and explicitly last-resort sources remain available for manual selection.
+     */
+    fun safeForAutomaticPlay(match: Int, label: String): Boolean =
+        match == VERIFIED && !label.startsWith(LAST_RESORT)
+
     private val EP_SXE = Regex("(?i)(?<![a-z0-9])s(\\d{1,2})\\s*[._ -]?\\s*e(\\d{1,3})(?![0-9])")
     private val EP_X = Regex("(?i)(?<![0-9x])(\\d{1,2})x(\\d{2,3})(?![0-9])")
     private val EP_WORDS = Regex("(?i)season\\s*(\\d{1,2})\\D{0,6}episode\\s*(\\d{1,3})")
