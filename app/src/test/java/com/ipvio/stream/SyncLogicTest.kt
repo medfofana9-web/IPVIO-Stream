@@ -47,6 +47,53 @@ class SyncLogicTest {
         assertEquals("50|c", m.getJSONObject("ipvio_eprog").getJSONArray("ser2").getString(1))
     }
 
+    @Test fun concurrentFavoriteRemovalDoesNotComeBackFromOtherTv() {
+        val removed = SyncLogic.recordEdit(null, "a", false, 200L)
+        val added = SyncLogic.recordEdit(null, "c", true, 150L)
+        val local = JSONObject().put("ipvio_lib", JSONObject()
+            .put("favs", s("b")).put("favs_edits", s(removed)))
+        val cloud = JSONObject().put("ipvio_lib", JSONObject()
+            .put("favs", s("a\nc")).put("favs_edits", s(added)))
+        val merged = SyncLogic.merge(local, cloud)
+        val lib = merged.getJSONObject("ipvio_lib")
+        assertEquals("b\nc", lib.getJSONArray("favs").getString(1))
+        assertEquals(false, SyncLogic.mergeEdits(
+            lib.getJSONArray("favs_edits").getString(1), null
+        ).getJSONObject("a").getBoolean("p"))
+    }
+
+    @Test fun addingAgainAfterRemovalWinsByEditTime() {
+        val old = SyncLogic.recordEdit(null, "movie1", false, 100L)
+        val newer = SyncLogic.recordEdit(old, "movie1", true, 300L)
+        val local = JSONObject().put("ipvio_lib", JSONObject().put("watch", s("movie1")).put("watch_edits", s(newer)))
+        val cloud = JSONObject().put("ipvio_lib", JSONObject().put("watch", s("")).put("watch_edits", s(old)))
+        assertEquals("movie1", SyncLogic.merge(local, cloud).getJSONObject("ipvio_lib").getJSONArray("watch").getString(1))
+    }
+
+    @Test fun removingResumeDoesNotResurrectOldPosition() {
+        val deleted = SyncLogic.recordEdit(null, "movie:a", false, 300L)
+        val local = JSONObject().put("ipvio_watch", JSONObject().put("e", s("[]")).put("edits", s(deleted)))
+        val cloud = JSONObject().put("ipvio_watch", JSONObject().put("e", s(watch("movie:a" to 100L))))
+        val merged = SyncLogic.merge(local, cloud).getJSONObject("ipvio_watch")
+        assertEquals(0, JSONArray(merged.getJSONArray("e").getString(1)).length())
+    }
+
+    @Test fun resumePlayedAfterRemovalComesBack() {
+        val deleted = SyncLogic.recordEdit(null, "movie:a", false, 300L)
+        val replay = SyncLogic.recordEdit(deleted, "movie:a", true, 500L)
+        val local = JSONObject().put("ipvio_watch", JSONObject().put("e", s(watch("movie:a" to 500L))).put("edits", s(replay)))
+        val cloud = JSONObject().put("ipvio_watch", JSONObject().put("e", s(watch("movie:a" to 100L))).put("edits", s(deleted)))
+        val merged = SyncLogic.merge(local, cloud).getJSONObject("ipvio_watch")
+        assertEquals(500L, JSONArray(merged.getJSONArray("e").getString(1)).getJSONObject(0).getLong("ts"))
+    }
+
+    @Test fun equalEditTimesPreferRemoval() {
+        val yes = SyncLogic.recordEdit(null, "a", true, 100L)
+        val no = SyncLogic.recordEdit(null, "a", false, 100L)
+        val edits = SyncLogic.mergeEdits(yes, no)
+        assertEquals(false, edits.getJSONObject("a").getBoolean("p"))
+    }
+
     @Test fun fingerprintIgnoresKeyOrderButSeesChanges() {
         val a = JSONObject().put("ipvio_lib", JSONObject().put("favs", s("x")).put("watch", s("y")))
         val b = JSONObject().put("ipvio_lib", JSONObject().put("watch", s("y")).put("favs", s("x")))

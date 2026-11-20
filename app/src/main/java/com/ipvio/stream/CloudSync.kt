@@ -114,14 +114,19 @@ object CloudSync {
     private fun upload(c: Context, pid: Int, cid: String, files: JSONObject) {
         // Only over the version this TV last saw: if another TV saved in between, merge instead of overwriting its progress
         val known = prefs(c).getString(ak(pid, cid), null)
+        // A concurrent update can force a merge. Remember the snapshot we actually uploaded,
+        // not the stale pre-merge argument, or the next sync sees a phantom local change.
+        var uploadedFiles = files
         val at = if (known != null) dataPatch(c, cid, known, JSONObject().put("v", 1).put("files", files)) ?: run {
-            val (data, _) = dataGet(c, cid) ?: return
-            val merged = SyncLogic.merge(files, filesOf(data) ?: JSONObject())
+            val (data, _) = dataGet(c, cid) ?: error("Profile changed but could not be reloaded")
+            val cloudFiles = filesOf(data) ?: error("Profile data is missing or too large")
+            val merged = SyncLogic.merge(files, cloudFiles)
             write(c, pid, merged)
             kotlinx.coroutines.runBlocking { reloadIfActive(c, pid) }
-            dataPut(c, cid, JSONObject().put("v", 1).put("files", read(c, pid)))
+            uploadedFiles = read(c, pid)
+            dataPut(c, cid, JSONObject().put("v", 1).put("files", uploadedFiles))
         } else dataPut(c, cid, JSONObject().put("v", 1).put("files", files))
-        prefs(c).edit().putString(hk(pid, cid), SyncLogic.fingerprint(files)).putString(ak(pid, cid), at).apply()
+        prefs(c).edit().putString(hk(pid, cid), SyncLogic.fingerprint(uploadedFiles)).putString(ak(pid, cid), at).apply()
     }
 
     private fun get(c: Context, path: String): String {

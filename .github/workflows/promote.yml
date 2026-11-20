@@ -25,11 +25,51 @@ jobs:
     steps:
       - name: Promote
         run: |
+          set -euo pipefail
           MIN=86400; [ "$NOW" = "true" ] && MIN=0
           TAG=$(gh api "repos/${{ github.repository }}/releases?per_page=20" --jq "[.[] | select(.prerelease and (.draft|not)) | select((now - (.published_at|fromdateiso8601)) >= $MIN)] | sort_by(.published_at) | last | .tag_name // empty")
           if [ -z "$TAG" ]; then echo "Nothing to promote"; exit 0; fi
           LATEST=$(gh api "repos/${{ github.repository }}/releases/latest" --jq .published_at 2>/dev/null || echo "")
+          # Keep device-test releases on the owner's Early channel until explicitly approved.
+          # The existing 24-hour promotion remains unchanged for ordinary releases.
+          # Manual promotion ("now" dispatch) is still available after device validation.
+          if [ "$NOW" != "true" ]; then
+            BODY=$(gh api "repos/${{ github.repository }}/releases/tags/$TAG" --jq '.body // ""')
+            if printf '%s' "$BODY" | grep -Fq '[device-test]'; then
+              echo "$TAG is reserved for owner device testing; stable promotion deferred"
+              exit 0
+            fi
+          fi
           PUB=$(gh api "repos/${{ github.repository }}/releases/tags/$TAG" --jq .published_at)
           if [ -n "$LATEST" ] && [ "$PUB" \< "$LATEST" ]; then echo "$TAG is older than the latest release"; exit 0; fi
+          # Verify the exact installer before exposing this release to the stable Downloader link.
+          # This is an integrity/identity gate, not a substitute for physical Fire TV / onn testing.
+          RELEASE=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG")
+          ASSET=$(printf '%s' "$RELEASE" | jq -ce '[.assets[] | select(.name == "FofTV.apk")] | if length == 1 then .[0] else error("Expected exactly one FofTV.apk") end')
+          SIZE=$(printf '%s' "$ASSET" | jq -r '.size')
+          DIGEST=$(printf '%s' "$ASSET" | jq -r '.digest // ""')
+          if [ "$SIZE" -lt 1000000 ]; then echo "::error::FofTV.apk is unexpectedly small ($SIZE bytes)"; exit 1; fi
+          if ! [[ "$DIGEST" =~ ^sha256:[0-9a-fA-F]{64}$ ]]; then echo "::error::FofTV.apk has no valid GitHub SHA-256 digest"; exit 1; fi
+
+          mkdir -p "$RUNNER_TEMP/fof-promote"
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" --pattern FofTV.apk --dir "$RUNNER_TEMP/fof-promote" --clobber
+          APK="$RUNNER_TEMP/fof-promote/FofTV.apk"
+          EXPECTED=$(printf '%s' "$DIGEST" | cut -d: -f2 | tr '[:upper:]' '[:lower:]')
+          ACTUAL=$(sha256sum "$APK" | cut -d' ' -f1)
+          if [ "$ACTUAL" != "$EXPECTED" ]; then echo "::error::FofTV.apk checksum mismatch"; exit 1; fi
+
+          SDK=$(printenv ANDROID_HOME || printenv ANDROID_SDK_ROOT || true)
+          if [ -z "$SDK" ] || [ ! -d "$SDK/build-tools" ]; then echo "::error::Android SDK build-tools unavailable"; exit 1; fi
+          APKSIGNER=$(find "$SDK/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -1)
+          AAPT=$(find "$SDK/build-tools" -maxdepth 2 -type f -name aapt | sort -V | tail -1)
+          if [ ! -x "$APKSIGNER" ] || [ ! -x "$AAPT" ]; then echo "::error::APK inspection tools unavailable"; exit 1; fi
+          "$APKSIGNER" verify --min-sdk-version 24 "$APK"
+          "$AAPT" dump badging "$APK" > "$RUNNER_TEMP/fof-promote/badging.txt"
+          BADGING=$(head -n 1 "$RUNNER_TEMP/fof-promote/badging.txt")
+          VERSION=$(printf '%s' "$BADGING" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")
+          TAG_VERSION=$(printf '%s' "$TAG" | sed 's/^v//')
+          if [[ "$BADGING" != *"name='com.fof.tv'"* ]]; then echo "::error::APK package is not com.fof.tv"; exit 1; fi
+          if [ "$VERSION" != "$TAG_VERSION" ]; then echo "::error::APK version ($VERSION) does not match release tag ($TAG)"; exit 1; fi
+          echo "Verified installer identity, signing, size and SHA-256 for $TAG"
           gh release edit "$TAG" -R "${{ github.repository }}" --prerelease=false --latest
           echo "Promoted $TAG"

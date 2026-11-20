@@ -149,7 +149,7 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     SportHubFavs.init(ctx)
     SportFix.init(ctx)
     SportLearn.init(ctx)
-    var tab by remember { mutableIntStateOf(HubMemory.tab.takeIf { it <= 3 } ?: 0) }
+    var tab by remember { mutableIntStateOf(SportTabState.restore(HubMemory.tab, HUB_TABS.size)) }
     var sport by remember { mutableStateOf(HubMemory.sport) }
     var retry by remember { mutableIntStateOf(0) }
     var scoreDlg by remember { mutableStateOf(false) }
