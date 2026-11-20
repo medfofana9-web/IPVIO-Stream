@@ -685,7 +685,7 @@ private fun AppContent() {
         // Live preview of the View settings: bar at the bottom, the real app stays visible
         if (ViewLive.active) ViewLivePanel(ctx, goTab = { goTab(it) }, closeCats = { cats = null; browse = null }) {
             ViewLive.active = false
-            SettingsNav.openPage = 2
+            SettingsNav.openPage = 3
             goTab(MenuLogic.SETTINGS)
         }
         // Genre detection in the background: unobtrusive at the top right, never in the player

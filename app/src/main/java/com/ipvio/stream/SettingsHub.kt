@@ -47,7 +47,7 @@ private val CATS = listOf(
     Cat(AIcon.Gear, "Allgemein", "Start, Beenden, Autostart"),
     Cat(AIcon.Globe, "Sprache & Region", "Sprache, Uhrzeit, Zeitzone"),
     Cat(AIcon.Grid, "Ansicht", "Kartengröße, Seitenleiste, Raster"),
-    Cat(AIcon.Sparkle, "Design und Farbe", "Farben, Schrift, Animationen"),
+    Cat(AIcon.Sparkle, "Design und Farbe", "Farben, Schrift, Karten, Raster"),
     Cat(AIcon.Lists, "Menü", "Reihenfolge und Einträge"),
     Cat(AIcon.Play, "Player", "Spulen, Intro, Qualität, defekte Links"),
     Cat(AIcon.Music, "Ton & Untertitel", "Sprachen, CC, Untertitel-Stil"),
@@ -61,7 +61,7 @@ private val CATS = listOf(
     Cat(AIcon.Pulse, "Diagnose", "Status und Fehlersuche"),
     Cat(AIcon.Download, "Listen importieren", "Letterboxd, MyAnimeList, Trakt"),
     Cat(AIcon.Live, "Boomer Mode", "Ganz einfach: große Kacheln zum Auswählen"),
-    Cat(AIcon.Sliders, "Startseite anpassen", "Reihen und Widgets wählen und ordnen"),
+    Cat(AIcon.Sliders, "Startseite anpassen", "Reihen, Widgets und Menü ordnen"),
     Cat(AIcon.Globe, "Stremio addons", "Add addon links for extra streams"),
     Cat(AIcon.Live, "Sports", "Spoiler-free mode, how games find channels"),
     Cat(AIcon.Person, "Account & devices", "Sign-in, PINs, TVs on the account"),
@@ -76,13 +76,16 @@ private val CATS = listOf(
  */
 private val SECTIONS = listOf(
     "Wiedergabe" to listOf(5, 6, 8, 19),
-    "Aussehen" to listOf(3, 2, 4, 17, 16),
+    "Aussehen" to listOf(3, 17, 16),
     "Inhalte" to listOf(9, 7, 15, 18, 11),
     "Personen & Schutz" to listOf(10, 12, 20),
     "System" to listOf(0, 1, 13, 14),
     "Mehr" to listOf(21, 22)
 )
 private val FIRST_CARD = SECTIONS.first().second.first()
+
+/** Pages without their own tile live inside another page: View (2) inside Design (3), Menu (4) inside Customize home (17). */
+private fun hostOf(page: Int): Int = when (page) { 2 -> 3; 4 -> 17; else -> page }
 
 /** Open a settings page directly (e.g. profile circle at the top with only one profile: page "Profiles"). */
 object SettingsNav {
@@ -100,7 +103,7 @@ fun SettingsHub(onAdd: () -> Unit, reload: () -> Unit) {
     var last by remember { mutableIntStateOf(FIRST_CARD) }
     LaunchedEffect(SettingsNav.openPage) {
         val p = SettingsNav.openPage
-        if (p >= 0) { SettingsNav.openPage = -1; last = p; page = p }
+        if (p >= 0) { SettingsNav.openPage = -1; last = hostOf(p); page = p }
     }
     val cardFocus = remember { List(CATS.size) { if (it == FIRST_CARD) ContentFocus.req else FocusRequester() } }
     val backFocus = remember { FocusRequester() }
@@ -154,7 +157,7 @@ fun SettingsHub(onAdd: () -> Unit, reload: () -> Unit) {
                 0 -> GeneralPage(ctx)
                 1 -> RegionPage(ctx)
                 2 -> ViewPage(ctx)
-                3 -> DesignPage(ctx)
+                3 -> { DesignPage(ctx); SectionTitle("Ansicht"); ViewPage(ctx) }
                 4 -> MenuPage(ctx)
                 5 -> PlayerPage(ctx)
                 6 -> AudioPage(ctx)
@@ -167,7 +170,7 @@ fun SettingsHub(onAdd: () -> Unit, reload: () -> Unit) {
                 13 -> StoragePage(ctx)
                 14 -> DiagPage(ctx, reload)
                 16 -> BoomerPage(ctx) { page = -1 }
-                17 -> HomeLayoutPage(ctx)
+                17 -> { HomeLayoutPage(ctx); SectionTitle("Menü"); MenuPage(ctx) }
                 15 -> ListImportPage(ctx)
                 18 -> StremioPage(ctx)
                 19 -> FofSportsPage(ctx)
@@ -176,7 +179,7 @@ fun SettingsHub(onAdd: () -> Unit, reload: () -> Unit) {
                 else -> AboutPage(ctx)   // 21
             }
             // Every setting page ends with a way back to the defaults
-            if (page in 0..8) {
+            if (page in 0..8 || page == 17) {
                 SectionTitle("Zurücksetzen")
                 ConfirmPill("Alle Einstellungen zurücksetzen") {
                     AppSettings.resetAll(ctx); General.resetAll(ctx)

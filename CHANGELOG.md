@@ -1,5 +1,9 @@
 # Changelog
 
+## Fof TV 1.3.126 (November 2026)
+
+- Settings hub has fewer tiles: "View" now lives inside "Design and color" (below the design options), and "Menu" lives inside "Customize home" (below the home rows). Nothing was removed; the reset button also shows on Customize home. Returning from the live View preview opens Design and color.
+
 ## Fof TV 1.3.125 (November 2026)
 
 - Settings hub cleaned up: tiles are now calm dark cards with only the icon in color (no more rainbow gradients), the focused tile is clearly marked (white outline, lifts and grows), the arrows on every tile are gone, and descriptions can use two lines instead of being cut off. Tiles are grouped under section labels (Playback, Appearance, Content, People & safety, System, More); About and Donate sit together at the end. Page numbers and `SettingsNav` stay the same.

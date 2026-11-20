@@ -13,4 +13,6 @@ Download unvollständig¦Download incomplete
 Datei konnte nicht umbenannt werden¦The file could not be renamed
 Personen & Schutz¦People & safety
 Mehr¦More
+Farben, Schrift, Karten, Raster¦Colors, font, cards, grid
+Reihen, Widgets und Menü ordnen¦Rows, widgets and menu order
 """
