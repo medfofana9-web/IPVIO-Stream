@@ -30,6 +30,16 @@ jobs:
           TAG=$(gh api "repos/${{ github.repository }}/releases?per_page=20" --jq "[.[] | select(.prerelease and (.draft|not)) | select((now - (.published_at|fromdateiso8601)) >= $MIN)] | sort_by(.published_at) | last | .tag_name // empty")
           if [ -z "$TAG" ]; then echo "Nothing to promote"; exit 0; fi
           LATEST=$(gh api "repos/${{ github.repository }}/releases/latest" --jq .published_at 2>/dev/null || echo "")
+          # Keep device-test releases on the owner's Early channel until explicitly approved.
+          # The existing 24-hour promotion remains unchanged for ordinary releases.
+          # Manual promotion ("now" dispatch) is still available after device validation.
+          if [ "$NOW" != "true" ]; then
+            BODY=$(gh api "repos/${{ github.repository }}/releases/tags/$TAG" --jq '.body // ""')
+            if printf '%s' "$BODY" | grep -Fq '[device-test]'; then
+              echo "$TAG is reserved for owner device testing; stable promotion deferred"
+              exit 0
+            fi
+          fi
           PUB=$(gh api "repos/${{ github.repository }}/releases/tags/$TAG" --jq .published_at)
           if [ -n "$LATEST" ] && [ "$PUB" \< "$LATEST" ]; then echo "$TAG is older than the latest release"; exit 0; fi
           # Verify the exact installer before exposing this release to the stable Downloader link.
