@@ -1,5 +1,9 @@
 # Changelog
 
+## Fof TV 1.3.125 (November 2026)
+
+- Settings hub cleaned up: tiles are now calm dark cards with only the icon in color (no more rainbow gradients), the focused tile is clearly marked (white outline, lifts and grows), the arrows on every tile are gone, and descriptions can use two lines instead of being cut off. Tiles are grouped under section labels (Playback, Appearance, Content, People & safety, System, More); About and Donate sit together at the end. Page numbers and `SettingsNav` stay the same.
+
 ## Fof TV 1.3.124 (November 2026)
 
 - Addon streams that need extra request headers (Stremio `proxyHeaders`, e.g. Referer/Origin – common with PenguPlay) are no longer thrown away: the player now sends those headers for that link (playlist, segments and keys). Before, such titles showed "none playable here". New file `StreamHeaders.kt`; any other stream (IPTV, plain links) is opened without them.

@@ -70,6 +70,20 @@ private val CATS = listOf(
     Cat(AIcon.HeartFilled, "Spende", "Unterstütze IPVIO Stream")
 )
 
+/**
+ * Display order of the hub: cards grouped into labelled sections. Values are indices into [CATS]
+ * (the index is also the page number, so CATS order and SettingsNav constants stay unchanged).
+ */
+private val SECTIONS = listOf(
+    "Wiedergabe" to listOf(5, 6, 8, 19),
+    "Aussehen" to listOf(3, 2, 4, 17, 16),
+    "Inhalte" to listOf(9, 7, 15, 18, 11),
+    "Personen & Schutz" to listOf(10, 12, 20),
+    "System" to listOf(0, 1, 13, 14),
+    "Mehr" to listOf(21, 22)
+)
+private val FIRST_CARD = SECTIONS.first().second.first()
+
 /** Open a settings page directly (e.g. profile circle at the top with only one profile: page "Profiles"). */
 object SettingsNav {
     const val PROFILES = 10
@@ -83,12 +97,12 @@ object SettingsNav {
 fun SettingsHub(onAdd: () -> Unit, reload: () -> Unit) {
     val ctx = LocalContext.current
     var page by remember { mutableIntStateOf(-1) }
-    var last by remember { mutableIntStateOf(0) }
+    var last by remember { mutableIntStateOf(FIRST_CARD) }
     LaunchedEffect(SettingsNav.openPage) {
         val p = SettingsNav.openPage
         if (p >= 0) { SettingsNav.openPage = -1; last = p; page = p }
     }
-    val cardFocus = remember { List(CATS.size) { if (it == 0) ContentFocus.req else FocusRequester() } }
+    val cardFocus = remember { List(CATS.size) { if (it == FIRST_CARD) ContentFocus.req else FocusRequester() } }
     val backFocus = remember { FocusRequester() }
     BackHandler(enabled = page >= 0) { page = -1 }
     LaunchedEffect(page) {
@@ -103,13 +117,18 @@ fun SettingsHub(onAdd: () -> Unit, reload: () -> Unit) {
                 Text("Einstellungen", color = Color.White, fontSize = spx(38), fontWeight = FontWeight.ExtraBold)
                 Text("Alles rund um Aussehen, Wiedergabe und Konto", color = Tok.TextLow, fontSize = spx(16))
             }
-            CATS.chunked(3).forEachIndexed { r, row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(dpx(16))) {
-                    row.forEachIndexed { c, cat ->
-                        val idx = r * 3 + c
-                        SettingsCard(cat, idx, Modifier.weight(1f).focusRequester(cardFocus[idx])) { last = idx; page = idx }
+            SECTIONS.forEach { (label, ids) ->
+                Column(verticalArrangement = Arrangement.spacedBy(dpx(12))) {
+                    Text(Lang.tr(label).uppercase(), color = Tok.TextLow, fontSize = spx(13), fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.6.sp, raw = true, modifier = Modifier.padding(top = dpx(10), start = dpx(4)))
+                    ids.chunked(3).forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(dpx(16))) {
+                            row.forEach { idx ->
+                                SettingsCard(CATS[idx], idx, Modifier.weight(1f).focusRequester(cardFocus[idx])) { last = idx; page = idx }
+                            }
+                            repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                        }
                     }
-                    repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
         } else {
@@ -171,23 +190,23 @@ fun SettingsHub(onAdd: () -> Unit, reload: () -> Unit) {
     }
 }
 
-/** Color per area: same structure as the home screen tiles (gradient, icon in the area color, arrow). */
-private fun catColors(i: Int): Triple<Color, Color, Color> {
-    val h = (i * 360f / CATS.size + 18f) % 360f
-    return Triple(Color.hsv(h, 0.62f, 0.34f), Color.hsv(h, 0.70f, 0.14f), Color.hsv(h, 0.45f, 1f))
-}
+/** Accent per area: only the icon carries color, the tile itself stays a calm dark surface. */
+private fun catInk(i: Int): Color = Color.hsv((i * 360f / CATS.size + 18f) % 360f, 0.55f, 1f)
+
+private val CardBody = Color(0xFF1B1E26)
+private val CardBodyFocus = Color(0xFF2A2F3B)
 
 @Composable
 private fun SettingsCard(cat: Cat, idx: Int, modifier: Modifier, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
-    val s by animateFloatAsState(if (f) focusScale(1.04f) else 1f, label = "sc")
+    val s by animateFloatAsState(if (f) focusScale(1.06f) else 1f, label = "sc")
     val shape = RoundedCornerShape(dpx(14))
-    val (c1, c2, ink) = catColors(idx)
+    val ink = catInk(idx)
     Row(
-        modifier.height(dpx(96)).graphicsLayer { scaleX = s; scaleY = s }.clip(shape)
-            .background(Brush.horizontalGradient(listOf(c1, c2)))
-            .background(FofGlass.sheen(1, f))
-            .border(if (f) 1.5.dp else 1.dp, if (f) FofGlass.rim() else FofGlass.edge(false), shape)
+        modifier.height(dpx(96)).graphicsLayer { scaleX = s; scaleY = s; shadowElevation = if (f) 24f else 0f; this.shape = shape }
+            .clip(shape)
+            .background(if (f) CardBodyFocus else CardBody)
+            .border(if (f) 3.dp else 1.dp, if (f) Color.White else Color(0x14FFFFFF), shape)
             .onFocusChanged { f = it.isFocused }
             .trackFocus()
             .clickable(onClick = onClick)
@@ -195,14 +214,13 @@ private fun SettingsCard(cat: Cat, idx: Int, modifier: Modifier, onClick: () -> 
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(dpx(16))
     ) {
-        Box(Modifier.size(dpx(48)).clip(CircleShape).background(ink.copy(alpha = .16f)), contentAlignment = Alignment.Center) {
-            AppIcon(cat.icon, ink, size = dpx(28))
+        Box(Modifier.size(dpx(46)).clip(RoundedCornerShape(dpx(12))).background(ink.copy(alpha = if (f) .28f else .16f)), contentAlignment = Alignment.Center) {
+            AppIcon(cat.icon, ink, size = dpx(26))
         }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(dpx(3))) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(dpx(2))) {
             Text(cat.title, color = Color.White, fontSize = spx(20), fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(cat.sub, color = Tok.TextMid, fontSize = spx(13), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(cat.sub, color = if (f) Tok.TextMid else Tok.TextLow, fontSize = spx(13), lineHeight = spx(16), maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
-        AppIcon(AIcon.Right, Color.White, size = dpx(18))
     }
 }
 

@@ -11,4 +11,6 @@ keine gültige Antwort¦no valid response
 Zwischenspeicher beschädigt¦Cache is damaged
 Download unvollständig¦Download incomplete
 Datei konnte nicht umbenannt werden¦The file could not be renamed
+Personen & Schutz¦People & safety
+Mehr¦More
 """
