@@ -96,10 +96,18 @@ class MainActivity : ComponentActivity() {
                 kotlinx.coroutines.delay(20_000)
             }
         }
-        // Search index built once in the background after Home settled, so the first key press in Search finds it ready
+        // Prepare Search after Home settles and the playlist is actually available.
+        // A fixed one-shot delay missed slow provider loads and left first Search opening cold.
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
-            kotlinx.coroutines.delay(12_000)
-            runCatching { PlaylistStore.channels.takeIf { it.isNotEmpty() }?.let { SearchCache.build(it); SearchCache.suggest(it) } }
+            kotlinx.coroutines.delay(8_000)
+            repeat(24) {
+                val channels = PlaylistStore.channels
+                if (channels.isNotEmpty()) {
+                    runCatching { SearchCache.build(channels); SearchCache.suggest(channels) }
+                    return@launch
+                }
+                kotlinx.coroutines.delay(2_500)
+            }
         }
         Catalog.init(this); Catalog.preload()
         CatalogItems.init(this); TmdbExtra.init(this)
