@@ -4,6 +4,7 @@ import com.ipvio.stream.StremioLogic.MISMATCH
 import com.ipvio.stream.StremioLogic.UNVERIFIED
 import com.ipvio.stream.StremioLogic.VERIFIED
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
