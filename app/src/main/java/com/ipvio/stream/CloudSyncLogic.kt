@@ -101,10 +101,23 @@ object SyncLogic {
             for (k in c.keys()) m.put(k, c.get(k))
             for (k in l.keys()) m.put(k, l.get(k))
             when (n) {
-                "ipvio_watch" -> both(l, c, "e") { a, b -> s(mergeResume(a, b)) }?.let { m.put("e", it) }
+                "ipvio_watch" -> {
+                    val edits = mergeEdits(storedString(l, "edits"), storedString(c, "edits"))
+                    if (edits.length() > 0) m.put("edits", s(edits.toString()))
+                    if (l.has("e") || c.has("e")) m.put("e", s(mergeResumeWithEdits(
+                        storedString(l, "e").orEmpty(), storedString(c, "e").orEmpty(), edits
+                    )))
+                }
                 "ipvio_eprog" -> for (k in l.keys()) if (c.has(k)) m.put(k, newerProgress(l.optJSONArray(k), c.optJSONArray(k)))
                 "ipvio_hist" -> both(l, c, "ids") { a, b -> s(joinLines(a, b, 80)) }?.let { m.put("ids", it) }
-                "ipvio_lib" -> for (k in listOf("favs", "watch")) both(l, c, k) { a, b -> s(joinLines(a, b, 2000)) }?.let { m.put(k, it) }
+                "ipvio_lib" -> for (k in listOf("favs", "watch")) {
+                    val editsKey = "${k}_edits"
+                    val edits = mergeEdits(storedString(l, editsKey), storedString(c, editsKey))
+                    if (edits.length() > 0) m.put(editsKey, s(edits.toString()))
+                    if (l.has(k) || c.has(k)) m.put(k, s(mergeMarkedList(
+                        storedString(l, k).orEmpty(), storedString(c, k).orEmpty(), edits, 2000
+                    )))
+                }
                 "ipvio_catfavs" -> both(l, c, "c") { a, b -> s(joinLines(a, b, 500)) }?.let { m.put("c", it) }
                 "fof_catalog_items" -> both(l, c, "a") { a, b -> s(joinById(a, b, "i", 800)) }?.let { m.put("a", it) }
                 // ipvio_chlists: a channel list is edited as a whole, this TV's version stays
@@ -112,6 +125,81 @@ object SyncLogic {
             out.put(n, m)
         }
         return out
+    }
+
+    // Compatible with old profiles: the visible lists remain plain strings, while
+    // per-title edit markers prevent a deliberate removal from being resurrected
+    // when two TVs save different changes at the same time.
+    private const val MAX_EDITS = 2000
+
+    private fun storedString(store: JSONObject, key: String): String? =
+        store.optJSONArray(key)?.takeIf { it.optString(0) == "s" }?.optString(1)
+
+    private fun parseEdits(raw: String?): JSONObject =
+        runCatching { JSONObject(raw.orEmpty()) }.getOrDefault(JSONObject())
+
+    private fun capEdits(edits: JSONObject): JSONObject {
+        val keep = edits.keys().asSequence()
+            .filter { edits.optJSONObject(it) != null }
+            .sortedWith(compareByDescending<String> { edits.optJSONObject(it)?.optLong("t") ?: 0L }.thenBy { it })
+            .take(MAX_EDITS).toList().sorted()
+        return JSONObject().also { out -> keep.forEach { key -> out.put(key, edits.getJSONObject(key)) } }
+    }
+
+    /** Record whether a title was added or removed; the format survives legacy clients. */
+    fun recordEdit(raw: String?, id: String, present: Boolean, at: Long): String {
+        val edits = parseEdits(raw)
+        val previous = edits.optJSONObject(id)?.optLong("t") ?: 0L
+        edits.put(id, JSONObject().put("t", maxOf(at, previous + 1L)).put("p", present))
+        return capEdits(edits).toString()
+    }
+
+    /** Resolve per-title concurrent edits; on an exact timestamp tie, removal wins. */
+    fun mergeEdits(local: String?, cloud: String?): JSONObject {
+        val l = parseEdits(local)
+        val c = parseEdits(cloud)
+        val keys = (l.keys().asSequence().toList() + c.keys().asSequence().toList()).distinct().sorted()
+        val out = JSONObject()
+        for (key in keys) {
+            val a = l.optJSONObject(key)
+            val b = c.optJSONObject(key)
+            val winner = when {
+                a == null -> b
+                b == null -> a
+                a.optLong("t") > b.optLong("t") -> a
+                b.optLong("t") > a.optLong("t") -> b
+                !a.optBoolean("p", true) -> a
+                else -> b
+            }
+            if (winner != null) out.put(key, winner)
+        }
+        return capEdits(out)
+    }
+
+    /** Keep legacy list order while honoring explicit removals and newer additions. */
+    fun mergeMarkedList(local: String, cloud: String, edits: JSONObject, max: Int): String {
+        val merged = joinLines(local, cloud, max).split('\n').filter { it.isNotBlank() }.toMutableList()
+        val removed = edits.keys().asSequence().filter { edits.optJSONObject(it)?.optBoolean("p", true) == false }.toSet()
+        merged.removeAll(removed)
+        val added = edits.keys().asSequence()
+            .filter { edits.optJSONObject(it)?.optBoolean("p", false) == true && it !in merged }
+            .sortedBy { edits.optJSONObject(it)?.optLong("t") ?: 0L }.toList()
+        for (id in added) merged.add(0, id)
+        return merged.distinct().take(max).joinToString("\n")
+    }
+
+    /** Remove expired resume entries without losing newer playback started on another TV. */
+    fun mergeResumeWithEdits(local: String, cloud: String, edits: JSONObject): String {
+        val a = mergeResume(local, cloud)
+        val all = JSONArray(a)
+        val kept = JSONArray()
+        for (i in 0 until all.length()) {
+            val entry = all.optJSONObject(i) ?: continue
+            val edit = edits.optJSONObject(entry.optString("i"))
+            if (edit != null && !edit.optBoolean("p", true) && edit.optLong("t") >= entry.optLong("ts")) continue
+            kept.put(entry)
+        }
+        return kept.toString()
     }
 
     private fun s(v: String) = JSONArray().put("s").put(v)
