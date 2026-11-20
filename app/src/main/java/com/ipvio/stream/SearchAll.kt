@@ -233,7 +233,7 @@ internal fun SearchTitleRow(title: String, list: List<Item>, cardW: Int, first: 
     Column {
         ResultTitle(title)
         LazyRow(contentPadding = PaddingValues(horizontal = DS.PageX, vertical = 18.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-            itemsIndexed(list, key = { i, it -> "$i|" + it.id }) { i, x ->
+            itemsIndexed(list, key = { _, it -> "title|" + it.id }) { i, x ->
                 RowPosterCard(x, cardW.dp, Modifier.first(i, first).restoreFocus(x.id).onFocusChanged { if (it.hasFocus) onFocus(x) }, expand = false) { onOpen(x) }
             }
         }
@@ -247,7 +247,7 @@ internal fun SearchGameRow(games: List<SportData.Game>, first: FocusRequester?, 
     Column {
         ResultTitle("Games")
         LazyRow(contentPadding = PaddingValues(horizontal = DS.PageX, vertical = 18.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-            itemsIndexed(games, key = { i, it -> "g$i|" + it.key }) { i, g -> GameTileCard(g, Modifier.first(i, first)) { onGame(g) } }
+            itemsIndexed(games, key = { _, it -> "game|" + it.key }) { i, g -> GameTileCard(g, Modifier.first(i, first)) { onGame(g) } }
         }
     }
 }
