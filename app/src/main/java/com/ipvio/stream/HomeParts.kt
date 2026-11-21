@@ -636,6 +636,10 @@ fun CardRow(
 ) {
     val g = LocalCardGrid.current
     val live = list.firstOrNull()?.kind == Kind.LIVE
+    val visibleCards = remember(list) { list.take(60) }
+    val duplicateCardIds = remember(visibleCards) {
+        visibleCards.groupingBy { it.id }.eachCount().filterValues { it > 1 }.keys
+    }
     // Highlight sits in the first slot of the row (Fof TV, Netflix-style); the row slides under it
     var cur by remember { mutableIntStateOf(-1) }
     CenterGlide(state, cur)
@@ -655,7 +659,9 @@ fun CardRow(
         ) {
             // Stable identity prevents a live row refresh or reorder from
             // transferring another card's focus/animation state to this slot.
-            itemsIndexed(list.take(60), key = { i, item -> item.id + "#" + i }) { i, it ->
+            itemsIndexed(visibleCards, key = { i, item ->
+                if (item.id in duplicateCardIds) item.id + "#" + i else item.id
+            }) { i, it ->
                 val fr = if (i == 0) Modifier.focusRequester(firstCard) else Modifier
                 // Up/Down go straight to the row above/below (same column). "Show all" is reached with Right on the last card
                 val last = i == minOf(list.size, 60) - 1
