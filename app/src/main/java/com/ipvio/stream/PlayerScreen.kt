@@ -769,18 +769,21 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     }
 
     /** 24/7 show channel: the next episode (in order or shuffled) with a fresh addon link. */
+    var marathonAdvancing by remember { mutableStateOf(false) }
     fun marathonNext() {
+        if (marathonAdvancing) return
+        marathonAdvancing = true
         saveProgress()
         val id = cur.itemId
         scope.launch {
-            val p = Marathon.next()
+            val p = try { Marathon.next() } finally { marathonAdvancing = false }
             if (!Marathon.owns(id)) return@launch
             if (p == null) { msg = "No more episodes would play.  " + Lang.tr("Press Back to return."); buffering = false; return@launch }
             stremioTried = false; triedUrls.clear()
             val q = { n: Int -> when (n) { 3 -> "4K"; 2 -> "FHD"; 1 -> "HD"; else -> null } }
             cur = PlayReq(p.title, p.url, id, false, 0L, cur.tmdbId, p.season, p.ep,
                 alts = p.alts.map { Variant(it.url, it.label, q(it.q), null) })
-            flash = Flash(null, (if (Marathon.shuffle) "24/7 shuffle · " else "24/7 · ") + "S" + p.season + "E" + p.ep)
+            flash = Flash(null, (if (Marathon.shuffle) "24/7 shuffle · " else "24/7 · ") + "S" + p.season + "E" + p.ep + (Marathon.upcoming()?.let { " · Up next $it" } ?: ""))
         }
     }
 
