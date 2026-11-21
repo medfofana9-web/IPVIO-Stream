@@ -34,7 +34,7 @@ object Langs {
 object SubStyle {
     val SIZES = listOf("Klein" to 0.7f, "Normal" to 1f, "Groß" to 1.3f, "Sehr groß" to 1.7f, "Riesig" to 2.1f)
     val COLORS = listOf("Weiß" to 0xFFFFFFFFL, "Gelb" to 0xFFFFEB3BL, "Grün" to 0xFF69F0AEL, "Cyan" to 0xFF18FFFFL, "Pink" to 0xFFFF80ABL)
-    val BGS = listOf("Keiner" to 0x00000000L, "Halbtransparent" to 0x99000000L, "Schwarz" to 0xFF000000L)
+    val BGS = listOf("None" to 0x00000000L, "Dim" to 0x66000000L, "Black" to 0xFF000000L)
     val EDGES = listOf("Kein", "Schatten", "Kontur")
 }
 
@@ -47,7 +47,7 @@ object AppSettings {
     var cardW by mutableIntStateOf(150)
     var subSize by mutableIntStateOf(1)
     var subColor by mutableIntStateOf(0)
-    var subBg by mutableIntStateOf(1)
+    var subBg by mutableIntStateOf(0)
     var subEdge by mutableIntStateOf(2)
     var audioLang by mutableStateOf("en")
     /** Second audio language (fallback when the first is not available). */
@@ -100,7 +100,10 @@ object AppSettings {
         cardW = p.getInt("card_w", 150).coerceIn(110, 220)
         subSize = p.getInt("sub_size", 1).coerceIn(0, SubStyle.SIZES.lastIndex)
         subColor = p.getInt("sub_color", 0).coerceIn(0, SubStyle.COLORS.lastIndex)
-        subBg = p.getInt("sub_bg", 1).coerceIn(0, SubStyle.BGS.lastIndex)
+        if (!p.getBoolean("sub_clear_bg_migrated", false)) {
+            p.edit().putInt("sub_bg", 0).putBoolean("sub_clear_bg_migrated", true).apply()
+        }
+        subBg = p.getInt("sub_bg", 0).coerceIn(0, SubStyle.BGS.lastIndex)
         subEdge = p.getInt("sub_edge", 2).coerceIn(0, SubStyle.EDGES.lastIndex)
         audioLang = p.getString("audio_lang", "en") ?: "en"
         audioLang2 = p.getString("audio_lang2", "") ?: ""

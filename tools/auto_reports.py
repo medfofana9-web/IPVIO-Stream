@@ -42,7 +42,12 @@ groups = {}
 for r in rows:
     k = r.get("kind") or ""
     if worth(k):
-        groups.setdefault(key(k), []).append(r)
+        group = key(k)
+        if k.startswith("reliability:"):
+            version = str(r.get("version") or "unknown")[:30]
+            device = re.sub(r"\\s+", " ", str(r.get("device") or "unknown"))[:75]
+            group = f"{group} · {device} · {version}"
+        groups.setdefault(group, []).append(r)
 
 
 def gh(*args):
@@ -55,6 +60,8 @@ open_issues = json.loads(gh("issue", "list", "--repo", REPO, "--label", "auto-re
 by_title = {i["title"]: i["number"] for i in open_issues}
 
 for k, rs in groups.items():
+    if k.startswith("reliability:") and len({r["happened_at"] for r in rs}) < 2:
+        continue
     title = ("[auto] " + k)[:250]
     lines = [f"- {r['happened_at']} · {r.get('version', '')} · {r.get('device', '')} · profile {r.get('profile', '')}\n  `{(r.get('kind') or '')[:400]}`"
              for r in rs[:20]]
@@ -64,6 +71,6 @@ for k, rs in groups.items():
         print("commented", by_title[title], title)
     else:
         body = ("Reported automatically by Fof TV (AutoReport, FrameStats or the crash log).\n\n" + text +
-                "\n\nThe scheduled fix task picks up open `auto-report` issues, fixes them, releases, and closes them.")
+                "\n\nTriage this report before merging or releasing a fix.")
         r = gh("issue", "create", "--repo", REPO, "--title", title, "--label", "auto-report", "--body", body)
         print("created", (r.stdout or r.stderr).strip())

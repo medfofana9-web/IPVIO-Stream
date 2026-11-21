@@ -74,7 +74,12 @@ object CloudSync {
         FofAccount.init(c)
         if (!FofAccount.signedIn) return@withContext
         lock.withLock {
-            runCatching { once(c) }.onFailure { status = "Not synced: " + (it.message ?: "no connection").take(60) }
+            try { once(c) }
+            catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (e: Exception) {
+                status = "Not synced: " + (e.message ?: "no connection").take(60)
+                FrameStats.incident(c, FrameStats.Incident.PROFILE_SYNC_ERROR)
+            }
         }
     }
 
