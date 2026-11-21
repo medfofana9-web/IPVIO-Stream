@@ -25,11 +25,11 @@ object SportAddons {
     private val catCache = ConcurrentHashMap<String, Pair<Long, JSONArray>>()
 
     /** Addon streams found for [g] (empty until [find] has run). */
-    internal fun cacheFresh(nowMs: Long, atMs: Long): Boolean =
-        nowMs - atMs in 0L until 120_000L
+    internal fun cacheFresh(nowMs: Long, atMs: Long, hasResults: Boolean = true): Boolean =
+        nowMs - atMs in 0L until (if (hasResults) 120_000L else 3_000L)
 
     fun cached(g: SportData.Game): List<Item> =
-        cache[g.key]?.takeIf { cacheFresh(System.currentTimeMillis(), it.first) }?.second.orEmpty()
+        cache[g.key]?.takeIf { cacheFresh(System.currentTimeMillis(), it.first, it.second.isNotEmpty()) }?.second.orEmpty()
 
     /** Bumped when streams were found, so the Watch Live page shows them. */
     var version by androidx.compose.runtime.mutableIntStateOf(0)
@@ -37,7 +37,7 @@ object SportAddons {
 
     /** Looks the game up in every addon's live catalogs; at most a few seconds. */
     suspend fun find(c: Context, g: SportData.Game): List<Item> = withContext(Dispatchers.IO) {
-        cache[g.key]?.let { if (cacheFresh(System.currentTimeMillis(), it.first)) return@withContext it.second }
+        cache[g.key]?.let { if (cacheFresh(System.currentTimeMillis(), it.first, it.second.isNotEmpty())) return@withContext it.second }
         if (g.solo) return@withContext emptyList()
         Stremio.ensure(c)
         val cats = Stremio.addons.flatMap { a -> a.cats.filter { it.type.lowercase() in LIVE_TYPES }.map { a to it } }
@@ -54,7 +54,9 @@ object SportAddons {
             }.awaitAll().flatten()
         }.distinctBy { it.url }
         cache[g.key] = System.currentTimeMillis() to found
-        if (found.isNotEmpty()) version++
+        // Even an empty discovery result is a completed attempt, but cache it only
+        // briefly: a slow addon may become ready on the next try.
+        version++
         found
     }
 
