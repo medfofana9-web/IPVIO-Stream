@@ -431,7 +431,7 @@ private fun RegionPage(ctx: Context) {
     val zoneOpts = SettingsLogic.ZONES.map { if (it.id.isEmpty()) "Systemzeit (Gerät: " + java.util.TimeZone.getDefault().id + ")" else it.label }
     val zi = SettingsLogic.ZONES.indexOfFirst { it.id == General.tzId }.coerceAtLeast(0)
     SelectRow("Zeitzone", zoneOpts[zi], zoneOpts, zi) { General.setTz(ctx, SettingsLogic.ZONES[it].id) }
-    Text("Uhrzeit jetzt: " + hhmm(System.currentTimeMillis() / 1000), color = Accent2, fontSize = 16.sp)
+    Text("Current time: " + hhmm(System.currentTimeMillis() / 1000), color = Accent2, fontSize = 16.sp)
     Hint("Gilt für alle Uhrzeiten, zum Beispiel im TV-Guide und in der Live-TV-Infoleiste. „Systemzeit“ nutzt die Einstellung deines Geräts. Zeigt die App Uhrzeiten falsch an, steht dein Fernseher vermutlich auf UTC; wähle dann hier deine Zeitzone.")
 }
 
@@ -582,7 +582,7 @@ private fun StoragePage(ctx: Context) {
         PillButton("Sicherung erstellen") {
             scope.launch {
                 val f = withContext(Dispatchers.IO) { Backup.export(ctx) }
-                backupMsg = if (f != null) "Gespeichert: " + f.absolutePath else "Sicherung fehlgeschlagen."
+                backupMsg = if (f != null) "Saved: " + f.absolutePath else "Sicherung fehlgeschlagen."
             }
         }
         ConfirmPill("Sicherung wiederherstellen") {
@@ -860,7 +860,7 @@ private fun DesignPage(ctx: Context) {
     }
     val cfg = LocalConfiguration.current
     val factor = ThemeMath.uiFactor(Look.uiScale, cfg.screenWidthDp, cfg.screenHeightDp)
-    Hint("Oberfläche aktuell ×" + String.format(java.util.Locale.US, "%.2f", factor) + " (Bildschirm " + cfg.screenWidthDp + " dp breit).")
+    Hint("Oberfläche aktuell ×" + String.format(java.util.Locale.US, "%.2f", factor) + " (screen " + cfg.screenWidthDp + " dp breit).")
     Hint("Standard ist 85 %: mehr Inhalt, Elemente bleiben gut lesbar. „Automatisch“ vergrößert die App auf sehr breiten Bildschirmen.")
     Hint("Animationen „Aus“ schaltet die Vergrößerung beim Fokus ab, „Dezent“ macht sie schwächer. Das schont schwache Geräte.")
 
@@ -905,17 +905,17 @@ private fun DiagPage(ctx: Context, reload: () -> Unit) {
         "Sprache" to (Lang.code() + " · Index " + Lang.index),
         "Bildschirm" to "${cfg.screenWidthDp} × ${cfg.screenHeightDp} dp · density ${"%.2f".format(java.util.Locale.US, dens)}",
         "Playlist" to (PlaylistStore.lists.getOrNull(PlaylistStore.active)?.name ?: "keine"),
-        "Inhalte" to "${counts.first} Sender · ${counts.second} Filme · ${counts.third} Serien",
+        "Inhalte" to "${counts.first} channels · ${counts.second} movies · ${counts.third} TV shows",
         "Ladezustand" to (if (PlaylistStore.loading) "lädt …" else PlaylistStore.error ?: "bereit"),
-        "Programm (EPG)" to "${Xmltv.status} · ${Xmltv.channelCount} Sender",
-        "Metadaten" to (if (MetaRepo.enabled()) (if (Classifier.running) "lädt ${Classifier.progress}/${Classifier.total}" else "aktiv") else "kein TMDB-Schlüssel"),
+        "Programm (EPG)" to "${Xmltv.status} · ${Xmltv.channelCount} channels",
+        "Metadaten" to (if (MetaRepo.enabled()) (if (Classifier.running) "loading ${Classifier.progress}/${Classifier.total}" else "active") else "No TMDB key"),
         "Speicher" to (Mem.totalMb(ctx).toString() + " MB · " + listOf("wenig", "mittel", "viel")[Mem.tier(ctx)]),
         "Letzter Fehler" to err,
         "Fehler seit Start" to Diag.errorCount.toString(),
-        "Bildschirm wach" to (if (ScreenAwake.isOn) Lang.tr("an") + " (" + ScreenAwake.reasons + ")" else Lang.tr("aus")) +
+        "Bildschirm wach" to (if (ScreenAwake.isOn) Lang.tr("on") + " (" + ScreenAwake.reasons + ")" else Lang.tr("off")) +
             ScreenAwake.history.joinToString("") {
                 "\n" + DateFormat.getTimeInstance(DateFormat.MEDIUM).format(Date(it.first)) + "  " +
-                    (if (it.second == "aus") Lang.tr("aus") else Lang.tr("an") + it.second.removePrefix("an"))
+                    (if (it.second == "off") Lang.tr("off") else Lang.tr("on") + it.second.removePrefix("on"))
             },
         "Weiterschauen" to (ResumeLog.also { it.init(ctx) }.lines.take(12).joinToString("\n").ifBlank { "noch nichts gemerkt" }),
         "Speed" to (MainSampler.timings.joinToString("\n").ifBlank { "–" }),
@@ -1111,7 +1111,7 @@ private fun LanguageFilterSection(ctx: Context) {
             PillButton("Übernehmen und laden", light = true, icon = AIcon.Check) { apply() }
             PillButton("Verwerfen") { edit(hidden) }
             val n = list.count { it.first !in draft }
-            Text("$n von ${list.size} Sprachen gewählt", color = Muted, fontSize = 14.sp)
+            Text("$n of ${list.size} languages selected", color = Muted, fontSize = 14.sp)
         }
     }
     ApplyRow()
@@ -1149,7 +1149,7 @@ private fun LivePage(ctx: Context) {
         PillButton("Neu laden") { Xmltv.start(ctx, PlaylistStore.epgUrls, PlaylistStore.channels) }
     }
     Spacer(Modifier.height(4.dp))
-    Text("Favoriten: ${Library.favs.size} Sender · ${CatFavs.list.size} Kategorien", color = Color.White, fontSize = 17.sp)
+    Text("Favorites: ${Library.favs.size} channels · ${CatFavs.list.size} categories", color = Color.White, fontSize = 17.sp)
     Hint("Sender als Favorit: auf dem Sender OK gedrückt halten > „Zu Favoriten“. Kategorie als Favorit: auf der Kategorie OK gedrückt halten.")
     ChannelListsSection(ctx)
     CatchupSection()
@@ -1236,11 +1236,11 @@ private fun PlaylistPage(ctx: Context, onAdd: () -> Unit, reload: () -> Unit) {
     }
     LanguageFilterSection(ctx)
     SectionTitle("Automatisch aktualisieren")
-    val modes = listOf("Bei jedem Start", "Alle paar Stunden", "Täglich", "Wöchentlich", "Nur von Hand")
+    val modes = listOf("Bei jedem Start", "Every few hours", "Täglich", "Wöchentlich", "Nur von Hand")
     SelectRow("Playlist aktualisieren", modes[General.refreshMode], modes, General.refreshMode) { General.setPlan(ctx, mode = it) }
     if (General.refreshMode == 1) {
         val ivs = listOf(3, 6, 12, 24, 48)
-        SelectRow("Abstand", "alle ${General.refreshInterval} Stunden", ivs.map { "alle $it Stunden" }, ivs.indexOf(General.refreshInterval).coerceAtLeast(0)) {
+        SelectRow("Abstand", "every ${General.refreshInterval} hours", ivs.map { "every $it hours" }, ivs.indexOf(General.refreshInterval).coerceAtLeast(0)) {
             General.setPlan(ctx, interval = ivs[it])
         }
     }
@@ -1266,7 +1266,7 @@ private fun PlaylistPage(ctx: Context, onAdd: () -> Unit, reload: () -> Unit) {
         color = Muted, fontSize = 14.sp
     )
     SettingsLogic.nextDue(General.plan(), General.lastRefresh, nowMs, General.zone())?.let {
-        Text("Nächste Aktualisierung: " + dayLabel(it / 1000) + " " + hhmm(it / 1000), color = Accent2, fontSize = 14.sp)
+        Text("Next refresh: " + dayLabel(it / 1000) + " " + hhmm(it / 1000), color = Accent2, fontSize = 14.sp)
     }
     Hint("„Bei jedem Start“ lädt die Playlist bei jedem Öffnen der App. Die geplanten Varianten laufen auch im Hintergrund, solange das Gerät eingeschaltet und online ist, und holen verpasste Termine beim nächsten Start nach. „Nur von Hand“ nutzt immer den gespeicherten Stand; Neu laden geht jederzeit mit dem Knopf oben. Die Uhrzeit richtet sich nach deiner Zeitzone unter „Sprache & Region“.")
     Hint("Läuft gerade ein Film oder Sender, wartet die Aktualisierung, bis du fertig bist – so ruckelt nichts.")
@@ -1300,7 +1300,7 @@ private fun ProfilesPage(ctx: Context, onExit: () -> Unit) {
             val av = remember(p.id, ProfileAvatars.version) { ProfileAvatars.presetFor(ctx, p.id) }
             FofAvatar(av, Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)), letterSize = 20.sp)
             androidx.compose.foundation.text.BasicText(
-                Profiles.displayName(p) + if (isActive) "  ·  " + Lang.tr("aktiv") else "",
+                Profiles.displayName(p) + if (isActive) "  ·  " + Lang.tr("active") else "",
                 modifier = Modifier.weight(1f),
                 style = androidx.compose.ui.text.TextStyle(color = if (isActive) Accent2 else Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold),
                 maxLines = 1, overflow = TextOverflow.Ellipsis
