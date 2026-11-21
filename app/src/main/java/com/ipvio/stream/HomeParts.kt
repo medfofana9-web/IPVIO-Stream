@@ -653,7 +653,9 @@ fun CardRow(
             contentPadding = PaddingValues(start = RowPadX, end = RowPadX, top = dpx(30), bottom = dpx(30)),
             horizontalArrangement = Arrangement.spacedBy(if (live || style == CARD_LAND) g.gap else g.posterGap)
         ) {
-            itemsIndexed(list.take(60)) { i, it ->
+            // Stable identity prevents a live row refresh or reorder from
+            // transferring another card's focus/animation state to this slot.
+            itemsIndexed(list.take(60), key = { i, item -> item.id + "#" + i }) { i, it ->
                 val fr = if (i == 0) Modifier.focusRequester(firstCard) else Modifier
                 // Up/Down go straight to the row above/below (same column). "Show all" is reached with Right on the last card
                 val last = i == minOf(list.size, 60) - 1
