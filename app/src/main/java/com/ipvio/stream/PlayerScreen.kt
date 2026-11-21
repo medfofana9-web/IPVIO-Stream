@@ -260,6 +260,9 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     val savedIntro = remember(cur.itemId, cur.season, cur.episode, introMarkVersion, dur) {
         IntroMarks.load(ctx, cur.itemId, cur.season, cur.episode, dur)
     }
+    val savedRecap = remember(cur.itemId, cur.season, cur.episode, introMarkVersion, dur) {
+        IntroMarks.load(ctx, cur.itemId, cur.season, cur.episode, dur, "recap")
+    }
     var epg by remember { mutableStateOf<List<EpgEntry>>(emptyList()) }
     var banner by remember { mutableStateOf(false) }
     var bannerTick by remember { mutableIntStateOf(0) }
@@ -320,6 +323,9 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     val activeSeg by remember { derivedStateOf { val p = pos; segs.firstOrNull { p >= it.start && p < it.end - 1000 } } }
     val manualIntroActive by remember(savedIntro) {
         derivedStateOf { AppSettings.skipIntro && savedIntro?.contains(pos) == true && activeSeg == null }
+    }
+    val manualRecapActive by remember(savedRecap) {
+        derivedStateOf { AppSettings.skipIntro && savedRecap?.contains(pos) == true && activeSeg == null && !manualIntroActive }
     }
     val showNextCard by remember(hasNext) {
         derivedStateOf { hasNext && !cur.live && dur > 0 && dur - pos < 30_000 && !nextDismissed }
@@ -1177,6 +1183,9 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     LaunchedEffect(manualIntroActive, AppSettings.autoSkipIntro) {
         if (manualIntroActive && AppSettings.autoSkipIntro) savedIntro?.let { player.seekTo(it.endMs) }
     }
+    LaunchedEffect(manualRecapActive, AppSettings.autoSkipRecap) {
+        if (manualRecapActive && AppSettings.autoSkipRecap) savedRecap?.let { player.seekTo(it.endMs) }
+    }
     // Optional: skip the intro automatically
     LaunchedEffect(activeSeg) {
         val s = activeSeg
@@ -1422,6 +1431,9 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             else if (manualIntroActive && savedIntro != null) {
                                 player.seekTo(savedIntro.endMs); player.playWhenReady = true; player.play(); true
                             }
+                            else if (manualRecapActive && savedRecap != null) {
+                                player.seekTo(savedRecap.endMs); player.playWhenReady = true; player.play(); true
+                            }
                             else if (cur.live) { controls = true; true }
                             // Like YouTube, Netflix & co.: during/shortly after seeking, OK confirms the target position and keeps playing
                             // instead of pausing (that happened because one wants to "confirm" the seek).
@@ -1651,7 +1663,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
 
         // ---------------------------------------------------------------- Skip & next episode
         val seg0 = activeSeg?.takeIf { segVisible || controls }
-        if ((seg0 != null || manualIntroActive || showNextCard) && panel == Panel.NONE && !showChannels && !showGuide) {
+        if ((seg0 != null || manualIntroActive || manualRecapActive || showNextCard) && panel == Panel.NONE && !showChannels && !showGuide) {
             Column(
                 Modifier.align(Alignment.BottomEnd).padding(end = PT.MarginX, bottom = if (controls) 236.dp else 84.dp),
                 horizontalAlignment = Alignment.End,
@@ -1662,6 +1674,9 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 if (seg0 != null && !outro) PSkipPill(Lang.tr(seg0.label) + (if (!controls) "  (OK)" else "")) { skipSeg(seg0) }
                 else if (manualIntroActive && savedIntro != null) PSkipPill("Skip Intro" + (if (!controls) "  (OK)" else "")) {
                     player.seekTo(savedIntro.endMs); player.playWhenReady = true; player.play()
+                }
+                else if (manualRecapActive && savedRecap != null) PSkipPill("Skip Recap" + (if (!controls) "  (OK)" else "")) {
+                    player.seekTo(savedRecap.endMs); player.playWhenReady = true; player.play()
                 }
                 if (outro || (showNextCard && hasNext && !controls)) {
                     NextPill({ (dur - pos).coerceAtLeast(0L) }, AppSettings.autoNext, !controls) { playEpisode(epList[epIdx + 1]) }
@@ -2156,6 +2171,10 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             add(MenuEntry(32, "Mark Intro End", null, false))
                             if (savedIntro != null || IntroMarks.hasStart(ctx, cur.itemId, cur.season, cur.episode))
                                 add(MenuEntry(33, "Clear Intro Markers", null, false))
+                            add(MenuEntry(34, "Mark Recap Start", null, false))
+                            add(MenuEntry(35, "Mark Recap End", null, false))
+                            if (savedRecap != null || IntroMarks.hasStart(ctx, cur.itemId, cur.season, cur.episode, "recap"))
+                                add(MenuEntry(36, "Clear Recap Markers", null, false))
                         }
                         add(MenuEntry(6, "Show end time", if (AppSettings.showEndTime) "An" else "Aus", false))
                         add(MenuEntry(10, "On-screen clock", if (AppSettings.clockOn) "An" else "Aus", true))
@@ -2198,6 +2217,22 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                                     33 -> {
                                         IntroMarks.clear(ctx, cur.itemId, cur.season, cur.episode)
                                         introMarkVersion++; notice = "Intro markers cleared."
+                                        closePanel()
+                                    }
+                                    34 -> {
+                                        IntroMarks.markStart(ctx, cur.itemId, cur.season, cur.episode, player.currentPosition, "recap")
+                                        introMarkVersion++; notice = "Recap start marked. Mark the end when it finishes."
+                                        closePanel()
+                                    }
+                                    35 -> {
+                                        val ok = IntroMarks.finish(ctx, cur.itemId, cur.season, cur.episode, player.currentPosition, player.duration, "recap")
+                                        introMarkVersion++
+                                        notice = if (ok) "Skip Recap saved for this episode." else "Mark the recap start first, then its end."
+                                        closePanel()
+                                    }
+                                    36 -> {
+                                        IntroMarks.clear(ctx, cur.itemId, cur.season, cur.episode, "recap")
+                                        introMarkVersion++; notice = "Recap markers cleared."
                                         closePanel()
                                     }
                                     9 -> { panel = Panel.NONE; panelParent = Panel.NONE; lastChannel() }
