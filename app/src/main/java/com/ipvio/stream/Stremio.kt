@@ -367,18 +367,18 @@ object Stremio {
             val url = s.optString("url")
             val hash = s.optString("infoHash").takeIf { it.length >= 32 }
             // Torrent result: playable through Real-Debrid when a token is saved, otherwise skipped
-            if (!url.startsWith("http") && (hash == null || !Debrid.on)) continue
+            if (!StremioLogic.isHttpStreamUrl(url) && (hash == null || !Debrid.on)) continue
             // Streams that need extra request headers (Referer, Origin …): the player sends them for this link
             s.optJSONObject("behaviorHints")?.optJSONObject("proxyHeaders")?.optJSONObject("request")?.let { h ->
                 val m = LinkedHashMap<String, String>()
                 for (n in h.keys()) { val v = h.optString(n); if (StreamHeaders.allowed(n) && v.isNotBlank()) m[n] = v }
-                if (url.startsWith("http")) StreamHeaders.remember(url, m)
+                if (StremioLogic.isHttpStreamUrl(url)) StreamHeaders.remember(url, m)
             }
             val title = s.optString("title").ifBlank { s.optString("description") }
             val name = s.optString("name").ifBlank { addon }
             val fname = s.optJSONObject("behaviorHints")?.optString("filename")?.takeIf { it.isNotBlank() }
             val info = listOf(name, s.optString("title"), s.optString("description"), fname.orEmpty()).filter { it.isNotBlank() }.joinToString("\n")
-            if (url.startsWith("http")) out.add(Source(addon, StremioLogic.label(name, title), url, StremioLogic.quality("$name $title"), info = info))
+            if (StremioLogic.isHttpStreamUrl(url)) out.add(Source(addon, StremioLogic.label(name, title), url, StremioLogic.quality("$name $title"), info = info))
             else out.add(Source(addon, "RD · " + StremioLogic.label(name, title), "", StremioLogic.quality("$name $title"), hash, fname, info))
         }
         return out
