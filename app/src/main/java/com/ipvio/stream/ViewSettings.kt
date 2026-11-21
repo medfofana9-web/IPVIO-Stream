@@ -218,7 +218,7 @@ private fun CardsTab(ctx: Context) {
         Text("Standard-Ansicht", color = Muted, fontSize = 15.sp)
         Chips(listOf("Raster", "Kino"), if (BrowsePrefs.detail) 1 else 0, hView) { BrowsePrefs.set(ctx, it == 1) }
         Hint("Raster zeigt viele Titel auf einmal. Kino zeigt oben die Details zum markierten Titel und unten eine Reihe zum Durchblättern.")
-        Hint("Beim Markieren einer Auswahl zeigt die Vorschau sofort die Wirkung, OK übernimmt sie. Schriftgröße und Farben findest du unter „Design“.")
+        Hint("Highlight an option to preview the effect. Press OK to apply it. Schriftgröße und Farben findest du unter „Design“.")
     }
 }
 
@@ -349,12 +349,12 @@ private fun HomeTab(ctx: Context) {
             }
         }
     }) {
-        Text("Banner wechselt", color = Muted, fontSize = 15.sp)
-        Chips(heroOpts.map { if (it == 0) "nie" else "alle $it s" }, heroOpts.indexOf(General.heroSec).coerceAtLeast(0), hHero) { General.setHeroSec(ctx, heroOpts[it]) }
-        StepRow("Kartengröße (Reihen)", AppSettings.cardW.toString(),
+        Text("Featured banner changes", color = Muted, fontSize = 15.sp)
+        Chips(heroOpts.map { if (it == 0) "Never" else "every $it sec" }, heroOpts.indexOf(General.heroSec).coerceAtLeast(0), hHero) { General.setHeroSec(ctx, heroOpts[it]) }
+        StepRow("Card size (rows)", AppSettings.cardW.toString(),
             { AppSettings.setCardW(ctx, AppSettings.cardW - 10) },
             { AppSettings.setCardW(ctx, AppSettings.cardW + 10) })
-        Hint("Beim Markieren einer Auswahl zeigt die Vorschau sofort die Wirkung, OK übernimmt sie.")
+        Hint("Highlight an option to preview the effect. Press OK to apply it.")
     }
 }
 
@@ -405,6 +405,6 @@ private fun CategoriesTab(ctx: Context) {
         val cv = listOf("Liste mit Vorschau", "Kacheln")
         Text("Ansicht", color = Muted, fontSize = 15.sp)
         Chips(cv, if (CatPrefs.listView) 0 else 1, hView) { CatPrefs.set(ctx, it == 0) }
-        Hint("Beim Markieren einer Auswahl zeigt die Vorschau sofort die Wirkung, OK übernimmt sie.")
+        Hint("Highlight an option to preview the effect. Press OK to apply it.")
     }
 }
