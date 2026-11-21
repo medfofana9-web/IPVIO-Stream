@@ -27,4 +27,13 @@ class SportMatchupTest {
         assertFalse(SportData.matches(game, "Paris Saint-Germain vs Monaco"))
         assertTrue(SportData.matches(game, "Paris FC vs PSG"))
     }
+
+    @Test fun fieldEventRequiresSpecificEventName() {
+        val race = match(team(""), team("")).copy(
+            solo = true, title = "Las Vegas Grand Prix", league = "Formula 1"
+        )
+        assertTrue(SportData.matches(race, "Formula 1: Las Vegas Grand Prix"))
+        assertFalse(SportData.matches(race, "Formula 1: Qatar Grand Prix"))
+        assertFalse(SportData.matches(race.copy(title = "Formula 1"), "Formula 1"))
+    }
 }
