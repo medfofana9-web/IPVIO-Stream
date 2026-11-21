@@ -177,10 +177,10 @@ fun BoxScope.EpisodesPanel(
         var s = -1
         var k = 0
         for (e in episodes) {
-            if (e.season != s) { s = e.season; k = 0; out.add(EpRow("Staffel $s", null)) }
+            if (e.season != s) { s = e.season; k = 0; out.add(EpRow("Season $s", null)) }
             val list = bySeason.getValue(s)
             if (list.size > EpisodeLogic.LONG && k % EpisodeLogic.BLOCK == 0) {
-                out.add(EpRow("Folgen ${e.num}–${list[minOf(k + EpisodeLogic.BLOCK - 1, list.lastIndex)].num}", null))
+                out.add(EpRow("Episodes ${e.num}–${list[minOf(k + EpisodeLogic.BLOCK - 1, list.lastIndex)].num}", null))
             }
             out.add(EpRow(null, e))
             k++
@@ -203,14 +203,14 @@ fun BoxScope.EpisodesPanel(
             runCatching { reqs.getOrPut(target) { FocusRequester() }.requestFocus() }
         }
     }
-    val seasons = remember(rows) { rows.indices.filter { rows[it].header?.startsWith("Staffel") == true }.map { it to (rows[it].header ?: "") } }
-    PSimplePanel(if (sid != null) 760.dp else 520.dp, "Folgen", if (long) "Rechts / Vorspulen = 50 weiter · Zurückspulen = zurück · Links schließt" else "Links schließt das Menü", onClose) {
+    val seasons = remember(rows) { rows.indices.filter { rows[it].header?.startsWith("Season") == true }.map { it to (rows[it].header ?: "") } }
+    PSimplePanel(if (sid != null) 760.dp else 520.dp, "Episodes", if (long) "Right/Fast-forward = next 50 · Rewind = previous · Left closes" else "Left closes the menu", onClose) {
         // Seasons: one chip each (more than one season), OK jumps to that season's first episode
         if (seasons.size > 1) {
             androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 10.dp)) {
                 items(seasons.size) { k ->
                     val (row, label) = seasons[k]
-                    val n = label.removePrefix("Staffel ").trim()
+                    val n = label.removePrefix("Season ").trim()
                     FilterPill("Season $n", n == curSeason.toString(), raw = true) { starts.firstOrNull { it > row }?.let { jumpTo(it) } }
                 }
             }
@@ -238,7 +238,7 @@ fun BoxScope.EpisodesPanel(
                     if (sid != null) {
                         val meta = remember(sid, ep.season, ep.num, infoVer) { EpisodeInfo.get(sid, ep.season, ep.num) }
                         PEpisodeRow(ep, meta, progress[ResumeLogic.key(ep.season, ep.num)], i == curIdx, curIdx >= 0 && i == curIdx + 1, rowMod) { onPick(ep) }
-                    } else PPanelRow("Folge ${ep.num}", i == curIdx, rowMod, trailing = if (i == curIdx) "läuft" else null) { onPick(ep) }
+                    } else PPanelRow("Episode ${ep.num}", i == curIdx, rowMod, trailing = if (i == curIdx) "Playing" else null) { onPick(ep) }
                 }
             }
         }
