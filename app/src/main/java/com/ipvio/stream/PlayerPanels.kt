@@ -71,7 +71,7 @@ fun BoxScope.TracksPanel(
         }
     }
 
-    PPanelFrame(680.dp, "Audio & Untertitel", "Links schließt das Menü  ·  Rechts wechselt zu den Untertiteln", onEdgeDown = onClose) {
+    PPanelFrame(680.dp, "Audio & Subtitles", "Left closes the menu · Right opens subtitles", onEdgeDown = onClose) {
         Row(Modifier.weight(1f, fill = false), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Column(
                 Modifier.weight(1f).onPreviewKeyEvent { e ->
@@ -86,7 +86,7 @@ fun BoxScope.TracksPanel(
                 PColumnHeader("Audio")
                 if (audio.isEmpty()) {
                     Text(
-                        "Keine Auswahl verfügbar", color = Muted, fontSize = 15.sp,
+                        "No options available", color = Muted, fontSize = 15.sp,
                         modifier = Modifier.focusRequester(audioFocus).focusable().padding(16.dp)
                     )
                 } else {
@@ -111,7 +111,7 @@ fun BoxScope.TracksPanel(
                     }
                 }
             ) {
-                PColumnHeader("Untertitel")
+                PColumnHeader("Subtitles")
                 LazyColumn(state = subsState, verticalArrangement = Arrangement.spacedBy(PT.RowGap)) {
                     item {
                         PPanelRow("Aus", subsOff, if (subsSel == 0) Modifier.focusRequester(subsFocus) else Modifier) {
@@ -131,7 +131,7 @@ fun BoxScope.TracksPanel(
                     if (subs.isEmpty()) {
                         item {
                             Text(
-                                "Dieser Stream enthält keine Untertitel.", color = Muted, fontSize = 14.sp,
+                                "This stream has no subtitles.", color = Muted, fontSize = 14.sp,
                                 modifier = Modifier.padding(16.dp)
                             )
                         }
@@ -141,7 +141,7 @@ fun BoxScope.TracksPanel(
         }
         Spacer(Modifier.height(12.dp))
         PPanelRow(
-            "Aussehen der Untertitel", false,
+            "Subtitle appearance", false,
             Modifier.onPreviewKeyEvent { e ->
                 if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionLeft) { onClose(); true }
                 else if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionRight) { onStyle(); true }
