@@ -119,8 +119,17 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
                     scope.launch {
                         // Prepared games open immediately; uncached games resolve off the UI thread.
                         // Do NOT rebuild the whole sports index while a viewer is waiting.
-                        val chans = readyGames[g.key] ?: withContext(kotlinx.coroutines.Dispatchers.Default) {
+                        val prepared = readyGames[g.key] ?: withContext(kotlinx.coroutines.Dispatchers.Default) {
                             SportWatch.channels(g, live)
+                        }
+                        // A game absent from the IPTV guide may still have an exact
+                        // live addon feed. Give it one bounded lookup instead of
+                        // sending the viewer through multiple Sports pages.
+                        val chans = if (prepared.isNotEmpty()) prepared else {
+                            kotlinx.coroutines.withTimeoutOrNull(2_500L) {
+                                SportAddons.find(ctx, g)
+                                withContext(kotlinx.coroutines.Dispatchers.Default) { SportWatch.channels(g, live) }
+                            }.orEmpty()
                         }
                         if (chans.isNotEmpty()) {
                             // The score bug of the player shows this game's score (SportSession)
