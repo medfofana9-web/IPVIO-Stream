@@ -73,6 +73,7 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
     // Resolve the on-screen games BEFORE the viewer presses OK. A big playlist must
     // never be indexed synchronously on the click path.
     val readyGames = remember(live) { mutableStateMapOf<String, List<Item>>() }
+    val readyVersions = remember(live) { HashMap<String, Int>() }
     var teamGames by remember { mutableStateOf(emptyList<SportData.Game>()) }
     val games by produceState(emptyList<SportData.Game>(), SportPrefs.version) {
         while (true) {
@@ -91,15 +92,23 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
             delay(if (value.isNotEmpty()) 10_000L else 180_000L)
         }
     }
-    LaunchedEffect(games, live, SportWatch.prepVersion, SportAddons.version) {
+    // Live scores refresh every ten seconds. Re-running playlist-wide matching
+    // on each scoreboard update causes visible card jank on memory-limited TVs.
+    // Key discovery to game identity (not changing score/clock fields).
+    val gameKeys = remember(games) { games.map { it.key } }
+    val lookupVersion = SportWatch.prepVersion * 31 + SportAddons.version
+    LaunchedEffect(gameKeys, live, lookupVersion) {
         if (live.isEmpty() || games.isEmpty()) return@LaunchedEffect
-        // Indexing and matching may scan tens of thousands of channels.
-        // Each result becomes instantly available while the remaining games warm.
+        val missing = games.filter { readyVersions[it.key] != lookupVersion }
+        if (missing.isEmpty()) return@LaunchedEffect
         withContext(kotlinx.coroutines.Dispatchers.Default) {
             SportWatch.prewarm(live)
-            for (g in games) {
+            for (g in missing) {
                 val channels = SportWatch.channels(g, live)
-                withContext(kotlinx.coroutines.Dispatchers.Main) { readyGames[g.key] = channels }
+                withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    readyGames[g.key] = channels
+                    readyVersions[g.key] = lookupVersion
+                }
             }
         }
     }

@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -380,16 +381,28 @@ fun HomeScreen(
         val ids = candidates.map { it.id }
         val hit = HeroCache.byTab[tab]
         if (hit != null && hit.first == ids) {
-            if (ready.toList() != hit.second) { ready.clear(); ready.addAll(hit.second) }
+            if (ready.toList() != hit.second) Snapshot.withMutableSnapshot {
+                ready.clear(); ready.addAll(hit.second)
+            }
             return@LaunchedEffect
         }
-        ready.clear()
-        for (c in candidates) {
-            val m = Catalog.meta(c) ?: MetaRepo.basic(ctx, c)
-            if (m?.backdrop != null) ready.add(c)
-            if (ready.size >= 6) break
+        // Metadata retrieval may read the disk or fetch artwork. Keeping it off
+        // the UI thread avoids pauses during remote navigation, and replacing
+        // the candidates in one snapshot avoids a blank hero between cards.
+        val next = withContext(Dispatchers.IO) {
+            val found = ArrayList<Item>(6)
+            for (c in candidates) {
+                val m = Catalog.meta(c) ?: MetaRepo.basic(ctx, c)
+                if (m?.backdrop != null) found.add(c)
+                if (found.size >= 6) break
+            }
+            found.toList()
         }
-        HeroCache.byTab[tab] = ids to ready.toList()
+        if (next != ready.toList()) Snapshot.withMutableSnapshot {
+            ready.clear()
+            ready.addAll(next)
+        }
+        HeroCache.byTab[tab] = ids to next
     }
     // Switched here from another screen via the sidebar (e.g. search): focus the content
     LaunchedEffect(Unit) {
@@ -1047,6 +1060,11 @@ private fun Hero(
         while (featured.size > 1 && General.heroSec > 0) { delay(General.heroSec * 1000L); if (!Billboard.active) idx = (idx + 1) % featured.size }
     }
     val item = featured[idx.coerceIn(0, featured.lastIndex)]
+    // Very long crossfades render two large backdrops at once. On a Fire
+    // Stick-class GPU that can produce dropped frames during D-pad movement.
+    val heroFadeMs = remember(ctx, Look.motion) {
+        if (Look.motion == 0) 0 else if (Mem.tier(ctx) == 0) 160 else 320
+    }
 
     // Picture across the full width (also behind the header), faded into the background at the left and bottom.
     // Round 14: without arrows; the description has more width (up to about the middle of the picture) and is no longer cut off (max. 250 characters).
@@ -1058,7 +1076,7 @@ private fun Hero(
             translationY = if (Look.motion == 0) 0f else scrollY() * 0.4f
             compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
         }) {
-            Crossfade(item, animationSpec = tween(1100), label = "heroBg") { c ->
+            Crossfade(item, animationSpec = tween(heroFadeMs), label = "heroBg") { c ->
                 val m = rememberMeta(c)
                 m?.backdrop?.let { AsyncImage(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopEnd) }
             }
@@ -1072,7 +1090,7 @@ private fun Hero(
             Modifier.align(Alignment.BottomStart).padding(start = dpx(39), bottom = dpx(if (home) 34 else 26)).widthIn(max = dpx(780)),
             verticalArrangement = Arrangement.spacedBy(dpx(10))
         ) {
-            Crossfade(item, animationSpec = tween(500), label = "heroText") { c ->
+            Crossfade(item, animationSpec = tween(if (heroFadeMs == 0) 0 else 180), label = "heroText") { c ->
                 // with IMDb and Rotten Tomatoes rating (fetched the first time, then remembered on the device)
                 val m = rememberFullMeta(c, rememberMeta(c))
                 Column(verticalArrangement = Arrangement.spacedBy(dpx(if (home) 10 else 8))) {

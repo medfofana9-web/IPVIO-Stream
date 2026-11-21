@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -87,9 +88,12 @@ fun ArtPlaceholder(item: Item, modifier: Modifier = Modifier, showTitle: Boolean
 @Composable
 fun Modifier.screenEnter(key: Any? = Unit): Modifier {
     if (Look.motion == 0) return this
+    val lowMemoryTv = Mem.tier(LocalContext.current) == 0
     val a = remember(key) { Animatable(0f) }
-    // Fof TV: a short fade only (180 ms). The longer fade with a slide up felt like a web page loading
-    LaunchedEffect(key) { a.animateTo(1f, tween(if (Look.motion == 1) 120 else 180, easing = FastOutSlowInEasing)) }
+    // Keep transitions understated. On low-memory TVs a lengthy alpha layer
+    // makes returning rows feel like a redraw or flash.
+    val durationMs = if (lowMemoryTv) 90 else if (Look.motion == 1) 120 else 150
+    LaunchedEffect(key, durationMs) { a.animateTo(1f, tween(durationMs, easing = FastOutSlowInEasing)) }
     return this.graphicsLayer {
         alpha = a.value
         compositingStrategy = CompositingStrategy.ModulateAlpha
