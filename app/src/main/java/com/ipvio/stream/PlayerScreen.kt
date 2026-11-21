@@ -417,7 +417,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         val n = digitBuf.toIntOrNull() ?: 0
         digitBuf = ""
         if (n in 1..zapSrc.size) switchTo(zapSrc[n - 1], zapSrc)
-        else if (n > 0) flash = Flash(null, "Kein Kanal mit dieser Nummer")
+        else if (n > 0) flash = Flash(null, "No channel with that number")
     }
 
     // Menus: parent = menu that "Left" returns to (NONE = close completely)
@@ -475,7 +475,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         val t = alts[ni]
         stalls = emptyList()
         cur = cur.copy(url = t.url, startMs = if (at > 0) at else cur.startMs, note = null)
-        notice = reason + " – wechsle auf " + (t.quality ?: "andere Quelle")
+        notice = reason + " – switching to " + (t.quality ?: "another source")
         return true
     }
 
@@ -551,7 +551,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             val list = (if (id == null) emptyList() else Stremio.streams(probe.kind, id, cur.season.coerceAtLeast(1), cur.episode.coerceAtLeast(1)))
                 .filter { it.url.isNotBlank() && Stremio.match(it, want) == StremioLogic.VERIFIED }
             val s = list.firstOrNull { it.url !in triedUrls && it.url != failed }
-            if (s == null) { msg = "No working source in your playlist or your Stremio addons.  " + Lang.tr("Zurück mit der Zurück-Taste."); return@launch }
+            if (s == null) { msg = "No working source in your playlist or your Stremio addons.  " + Lang.tr("Press Back to return."); return@launch }
             triedUrls.add(failed)
             retries = 0; pError = false; msg = null
             val q = { n: Int -> when (n) { 3 -> "4K"; 2 -> "FHD"; 1 -> "HD"; else -> null } }
@@ -606,7 +606,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 return
             }
             // Wanted language exists, but cannot be played by the device with this output
-            if (audioFixTries < 3) { audioFixTries++; notice = "Tonspur „" + lang.uppercase() + "“ ist mit diesem Ausgang nicht abspielbar – andere Spur im Menü wählen" }
+            if (audioFixTries < 3) { audioFixTries++; notice = "Tonspur „" + lang.uppercase() + "” cannot play through this output. Select another audio track." }
             return
         }
     }
@@ -640,7 +640,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         player.seekTo(at)
         player.playWhenReady = true
         pError = false
-        notice = "Diese Tonspur kann hier nicht abgespielt werden – andere Spur gewählt"
+        notice = "This audio track cannot play here; another track was selected."
         return true
     }
 
@@ -760,7 +760,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         scope.launch {
             val p = Marathon.next()
             if (!Marathon.owns(id)) return@launch
-            if (p == null) { msg = "No more episodes would play.  " + Lang.tr("Zurück mit der Zurück-Taste."); buffering = false; return@launch }
+            if (p == null) { msg = "No more episodes would play.  " + Lang.tr("Press Back to return."); buffering = false; return@launch }
             stremioTried = false; triedUrls.clear()
             val q = { n: Int -> when (n) { 3 -> "4K"; 2 -> "FHD"; 1 -> "HD"; else -> null } }
             cur = PlayReq(p.title, p.url, id, false, 0L, cur.tmdbId, p.season, p.ep,
@@ -784,7 +784,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     /** Play a show from the channel's archive [ch] (including the running one from the beginning). */
     fun playArchive(ch: Item, e: EpgEntry) {
         val url = Catchup.urlFor(ch, e)
-        if (url == null) { flash = Flash(null, "Nicht im Archiv verfügbar"); return }
+        if (url == null) { flash = Flash(null, "Unavailable in catch-up TV"); return }
         if (cur.live && cur.itemId != ch.id) lastChId = cur.itemId
         scrubTarget = -1L
         cur = PlayReq(e.title, url, ch.id, false, 0L, archive = ArchiveRef(ch.id, ch.title, e))
@@ -1011,7 +1011,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     // Live stream ended by the server (common with IPTV): reconnect immediately instead of stalling
                     if (cur.live && cur.archive == null && liveEnds < 30) {
                         liveEnds++
-                        msg = "Stream beendet – verbinde neu …"
+                        msg = "Stream ended — reconnecting…"
                         h.postDelayed({ LiveTimeshift.reconnect(player) }, 800L)
                     } else onEnded()
                 }
@@ -1089,7 +1089,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 h.post {
                     if (player.playerError != null) {
                         retries = 0
-                        msg = "Verbindung wieder da – lade neu …"
+                        msg = "Connection restored — loading…"
                         if (cur.live) player.seekToDefaultPosition()
                         player.prepare()
                     }
@@ -1117,12 +1117,12 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         scrubTarget = -1L; resumeAfterScrub = false
         liveEnds = 0
         // Recording of another channel keeps running: this needs a second connection to the provider
-        if (cur.live && Recorder.active.any { it.running && it.channelId != cur.itemId }) notice = "Aufnahme läuft weiter – dafür braucht dein Anbieter 2 gleichzeitige Verbindungen"
+        if (cur.live && Recorder.active.any { it.running && it.channelId != cur.itemId }) notice = "Recording continues; your provider must allow two simultaneous connections."
         val loaded = player.currentMediaItem?.localConfiguration?.uri?.toString()
         // Stalker portal: fetch the real address from the portal only now (it is valid only briefly)
         val playUrl = if (StalkerLogic.isItem(cur.url)) StalkerApi.resolve(ctx, cur.url) else cur.url
         if (playUrl == null) {
-            msg = "Das Portal hat keine Abspiel-Adresse geliefert. Später erneut versuchen."; buffering = false
+            msg = "Your provider did not return a playable URL. Try again later."; buffering = false
             return@LaunchedEffect
         }
         resolvedUrl = playUrl
@@ -1130,7 +1130,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             // Live via the buffer on the device (rewind; with a running recording the same connection)
             if (!LiveTimeshift.start(ctx, player, playUrl)) {
                 LiveTimeshift.stop()
-                notice = "Zu wenig freier Speicher für den Live-Puffer"
+                notice = "Not enough free storage for live rewind"
                 if (!openStream(player, playUrl, 0L)) { msg = PlayerLogic.MSG_FORMAT; buffering = false }
             }
         } else if (loaded != playUrl) {
@@ -1626,7 +1626,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             val fg = Color(SubStyle.COLORS[AppSettings.subColor].second.toInt())
             val bg = Color(SubStyle.BGS[AppSettings.subBg].second.toInt())
             Text(
-                "So sehen deine Untertitel aus", color = fg, fontSize = (22 * SubStyle.SIZES[AppSettings.subSize].second).sp,
+                "This is how your subtitles will appear", color = fg, fontSize = (22 * SubStyle.SIZES[AppSettings.subSize].second).sp,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 90.dp, end = 480.dp).background(bg).padding(horizontal = 10.dp, vertical = 4.dp)
             )
@@ -1731,7 +1731,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                                 PlayerIcon(PIcon.Guide, it)
                             }
                             // Only when behind live (otherwise it does nothing and just crowds the bar)
-                            if (LiveTimeshift.active || behindSec > 0L) PRoundButton(label = "Zurück zu Live", onLabel = setLabel, onClick = {
+                            if (LiveTimeshift.active || behindSec > 0L) PRoundButton(label = "Return to live", onLabel = setLabel, onClick = {
                                 if (LiveTimeshift.active) LiveTimeshift.goLive(player)
                                 else if (player.isCurrentMediaItemSeekable) player.seekToDefaultPosition()
                                 else { player.stop(); player.prepare() }
@@ -1744,7 +1744,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             }
                             // Live buffer: 30 s back (the remote's seek keys jump by the step size)
                             if (LiveTimeshift.active) {
-                                PRoundButton(label = "30 s zurück", onLabel = setLabel, onClick = {
+                                PRoundButton(label = "Rewind 30 seconds", onLabel = setLabel, onClick = {
                                     LiveTimeshift.seekBy(player, -30_000L); flash = Flash(PIcon.Replay, "−30 s")
                                 }) { PlayerIcon(PIcon.Replay, it) }
                             }
@@ -1753,7 +1753,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                                 val recOn = Recorder.isRecording(cur.itemId)
                                 PRoundButton(label = if (recOn) "Aufnahme beenden" else "Aufnehmen", onLabel = setLabel, onClick = {
                                     val ch = curItem
-                                    if (ch == null) flash = Flash(null, "Sender unbekannt")
+                                    if (ch == null) flash = Flash(null, "Unknown channel")
                                     else if (recOn) { Recorder.stopFor(ctx, ch.id); flash = Flash(null, "Aufnahme beendet") }
                                     else {
                                         val ok = LiveTimeshift.active || LiveTimeshift.start(ctx, player, resolvedUrl.ifEmpty { cur.url })
@@ -1764,10 +1764,10 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                                 }) { c -> Box(Modifier.size(20.dp).clip(CircleShape).background(if (recOn) Color(0xFFFF3B30) else c)) }
                             }
                             if (Catchup.has(curItem)) {
-                                PRoundButton(label = "Von Anfang an", onLabel = setLabel, onClick = {
+                                PRoundButton(label = "Start from beginning", onLabel = setLabel, onClick = {
                                     val ch = curItem
                                     val e = Epg.current(epg)
-                                    if (ch != null && e != null) playArchive(ch, e) else flash = Flash(null, "Kein Programm bekannt")
+                                    if (ch != null && e != null) playArchive(ch, e) else flash = Flash(null, "Program information unavailable")
                                 }) { AppIcon(AIcon.Catchup, it, size = 26.dp) }
                                 PRoundButton(Modifier.focusRequester(btn.getValue(Panel.ARCHIVE)), label = "Archiv: verpasste Sendungen", onLabel = setLabel, onClick = { openPanel(Panel.ARCHIVE) }) {
                                     AppIcon(AIcon.History, it, size = 26.dp)
@@ -1777,13 +1777,13 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             Box {
                                 var favMenu by remember { mutableStateOf(false) }
                                 PRoundButton(
-                                    label = if (ChannelLists.lists.isNotEmpty()) "Favoriten & Listen" else if (fav) "Aus Favoriten entfernen" else "Zu Favoriten hinzufügen", onLabel = setLabel,
+                                    label = if (ChannelLists.lists.isNotEmpty()) "Favoriten & Listen" else if (fav) "Remove from Favorites" else "Add to Favorites", onLabel = setLabel,
                                     onClick = { if (ChannelLists.lists.isNotEmpty() && curItem != null) favMenu = true else Library.toggleFav(ctx, cur.itemId) }
                                 ) { c -> PlayerIcon(if (fav) PIcon.StarOn else PIcon.StarOff, if (fav && c == Color.White) PT.Gold else c) }
                                 val ci = curItem
                                 if (favMenu && ci != null) ChannelMenu(ci, null, null) { favMenu = false }
                             }
-                            PRoundButton(Modifier.focusRequester(btn.getValue(Panel.TRACKS)), label = "Audio & Untertitel", onLabel = setLabel, onClick = { openPanel(Panel.TRACKS) }) {
+                            PRoundButton(Modifier.focusRequester(btn.getValue(Panel.TRACKS)), label = "Audio & Subtitles", onLabel = setLabel, onClick = { openPanel(Panel.TRACKS) }) {
                                 PlayerIcon(PIcon.AudioSubs, it)
                             }
                             // Picture format, second picture, quality, score overlay and "open externally" live in Settings:
@@ -1827,7 +1827,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             }) {
                                 AppIcon(AIcon.Grid, it, size = 26.dp)
                             }
-                            PRoundButton(Modifier.focusRequester(btn.getValue(Panel.MENU)), label = "Einstellungen", onLabel = setLabel, onClick = { openPanel(Panel.MENU) }) {
+                            PRoundButton(Modifier.focusRequester(btn.getValue(Panel.MENU)), label = "Settings", onLabel = setLabel, onClick = { openPanel(Panel.MENU) }) {
                                 PlayerIcon(PIcon.Settings, it)
                             }
                         }
@@ -1836,7 +1836,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(ctrlLabel.ifEmpty { "Senderliste" }, color = Muted, fontSize = 14.sp, maxLines = 1)
-                            Text("Hoch und Runter wechseln den Sender", color = Muted, fontSize = 14.sp, maxLines = 1)
+                            Text("Up/Down changes channels", color = Muted, fontSize = 14.sp, maxLines = 1)
                         }
                     } else {
                         val stepS = (step / 1000).toString()
@@ -1891,7 +1891,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                                     }
                                     PRoundButton(
                                         Modifier.focusRequester(playBtn), size = PT.BtnPrimary,
-                                        label = if (playing) "Pause" else "Abspielen", onLabel = setLabel, onClick = { togglePlay() }
+                                        label = if (playing) "Pause" else "Play", onLabel = setLabel, onClick = { togglePlay() }
                                     ) { PlayerIcon(if (playing) PIcon.Pause else PIcon.Play, it, size = 32.dp) }
                                     PRoundButton(label = "Forward $stepS seconds", onLabel = setLabel, onClick = { stepSeek(1, fromBar = false) }) { c ->
                                         Box(contentAlignment = Alignment.Center) {
@@ -1910,14 +1910,14 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                                 }
                                 Row(horizontalArrangement = Arrangement.spacedBy(PT.BtnGap), verticalAlignment = Alignment.CenterVertically) {
                                     if (arch) {
-                                        PRoundButton(label = "Zurück zu Live", onLabel = setLabel, onClick = { backToLive() }) {
+                                        PRoundButton(label = "Return to live", onLabel = setLabel, onClick = { backToLive() }) {
                                             AppIcon(AIcon.Live, it, size = 26.dp)
                                         }
                                         PRoundButton(Modifier.focusRequester(btn.getValue(Panel.ARCHIVE)), label = "Archiv: verpasste Sendungen", onLabel = setLabel, onClick = { openPanel(Panel.ARCHIVE) }) {
                                             AppIcon(AIcon.History, it, size = 26.dp)
                                         }
                                     }
-                                    PRoundButton(Modifier.focusRequester(btn.getValue(Panel.TRACKS)), label = "Audio & Untertitel", onLabel = setLabel, onClick = { openPanel(Panel.TRACKS) }) {
+                                    PRoundButton(Modifier.focusRequester(btn.getValue(Panel.TRACKS)), label = "Audio & Subtitles", onLabel = setLabel, onClick = { openPanel(Panel.TRACKS) }) {
                                         PlayerIcon(PIcon.AudioSubs, it)
                                     }
                                     // Sources of exactly this movie/episode: addon streams, or the playlist's other qualities
@@ -1929,11 +1929,11 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                                         AppIcon(AIcon.Person, it, size = 26.dp)
                                     }
                                     if (epList.size > 1) {
-                                        PRoundButton(Modifier.focusRequester(btn.getValue(Panel.EPISODES)), label = "Folgen", onLabel = setLabel, onClick = { openPanel(Panel.EPISODES) }) {
+                                        PRoundButton(Modifier.focusRequester(btn.getValue(Panel.EPISODES)), label = "Episodes", onLabel = setLabel, onClick = { openPanel(Panel.EPISODES) }) {
                                             PlayerIcon(PIcon.Episodes, it)
                                         }
                                     }
-                                    PRoundButton(Modifier.focusRequester(btn.getValue(Panel.MENU)), label = "Einstellungen", onLabel = setLabel, onClick = { openPanel(Panel.MENU) }) {
+                                    PRoundButton(Modifier.focusRequester(btn.getValue(Panel.MENU)), label = "Settings", onLabel = setLabel, onClick = { openPanel(Panel.MENU) }) {
                                         PlayerIcon(PIcon.Settings, it)
                                     }
                                 }
@@ -1977,14 +1977,14 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
 
         // ---------------------------------------------------------------- Menus
         if (panel != Panel.NONE) {
-            val back = if (panelParent != Panel.NONE) "Links = zurück" else "Links schließt das Menü"
+            val back = if (panelParent != Panel.NONE) "Left = Back" else "Left closes this menu"
             when (panel) {
                 Panel.TRACKS -> TracksPanel(
                     player, tracksVer, { tracksVer++; h.postDelayed({ rememberTracks() }, 400) }, panelFocus, subsFocus,
                     { closePanel() }, { openPanel(Panel.SUBSTYLE, Panel.TRACKS) }
                 )
 
-                Panel.SUBSTYLE -> PSimplePanel(440.dp, "Untertitel-Stil", back, { closePanel() }) {
+                Panel.SUBSTYLE -> PSimplePanel(440.dp, "Subtitle appearance", back, { closePanel() }) {
                     Column(verticalArrangement = Arrangement.spacedBy(PT.RowGap)) {
                         PPanelRow("Größe", false, Modifier.focusRequester(panelFocus), trailing = SubStyle.SIZES[AppSettings.subSize].first, chevron = true) {
                             AppSettings.setSub(ctx, (AppSettings.subSize + 1) % SubStyle.SIZES.size, AppSettings.subColor, AppSettings.subBg, AppSettings.subEdge)
@@ -1998,7 +1998,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                         PPanelRow("Rand", false, trailing = SubStyle.EDGES[AppSettings.subEdge], chevron = true) {
                             AppSettings.setSub(ctx, AppSettings.subSize, AppSettings.subColor, AppSettings.subBg, (AppSettings.subEdge + 1) % SubStyle.EDGES.size)
                         }
-                        Text("OK = nächster Wert. Die Vorschau zeigt das Ergebnis.", color = Muted, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
+                        Text("Press OK to cycle through options. The preview updates immediately.", color = Muted, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
                     }
                 }
 
@@ -2009,7 +2009,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     val alts = remember(cur.url, cur.itemId, cur.season, cur.episode, liveAlts) { currentAlts() }
                     val altsShown = alts.size > 1
                     if (altsShown) {
-                        PColumnHeader("Quelle")
+                        PColumnHeader("Source")
                         val curI = alts.indexOfFirst { it.url == cur.url }.coerceAtLeast(0)
                         alts.forEachIndexed { i, a ->
                             PPanelRow(
@@ -2031,11 +2031,11 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                         // sources only – no picture tracks to choose from
                     } else if (video.size < 2) {
                         Text(
-                            "Keine Auswahl verfügbar (feste Qualität).", color = Muted, fontSize = 15.sp,
+                            "No options available (fixed quality).", color = Muted, fontSize = 15.sp,
                             modifier = Modifier.focusRequester(panelFocus).focusable().padding(16.dp)
                         )
                     } else {
-                        val labels = listOf("Automatisch") + video.map { it.label }
+                        val labels = listOf("Automatic") + video.map { it.label }
                         val sel = if (videoAuto) 0 else 1 + video.indexOfFirst { it.selected }.coerceAtLeast(0)
                         val trackFocus = remember { FocusRequester() }
                         PChoiceList(labels, sel, if (altsShown) trackFocus else panelFocus) { i ->
@@ -2059,7 +2059,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     ArchivePanel(curItem, archChannels, cur.archive?.prog?.start, panelFocus, { closePanel() }) { ch, e -> playArchive(ch, e) }
                 }
 
-                Panel.SPEED -> PSimplePanel(400.dp, "Wiedergabe-Tempo", back, { closePanel() }) {
+                Panel.SPEED -> PSimplePanel(400.dp, "Playback speed", back, { closePanel() }) {
                     PChoiceList(SPEEDS.map { speedLabel(it) }, speedIdx, panelFocus) { i ->
                         speedIdx = i
                         player.setPlaybackSpeed(SPEEDS[i])
@@ -2073,17 +2073,17 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     }
                 }
 
-                Panel.ASPECT -> PSimplePanel(440.dp, "Bildformat", back, { closePanel() }) {
+                Panel.ASPECT -> PSimplePanel(440.dp, "Aspect ratio", back, { closePanel() }) {
                     PChoiceList(ASPECTS, aspect, panelFocus) { aspect = it; flash = Flash(null, ASPECTS[it]) }
                 }
 
-                Panel.CLOCK -> PSimplePanel(440.dp, "Uhrzeit im Bild", back, { closePanel() }) {
+                Panel.CLOCK -> PSimplePanel(440.dp, "On-screen clock", back, { closePanel() }) {
                     val poss = listOf("Oben rechts", "Oben links", "Unten rechts", "Unten links")
                     val sizes = listOf("Klein", "Mittel", "Groß")
                     val ops = listOf(20, 30, 40, 50, 60, 70, 80, 90, 100)
                     Column(verticalArrangement = Arrangement.spacedBy(PT.RowGap)) {
                         ClockSample(Modifier.align(Alignment.CenterHorizontally))
-                        PPanelRow("Anzeigen", false, Modifier.focusRequester(panelFocus), trailing = if (AppSettings.clockOn) "An" else "Aus", chevron = true) {
+                        PPanelRow("Show", false, Modifier.focusRequester(panelFocus), trailing = if (AppSettings.clockOn) "An" else "Aus", chevron = true) {
                             AppSettings.setClock(ctx, !AppSettings.clockOn, AppSettings.clockPos, AppSettings.clockOpacity, AppSettings.clockSize)
                         }
                         PPanelRow("Ort", false, trailing = poss[AppSettings.clockPos], chevron = true) {
@@ -2103,23 +2103,23 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             val i = ops.indexOf(AppSettings.clockBgOpacity).let { if (it < 0) 1 else it }
                             AppSettings.setClockBg(ctx, true, ops[(i + 1) % ops.size])
                         }
-                        Text("OK = nächster Wert. Die Vorschau zeigt das Ergebnis.", color = Muted, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
+                        Text("Press OK to cycle through options. The preview updates immediately.", color = Muted, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
                     }
                 }
 
                 Panel.STEP -> PSimplePanel(400.dp, "Sprungweite", back, { closePanel() }) {
-                    Text("Gilt für Links/Rechts, Halten und die Zeitleiste.", color = Muted, fontSize = 14.sp, modifier = Modifier.padding(bottom = 12.dp))
+                    Text("Applies to Left/Right, hold-to-seek, and the timeline.", color = Muted, fontSize = 14.sp, modifier = Modifier.padding(bottom = 12.dp))
                     PChoiceList(STEP_OPTIONS.map { "$it s" }, STEP_OPTIONS.indexOf(AppSettings.seekStep).coerceAtLeast(0), panelFocus) { i ->
                         AppSettings.setPlayer(ctx, AppSettings.skipIntro, AppSettings.showInfo, STEP_OPTIONS[i])
                     }
                 }
 
-                Panel.MENU -> PSimplePanel(440.dp, "Einstellungen", back, { closePanel() }) {
+                Panel.MENU -> PSimplePanel(440.dp, "Settings", back, { closePanel() }) {
                     val entries = buildList<MenuEntry> {
                         if (cur.live) add(MenuEntry(20, "Zusatzbild", second?.title ?: "Aus", false))
                         if (cur.live && second != null) {
                             add(MenuEntry(21, "Anordnung", if (splitMode == 1) "Geteilt" else "Bild-in-Bild", false))
-                            add(MenuEntry(22, "Ton von", if (audioOnSecond) "Zusatzbild" else "Hauptstream", false))
+                            add(MenuEntry(22, "Audio from", if (audioOnSecond) "Zusatzbild" else "Hauptstream", false))
                             if (splitMode == 0) {
                                 add(MenuEntry(24, "Fenstergröße", DualPrefs.SIZE_NAMES[DualPrefs.size], false))
                                 add(MenuEntry(25, "Position", DualPrefs.CORNER_NAMES[DualPrefs.corner], false))
@@ -2128,14 +2128,14 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                         }
                         if (cur.live && (SportAlerts.miniOn || SportAlerts.pinned.isNotEmpty())) add(MenuEntry(30, "Score overlay", null, true))
                         add(MenuEntry(0, "Sprungweite", "${step / 1000} s", true))
-                        add(MenuEntry(1, "Untertitel-Stil", null, true))
+                        add(MenuEntry(1, "Subtitle appearance", null, true))
                         add(MenuEntry(2, "Videoqualität", currentAlts().size.takeIf { it > 1 }?.let { "$it sources" }, true))
-                        add(MenuEntry(3, "Wiedergabe-Tempo", speedLabel(SPEEDS[speedIdx]), true))
-                        add(MenuEntry(4, "Bildformat", ASPECTS[aspect].substringBefore(" ("), true))
-                        if (epList.size > 1) add(MenuEntry(5, "Nächste Folge automatisch", if (AppSettings.autoNext) "An" else "Aus", false))
+                        add(MenuEntry(3, "Playback speed", speedLabel(SPEEDS[speedIdx]), true))
+                        add(MenuEntry(4, "Aspect ratio", ASPECTS[aspect].substringBefore(" ("), true))
+                        if (epList.size > 1) add(MenuEntry(5, "Auto-play next episode", if (AppSettings.autoNext) "An" else "Aus", false))
                         if (epList.size > 1) add(MenuEntry(13, "Abspann überspringen", if (AppSettings.autoSkipOutro) "An" else "Aus", false))
-                        add(MenuEntry(6, "Endzeit anzeigen", if (AppSettings.showEndTime) "An" else "Aus", false))
-                        add(MenuEntry(10, "Uhrzeit im Bild", if (AppSettings.clockOn) "An" else "Aus", true))
+                        add(MenuEntry(6, "Show end time", if (AppSettings.showEndTime) "An" else "Aus", false))
+                        add(MenuEntry(10, "On-screen clock", if (AppSettings.clockOn) "An" else "Aus", true))
                         add(MenuEntry(11, "Technik-Info", if (techOn) "An" else "Aus", false))
                                         add(MenuEntry(8, "Sleep-Timer", if (sleepIdx == 0) "Aus" else SLEEP_MIN[sleepIdx].toString() + " min", true))
                         if (cur.live && lastChId != null) add(MenuEntry(9, "Letzter Kanal", null, false))
