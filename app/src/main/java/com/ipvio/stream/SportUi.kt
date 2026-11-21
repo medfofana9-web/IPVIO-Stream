@@ -160,7 +160,7 @@ internal fun HubPageFrame(
             verticalArrangement = Arrangement.spacedBy(dpx(14))
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(18))) {
-                FilterPill("Zurück", false, Modifier.focusRequester(backReq), aicon = AIcon.Left) { onBack() }
+                FilterPill("Back", false, Modifier.focusRequester(backReq), aicon = AIcon.Left) { onBack() }
                 Column(Modifier.weight(1f)) {
                     Text(title, color = Tok.TextHi, fontSize = spx(26), fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis, raw = rawTitle)
                     if (sub.isNotBlank()) Text(raw = true, text = sub, color = Muted, fontSize = spx(15), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -325,7 +325,7 @@ internal fun MatchCard(g: SportData.Game, hasChan: Boolean, modifier: Modifier =
                     if (e.value.isNotBlank()) Text(raw = true, text = e.value, color = Tok.TextHi, fontSize = spx(14), fontWeight = FontWeight.Bold)
                 }
             }
-            if (g.field.isEmpty()) Text("Noch keine Ergebnisse", color = Muted, fontSize = spx(13))
+            if (g.field.isEmpty()) Text("No results yet", color = Muted, fontSize = spx(13))
         } else listOf(g.home, g.away).forEach { t ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
                 Box(Modifier.width(dpx(4)).height(dpx(26)).clip(RoundedCornerShape(50)).background(teamColor(t)))
@@ -335,7 +335,7 @@ internal fun MatchCard(g: SportData.Game, hasChan: Boolean, modifier: Modifier =
         }
         if (hasChan) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(6))) {
             AppIcon(AIcon.Play, Accent2, size = dpx(14))
-            Text("Auf deinen Sendern", color = Accent2, fontSize = spx(13), maxLines = 1)
+            Text("On your channels", color = Accent2, fontSize = spx(13), maxLines = 1)
         }
     }
 }
@@ -398,7 +398,7 @@ internal fun HubTabs(tabs: List<String>, cur: String, first: FocusRequester? = n
 @Composable
 internal fun SportFilter(
     sel: String?, counts: Map<String, Int>?,
-    /** Requester for the first pill ("Alle"): target of Down from the tab bar. */
+    /** Requester for the first pill ("All"): target of Down from the tab bar. */
     firstReq: FocusRequester? = null,
     /** Target of Down from every pill (e.g. the competition row below), null = default search. */
     down: FocusRequester? = null,
@@ -406,7 +406,7 @@ internal fun SportFilter(
 ) {
     val dn = if (down != null) Modifier.focusProperties { this.down = down } else Modifier
     LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(10)), contentPadding = PaddingValues(horizontal = DS.PageX, vertical = dpx(4))) {
-        item(key = "all") { FilterPill("Alle", sel == null, (if (firstReq != null) Modifier.trackFocus(firstReq) else Modifier.trackFocus()).then(dn)) { onSel(null) } }
+        item(key = "all") { FilterPill("All", sel == null, (if (firstReq != null) Modifier.trackFocus(firstReq) else Modifier.trackFocus()).then(dn)) { onSel(null) } }
         // Fof TV: only sports with games right now (plus the chosen one), and none whose leagues are all switched off
         val shownSports = SportData.SPORTS.filter { sp ->
             sp.key == sel || ((counts == null || (counts[sp.key] ?: 0) > 0) && SportData.LEAGUES.any { it.sport == sp.key && SportLeagues.on(it) })
@@ -426,17 +426,17 @@ internal fun DateSelector(day: Int, range: IntRange, onDay: (Int) -> Unit) {
         FilterPill("", false, Modifier.trackFocus(), aicon = AIcon.Left) { onDay((day - 1).coerceIn(range)) }
         days.forEach { d ->
             val sec = System.currentTimeMillis() / 1000 + d * 86_400L
-            val label = when (d) { -1 -> Lang.tr("Gestern"); 0 -> Lang.tr("Heute"); 1 -> Lang.tr("Morgen"); else -> dayLabel(sec) }
+            val label = when (d) { -1 -> Lang.tr("Gestern"); 0 -> Lang.tr("Today"); 1 -> Lang.tr("Tomorrow"); else -> dayLabel(sec) }
             FilterPill(label, d == day, Modifier.trackFocus(), raw = true) { onDay(d) }
         }
         FilterPill("", false, Modifier.trackFocus(), aicon = AIcon.Right) { onDay((day + 1).coerceIn(range)) }
         Spacer(Modifier.weight(1f))
-        FilterPill("Heute", day == 0, Modifier.trackFocus(), aicon = AIcon.Catchup) { onDay(0) }
+        FilterPill("Today", day == 0, Modifier.trackFocus(), aicon = AIcon.Catchup) { onDay(0) }
     }
 }
 
 @Composable
-internal fun HubLoading(text: String = "Lade Daten …") {
+internal fun HubLoading(text: String = "Loading games…") {
     Box(Modifier.fillMaxWidth().padding(dpx(40)), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(dpx(14))) {
             Spinner(Accent2, Modifier.size(dpx(46)))
@@ -464,7 +464,7 @@ internal fun WatchLiveButton(chans: List<Item>, modifier: Modifier = Modifier, o
     if (chans.isNotEmpty()) HeroButton("Live ansehen", AIcon.Play, true, modifier, 46) { onClick() }
     else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(8))) {
         AppIcon(AIcon.Info, Muted, size = dpx(18))
-        Text("Kein passender Sender gefunden", color = Muted, fontSize = spx(15))
+        Text("No matching channel found", color = Muted, fontSize = spx(15))
     }
 }
 
