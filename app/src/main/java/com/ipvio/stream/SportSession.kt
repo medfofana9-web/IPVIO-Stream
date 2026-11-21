@@ -42,11 +42,12 @@ import java.util.concurrent.ConcurrentHashMap
  * Fof TV: a game started from the sports area. Knows the channels that can carry each live game, so the player can
  *  - move to the next channel by itself when a stream does not start (failover),
  *  - switch between live games with Up/Down instead of channel numbers,
- *  - show the score of the game on screen and a ticker of the other live games.
+ *  - show a brief game-switching ticker.
  * Channels that started fine are remembered as "verified".
  */
 object SportSession {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var discoverJob: kotlinx.coroutines.Job? = null
 
     /** Game keys in Up/Down order. */
     @Volatile private var order: List<String> = emptyList()
@@ -93,11 +94,11 @@ object SportSession {
     fun owns(chId: String?) = chId != null && System.currentTimeMillis() - startedAt < 6 * 3600_000L && gameOfCh.containsKey(chId)
 
     /** Ends the session (a channel outside it was started). */
-    fun stop() { returnKey = null; order = emptyList(); cands.clear(); pick.clear(); gameOfCh.clear(); failed.clear() }
+    fun stop() { discoverJob?.cancel(); returnKey = null; order = emptyList(); cands.clear(); pick.clear(); gameOfCh.clear(); failed.clear() }
 
     /** Starts a session for [g] with its [first] channels; other live games are added in the background. */
     fun start(g: SportData.Game, first: List<Item>, live: List<Item>) {
-        val verified = app?.let { ok(it) } ?: emptySet()
+        discoverJob?.cancel()
         // Channels that worked before go first (same reason order otherwise)
         // Order from SportWatch.channels: how surely a feed shows the game, then how well it played here
         val sorted = first
@@ -111,28 +112,34 @@ object SportSession {
         sorted.forEach { gameOfCh.putIfAbsent(it.id, g.key) }
         switchedAt = System.currentTimeMillis()
         version++
-        scope.launch { addLiveGames(g, live, verified) }
+        discoverJob = scope.launch { addLiveGames(g, live, sorted) }
     }
 
     /** First channel to play for the game, verified channels first. */
     fun firstChannel(): Item? = order.firstOrNull()?.let { pick[it] }
 
-    private suspend fun addLiveGames(start: SportData.Game, live: List<Item>, verified: Set<String>) {
+    private suspend fun addLiveGames(start: SportData.Game, live: List<Item>, first: List<Item>) {
         runCatching { SportWatch.prewarm(live) }
         val others = SportFeed.latest.values.filter { it.state == 1 && it.key != start.key }
             .sortedWith(compareBy({ it.league }, { it.start })).take(30)
-        val keys = ArrayList<String>()
-        keys.add(start.key)
-        for (o in others) {
-            val ch = runCatching { SportWatch.channels(o, live) }.getOrDefault(emptyList())
-            if (ch.isEmpty()) continue
-            cands[o.key] = ch
-            pick.putIfAbsent(o.key, ch[0])
-            ch.forEach { gameOfCh.putIfAbsent(it.id, o.key) }
-            keys.add(o.key)
+        val usedIds = first.mapTo(HashSet()) { it.id }
+        val usedUrls = first.mapTo(HashSet()) { it.url }
+        val feeds = LinkedHashMap<String, List<Item>>()
+        for (game in others) {
+            val channels = SportWatch.channels(game, live).filter { it.id !in usedIds && it.url !in usedUrls }
+            if (channels.isEmpty()) continue
+            channels.forEach { usedIds.add(it.id); usedUrls.add(it.url) }
+            feeds[game.key] = channels
         }
-        order = keys
-        kotlinx.coroutines.withContext(Dispatchers.Main) { version++ }
+        kotlinx.coroutines.withContext(Dispatchers.Main) {
+            for ((key, channels) in feeds) {
+                cands[key] = channels
+                pick.putIfAbsent(key, channels.first())
+                channels.forEach { gameOfCh.putIfAbsent(it.id, key) }
+            }
+            order = listOf(start.key) + feeds.keys
+            version++
+        }
     }
 
     /** Up/Down list: one channel per live game. */
