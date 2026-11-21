@@ -938,7 +938,12 @@ private fun ResumeRow(list: List<Pair<Entry, Item>>, cardW: Int, onResume: (Entr
             contentPadding = PaddingValues(start = RowPadX, end = RowPadX, top = dpx(12), bottom = dpx(10)),
             horizontalArrangement = Arrangement.spacedBy(g.gap)
         ) {
-            items(list) { pair ->
+            // The identity of a Continue Watching card is its title and
+            // episode, not its current position in the row. A progress sync
+            // must not make its focused neighbor inherit the old card state.
+            items(list, key = { pair ->
+                pair.second.id + ":" + pair.first.season + ":" + pair.first.ep
+            }) { pair ->
                 val e = pair.first
                 val item = pair.second
                 val se = if (e.season > 0 || e.ep > 0) e.season to e.ep else ResumeLogic.seasonEp(e.title)
