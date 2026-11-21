@@ -46,7 +46,7 @@ object General {
      * Aspect ratios (round 14). 0–2 differ only if the picture has a different aspect ratio than the TV
      * (with 16:9 channels there was therefore no visible difference). 3–5 always change the picture visibly.
      */
-    val ASPECT_NAMES = listOf("Einpassen", "Bildschirm füllen", "Strecken", "Zoom 115 %", "Zoom 133 %", "4:3")
+    val ASPECT_NAMES = listOf("Fit", "Fill screen", "Stretch", "Zoom 115 %", "Zoom 133 %", "4:3")
     /** Card size in the rows ("View" button at the top): 0 = small, 1 = normal, 2 = large. */
     var cardSize by mutableIntStateOf(2)
     /** Titles per row in rows, grid and categories ("View" button): 0 = automatic by card size. */
@@ -75,7 +75,7 @@ object General {
      * Fonts (round 17): Outfit (default, built in, geometric and cinematic), Inter (built in, very readable at
      * a distance) and the system fonts of the device. Both built-in fonts: SIL Open Font License (OFL_*.txt in the project).
      */
-    val FONTS = listOf("Outfit", "Inter", "System", "Kompakt", "Serif", "Leicht", "Monospace")
+    val FONTS = listOf("Outfit", "Inter", "System", "Condensed", "Serif", "Light", "Monospace")
     private val FONT_FAMILIES = listOf(null, null, null, "sans-serif-condensed", "serif", "sans-serif-light", "monospace")
     private val familyCache = arrayOfNulls<FontFamily>(7)
     private val OUTFIT by lazy {
@@ -213,10 +213,10 @@ object General {
     class Area(val name: String, val note: String, val files: (Context) -> List<File>)
 
     val AREAS = listOf(
-        Area("Titel-Infos", "Cover, Beschreibungen, Bewertungen") { listOf(File(it.filesDir, "meta3")) },
-        Area("Besetzung", "Schauspieler, Regie, ähnliche Titel") { listOf(File(it.filesDir, "credits1")) },
-        Area("Playlist-Zwischenspeicher", "Schneller Start ohne Wartezeit") { c -> c.filesDir.listFiles { f -> f.name.startsWith("pl_") }?.toList() ?: emptyList() },
-        Area("Bilder", "Zwischengespeicherte Cover und Hintergründe") { listOf(File(it.cacheDir, "image_cache")) }
+        Area("Title information", "Artwork, descriptions, ratings") { listOf(File(it.filesDir, "meta3")) },
+        Area("Cast & crew", "Actors, directors, related titles") { listOf(File(it.filesDir, "credits1")) },
+        Area("Playlist cache", "Faster startup without reloading") { c -> c.filesDir.listFiles { f -> f.name.startsWith("pl_") }?.toList() ?: emptyList() },
+        Area("Images", "Cached posters and background artwork") { listOf(File(it.cacheDir, "image_cache")) }
     )
 
     /** One-time: delete files of earlier versions (old IMDb data set, about 20 MB). Runs in the background. */

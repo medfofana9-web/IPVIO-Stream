@@ -32,6 +32,13 @@ class StremioLogicTest {
         assertEquals("tt4567890", StremioLogic.chooseImdb("Survivor", 1987, false, hits))
     }
 
+    @Test fun alternateImdbRetryIsBoundedAndOnlyUsesValidNewIds() {
+        assertEquals("tt0239195", StremioLogic.alternateImdb("tt1234567", "tt0239195"))
+        assertNull(StremioLogic.alternateImdb("tt0239195", "tt0239195"))
+        assertNull(StremioLogic.alternateImdb("tt0239195", "tmdb:231"))
+        assertNull(StremioLogic.alternateImdb("tt0239195", null))
+    }
+
     @Test fun titles_labels_quality() {
         assertEquals("Breaking Bad", StremioLogic.cleanTitle("EN - Breaking Bad [4K] (2008)"))
         assertEquals(2008, StremioLogic.year("2008–2013"))

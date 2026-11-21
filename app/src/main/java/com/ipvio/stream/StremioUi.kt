@@ -66,10 +66,22 @@ fun StremioSourcesPopup(
     LaunchedEffect(imdb, season, ep, refreshToken) {
         val id = imdb ?: return@LaunchedEffect
         sources = null; partial = emptyList()
-        // Manual source screens should query the add-ons again, not trust a cached
-        // subset from when DragonStreams was unavailable. Auto-play can use prefetch.
-        sources = Stremio.streams(item.kind, id, season, ep,
+        // Manual source screens always refresh the add-ons rather than showing
+        // a cached partial list. This matters when DragonStreams answers later.
+        val found = Stremio.streams(item.kind, id, season, ep,
             onPart = { partial = it }, refresh = !auto || refreshToken > 0)
+        if (found.isEmpty() && Stremio.addons.any { it.streams }) {
+            // Some IPTV providers have the IMDb ID of a spin-off with the same name
+            // (e.g. Survivor). When no addon finds streams for that ID, retry with
+            // Cinemeta's exact title/year match, never with an unrelated title.
+            // Updating imdb reruns this effect; a repeated ID cannot loop.
+            val alternate = StremioLogic.alternateImdb(id, Stremio.imdbFor(item, null))
+            if (alternate != null) {
+                imdb = alternate
+                return@LaunchedEffect
+            }
+        }
+        sources = found
     }
     fun choose(s: Stremio.Source) {
         NowSources.set(item.id, imdb, want, Stremio.rank((sources ?: partial) + listOfNotNull(iptv), want, cid), s)
