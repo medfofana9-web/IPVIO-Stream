@@ -188,6 +188,10 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     var msg by remember { mutableStateOf<String?>(null) }
     // Playback could not be restored: the message gets "Retry" and "Change source" buttons (no dead end)
     var failed by remember { mutableStateOf(false) }
+    // Automatic problem report: a stream that finally did not play (title and reason only, never the link)
+    LaunchedEffect(failed) {
+        if (failed) AutoReport.issue(ctx, "stream", (if (cur.live) "live " else "vod ") + "'" + cur.title + "' – " + (msg ?: "no picture"))
+    }
     // Watch Together panel (start / code / reactions / leave)
     var partyPanel by remember { mutableStateOf(false) }
     // Network recovery: tries so far (reset once the picture plays) and when the wait for the internet began

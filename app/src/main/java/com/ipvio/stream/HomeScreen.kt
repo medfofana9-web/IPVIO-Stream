@@ -1012,6 +1012,8 @@ private fun ResumeCard(item: Item, se: Pair<Int, Int>?, badge: String?, sub: Str
     }
     var ci by remember(cands) { mutableIntStateOf(0) }
     val img = cands.getOrNull(ci)
+    // Automatic problem report: Continue Watching card with no picture at all
+    LaunchedEffect(ci, cands.size, m) { if (m != null && ci >= cands.size) AutoReport.issue(ctx, "picture", "Continue Watching: '" + item.title + "' (" + item.id.take(40) + ")") }
     Box(
         modifier.graphicsLayer { scaleX = sc; scaleY = sc }.billboardFocus(item) { f = it }.clickable(onClick = onClick)
             .aspectRatio(16f / 9f).clip(shape).background(Color(0xFF16161A))

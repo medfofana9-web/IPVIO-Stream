@@ -168,12 +168,14 @@ private fun DetailScreenFull(
     }
     // TryBox-style "You Might Also Like": library matches first, then TMDB recommendations for catalog titles
     val recs by produceState(TmdbExtra.cached("because:" + item.id.removePrefix("stremio:")), item.id) {
+        // After the page has opened (network and new rows during the opening animation made it stutter)
+        delay(900)
         value = runCatching { TmdbExtra.because(item) }.getOrDefault(value)
     }
     val alsoLike = remember(similar, recs) { (similar + recs).filter { it.id != item.id }.distinctBy { it.id }.take(30) }
     val reviews by produceState(emptyList<TmdbExtra.Review>(), meta?.tmdbId) {
         val id = meta?.tmdbId ?: 0
-        if (id > 0) value = TmdbExtra.reviews(id, item.kind == Kind.SERIES)
+        if (id > 0) { delay(1200); value = TmdbExtra.reviews(id, item.kind == Kind.SERIES) }
     }
     // The page takes on the artwork's color (TryBox: the panel glows in the title's own tone)
     val tint by produceState(0, meta?.backdrop) { value = meta?.backdrop?.let { runCatching { ArtColor.of(ctx, it) }.getOrDefault(0) } ?: 0 }
