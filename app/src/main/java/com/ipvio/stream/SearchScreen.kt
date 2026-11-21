@@ -256,7 +256,7 @@ fun SearchScreen(
                 if (AppSettings.systemKeyboard) {
                     // The device's own keyboard (e.g. Gboard) in a normal text field: OK or a tap opens it
                     Field(
-                        SearchState.query, { SearchState.query = it.take(60) }, "Filme, Serien oder Sender suchen…",
+                        SearchState.query, { SearchState.query = it.take(60) }, "Search movies, TV shows, or channels…",
                         Modifier.fillMaxWidth(),
                         inner = Modifier.focusRequester(ContentFocus.req).onFocusChanged { fieldFocused = it.isFocused || it.hasFocus },
                         onDone = { SearchState.query.trim().takeIf { it.length >= 2 }?.let { AppSettings.addSearch(ctx, it) } }
@@ -347,7 +347,7 @@ fun SearchScreen(
                         Text("Searching …", color = Muted, fontSize = 16.sp, modifier = Modifier.padding(horizontal = DS.PageX, vertical = 16.dp))
                     } else if (cmReady && rm.isEmpty() && rs.isEmpty() && rl.isEmpty() && cmM.isEmpty() && cmS.isEmpty() && per == null && sg.isEmpty() && st.isEmpty() && sl.isEmpty() && sh.isEmpty()) item {
                         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                            EmptyState(AIcon.Info, "No results", "Prüfe die Schreibweise oder suche nach einem Teil des Titels. Kleine Tippfehler findet die Suche trotzdem.")
+                            EmptyState(AIcon.Info, "No results", "Check the spelling or try part of the title. Search also recognizes small typos.")
                         }
                     }
                     val report: (Item) -> Unit = { focusItem = it }
@@ -372,7 +372,7 @@ fun SearchScreen(
                         }
                     }
                     if (rs.isNotEmpty()) item(key = "rs") {
-                        SearchRow("Serien", rs, cardW, openS, if (firstKey == "rs") firstRes else null) {
+                        SearchRow("TV Shows", rs, cardW, openS, if (firstKey == "rs") firstRes else null) {
                             AppSettings.addSearch(ctx, q); onBrowse(BrowseReq("Search “$q” · TV Shows", rs, S_SORT_AZ))
                         }
                     }
@@ -439,7 +439,7 @@ private fun SearchAllTile(live: Boolean, w: Dp, onClick: () -> Unit) {
                 .clickable(onClick = onClick)
         ) {
             Box(Modifier.fillMaxWidth().height(110.dp), contentAlignment = Alignment.Center) {
-                IconLabel(null, "Alle anzeigen", Color.White, 17.sp, FontWeight.Bold, trailing = AIcon.Right)
+                IconLabel(null, "View all", Color.White, 17.sp, FontWeight.Bold, trailing = AIcon.Right)
             }
             Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
                 Text(" ", fontSize = 15.sp, maxLines = 1)
@@ -458,7 +458,7 @@ private fun SearchAllTile(live: Boolean, w: Dp, onClick: () -> Unit) {
                     .border(1.dp, FofGlass.edge(false), shape),
                 contentAlignment = Alignment.Center
             ) {
-                IconLabel(null, "Alle anzeigen", Color.White, 18.sp, FontWeight.Bold, trailing = AIcon.Right)
+                IconLabel(null, "View all", Color.White, 18.sp, FontWeight.Bold, trailing = AIcon.Right)
             }
             Text(" ", fontSize = 15.sp, maxLines = 1, modifier = Modifier.padding(top = 8.dp))
             Text(" ", fontSize = 13.sp, maxLines = 1)
@@ -607,7 +607,7 @@ private fun SearchInfoPanel(item: Item?, modifier: Modifier) {
     val shape = RoundedCornerShape(DS.RadiusL)
     Box(modifier.glass(shape, 2)) {
         if (item == null) {
-            Text("Suche nach einem Titel: hier erscheinen Beschreibung, Bewertung und Format des markierten Treffers.", color = Muted, fontSize = 16.sp,
+            Text("Select a title to preview its description, rating, and format.", color = Muted, fontSize = 16.sp,
                 modifier = Modifier.align(Alignment.Center).padding(24.dp))
             return@Box
         }
@@ -636,7 +636,7 @@ private fun SearchInfoPanel(item: Item?, modifier: Modifier) {
                 Text(raw = true, text = item.title, color = Color.White, fontSize = 24.sp,
                     fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 val parts = ArrayList<String>()
-                parts.add(when (item.kind) { Kind.MOVIE -> "Film"; Kind.SERIES -> "Serie"; else -> "Live" })
+                parts.add(when (item.kind) { Kind.MOVIE -> "Movie"; Kind.SERIES -> "Serie"; else -> "Live" })
                 (item.year?.toString() ?: m?.year)?.let { parts.add(it) }
                 m?.runtime?.takeIf { it > 0 }?.let { parts.add("$it Min") }
                 (item.quality)?.let { parts.add(it) }
