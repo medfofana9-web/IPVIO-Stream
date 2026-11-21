@@ -621,11 +621,11 @@ private fun DetailScreenFull(
                                     }, { showStremio = false; stremioAt = null }, auto = stremioAuto
                                 )
                             }
-                            if (show247) OptionPopup(listOf("Play in order", "Shuffle episodes"), -1, { show247 = false }) { a ->
+                            if (show247) OptionPopup(listOf("Start from beginning", "Continue from last episode", "Shuffle episodes"), -1, { show247 = false }) { a ->
                                 show247 = false
                                 busy247 = true
                                 scope.launch {
-                                    val p = Marathon.start(ctx, item, shuffle = a == 1)
+                                    val p = Marathon.start(ctx, item, shuffle = a == 2, continueFromLast = a == 1)
                                     busy247 = false
                                     if (p != null) onPlay(p.url, p.title, 0L)
                                     else android.widget.Toast.makeText(ctx, "No episode of this show would play right now.", android.widget.Toast.LENGTH_LONG).show()
