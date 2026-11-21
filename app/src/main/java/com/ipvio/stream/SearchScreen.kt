@@ -171,15 +171,19 @@ fun SearchScreen(
         value = null
         if (q.length < 3) return@produceState
         delay(450)
-        value = runCatching { TmdbExtra.person(q) }.getOrNull()?.let { (n, l) -> n to l.distinctBy { it.id } }
+        value = withContext(Dispatchers.IO) {
+            runCatching { TmdbExtra.person(q) }.getOrNull()?.let { (n, l) -> n to l.distinctBy { it.id } }
+        }
     }
     val sport by produceState(Triple(emptyList<SportData.Game>(), emptyList<Pair<SportData.League, SportData.Team>>(), emptyList<SportData.League>()), q) {
         value = Triple(emptyList(), emptyList(), emptyList())
         if (q.length < 2) return@produceState
         delay(300)
-        value = safely(Triple(emptyList(), emptyList(), emptyList())) {
-            val g = SearchSports.games()
-            Triple(SearchSports.findGames(g, q), SearchSports.findTeams(g, q), SearchSports.findLeagues(q))
+        value = withContext(Dispatchers.Default) {
+            safely(Triple(emptyList(), emptyList(), emptyList())) {
+                val g = SearchSports.games()
+                Triple(SearchSports.findGames(g, q), SearchSports.findTeams(g, q), SearchSports.findLeagues(q))
+            }
         }
     }
     // A genre name ("comedy", "horror", "sci fi"): popular titles of that genre, movies and shows
