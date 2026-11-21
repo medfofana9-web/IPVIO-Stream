@@ -305,14 +305,12 @@ object Stremio {
                 val body = runCatching { get(StremioLogic.streamUrl(a.base, kind, imdb, season, ep)) }
                 body.fold({ b ->
                     val raw = runCatching { JSONObject(b).optJSONArray("streams")?.length() ?: 0 }.getOrDefault(0)
-                    val l = runCatching { parse(a.name, b) }.getOrDefault(emptyList()).let { all ->
-                        if (!a.name.contains("dragon", true)) all
-                        else {
-                            val keep = StremioLogic.dragonFilter(all.map { it.info + "\n" + it.label to it.url }).map { all[it] }
-                            // Only MP4 links for this title: offered at the end, marked, never started automatically
-                            keep.ifEmpty { all.map { it.copy(label = StremioLogic.LAST_RESORT + it.label, q = 0) } }
-                        }
-                    }
+                    // DragonStreams and all other addons use the same protocol: do not
+                    // silently discard MP4 or unnamed-CDN streams. Previously this filter
+                    // hid results that Nuvio could display for Survivor and other titles.
+                    // The manual picker must show every usable HTTP(S)/RD source the addon returns.
+                    // Safety is enforced independently by content-match ranking and auto-play checks.
+                    val l = runCatching { parse(a.name, b) }.getOrDefault(emptyList())
                     if (onPart != null && l.isNotEmpty()) { partial.addAll(l); val snap = synchronized(partial) { partial.toList() }; withContext(Dispatchers.Main) { onPart(snap) } }
                     l to (a.name + ": " + when {
                         l.isNotEmpty() -> "${l.size} playable"
