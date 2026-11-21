@@ -240,6 +240,21 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
             }
         }
     }
+    val now = System.currentTimeMillis() / 1000
+    val warmGames = feed.games.asSequence()
+        .filter { it.state == 1 || (it.state == 0 && it.start in now..(now + 10 * 60)) }
+        .distinctBy { it.key }
+        .sortedWith(compareByDescending<SportData.Game> { SportFavs.isFavGame(it) }.thenByDescending { it.state }.thenBy { it.start })
+        .take(4).toList()
+    LaunchedEffect(warmGames.map { it.key to it.state }) {
+        if (warmGames.isEmpty()) return@LaunchedEffect
+        while (true) {
+            for (game in warmGames) {
+                withTimeoutOrNull(4_000L) { SportAddons.find(ctx, game) }
+            }
+            delay(30_000L)
+        }
+    }
     // Sports shows of the TV guide for Watch Live (once a minute, off the main thread)
     LaunchedEffect(live, Xmltv.channelCount) {
         while (true) {
