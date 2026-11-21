@@ -75,13 +75,21 @@ fun FofWelcome(onPick: (Int) -> Unit) {
             }
         }
         Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(if (manage) "Manage profiles" else "Who's watching?", color = Color.White, fontSize = 52.sp, fontWeight = FontWeight.Bold, raw = true)
+            FofEyebrow(if (manage) "MANAGE PROFILES" else "YOUR SCREEN, YOUR WAY", compact = true)
+            Spacer(Modifier.height(16.dp))
+            Text(if (manage) "Manage profiles" else "Who's watching?", color = Color.White,
+                fontSize = 54.sp, fontWeight = FontWeight.ExtraBold, raw = true)
+            Spacer(Modifier.height(10.dp))
+            if (FofAccount.signedInState) Text(
+                if (manage) "Make each space your own." else "Pick a profile and continue where you left off.",
+                color = FofVisual.Secondary, fontSize = 19.sp, raw = true
+            )
             // The account this TV is signed in to, as a quiet line under the title
             Spacer(Modifier.height(8.dp))
             // Not signed in: say plainly what is missing (this TV shows nothing from the account until it signs in)
             if (!FofAccount.signedInState) Text("This TV is not signed in. Sign in to bring your profiles, addons and Continue Watching here.",
                 color = Color(0xCCFFFFFF), fontSize = 17.sp, raw = true)
-            Spacer(Modifier.height(56.dp))
+            Spacer(Modifier.height(44.dp))
             // Up to 10 profiles: one row up to 5, then two rows; the "+" tile adds one (master PIN asked when set)
             // Signed in: only the account's profiles here; this TV's own older profiles are listed apart below
             val lo = if (FofAccount.signedInState) AccountCloud.localOnly(ctx) else emptySet()
@@ -236,7 +244,7 @@ fun FofWelcome(onPick: (Int) -> Unit) {
 @Composable
 private fun ProfileTile(name: String, avatar: ProfileAvatars.Preset, locked: Boolean, manage: Boolean, small: Boolean, modifier: Modifier, onLong: () -> Unit = {}, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
-    val s by animateFloatAsState(if (f) 1.08f else 1f, androidx.compose.animation.core.tween(160), label = "pt")
+    val s by animateFloatAsState(if (f) 1.065f else 1f, androidx.compose.animation.core.tween(160), label = "pt")
     // Avatar tile (as on Netflix): focus = white frame and a slight lift; the others are dimmed a little
     val shape = RoundedCornerShape(if (small) 14.dp else 18.dp)
     Column(
@@ -244,7 +252,8 @@ private fun ProfileTile(name: String, avatar: ProfileAvatars.Preset, locked: Boo
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(Modifier.size(if (small) 136.dp else 180.dp)) {
-            Box(Modifier.fillMaxSize().clip(shape).border(if (f) 2.dp else 1.dp, if (f) FofGlass.rim() else FofGlass.edge(false), shape)) {
+            Box(Modifier.fillMaxSize().clip(shape)
+                .border(if (f) 3.dp else 1.dp, if (f) FofGlass.rim() else FofGlass.edge(false), shape)) {
                 FofAvatar(avatar, Modifier.fillMaxSize())
                 if (!f) Box(Modifier.fillMaxSize().background(Color(0x33000000)))
             }
@@ -254,22 +263,28 @@ private fun ProfileTile(name: String, avatar: ProfileAvatars.Preset, locked: Boo
             ) { AppIcon(if (manage) AIcon.Edit else AIcon.Lock, Color.White, size = 18.dp) }
         }
         Spacer(Modifier.height(18.dp))
-        Text(name, color = if (f) Color.White else Color(0x99FFFFFF), fontSize = if (small) 21.sp else 26.sp, fontWeight = if (f) FontWeight.Bold else FontWeight.Medium, maxLines = 1, raw = true)
+        Text(name, color = if (f) Color.White else Color(0xCCFFFFFF),
+            fontSize = if (small) 21.sp else 26.sp,
+            fontWeight = if (f) FontWeight.ExtraBold else FontWeight.Medium, maxLines = 1, raw = true)
+        Spacer(Modifier.height(10.dp))
+        Box(Modifier.width(if (f) 52.dp else 24.dp).height(3.dp)
+            .clip(RoundedCornerShape(50))
+            .background(if (f) FofVisual.Violet else Color.Transparent))
     }
 }
 
 @Composable
 private fun AddTile(small: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
-    val s by animateFloatAsState(if (f) 1.08f else 1f, androidx.compose.animation.core.tween(160), label = "pa")
+    val s by animateFloatAsState(if (f) 1.065f else 1f, androidx.compose.animation.core.tween(160), label = "pa")
     Column(
         modifier.onFocusChanged { f = it.isFocused }.clickable(onClick = onClick).graphicsLayer { scaleX = s; scaleY = s },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
             Modifier.size(if (small) 136.dp else 180.dp).clip(RoundedCornerShape(if (small) 14.dp else 18.dp))
-                .background(if (f) Color(0x26FFFFFF) else Color(0x0FFFFFFF))
-                .border(if (f) 4.dp else 2.dp, if (f) Color.White else Color(0x26FFFFFF), RoundedCornerShape(if (small) 14.dp else 18.dp)),
+                .background(if (f) Color(0x33B9B4F0) else Color(0x0FFFFFFF))
+                .border(if (f) 3.dp else 1.dp, if (f) FofVisual.Violet else FofVisual.GlassBorder, RoundedCornerShape(if (small) 14.dp else 18.dp)),
             contentAlignment = Alignment.Center
         ) { Text("+", color = if (f) Color.White else Color(0x99FFFFFF), fontSize = 72.sp, fontWeight = FontWeight.Light, raw = true) }
         Spacer(Modifier.height(18.dp))
