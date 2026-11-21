@@ -25,7 +25,7 @@ fun TrackSettingsSection(ctx: Context) {
         SelectRow("Audio language", Langs.AUDIO[ai].second, Langs.AUDIO.map { it.second }, ai) {
             AppSettings.setLangs(ctx, Langs.AUDIO[it].first, AppSettings.subLang)
         }
-        if (AppSettings.audioLang.isNotEmpty()) SelectRow("Zweite Audio language", Langs.AUDIO2[a2].second, Langs.AUDIO2.map { it.second }, a2) {
+        if (AppSettings.audioLang.isNotEmpty()) SelectRow("Secondary audio language", Langs.AUDIO2[a2].second, Langs.AUDIO2.map { it.second }, a2) {
             AppSettings.setTrackExtra(ctx, Langs.AUDIO2[it].first, AppSettings.subMode, AppSettings.ccPref)
         }
         SelectRow("Untertitel", Langs.SUB_MODES[AppSettings.subMode], Langs.SUB_MODES, AppSettings.subMode) {
@@ -43,7 +43,7 @@ fun TrackSettingsSection(ctx: Context) {
         }
     }
     Hint(
-        "„Nur bei fremder Audio language“: Läuft ein Titel in einer Sprache, die du nicht eingestellt hast (z. B. Japanisch), " +
+        "“Only for foreign audio”: If a title plays in a language you have not selected (such as Japanese), " +
             "subtitles appear automatically. They stay off for your selected audio language. If you select tracks in the player, " +
             "FOF TV remembers your choice for that movie or series, including its next episode."
     )
@@ -120,7 +120,7 @@ fun ReminderSettingsSection(ctx: Context) {
     SelectRow("Remind me", if (Reminders.leadMin == 0) "At start" else "${Reminders.leadMin} min before",
         leads.map { if (it == 0) "At start" else "$it min before" }, li) { Reminders.setLead(ctx, leads[it]) }
     val list = Reminders.list.toList()
-    if (list.isEmpty()) Text("Keine Reminders gesetzt.", color = Muted, fontSize = 16.sp)
+    if (list.isEmpty()) Text("No reminders set.", color = Muted, fontSize = 16.sp)
     else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         list.forEach { r ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -130,7 +130,7 @@ fun ReminderSettingsSection(ctx: Context) {
         }
     }
     Hint(
-        "Im TV-Guide auf einer späteren Sendung OK drücken > „Remind me“. Ist die App offen, erscheint eine Karte mit „Umschalten“ " +
+        "In the TV guide, select a future program and choose Remind me. While FOF TV is open, a card offers Switch channel, " +
             "even while watching something else. When the app is closed, tapping a notification opens the channel. " +
             "The device must remain powered on; some devices show alerts only in their notification center."
     )
