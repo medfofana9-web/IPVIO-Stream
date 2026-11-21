@@ -31,8 +31,8 @@ object General {
     var refreshMinute by mutableIntStateOf(0)
     var refreshDow by mutableIntStateOf(java.util.Calendar.MONDAY)
     var lastRefresh by mutableStateOf(0L)
-    /** Language: "" = device, otherwise code from Lang.CODES */
-    var lang by mutableStateOf("")
+    /** English-first; users may still explicitly choose any supported language or system locale. */
+    var lang by mutableStateOf("en")
     /** Time zone: "" = system time of the device */
     var tzId by mutableStateOf("")
     /** Time format: 0 = system, 1 = 24 hours, 2 = 12 hours */
@@ -123,7 +123,16 @@ object General {
         refreshMinute = p.getInt("refresh_minute", 0).coerceIn(0, 59)
         refreshDow = p.getInt("refresh_dow", java.util.Calendar.MONDAY).coerceIn(1, 7)
         lastRefresh = p.getLong("last_refresh", 0L)
-        lang = p.getString("lang", "") ?: ""
+        // One-time language migration: historic installs inherited the TV's system
+        // language, which sometimes exposed untranslated German UI. Start in English.
+        // Preserve explicit language choices, including German. An explicit future
+        // switch to "Automatic (device)" is also preserved on subsequent launches.
+        val savedLang = p.getString("lang", null)
+        val languageInitialized = p.getBoolean("english_first_language_v1", false)
+        lang = AppLanguagePolicy.initial(savedLang, languageInitialized)
+        if (!languageInitialized) {
+            p.edit().putString("lang", lang).putBoolean("english_first_language_v1", true).apply()
+        }
         tzId = p.getString("tz_id", "") ?: ""
         timeFmt = p.getInt("time_fmt", 0).coerceIn(0, 2)
         sys24 = android.text.format.DateFormat.is24HourFormat(c)
