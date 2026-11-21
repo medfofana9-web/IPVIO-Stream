@@ -471,6 +471,40 @@ private fun AppContent() {
     }
 
     val openScope = rememberCoroutineScope()
+    // All Resume entry points must use the same fresh-episode path. Loading an
+    // Xtream/Stalker episode only when the detail page is visited is why
+    // Resume could replay an expired URL but manual episode selection worked.
+    var pendingResume by remember { mutableStateOf<String?>(null) }
+    fun resumeSaved(e: Entry, i: Item) {
+        if (pendingResume != null) return
+        LastFocus.pending = i.id
+        if (i.id.startsWith("stremio:")) {
+            AppNav.autoStream = i.id
+            AppNav.autoResume = Triple(e.season, e.ep, e.pos)
+            AppNav.autoResumeId = i.id
+            pushTop(i)
+            return
+        }
+        pendingResume = i.id
+        openScope.launch {
+            try {
+                val fresh = WatchStore.targetFresh(ctx, i, e)
+                if (fresh.second.isNotBlank()) {
+                    if (i.kind != Kind.LIVE) pushTop(i)
+                    start(i, fresh.first, fresh.second, e.pos)
+                } else {
+                    // Same source picker used by tapping the episode row.
+                    // Preserve the watched position while obtaining a new URL.
+                    AppNav.autoStream = i.id
+                    AppNav.autoResume = Triple(e.season, e.ep, e.pos)
+                    AppNav.autoResumeId = i.id
+                    pushTop(i)
+                }
+            } finally {
+                pendingResume = null
+            }
+        }
+    }
     val openNow: (Item) -> Unit = { i ->
         CatalogItems.put(ctx, i)
         if (i.kind == Kind.SERIES) NewEpisodes.dismiss(ctx, i.id)
@@ -645,18 +679,7 @@ private fun AppContent() {
                     LastFocus.pending = i.id
                     if (i.kind == Kind.SERIES) pushTop(i) else { pushTop(i); start(i, i.title, i.url) }
                 },
-                onResume = { e, i ->
-                    LastFocus.pending = i.id
-                    pushTop(i)
-                    if (i.id.startsWith("stremio:")) {
-                        // Addon links expire: the title page finds a fresh stream for that episode and starts at the saved spot
-                        AppNav.autoStream = i.id
-                        AppNav.autoResume = Triple(e.season, e.ep, e.pos); AppNav.autoResumeId = i.id
-                    } else {
-                        val t = WatchStore.target(ctx, i, e)
-                        start(i, t.first, t.second, e.pos)
-                    }
-                }
+                onResume = { e, i -> resumeSaved(e, i) }
             )
             tab == 4 -> Box(Modifier.fillMaxSize().then(if (returningFromPlayer) Modifier else Modifier.screenEnter())) { SearchScreen(
                 tab = tab, state = states[4],
@@ -675,25 +698,14 @@ private fun AppContent() {
                     // Not in the playlist: the detail page offers the addon streams
                     if (i.kind == Kind.SERIES || i.url.isBlank()) pushTop(i) else { if (i.kind != Kind.LIVE && !i.id.startsWith("rec:")) pushTop(i); start(i, i.title, i.url) }
                 } },
-                onResume = { e, i ->
-                    LastFocus.pending = i.id
-                    if (i.kind != Kind.LIVE) pushTop(i)
-                    if (i.id.startsWith("stremio:")) {
-                        // Addon and Real-Debrid links expire after a few hours, so the saved address cannot be played again
-                        // ("Connection lost", then "Playback not possible"): the title page finds a fresh stream for that
-                        // episode, the last one that worked first, and starts at the saved spot
-                        AppNav.autoStream = i.id
-                        AppNav.autoResume = Triple(e.season, e.ep, e.pos); AppNav.autoResumeId = i.id
-                    } else {
-                        // current address from the loaded playlist instead of the stored one (providers change addresses)
-                        val t = WatchStore.target(ctx, i, e)
-                        start(i, t.first, t.second, e.pos)
-                    }
-                },
+                onResume = { e, i -> resumeSaved(e, i) },
                 onBrowse = { browse = BrowseState(it) },
                 onCategories = { cats = it },
                 onAdd = { adding = true }
             ) }
+        }
+        if (pendingResume != null) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            HubLoading("Finding a fresh episode stream…")
         }
         if (RemoteUi.show) RemoteOverlay(Modifier.align(Alignment.Center))
         // Live preview of the View settings: bar at the bottom, the real app stays visible
