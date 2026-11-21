@@ -3,7 +3,11 @@ package com.ipvio.stream
 import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -22,6 +26,11 @@ object SportAddons {
     private val LIVE_TYPES = setOf("tv", "channel", "channels", "events", "event", "sports", "sport", "live", "other")
 
     private val cache = ConcurrentHashMap<String, Pair<Long, List<Item>>>()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val pending = HashMap<String, Deferred<List<Item>>>()
+    private val reports = ConcurrentHashMap<String, String>()
+    fun report(g: SportData.Game): String? = reports[g.key]
+
     private val catCache = ConcurrentHashMap<String, Pair<Long, JSONArray>>()
 
     /** Addon streams found for [g] (empty until [find] has run). */
@@ -35,33 +44,63 @@ object SportAddons {
     var version by androidx.compose.runtime.mutableIntStateOf(0)
         private set
 
-    /** Looks the game up in every addon's live catalogs; at most a few seconds. */
-    suspend fun find(c: Context, g: SportData.Game, refresh: Boolean = false): List<Item> = withContext(Dispatchers.IO) {
-        if (!refresh) cache[g.key]?.let { if (cacheFresh(System.currentTimeMillis(), it.first, it.second.isNotEmpty())) return@withContext it.second }
-        Stremio.ensure(c)
-        val cats = Stremio.addons.flatMap { a -> a.cats.filter { it.type.lowercase() in LIVE_TYPES }.map { a to it } }
-        val found = coroutineScope {
-            cats.map { (a, cat) ->
-                async {
-                    val metas = runCatching { metasOf(cat) }.getOrNull() ?: return@async emptyList<Item>()
-                    val hits = (0 until metas.length()).mapNotNull { metas.optJSONObject(it) }.filter { m ->
-                        // Catalog descriptions may mention several unrelated games.
-                        SportData.matches(g, m.optString("name"))
-                    }.take(4)
-                    hits.flatMap { m -> runCatching { streamsOf(a, m.optString("type").ifBlank { cat.type }, m.optString("id"), m.optString("name")) }.getOrDefault(emptyList()) }
+    /** Share an in-flight lookup between prefetch, Play and the source picker. */
+    suspend fun find(c: Context, g: SportData.Game, refresh: Boolean = false): List<Item> {
+        val task = synchronized(pending) {
+            pending[g.key]?.let { return@synchronized it }
+            if (!refresh) cache[g.key]?.let {
+                if (cacheFresh(System.currentTimeMillis(), it.first, it.second.isNotEmpty())) return it.second
+            }
+            scope.async { search(c.applicationContext, g, refresh) }.also { request ->
+                pending[g.key] = request
+                request.invokeOnCompletion {
+                    synchronized(pending) { if (pending[g.key] === request) pending.remove(g.key) }
                 }
-            }.awaitAll().flatten()
-        }.distinctBy { it.url }
-        cache[g.key] = System.currentTimeMillis() to found
-        // Even an empty discovery result is a completed attempt, but cache it only
-        // briefly: a slow addon may become ready on the next try.
-        version++
-        found
+            }
+        }
+        return task.await()
     }
 
-    private fun metasOf(cat: Stremio.Cat): JSONArray {
+    private suspend fun search(c: Context, g: SportData.Game, refresh: Boolean): List<Item> {
+        Stremio.ensure(c)
+        val addons = Stremio.addons.toList()
+        val results = coroutineScope {
+            addons.map { addon -> async {
+                val catalogs = addon.cats.filter { it.type.lowercase() in LIVE_TYPES }
+                if (catalogs.isEmpty()) return@async (addon.name + ": no live catalog") to emptyList<Item>()
+                var incomplete = false
+                val streams = catalogs.flatMap { catalog ->
+                    try {
+                        val metas = metasOf(catalog, refresh)
+                        (0 until metas.length()).asSequence().mapNotNull { metas.optJSONObject(it) }
+                            .filter { SportData.matches(g, it.optString("name")) }.take(4).flatMap { event ->
+                                try {
+                                    streamsOf(addon, event.optString("type").ifBlank { catalog.type }, event.optString("id"), event.optString("name")).asSequence()
+                                } catch (e: CancellationException) { throw e }
+                                catch (_: Exception) { incomplete = true; emptySequence() }
+                            }.toList()
+                    } catch (e: CancellationException) { throw e }
+                    catch (_: Exception) { incomplete = true; emptyList() }
+                }
+                val outcome = when {
+                    streams.isNotEmpty() -> "${streams.size} matched"
+                    incomplete -> "lookup incomplete"
+                    else -> "no exact event stream"
+                }
+                (addon.name + ": " + outcome) to streams
+            } }.awaitAll()
+        }
+        val streams = results.flatMap { it.second }.distinctBy { it.url }
+        if (cache.size > 150) { cache.clear(); reports.clear() }
+        reports[g.key] = results.joinToString(" · ") { it.first }.ifBlank { "No add-ons configured" }
+        cache[g.key] = System.currentTimeMillis() to streams
+        withContext(Dispatchers.Main) { version++ }
+        return streams
+    }
+
+    private fun metasOf(cat: Stremio.Cat, refresh: Boolean): JSONArray {
         val url = "${cat.base}/catalog/${cat.type}/${cat.id}.json"
-        catCache[url]?.let { if (it.second.length() > 0 && System.currentTimeMillis() - it.first < 60_000L) return it.second }
+        if (!refresh) catCache[url]?.let { if (it.second.length() > 0 && System.currentTimeMillis() - it.first < 60_000L) return it.second }
         val arr = JSONObject(Stremio.rawGet(url)).optJSONArray("metas") ?: JSONArray()
         if (arr.length() > 0) catCache[url] = System.currentTimeMillis() to arr
         return arr
