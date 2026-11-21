@@ -178,7 +178,7 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
     fun newList(first: String?) {
         val id = ChannelLists.create(ctx, Lang.tr("Senderliste " + (myLists.size + 1)), first)
         sel = ChannelListLogic.PREFIX + id
-        if (first == null) Toast.makeText(ctx, Lang.tr("Liste angelegt. Mit „Sender hinzufügen“ füllen."), Toast.LENGTH_SHORT).show()
+        if (first == null) Toast.makeText(ctx, Lang.tr("List created. Use Add Channels to add your favorites."), Toast.LENGTH_SHORT).show()
     }
 
     // Round 17b: the selected channel determines the background and the big display on the right ("What is on now")
@@ -226,7 +226,7 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
                         // or activate and load another playlist – without going into the settings.
                         val pls = PlaylistStore.lists.toList()
                         val multiView = srcNames.size > 1
-                        val opts = (if (multiView) listOf(Lang.tr("Alle Playlists")) else emptyList()) + pls.map { it.name }
+                        val opts = (if (multiView) listOf(Lang.tr("All Playlists")) else emptyList()) + pls.map { it.name }
                         val off = if (multiView) 1 else 0
                         val curIdx = if (multiView && srcK < 0) 0 else {
                             val si = if (multiView) srcK else 0
@@ -255,7 +255,7 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
                         return@itemsIndexed
                     }
                     if (n == "SRC") {
-                        val lbl = Lang.tr("Quelle") + ": " + (if (srcK < 0) Lang.tr("Alle") else srcNames[srcK])
+                        val lbl = Lang.tr("Source") + ": " + (if (srcK < 0) Lang.tr("All") else srcNames[srcK])
                         CatRow(lbl, -1, false, Modifier, onFocus = {}, onRight = { runCatching { firstChan.requestFocus() } }, onFav = {}, icon = AIcon.Sliders, raw = true) {
                             LiveSource.k = if (srcK + 1 >= srcNames.size) -1 else srcK + 1
                             // The chosen category may not exist in the other source: then "All channels"
@@ -268,7 +268,7 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
                         val hid = HiddenCats.list.filter { it in groups }
                         Box {
                             CatRow(Lang.tr("Ausgeblendete") + " (" + hid.size + ")", -1, false, Modifier, onFocus = {}, onRight = {}, onFav = {}, icon = AIcon.Sliders, raw = true) { hidMenu = true }
-                            if (hidMenu) OptionPopup(listOf("Alle wieder einblenden") + hid, -1, { hidMenu = false }) { i ->
+                            if (hidMenu) OptionPopup(listOf("Show all hidden channels") + hid, -1, { hidMenu = false }) { i ->
                                 hidMenu = false
                                 if (i == 0) HiddenCats.showAll(ctx) else HiddenCats.show(ctx, hid[i - 1])
                             }
@@ -282,7 +282,7 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
                     val label = when {
                         n == FAV_CAT -> "Favoriten"
                         n == "HOME" -> "Start"
-                        n == "ALL" -> "Alle Sender"
+                        n == "ALL" -> "All Channels"
                         n == "REC" -> "Aufnahmen"
                         LiveGenre.isGenreKey(n) -> LiveGenre.byKey(n)?.label ?: n
                         ml != null -> ml.name
@@ -317,7 +317,7 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
                             icon = icon, raw = ml != null
                         ) { runCatching { firstChan.requestFocus() } }
                         // Menu of a provider category: favorite on/off, hide
-                        if (catMenu && plainCat) OptionPopup(listOf(if (n in CatFavs.list) "Aus Favoriten entfernen" else "Zu Favoriten hinzufügen", "Kategorie ausblenden"), -1, { catMenu = false }) { i ->
+                        if (catMenu && plainCat) OptionPopup(listOf(if (n in CatFavs.list) "Remove from Favorites" else "Add to Favorites", "Kategorie ausblenden"), -1, { catMenu = false }) { i ->
                             catMenu = false
                             if (i == 0) CatFavs.toggle(ctx, n)
                             else { if (sel == n) sel = "ALL"; HiddenCats.hide(ctx, n) }
@@ -343,11 +343,11 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
                     AppIcon(AIcon.Lists, Accent1, size = 22.dp)
                     Text(raw = true, text = curList.name, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold,
                         maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    PillButton("Sender hinzufügen", if (list.isEmpty()) Modifier.focusRequester(firstChan) else Modifier, icon = AIcon.Plus) { addTo = curList.id; query = ""; sel = "SEARCH"; addFocusTick++ }
+                    PillButton("Add Channels", if (list.isEmpty()) Modifier.focusRequester(firstChan) else Modifier, icon = AIcon.Plus) { addTo = curList.id; query = ""; sel = "SEARCH"; addFocusTick++ }
                     PillButton("Umbenennen", icon = AIcon.Edit) { ask = NameAsk("Liste umbenennen", curList.name) { ChannelLists.rename(ctx, curList.id, it) } }
                     Box {
                         PillButton("Liste löschen", icon = AIcon.Close) { askDelete = true }
-                        if (askDelete) OptionPopup(listOf("Löschen", "Abbrechen"), -1, { askDelete = false }, listOf(AIcon.Close, AIcon.Left)) { i ->
+                        if (askDelete) OptionPopup(listOf("Löschen", "Cancel"), -1, { askDelete = false }, listOf(AIcon.Close, AIcon.Left)) { i ->
                             askDelete = false
                             if (i == 0) { ChannelLists.delete(ctx, curList.id); sel = "ALL"; LiveMemory.setSel(ctx, "ALL") }
                         }
@@ -443,7 +443,7 @@ private fun NameDialog(title: String, initial: String, onDismiss: () -> Unit, on
             Field(text, { text = it.take(ChannelListLogic.MAX_NAME) }, "Name", onDone = { onSave(text) })
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 PillButton("Speichern", Modifier.focusRequester(fr), light = true) { onSave(text) }
-                PillButton("Abbrechen") { onDismiss() }
+                PillButton("Cancel") { onDismiss() }
             }
         }
     }
@@ -554,7 +554,7 @@ fun ChannelMenu(item: Item, inList: ChList?, onNewList: (() -> Unit)?, variants:
     val acts = ArrayList<Triple<String, AIcon?, () -> Unit>>()
     // Bundled quality variants: pick one to play (best first)
     if (variants.size > 1) for (v in variants) acts.add(Triple(Lang.tr("Qualität") + ": " + (v.quality ?: v.title), AIcon.Play) { onVariant(v) })
-    acts.add(Triple(if (Library.isFav(item.id)) "Aus Favoriten entfernen" else "Zu Favoriten", AIcon.Star) { Library.toggleFav(ctx, item.id) })
+    acts.add(Triple(if (Library.isFav(item.id)) "Remove from Favorites" else "Zu Favoriten", AIcon.Star) { Library.toggleFav(ctx, item.id) })
     if (inList != null) {
         acts.add(Triple("Nach oben", AIcon.Up) { ChannelLists.move(ctx, inList.id, item.id, -1) })
         acts.add(Triple("Nach unten", AIcon.Down) { ChannelLists.move(ctx, inList.id, item.id, 1) })
@@ -597,7 +597,7 @@ fun ReminderCard(r: Reminder, modifier: Modifier, onClose: () -> Unit, onSwitch:
             Text(raw = true, text = r.chTitle, color = Muted, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         PillButton("Umschalten", Modifier.focusRequester(fr), light = true) { onSwitch() }
-        PillButton("Schließen") { onClose() }
+        PillButton("Close") { onClose() }
     }
 }
 
@@ -611,7 +611,7 @@ private fun LiveHome(live: List<Item>, genres: Map<String, List<Item>>, favs: Li
     if (recent.isNotEmpty()) rows.add("Zuletzt gesehen" to recent)
     if (favs.isNotEmpty()) rows.add("Favoriten" to favs.take(40))
     for ((k, l) in genres) rows.add((LiveGenre.byKey(k)?.label ?: k) to l.take(40))
-    if (rows.isEmpty()) rows.add("Alle Sender" to live.take(40))
+    if (rows.isEmpty()) rows.add("All Channels" to live.take(40))
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 48.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         itemsIndexed(rows, key = { _, r -> r.first }) { ri, r ->
             Column {
