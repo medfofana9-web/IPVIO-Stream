@@ -380,7 +380,7 @@ internal fun CompetitionHeader(name: String, logo: String?, live: Int, total: In
         if (logo != null) TeamLogo(logo, "", dpx(26))
         Text(raw = true, text = name, color = Tok.TextHi, fontSize = spx(18), fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         if (live > 0) Text("LIVE", color = PT.Live, fontSize = spx(14), fontWeight = FontWeight.ExtraBold)
-        Text(if (total == 1) "1 Spiel" else "$total Spiele", color = Muted, fontSize = spx(14))
+        Text(if (total == 1) "1 Spiel" else "$total games", color = Muted, fontSize = spx(14))
     }
 }
 
