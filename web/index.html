@@ -676,6 +676,13 @@ function sourceList(rows) {
   return addons;
 }
 
+// Do not put provider credentials or complete URLs in browser storage.
+async function sourceLabelKey(user, address) {
+  const bytes = new TextEncoder().encode(user + "\\n" + address);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return "fof_source_label_" + Array.from(new Uint8Array(digest), n => n.toString(16).padStart(2, "0")).join("");
+}
+
 function sourceLabel(address) {
   try {
     const url = new URL(address);
@@ -692,7 +699,7 @@ async function settingsView() {
     <div class="settings-grid" id="setup">
       <section class="card settings-wide">
         <h2>Stremio add-ons</h2>
-        <p class="note">Paste an add-on’s manifest link or base address. Your TV checks compatibility during its next sync.</p>
+        <p class="note">Shared with every profile under this FOF TV login. Use a display name to recognize a source in this browser.</p>
         <form id="add-addon"><label class="field"><span>Add-on address</span><input name="address" type="password" required autocomplete="off" placeholder="https://provider.example/manifest.json"></label>
         <button class="btn pri" disabled>Add add-on</button> <button class="btn" id="preview-addon" type="button" disabled>Preview manifest</button><p class="setting-status" id="manifest-preview" role="status"></p></form>
         <div class="list" id="source-list"><p class="muted">Loading add-ons…</p></div>
@@ -724,11 +731,29 @@ async function settingsView() {
     const debrid = rows.some(row => row.name === "debrid" && row.value);
     panel.querySelector("#playlist-status").textContent = playlist ? "IPTV playlist saved to this account" : "No IPTV playlist synced to this account";
     panel.querySelector("#debrid-status").textContent = debrid ? "Token saved" : "No token saved";
-    list.innerHTML = addons.map(address => `<div class="li"><div class="g"><b>${esc(sourceLabel(address))}</b></div><button type="button" class="btn sm bad">Remove</button></div>`).join("") || '<p class="muted">No add-ons synced to this account.</p>';
-    list.querySelectorAll("button").forEach((button, index) => {
+    list.innerHTML = addons.map(address => `<div class="li"><div class="g"><b>${esc(sourceLabel(address))}</b><small>Saved to account</small></div><button type="button" class="btn sm" data-label>Rename</button><button type="button" class="btn sm bad" data-remove>Remove</button></div>`).join("") || '<p class="muted">No add-ons synced to this account.</p>';
+    list.querySelectorAll(".li").forEach((row, index) => {
       const address = addons[index];
-      button.onclick = () => {
-        if (!confirm("Remove " + sourceLabel(address) + " from this account?")) return;
+      const heading = row.querySelector("b");
+      const labelKey = sourceLabelKey(user, address);
+      labelKey.then(key => {
+        const label = localStorage.getItem(key);
+        if (label && row.isConnected && active()) heading.textContent = label;
+      }).catch(() => {});
+      row.querySelector("[data-label]").onclick = async () => {
+        try {
+          const key = await labelKey;
+          if (!active() || !row.isConnected) return;
+          const next = prompt("Display name in this browser. Leave blank to reset.", localStorage.getItem(key) || "");
+          if (next === null) return;
+          const label = next.trim().slice(0, 64);
+          if (label) localStorage.setItem(key, label);
+          else localStorage.removeItem(key);
+          heading.textContent = label || sourceLabel(address);
+        } catch { toast("Could not save the display name in this browser."); }
+      };
+      row.querySelector("[data-remove]").onclick = () => {
+        if (!confirm("Remove " + heading.textContent + " from this account?")) return;
         write(async () => {
           const fresh = sourceList(await rpc("fof_secrets_get"));
           return ["addons", JSON.stringify(fresh.filter(value => value !== address))];
@@ -828,12 +853,16 @@ async function devicesView() {
   $("#app").innerHTML = `<h1>Devices</h1><p class="lead">See when your TVs and browsers last checked in.</p><div class="settings-grid" id="devices-grid"><p class="muted">Loading devices…</p></div>`;
   const grid = $("#devices-grid");
   try {
-    const rows = await devicesRequest();
+    const [rows, sources] = await Promise.all([devicesRequest(), rpc("fof_secrets_get").catch(() => null)]);
     if (!grid.isConnected) return;
+    const changedAt = Math.max(0, ...(sources || []).map(source => Date.parse(source.updated_at) || 0));
     grid.innerHTML = rows.filter(d => !d.revoked).map(d => `<section class="card">
       <h2>${esc(d.name || d.kind || "Device")}</h2><p class="note">${esc(d.kind || "Device")}${d.app_version ? " · " + esc(d.app_version) : ""}</p>
       <p class="setting-status">${d.last_seen ? "Last seen " + esc(new Date(d.last_seen).toLocaleString()) : "Check-in time unavailable"}</p>
-      <p class="note">${d.id === devId ? "This browser" : "A device check-in does not verify which sources it applied."}</p></section>`).join("") || '<p class="muted">No signed-in devices.</p>';
+      <p class="note">${d.kind === "Web browser" ? (d.id === devId ? "This browser" : "Web browser") :
+        changedAt && d.last_seen && Date.parse(d.last_seen) < changedAt
+          ? "Source settings changed since this device last checked in. Open FOF TV on this device to sync."
+          : "Source application unconfirmed. This version of FOF TV reports check-ins only."}</p></section>`).join("") || '<p class="muted">No signed-in devices.</p>';
   } catch { if (grid.isConnected) grid.innerHTML = '<p class="err">Could not load devices.</p>'; }
 }
 
