@@ -215,8 +215,11 @@ internal fun MatchStatus(g: SportData.Game, big: Boolean = false) {
 
 @Composable
 internal fun HubSectionTitle(text: String, raw: Boolean = false, action: String? = null, onAction: (() -> Unit)? = null) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(text, color = Tok.TextHi, fontSize = spx(DS.SectionTitleSp), fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), raw = raw)
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(dpx(11))) {
+        Box(Modifier.width(dpx(4)).height(dpx(23)).clip(RoundedCornerShape(50)).background(FofVisual.Violet))
+        Text(text, color = Tok.TextHi, fontSize = spx(DS.SectionTitleSp + 2),
+            fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f), raw = raw)
         if (action != null && onAction != null) FilterPill(action, false, Modifier.trackFocus(), aicon = AIcon.Right) { onAction() }
     }
 }
