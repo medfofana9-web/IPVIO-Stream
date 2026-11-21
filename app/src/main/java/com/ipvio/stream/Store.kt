@@ -535,6 +535,32 @@ object WatchStore {
      * What "Resume" plays: title and a CURRENT address from the loaded playlist
      * (providers change addresses on refresh; the stored one would then be dead).
      */
+    /**
+     * Resume must resolve the same current episode as tapping it in the episode list.
+     * Never replay a cached session URL merely because lazy episode metadata has not
+     * loaded yet: provider/CDN links can expire between viewing sessions.
+     *
+     * An empty URL is intentional; the caller opens the fresh addon source picker.
+     */
+    suspend fun targetFresh(c: Context, item0: Item, e: Entry): Pair<String, String> {
+        if (item0.kind != Kind.SERIES) return target(c, item0, e)
+        val item = if (LazySeries.isStub(item0))
+            kotlinx.coroutines.withTimeoutOrNull(12_000L) { LazySeries.load(c, item0) }
+                ?: LazySeries.full(item0)
+        else item0
+        var season = e.season
+        var episode = e.ep
+        if (season < 1 || episode < 1) ResumeLogic.seasonEp(e.title)?.let {
+            season = it.first; episode = it.second
+        }
+        val title = item.title + " S" + season + "E" + episode
+        val ep = item.episodes.firstOrNull { it.season == season && it.num == episode }
+            ?: return title to ""
+        val pref = VariantPref.get(c, item.id)
+        val url = pickVariant(ep, pref.first, pref.second, pref.third, PlaybackPrefs.cap(c)).url
+        return title to url.takeUnless { it.isBlank() || DeadLinks.isDead(it) }.orEmpty()
+    }
+
     fun target(c: Context, item0: Item, e: Entry): Pair<String, String> {
         // Series with a placeholder: if the episodes are already loaded (series opened), Resume uses them
         val item = LazySeries.full(item0)
