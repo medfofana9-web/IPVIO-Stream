@@ -25,6 +25,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Fof sports settings (per device): hide scores, leagues of the home row. */
 object SportPrefs {
@@ -69,6 +70,9 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
     val ctx = LocalContext.current
     SportFavs.init(ctx); SportLeagues.init(ctx); SportFix.init(ctx); SportLearn.init(ctx); SportPrefs.init(ctx)
     val scope = rememberCoroutineScope()
+    // Resolve the on-screen games BEFORE the viewer presses OK. A big playlist must
+    // never be indexed synchronously on the click path.
+    val readyGames = remember(live) { mutableStateMapOf<String, List<Item>>() }
     var teamGames by remember { mutableStateOf(emptyList<SportData.Game>()) }
     val games by produceState(emptyList<SportData.Game>(), SportPrefs.version) {
         while (true) {
@@ -87,6 +91,18 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
             delay(if (value.isNotEmpty()) 10_000L else 180_000L)
         }
     }
+    LaunchedEffect(games, live, SportWatch.prepVersion, SportAddons.version) {
+        if (live.isEmpty() || games.isEmpty()) return@LaunchedEffect
+        // Indexing and matching may scan tens of thousands of channels.
+        // Each result becomes instantly available while the remaining games warm.
+        withContext(kotlinx.coroutines.Dispatchers.Default) {
+            SportWatch.prewarm(live)
+            for (g in games) {
+                val channels = SportWatch.channels(g, live)
+                withContext(kotlinx.coroutines.Dispatchers.Main) { readyGames[g.key] = channels }
+            }
+        }
+    }
     if (teamGames.isNotEmpty()) Column(Modifier.padding(top = dpx(10)), verticalArrangement = Arrangement.spacedBy(dpx(10))) {
         Text("Your teams today", color = Color.White, fontSize = spx(24), fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = RowPadX))
         LazyRow(contentPadding = PaddingValues(horizontal = RowPadX, vertical = dpx(10)), horizontalArrangement = Arrangement.spacedBy(dpx(18))) {
@@ -101,8 +117,11 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
             items(games, key = { it.key }) { g ->
                 GameTileCard(g) {
                     scope.launch {
-                        // Channel lookups are built off the main thread (big playlists), then the game starts
-                        val chans = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { SportWatch.prewarm(live); SportWatch.channels(g, live) }
+                        // Prepared games open immediately; uncached games resolve off the UI thread.
+                        // Do NOT rebuild the whole sports index while a viewer is waiting.
+                        val chans = readyGames[g.key] ?: withContext(kotlinx.coroutines.Dispatchers.Default) {
+                            SportWatch.channels(g, live)
+                        }
                         if (chans.isNotEmpty()) {
                             // The score bug of the player shows this game's score (SportSession)
                             SportSession.start(g, chans, live)
