@@ -139,11 +139,10 @@ private fun DetailScreenFull(
     val listState = rememberLazyListState()
     var heroFocused by remember { mutableStateOf(false) }
     LaunchedEffect(heroFocused) {
-        // Back to the top in one smooth move; a quick check afterwards only corrects a late layout (no repeated snapping)
-        if (heroFocused) {
+        // Let one scroll animation complete. The previous forced scroll after
+        // 160 ms interrupted this animation and visibly snapped series cards.
+        if (heroFocused && (listState.firstVisibleItemIndex != 0 || listState.firstVisibleItemScrollOffset != 0)) {
             runCatching { listState.animateScrollToItem(0) }
-            delay(160)
-            if (listState.firstVisibleItemIndex != 0 || listState.firstVisibleItemScrollOffset != 0) listState.scrollToItem(0)
         }
     }
     BackHandler(enabled = !embedded, onBack = onBack)
