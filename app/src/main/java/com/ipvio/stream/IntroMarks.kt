@@ -1,9 +1,17 @@
 package com.ipvio.stream
 
 import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 
 /** User-confirmed intro windows stored separately for each active profile and episode. */
 internal object IntroMarks {
+    var syncRevision by mutableIntStateOf(0)
+        private set
+
+    fun refreshedFromCloud() { syncRevision++ }
+
     internal data class Window(val startMs: Long, val endMs: Long) {
         fun contains(positionMs: Long): Boolean = positionMs >= startMs && positionMs < endMs - 1_000L
     }
