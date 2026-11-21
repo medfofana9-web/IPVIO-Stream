@@ -32,10 +32,13 @@ class ProviderVodLogicTest {
         assertEquals(2019, ProviderVodLogic.year("Show", "2019-05-01"))
     }
 
-    @Test fun dragonMp4IsLastResortOnly() {
-        // MKV present: MP4 links stay out
-        val l = listOf("x" to "https://a/b.mkv", "y" to "https://a/c.mp4")
-        assertEquals(listOf(0), StremioLogic.dragonFilter(l))
+    @Test fun dragonMp4RemainsSelectableButNotAutomatic() {
+        // MKV and MP4 are both offered in Sources. Only DragonStreams MP4
+        // requires explicit viewer selection because some links were mislabeled.
+        assertEquals(false, StremioLogic.dragonManualOnly("DragonStreams", "MKV", "https://a/b.mkv"))
+        assertEquals(true, StremioLogic.dragonManualOnly("DragonStreams", "MP4", "https://a/c.mp4"))
         assertTrue(StremioLogic.LAST_RESORT.startsWith("MP4"))
+        assertEquals(false, StremioLogic.safeForAutomaticPlay(StremioLogic.VERIFIED,
+            StremioLogic.LAST_RESORT + "DragonStreams MP4"))
     }
 }
