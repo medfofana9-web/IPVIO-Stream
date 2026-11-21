@@ -285,14 +285,14 @@ fun HomeScreen(
     val isVod = tab == 1 || tab == 2
     val vodBase = if (tab == 1) movies else series
     val vodTop = if (tab == 1) topM else topS
-    val vodNoun = if (tab == 1) "Filme" else "Serien"
+    val vodNoun = if (tab == 1) "Movies" else "TV Shows"
     val vodK = if (tab == 1) Kind.MOVIE else Kind.SERIES
     val openCats: () -> Unit = {
         scope.launch {
             // Catalog genres (Cinemeta); own imported lists (Letterboxd, Trakt, MyAnimeList) come first
             val g = Catalog.genreMap(vodK)
             val imported = ImportedLists.groups(ctx, vodK, byId)
-            onCategories(CatReq("$vodNoun · Kategorien", imported + g, imported + g, SORT_PLAYLIST))
+            onCategories(CatReq("$vodNoun · Categories", imported + g, imported + g, SORT_PLAYLIST))
         }
     }
     val openList: (Catalog.Spec, String, Int) -> Unit = { spec, title, pages ->
@@ -309,7 +309,7 @@ fun HomeScreen(
     // Asked by the View settings' live preview (consumed at once so a later visit does not open it again)
     LaunchedEffect(AppNav.openCatsSignal) { if (AppNav.openCatsSignal > 0) { AppNav.openCatsSignal = 0; if (tab == 1) openCats() } }
     LaunchedEffect(AppNav.openBrowseSignal) {
-        if (AppNav.openBrowseSignal > 0) { AppNav.openBrowseSignal = 0; if (tab == 1) openList(Catalog.popular(vodK), "Alle $vodNoun", 6) }
+        if (AppNav.openBrowseSignal > 0) { AppNav.openBrowseSignal = 0; if (tab == 1) openList(Catalog.popular(vodK), "All $vodNoun", 6) }
     }
     // Asked by the View settings preview: bring the home rows into view (they are far down the list)
     LaunchedEffect(AppNav.homeScrollKey) {
@@ -329,9 +329,9 @@ fun HomeScreen(
     }
     val navTabs = if (!isVod) emptyList() else listOf(
         HeaderTab("Kategorien", AIcon.Categories, "tb:cats$tab") { openCats() },
-        HeaderTab("Top bewertet", AIcon.Star, "tb:top$tab") { openList(Catalog.featured(vodK), "Top bewertet · $vodNoun", 4) },
-        HeaderTab("Neu hinzugefügt", AIcon.Sparkle, "tb:new$tab") { openList(Catalog.newest(vodK), "Neu hinzugefügt · $vodNoun", 4) },
-        HeaderTab("Alle $vodNoun", AIcon.Grid, "tb:all$tab") { openList(Catalog.popular(vodK), "Alle $vodNoun", 6) }
+        HeaderTab("Top rated", AIcon.Star, "tb:top$tab") { openList(Catalog.featured(vodK), "Top rated · $vodNoun", 4) },
+        HeaderTab("Recently added", AIcon.Sparkle, "tb:new$tab") { openList(Catalog.newest(vodK), "Recently added · $vodNoun", 4) },
+        HeaderTab("All $vodNoun", AIcon.Grid, "tb:all$tab") { openList(Catalog.popular(vodK), "All $vodNoun", 6) }
     ) + importedTabs.map { (src, l, id) -> HeaderTab(src, AIcon.Download, id) { onBrowse(BrowseReq("$src · $vodNoun", l, SORT_NEW)) } }
     var inHeader by remember { mutableStateOf(false) }
     val header: @Composable (Modifier) -> Unit = { m ->
@@ -371,11 +371,11 @@ fun HomeScreen(
     }
     val liveLogos = nowChannels.mapNotNull { it.logo }.take(3)
     val tiles = listOf(
-        QuickTile("Live TV", "${live.size} Sender", 3, Color(0xFF6B3A0E), Color(0xFF2B1708), Color(0xFFF59E0B), logos = liveLogos) { onTab(3) },
-        QuickTile("Filme", "${movies.size} Filme", 1, Color(0xFF1E3A8A), Color(0xFF0F1B45), Color(0xFF60A5FA), image = tileImg[1]) { onTab(1) },
-        QuickTile("Serien", "${series.size} Serien", 2, Color(0xFF4C1D95), Color(0xFF22104A), Color(0xFFC084FC), image = tileImg[2]) { onTab(2) },
-        QuickTile("Favoriten", "Deine Auswahl", 7, Color(0xFF7F1D1D), Color(0xFF3A0B0B), Color(0xFFFB7185), image = tileImg[MenuLogic.FAVS]) { onTab(MenuLogic.FAVS) },
-        QuickTile("Meine Liste", "${watchList.count { it.kind != Kind.LIVE }} Titel", 8, Color(0xFF134E4A), Color(0xFF082725), Color(0xFF2DD4BF), image = tileImg[MenuLogic.MYLIST]) { onTab(MenuLogic.MYLIST) }
+        QuickTile("Live TV", "${live.size} channels", 3, Color(0xFF6B3A0E), Color(0xFF2B1708), Color(0xFFF59E0B), logos = liveLogos) { onTab(3) },
+        QuickTile("Filme", "${movies.size} movies", 1, Color(0xFF1E3A8A), Color(0xFF0F1B45), Color(0xFF60A5FA), image = tileImg[1]) { onTab(1) },
+        QuickTile("Serien", "${series.size} TV shows", 2, Color(0xFF4C1D95), Color(0xFF22104A), Color(0xFFC084FC), image = tileImg[2]) { onTab(2) },
+        QuickTile("Favoriten", "Your favorites", 7, Color(0xFF7F1D1D), Color(0xFF3A0B0B), Color(0xFFFB7185), image = tileImg[MenuLogic.FAVS]) { onTab(MenuLogic.FAVS) },
+        QuickTile("Meine Liste", "${watchList.count { it.kind != Kind.LIVE }} titles", 8, Color(0xFF134E4A), Color(0xFF082725), Color(0xFF2DD4BF), image = tileImg[MenuLogic.MYLIST]) { onTab(MenuLogic.MYLIST) }
     )
     DisposableEffect(Unit) { onDispose { HomeReturn.returning = true } }
 
@@ -945,7 +945,7 @@ private fun ResumeRow(list: List<Pair<Entry, Item>>, cardW: Int, onResume: (Entr
                 val item = pair.second
                 val se = if (e.season > 0 || e.ep > 0) e.season to e.ep else ResumeLogic.seasonEp(e.title)
                 val multi = item.kind == Kind.SERIES && item.episodes.any { it.season != (se?.first ?: 1) }
-                val epText = se?.let { if (multi) "S${it.first} · Folge ${it.second}" else "Folge ${it.second}" }
+                val epText = se?.let { if (multi) "S${it.first} · Episode ${it.second}" else "Episode ${it.second}" }
                 val sub = when {
                     item.kind != Kind.SERIES -> "bei " + (e.pos / 60000) + " Min"
                     e.next && epText != null -> "Als Nächstes: $epText"
