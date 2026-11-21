@@ -285,14 +285,14 @@ fun HomeScreen(
     val isVod = tab == 1 || tab == 2
     val vodBase = if (tab == 1) movies else series
     val vodTop = if (tab == 1) topM else topS
-    val vodNoun = if (tab == 1) "Filme" else "Serien"
+    val vodNoun = if (tab == 1) "Movies" else "TV Shows"
     val vodK = if (tab == 1) Kind.MOVIE else Kind.SERIES
     val openCats: () -> Unit = {
         scope.launch {
             // Catalog genres (Cinemeta); own imported lists (Letterboxd, Trakt, MyAnimeList) come first
             val g = Catalog.genreMap(vodK)
             val imported = ImportedLists.groups(ctx, vodK, byId)
-            onCategories(CatReq("$vodNoun · Kategorien", imported + g, imported + g, SORT_PLAYLIST))
+            onCategories(CatReq("$vodNoun · Categories", imported + g, imported + g, SORT_PLAYLIST))
         }
     }
     val openList: (Catalog.Spec, String, Int) -> Unit = { spec, title, pages ->
@@ -309,7 +309,7 @@ fun HomeScreen(
     // Asked by the View settings' live preview (consumed at once so a later visit does not open it again)
     LaunchedEffect(AppNav.openCatsSignal) { if (AppNav.openCatsSignal > 0) { AppNav.openCatsSignal = 0; if (tab == 1) openCats() } }
     LaunchedEffect(AppNav.openBrowseSignal) {
-        if (AppNav.openBrowseSignal > 0) { AppNav.openBrowseSignal = 0; if (tab == 1) openList(Catalog.popular(vodK), "Alle $vodNoun", 6) }
+        if (AppNav.openBrowseSignal > 0) { AppNav.openBrowseSignal = 0; if (tab == 1) openList(Catalog.popular(vodK), "All $vodNoun", 6) }
     }
     // Asked by the View settings preview: bring the home rows into view (they are far down the list)
     LaunchedEffect(AppNav.homeScrollKey) {
@@ -329,9 +329,9 @@ fun HomeScreen(
     }
     val navTabs = if (!isVod) emptyList() else listOf(
         HeaderTab("Kategorien", AIcon.Categories, "tb:cats$tab") { openCats() },
-        HeaderTab("Top bewertet", AIcon.Star, "tb:top$tab") { openList(Catalog.featured(vodK), "Top bewertet · $vodNoun", 4) },
-        HeaderTab("Neu hinzugefügt", AIcon.Sparkle, "tb:new$tab") { openList(Catalog.newest(vodK), "Neu hinzugefügt · $vodNoun", 4) },
-        HeaderTab("Alle $vodNoun", AIcon.Grid, "tb:all$tab") { openList(Catalog.popular(vodK), "Alle $vodNoun", 6) }
+        HeaderTab("Top rated", AIcon.Star, "tb:top$tab") { openList(Catalog.featured(vodK), "Top rated · $vodNoun", 4) },
+        HeaderTab("Recently added", AIcon.Sparkle, "tb:new$tab") { openList(Catalog.newest(vodK), "Recently added · $vodNoun", 4) },
+        HeaderTab("All $vodNoun", AIcon.Grid, "tb:all$tab") { openList(Catalog.popular(vodK), "All $vodNoun", 6) }
     ) + importedTabs.map { (src, l, id) -> HeaderTab(src, AIcon.Download, id) { onBrowse(BrowseReq("$src · $vodNoun", l, SORT_NEW)) } }
     var inHeader by remember { mutableStateOf(false) }
     val header: @Composable (Modifier) -> Unit = { m ->
@@ -371,11 +371,11 @@ fun HomeScreen(
     }
     val liveLogos = nowChannels.mapNotNull { it.logo }.take(3)
     val tiles = listOf(
-        QuickTile("Live TV", "${live.size} Sender", 3, Color(0xFF6B3A0E), Color(0xFF2B1708), Color(0xFFF59E0B), logos = liveLogos) { onTab(3) },
-        QuickTile("Filme", "${movies.size} Filme", 1, Color(0xFF1E3A8A), Color(0xFF0F1B45), Color(0xFF60A5FA), image = tileImg[1]) { onTab(1) },
-        QuickTile("Serien", "${series.size} Serien", 2, Color(0xFF4C1D95), Color(0xFF22104A), Color(0xFFC084FC), image = tileImg[2]) { onTab(2) },
-        QuickTile("Favoriten", "Deine Auswahl", 7, Color(0xFF7F1D1D), Color(0xFF3A0B0B), Color(0xFFFB7185), image = tileImg[MenuLogic.FAVS]) { onTab(MenuLogic.FAVS) },
-        QuickTile("Meine Liste", "${watchList.count { it.kind != Kind.LIVE }} Titel", 8, Color(0xFF134E4A), Color(0xFF082725), Color(0xFF2DD4BF), image = tileImg[MenuLogic.MYLIST]) { onTab(MenuLogic.MYLIST) }
+        QuickTile("Live TV", "${live.size} channels", 3, Color(0xFF6B3A0E), Color(0xFF2B1708), Color(0xFFF59E0B), logos = liveLogos) { onTab(3) },
+        QuickTile("Filme", "${movies.size} movies", 1, Color(0xFF1E3A8A), Color(0xFF0F1B45), Color(0xFF60A5FA), image = tileImg[1]) { onTab(1) },
+        QuickTile("TV Shows", "${series.size} TV shows", 2, Color(0xFF4C1D95), Color(0xFF22104A), Color(0xFFC084FC), image = tileImg[2]) { onTab(2) },
+        QuickTile("Favoriten", "Your favorites", 7, Color(0xFF7F1D1D), Color(0xFF3A0B0B), Color(0xFFFB7185), image = tileImg[MenuLogic.FAVS]) { onTab(MenuLogic.FAVS) },
+        QuickTile("Meine Liste", "${watchList.count { it.kind != Kind.LIVE }} titles", 8, Color(0xFF134E4A), Color(0xFF082725), Color(0xFF2DD4BF), image = tileImg[MenuLogic.MYLIST]) { onTab(MenuLogic.MYLIST) }
     )
     DisposableEffect(Unit) { onDispose { HomeReturn.returning = true } }
 
@@ -472,7 +472,7 @@ fun HomeScreen(
     BackHandler(enabled = inSidebar && tab == 0 && General.confirmExit) {
         val now = System.currentTimeMillis()
         if (now - lastBack < 2500) exitApp()
-        else { lastBack = now; android.widget.Toast.makeText(ctx, Lang.tr("Noch einmal Zurück drücken zum Beenden"), android.widget.Toast.LENGTH_SHORT).show() }
+        else { lastBack = now; android.widget.Toast.makeText(ctx, Lang.tr("Press Back again to exit"), android.widget.Toast.LENGTH_SHORT).show() }
     }
 
     // Taste setup of this profile: liked titles feed "Because you like …", liked genres come first
@@ -555,17 +555,17 @@ fun HomeScreen(
                         // Everything hidden (language filter does not fit this playlist): be able to get it back directly
                         val allHidden = err == null && PlaylistStore.langCounts.isNotEmpty() && PlaylistStore.langCounts.keys.all { it in LangFilter.hidden }
                         Text(
-                            when { err != null -> "Die Playlist konnte nicht geladen werden"; allHidden -> "Alle Sprachen dieser Playlist sind ausgeblendet"; else -> "Noch keine Sender" },
+                            when { err != null -> "The playlist could not be loaded"; allHidden -> "All languages in this playlist are hidden"; else -> "No channels yet" },
                             color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold
                         )
                         if (err != null) {
                             Text(err, color = Muted, fontSize = 16.sp)
-                            Text("Prüfe die Internetverbindung, die Adresse und die Zugangsdaten.", color = Muted, fontSize = 16.sp)
+                            Text("Check your internet connection, playlist URL, and login details.", color = Muted, fontSize = 16.sp)
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            if (allHidden) PillButton("Alle Sprachen zeigen", light = true) { LangFilter.setAndApply(ctx, emptySet()) }
-                            if (err != null) PillButton("Erneut versuchen", light = true) { reload() }
-                            PillButton("Playlist hinzufügen", light = err == null && !allHidden) { onAdd() }
+                            if (allHidden) PillButton("Show all languages", light = true) { LangFilter.setAndApply(ctx, emptySet()) }
+                            if (err != null) PillButton("Try again", light = true) { reload() }
+                            PillButton("Add playlist", light = err == null && !allHidden) { onAdd() }
                         }
                     }
                 }
@@ -658,26 +658,26 @@ fun HomeScreen(
                                     "clock" -> { item(key = "clock") { ClockWidget() } }
                                     // Continue watching directly under the tiles: whoever watches a lot wants to continue in few clicks
                                     "resume" -> { if (resumeList.isNotEmpty()) item(key = "resume") { ResumeRow(resumeList, cardW, onResume, onOpen) } }
-                                    "favch" -> { if (favLive.isNotEmpty()) item(key = "favch") { ItemsRow("Meine Sender", favLive, cardW, onOpen) { onTab(3) } } }
+                                    "favch" -> { if (favLive.isNotEmpty()) item(key = "favch") { ItemsRow("My Channels", favLive, cardW, onOpen) { onTab(3) } } }
                                     "chnow" -> { if (nowChannels.isNotEmpty()) item(key = "chnow") { ChannelNowRow("Live TV", nowChannels, onOpen) { onTab(3) } } }
                                     // Top 10 always as whole covers (independent of the picture setting)
                                     "trend" -> { if (trendItems.size >= 3) item(key = "trend") {
-                                        ItemsRow("Top 10 heute", trendTop, cardW, onOpen, style = CARD_TOP10) { onBrowse(BrowseReq("Im Trend", trendItems, SORT_PLAYLIST)) }
+                                        ItemsRow("Today's Top 10", trendTop, cardW, onOpen, style = CARD_TOP10) { onBrowse(BrowseReq("Im Trend", trendItems, SORT_PLAYLIST)) }
                                     } }
                                     "because" -> { /* Fof TV: based on the provider's titles, not shown */ }
                                     "wl" -> { if (wl.isNotEmpty()) item(key = "wl") { ItemsRow("Meine Liste", wl, cardW, onOpen) { onTab(MenuLogic.MYLIST) } } }
                                     "hist" -> { if (hist.isNotEmpty()) item(key = "hist") { ItemsRow("Zuletzt geschaut", histTop, cardW, onOpen) { onBrowse(BrowseReq("Zuletzt geschaut", hist, SORT_PLAYLIST)) } } }
                                     "newm" -> { if (movies.isNotEmpty()) item(key = "newm") {
-                                        ItemsRow("Neu hinzugefügt · Filme", newMovies, cardW, onOpen) { onBrowse(BrowseReq("Neu hinzugefügt · Filme", movies, SORT_NEW)) }
+                                        ItemsRow("Recently Added · Movies", newMovies, cardW, onOpen) { onBrowse(BrowseReq("Recently Added · Movies", movies, SORT_NEW)) }
                                     } }
                                     "topm" -> { if (topM.size >= 8) item(key = "topm") {
                                         ItemsRow("Top bewertet · Filme", topM, cardW, onOpen) { onBrowse(BrowseReq("Top bewertet · Filme", topM, SORT_RATING)) }
                                     } }
                                     "news" -> { if (series.isNotEmpty()) item(key = "news") {
-                                        ItemsRow("Neu hinzugefügt · Serien", newSeries, cardW, onOpen) { onBrowse(BrowseReq("Neu hinzugefügt · Serien", series, SORT_NEW)) }
+                                        ItemsRow("Recently Added · TV Shows", newSeries, cardW, onOpen) { onBrowse(BrowseReq("Recently Added · TV Shows", series, SORT_NEW)) }
                                     } }
                                     "tops" -> { if (topS.size >= 8) item(key = "tops") {
-                                        ItemsRow("Top bewertet · Serien", topS, cardW, onOpen) { onBrowse(BrowseReq("Top bewertet · Serien", topS, SORT_RATING)) }
+                                        ItemsRow("Top Rated · TV Shows", topS, cardW, onOpen) { onBrowse(BrowseReq("Top Rated · TV Shows", topS, SORT_RATING)) }
                                     } }
                                     "sg" -> tasteOrder(Catalog.genres(Kind.SERIES)).take(4).forEach { sp -> item(key = "cms" + sp.title) { CatalogRow(sp.copy(title = "Series · " + sp.title), cardW, onOpen, onBrowse) } }
                                     "mg" -> tasteOrder(Catalog.genres(Kind.MOVIE)).take(4).forEach { sp -> item(key = "cmm" + sp.title) { CatalogRow(sp.copy(title = "Movies · " + sp.title), cardW, onOpen, onBrowse) } }
@@ -686,16 +686,16 @@ fun HomeScreen(
                             // Build own home screen: entry at the end of the page
                             item(key = "editHome") {
                                 Row(Modifier.padding(start = RowPadX + dpx(2), top = dpx(24))) {
-                                    SmallPill("Startseite anpassen", icon = AIcon.Sliders) { HomeEdit.active = true; scope.launch { states[0].animateScrollToItem(0) } }
+                                    SmallPill("Customize Home", icon = AIcon.Sliders) { HomeEdit.active = true; scope.launch { states[0].animateScrollToItem(0) } }
                                 }
                             }
-                            if (movies.isEmpty() && series.isEmpty()) item { EmptyHint("Diese Playlist enthält keine Filme oder Serien. Live TV findest du links.") }
+                            if (movies.isEmpty() && series.isEmpty()) item { EmptyHint("This playlist has no movies or TV shows. Live TV is available on the left.") }
                         }
                         1, 2 -> {
                             val isM = tab == 1
                             val base = if (isM) movies else series
                             val top = if (isM) topM else topS
-                            val noun = if (isM) "Filme" else "Serien"
+                            val noun = if (isM) "Filme" else "TV Shows"
                             val kind = if (isM) Kind.MOVIE else Kind.SERIES
                             if (ready.isNotEmpty()) item(key = "hero$tab") { Hero(ready.toList(), heroH, false, onOpen, heroPlay, header, { heroScroll(states[tab]) }) { scope.launch { states[tab].animateScrollToItem(0) } } }
                             else item(key = "top$tab") { header(Modifier) }
@@ -717,13 +717,13 @@ fun HomeScreen(
                                 item(key = "favh") { RowTitle("Favoriten", null, null, onAll = null) }
                                 item(key = "fave") {
                                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                        EmptyState(AIcon.Heart, "Noch keine Favoriten", "Auf einem Sender OK gedrückt halten, bei Filmen und Serien auf der Detailseite „Zu Favoriten“ wählen.",
+                                        EmptyState(AIcon.Heart, "No favorites yet", "Hold OK on a channel, or use Add to Favorites on a movie or TV show detail page.",
                                             action = "Zu Live TV", actionModifier = Modifier.focusRequester(ContentFocus.req)) { onTab(3) }
                                     }
                                 }
                             }
                             if (favLive.isNotEmpty()) {
-                                item(key = "favh") { RowTitle("Favoriten · Sender", null, null, onAll = null) }
+                                item(key = "favh") { RowTitle("Favorites · Channels", null, null, onAll = null) }
                                 item(key = "favg") { ChannelDetailRows(favLive, ContentFocus.req, onOpen) }
                             }
                             if (favM.isNotEmpty()) {
@@ -731,7 +731,7 @@ fun HomeScreen(
                                 item(key = "favm") { CardGridRows(favM, if (General.cardArt == 1) CARD_LAND else CARD_POSTER, if (favLive.isEmpty()) ContentFocus.req else null, onOpen) }
                             }
                             if (favS.isNotEmpty()) {
-                                item(key = "favsh") { RowTitle("Favoriten · Serien", null, null, onAll = null) }
+                                item(key = "favsh") { RowTitle("Favorites · TV Shows", null, null, onAll = null) }
                                 item(key = "favs") { CardGridRows(favS, if (General.cardArt == 1) CARD_LAND else CARD_POSTER, if (favLive.isEmpty() && favM.isEmpty()) ContentFocus.req else null, onOpen) }
                             }
                             val favCats = CatFavs.list.filter { it in liveP }
@@ -747,7 +747,7 @@ fun HomeScreen(
                                 item(key = "mlh") { RowTitle("Meine Liste", null, null, onAll = null) }
                                 item(key = "mle") {
                                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                        EmptyState(AIcon.Plus, "Noch nichts in deiner Liste", "Auf der Seite eines Films oder einer Serie „Meine Liste“ wählen.",
+                                        EmptyState(AIcon.Plus, "Your list is empty", "Choose My List on a movie or TV show page.",
                                             action = "Filme entdecken", actionModifier = Modifier.focusRequester(ContentFocus.req)) { onTab(1) }
                                     }
                                 }
@@ -757,7 +757,7 @@ fun HomeScreen(
                                 item(key = "mlm") { CardGridRows(wm, CARD_POSTER, ContentFocus.req, onOpen) }
                             }
                             if (ws.isNotEmpty()) {
-                                item(key = "mlsh") { RowTitle("Meine Liste · Serien", null, null, onAll = null) }
+                                item(key = "mlsh") { RowTitle("My List · TV Shows", null, null, onAll = null) }
                                 item(key = "mls") { CardGridRows(ws, CARD_POSTER, if (wm.isEmpty()) ContentFocus.req else null, onOpen) }
                             }
                         }
@@ -770,7 +770,7 @@ fun HomeScreen(
                                 item(key = "vlh") { RowTitle("Verlauf", null, null, onAll = null) }
                                 item(key = "vle") {
                                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                        EmptyState(AIcon.History, "Noch nichts angesehen", "Hier erscheinen die zuletzt gestarteten Filme und Serien.",
+                                        EmptyState(AIcon.History, "Nothing watched yet", "Movies and shows you start will appear here.",
                                             action = "Filme entdecken", actionModifier = Modifier.focusRequester(ContentFocus.req)) { onTab(1) }
                                     }
                                 }
@@ -780,7 +780,7 @@ fun HomeScreen(
                                 item(key = "vlm") { CardGridRows(vm, CARD_POSTER, ContentFocus.req, onOpen) }
                             }
                             if (vs.isNotEmpty()) {
-                                item(key = "vlsh") { RowTitle("Verlauf · Serien", null, null, onAll = null) }
+                                item(key = "vlsh") { RowTitle("History · TV Shows", null, null, onAll = null) }
                                 item(key = "vls") { CardGridRows(vs, CARD_POSTER, if (vm.isEmpty()) ContentFocus.req else null, onOpen) }
                             }
                         }
@@ -945,7 +945,7 @@ private fun ResumeRow(list: List<Pair<Entry, Item>>, cardW: Int, onResume: (Entr
                 val item = pair.second
                 val se = if (e.season > 0 || e.ep > 0) e.season to e.ep else ResumeLogic.seasonEp(e.title)
                 val multi = item.kind == Kind.SERIES && item.episodes.any { it.season != (se?.first ?: 1) }
-                val epText = se?.let { if (multi) "S${it.first} · Folge ${it.second}" else "Folge ${it.second}" }
+                val epText = se?.let { if (multi) "S${it.first} · Episode ${it.second}" else "Episode ${it.second}" }
                 val sub = when {
                     item.kind != Kind.SERIES -> "bei " + (e.pos / 60000) + " Min"
                     e.next && epText != null -> "Als Nächstes: $epText"
@@ -1112,12 +1112,12 @@ private fun Hero(
                 val h = if (home) 52 else 46
                 // Started already: the main action is Resume, with the time left (it resumes at the saved spot)
                 val resumeE = WatchStore.entries.firstOrNull { it.itemId == item.id && !it.next && it.pos > 60_000 && it.dur > it.pos }
-                HeroButton(if (resumeE != null) "Resume  ·  " + ((resumeE.dur - resumeE.pos) / 60_000).coerceAtLeast(1) + " min left" else "Jetzt ansehen",
+                HeroButton(if (resumeE != null) "Resume  ·  " + ((resumeE.dur - resumeE.pos) / 60_000).coerceAtLeast(1) + " min left" else "Watch Now",
                     AIcon.Play, true, Modifier.focusRequester(ContentFocus.req), h) { onPlay(item) }
-                if (home) HeroButton("Mehr Infos", AIcon.Info, false, Modifier.focusRequester(HeroFocus.second), h = h) { onOpen(item) }
+                if (home) HeroButton("More Info", AIcon.Info, false, Modifier.focusRequester(HeroFocus.second), h = h) { onOpen(item) }
                 else {
                     val inList = Library.isWatch(item.id)
-                    HeroButton(if (inList) "In Meiner Liste" else "Zur Liste", if (inList) AIcon.Check else AIcon.Plus, false, Modifier.focusRequester(HeroFocus.second), h = h) { Library.toggleWatch(ctx, item.id) }
+                    HeroButton(if (inList) "In Meiner Liste" else "View List", if (inList) AIcon.Check else AIcon.Plus, false, Modifier.focusRequester(HeroFocus.second), h = h) { Library.toggleWatch(ctx, item.id) }
                 }
             }
         }

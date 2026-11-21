@@ -201,16 +201,14 @@ object Stremio {
             runCatching {
                 val q = StremioLogic.cleanTitle(item.title).ifBlank { item.title }
                 val metas = JSONObject(get(StremioLogic.searchUrl(item.kind, q))).optJSONArray("metas") ?: return@runCatching null
-                var best: String? = null
-                for (i in 0 until metas.length()) {
-                    val o = metas.optJSONObject(i) ?: continue
+                val hits = (0 until metas.length()).mapNotNull { i ->
+                    val o = metas.optJSONObject(i) ?: return@mapNotNull null
                     val id = o.optString("imdb_id").ifBlank { o.optString("id") }
-                    if (!StremioLogic.isImdb(id)) continue
-                    if (best == null) best = id
-                    val y = StremioLogic.year(o.optString("releaseInfo"))
-                    if (item.year != null && y == item.year) { best = id; break }
+                    if (!StremioLogic.isImdb(id)) return@mapNotNull null
+                    StremioLogic.ImdbHit(id, o.optString("name"),
+                        StremioLogic.year(o.optString("releaseInfo")), o.optString("type"))
                 }
-                best
+                StremioLogic.chooseImdb(q, item.year, item.kind == Kind.SERIES, hits)
             }.getOrNull()?.also { idCache[item.mk] = it }
         }
     }
@@ -219,12 +217,17 @@ object Stremio {
 
     /** Streams, kept 10 minutes: the detail page asks ahead, so Play has them at once. */
     /** [onPart]: called with everything found so far each time an addon answers (the list fills as answers arrive). */
-    suspend fun streams(kind: Kind, imdb: String, season: Int, ep: Int, onPart: ((List<Source>) -> Unit)? = null): List<Source> {
-        val k = "$kind|$imdb|$season|$ep"
-        streamCache[k]?.let { if (System.currentTimeMillis() - it.first < 10 * 60_000L) return it.second }
+    suspend fun streams(kind: Kind, imdb: String, season: Int, ep: Int, refresh: Boolean = false, onPart: ((List<Source>) -> Unit)? = null): List<Source> {
+        // Include the installed addon set so adding/updating DragonStreams immediately
+        // fetches its streams instead of replaying a stale ten-minute cache.
+        val k = "$kind|$imdb|$season|$ep|" + addons.filter { it.streams }.joinToString(";") { it.base }
+        if (!refresh) streamCache[k]?.let { if (System.currentTimeMillis() - it.first < 10 * 60_000L) return it.second }
+        // A manual refresh must bypass a partially cached result from another addon
+        // while DragonStreams was temporarily slow/offline.
+        val requestKey = if (refresh) "$k|manual-refresh" else k
         // Already being looked up (the title page asked ahead): join that lookup instead of asking every addon again,
         // and show its answers as they arrive. Play then starts as soon as the first lookup has its sources.
-        inflight[k]?.let { (job, part) ->
+        inflight[requestKey]?.let { (job, part) ->
             val joined: List<Source>? = kotlinx.coroutines.coroutineScope {
                 val feed = if (onPart == null) null else launch {
                     var n = -1
@@ -237,13 +240,13 @@ object Stremio {
         }
         val part = java.util.Collections.synchronizedList(ArrayList<Source>())
         val job = kotlinx.coroutines.CompletableDeferred<List<Source>>()
-        inflight[k] = job to part
+        inflight[requestKey] = job to part
         try {
             val l = streamsNow(kind, imdb, season, ep) { p -> synchronized(part) { part.clear(); part.addAll(p) }; onPart?.invoke(p) }
             if (l.isNotEmpty()) streamCache[k] = System.currentTimeMillis() to l
             job.complete(l)
             return l
-        } catch (e: Throwable) { job.completeExceptionally(e); throw e } finally { inflight.remove(k, job to part) }
+        } catch (e: Throwable) { job.completeExceptionally(e); throw e } finally { inflight.remove(requestKey, job to part) }
     }
     private val inflight = java.util.concurrent.ConcurrentHashMap<String, Pair<kotlinx.coroutines.CompletableDeferred<List<Source>>, MutableList<Source>>>()
 
@@ -305,13 +308,15 @@ object Stremio {
                 val body = runCatching { get(StremioLogic.streamUrl(a.base, kind, imdb, season, ep)) }
                 body.fold({ b ->
                     val raw = runCatching { JSONObject(b).optJSONArray("streams")?.length() ?: 0 }.getOrDefault(0)
-                    val l = runCatching { parse(a.name, b) }.getOrDefault(emptyList()).let { all ->
-                        if (!a.name.contains("dragon", true)) all
-                        else {
-                            val keep = StremioLogic.dragonFilter(all.map { it.info + "\n" + it.label to it.url }).map { all[it] }
-                            // Only MP4 links for this title: offered at the end, marked, never started automatically
-                            keep.ifEmpty { all.map { it.copy(label = StremioLogic.LAST_RESORT + it.label, q = 0) } }
-                        }
+                    // DragonStreams and all other addons use the same protocol: do not
+                    // silently discard MP4 or unnamed-CDN streams. Previously this filter
+                    // hid results that Nuvio could display for Survivor and other titles.
+                    // The manual picker must show every usable HTTP(S)/RD source the addon returns.
+                    // Safety is enforced independently by content-match ranking and auto-play checks.
+                    val l = runCatching { parse(a.name, b) }.getOrDefault(emptyList()).map { source ->
+                        if (StremioLogic.dragonManualOnly(a.name, source.info, source.url)) {
+                            source.copy(label = StremioLogic.LAST_RESORT + source.label)
+                        } else source
                     }
                     if (onPart != null && l.isNotEmpty()) { partial.addAll(l); val snap = synchronized(partial) { partial.toList() }; withContext(Dispatchers.Main) { onPart(snap) } }
                     l to (a.name + ": " + when {
@@ -326,7 +331,9 @@ object Stremio {
             }
         }.awaitAll()
         if (stream.isNotEmpty()) lastReport = res.map { it.second }
-        res.flatMap { it.first }.distinctBy { it.url.ifEmpty { "h:" + it.hash + "|" + it.file } }
+        // Retain identical URLs from different addons: dropping a cross-addon
+        // duplicate can make DragonStreams vanish from the source picker.
+        res.flatMap { it.first }.distinctBy { it.addon.lowercase() + "|" + it.url.ifEmpty { "h:" + it.hash + "|" + it.file } }
             .sortedWith(compareByDescending<Source> { it.q }.thenBy { if (it.hash != null) 1 else 0 })
     }
 

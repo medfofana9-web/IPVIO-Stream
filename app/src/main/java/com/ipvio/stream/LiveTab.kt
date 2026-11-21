@@ -178,7 +178,7 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
     fun newList(first: String?) {
         val id = ChannelLists.create(ctx, Lang.tr("Senderliste " + (myLists.size + 1)), first)
         sel = ChannelListLogic.PREFIX + id
-        if (first == null) Toast.makeText(ctx, Lang.tr("Liste angelegt. Mit „Sender hinzufügen“ füllen."), Toast.LENGTH_SHORT).show()
+        if (first == null) Toast.makeText(ctx, Lang.tr("List created. Use Add Channels to add your favorites."), Toast.LENGTH_SHORT).show()
     }
 
     // Round 17b: the selected channel determines the background and the big display on the right ("What is on now")
@@ -213,7 +213,7 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
                     }
                     if (n == "SEARCH") {
                         CatRow(
-                            Lang.tr("Sender suchen") + if (query.isNotBlank()) ": $query" else "", -1, sel == "SEARCH",
+                            Lang.tr("Search channels") + if (query.isNotBlank()) ": $query" else "", -1, sel == "SEARCH",
                             if (sel == "SEARCH") Modifier.focusRequester(ContentFocus.req) else Modifier,
                             onFocus = { sel = "SEARCH" },
                             onRight = { runCatching { kbFirst.requestFocus() } },
@@ -226,7 +226,7 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
                         // or activate and load another playlist – without going into the settings.
                         val pls = PlaylistStore.lists.toList()
                         val multiView = srcNames.size > 1
-                        val opts = (if (multiView) listOf(Lang.tr("Alle Playlists")) else emptyList()) + pls.map { it.name }
+                        val opts = (if (multiView) listOf(Lang.tr("All Playlists")) else emptyList()) + pls.map { it.name }
                         val off = if (multiView) 1 else 0
                         val curIdx = if (multiView && srcK < 0) 0 else {
                             val si = if (multiView) srcK else 0
@@ -255,7 +255,7 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
                         return@itemsIndexed
                     }
                     if (n == "SRC") {
-                        val lbl = Lang.tr("Quelle") + ": " + (if (srcK < 0) Lang.tr("Alle") else srcNames[srcK])
+                        val lbl = Lang.tr("Source") + ": " + (if (srcK < 0) Lang.tr("All") else srcNames[srcK])
                         CatRow(lbl, -1, false, Modifier, onFocus = {}, onRight = { runCatching { firstChan.requestFocus() } }, onFav = {}, icon = AIcon.Sliders, raw = true) {
                             LiveSource.k = if (srcK + 1 >= srcNames.size) -1 else srcK + 1
                             // The chosen category may not exist in the other source: then "All channels"
@@ -268,7 +268,7 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
                         val hid = HiddenCats.list.filter { it in groups }
                         Box {
                             CatRow(Lang.tr("Ausgeblendete") + " (" + hid.size + ")", -1, false, Modifier, onFocus = {}, onRight = {}, onFav = {}, icon = AIcon.Sliders, raw = true) { hidMenu = true }
-                            if (hidMenu) OptionPopup(listOf("Alle wieder einblenden") + hid, -1, { hidMenu = false }) { i ->
+                            if (hidMenu) OptionPopup(listOf("Show all hidden channels") + hid, -1, { hidMenu = false }) { i ->
                                 hidMenu = false
                                 if (i == 0) HiddenCats.showAll(ctx) else HiddenCats.show(ctx, hid[i - 1])
                             }
@@ -282,7 +282,7 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
                     val label = when {
                         n == FAV_CAT -> "Favoriten"
                         n == "HOME" -> "Start"
-                        n == "ALL" -> "Alle Sender"
+                        n == "ALL" -> "All Channels"
                         n == "REC" -> "Aufnahmen"
                         LiveGenre.isGenreKey(n) -> LiveGenre.byKey(n)?.label ?: n
                         ml != null -> ml.name
@@ -317,7 +317,7 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
                             icon = icon, raw = ml != null
                         ) { runCatching { firstChan.requestFocus() } }
                         // Menu of a provider category: favorite on/off, hide
-                        if (catMenu && plainCat) OptionPopup(listOf(if (n in CatFavs.list) "Aus Favoriten entfernen" else "Zu Favoriten hinzufügen", "Kategorie ausblenden"), -1, { catMenu = false }) { i ->
+                        if (catMenu && plainCat) OptionPopup(listOf(if (n in CatFavs.list) "Remove from Favorites" else "Add to Favorites", "Kategorie ausblenden"), -1, { catMenu = false }) { i ->
                             catMenu = false
                             if (i == 0) CatFavs.toggle(ctx, n)
                             else { if (sel == n) sel = "ALL"; HiddenCats.hide(ctx, n) }
@@ -343,11 +343,11 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
                     AppIcon(AIcon.Lists, Accent1, size = 22.dp)
                     Text(raw = true, text = curList.name, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold,
                         maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    PillButton("Sender hinzufügen", if (list.isEmpty()) Modifier.focusRequester(firstChan) else Modifier, icon = AIcon.Plus) { addTo = curList.id; query = ""; sel = "SEARCH"; addFocusTick++ }
+                    PillButton("Add Channels", if (list.isEmpty()) Modifier.focusRequester(firstChan) else Modifier, icon = AIcon.Plus) { addTo = curList.id; query = ""; sel = "SEARCH"; addFocusTick++ }
                     PillButton("Umbenennen", icon = AIcon.Edit) { ask = NameAsk("Liste umbenennen", curList.name) { ChannelLists.rename(ctx, curList.id, it) } }
                     Box {
                         PillButton("Liste löschen", icon = AIcon.Close) { askDelete = true }
-                        if (askDelete) OptionPopup(listOf("Löschen", "Abbrechen"), -1, { askDelete = false }, listOf(AIcon.Close, AIcon.Left)) { i ->
+                        if (askDelete) OptionPopup(listOf("Löschen", "Cancel"), -1, { askDelete = false }, listOf(AIcon.Close, AIcon.Left)) { i ->
                             askDelete = false
                             if (i == 0) { ChannelLists.delete(ctx, curList.id); sel = "ALL"; LiveMemory.setSel(ctx, "ALL") }
                         }
@@ -358,19 +358,19 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     AppIcon(AIcon.Plus, Accent1, size = 22.dp)
-                    Text(raw = true, text = Lang.tr("Zu „") + addList.name + Lang.tr("“ hinzufügen: OK auf einem Sender fügt ihn hinzu bzw. entfernt ihn wieder"),
+                    Text(raw = true, text = Lang.tr("Add to “") + addList.name + Lang.tr("”: press OK on a channel to add or remove it"),
                         color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    PillButton("Fertig", light = true) { finishAdd() }
+                    PillButton("Done", light = true) { finishAdd() }
                 }
-                if (sel == "SEARCH") Field(query, { query = it.take(40) }, "Sendername eingeben", Modifier.padding(bottom = 12.dp), inner = Modifier.focusRequester(searchReq))
+                if (sel == "SEARCH") Field(query, { query = it.take(40) }, "Enter a channel name", Modifier.padding(bottom = 12.dp), inner = Modifier.focusRequester(searchReq))
                 if (list.isEmpty()) EmptyState(
                     if (sel == FAV_CAT) AIcon.Heart else AIcon.Live,
-                    if (sel == FAV_CAT) "Noch keine Favoriten" else if (sel == "SEARCH") (if (query.isBlank()) "Sender suchen" else "Keine Treffer") else if (curList != null) "Diese Liste ist noch leer" else "Keine Sender",
+                    if (sel == FAV_CAT) "No favorites yet" else if (sel == "SEARCH") (if (query.isBlank()) "Search channels" else "No results") else if (curList != null) "This list is empty" else "No channels",
                     when {
-                        sel == "SEARCH" -> "Tippe rechts mit der Tastatur. Gesucht wird im Sendernamen und in der Kategorie."
-                        sel == FAV_CAT -> "Auf einem Sender OK gedrückt halten und „Zu Favoriten“ wählen."
-                        curList != null -> "In „Alle Sender“ oder einer Kategorie auf einem Sender OK gedrückt halten und „Zu …“ wählen."
-                        else -> "In dieser Kategorie gibt es keine Sender. Links eine andere Kategorie wählen."
+                        sel == "SEARCH" -> "Use the keyboard on the right to search channel names and categories."
+                        sel == FAV_CAT -> "Hold OK on a channel and choose Add to Favorites."
+                        curList != null -> "In All Channels or a category, hold OK on a channel and choose Add to list."
+                        else -> "No channels in this category. Select another category on the left."
                     }
                 ) else LazyColumn(
                     state = chanState,
@@ -443,7 +443,7 @@ private fun NameDialog(title: String, initial: String, onDismiss: () -> Unit, on
             Field(text, { text = it.take(ChannelListLogic.MAX_NAME) }, "Name", onDone = { onSave(text) })
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 PillButton("Speichern", Modifier.focusRequester(fr), light = true) { onSave(text) }
-                PillButton("Abbrechen") { onDismiss() }
+                PillButton("Cancel") { onDismiss() }
             }
         }
     }
@@ -554,16 +554,16 @@ fun ChannelMenu(item: Item, inList: ChList?, onNewList: (() -> Unit)?, variants:
     val acts = ArrayList<Triple<String, AIcon?, () -> Unit>>()
     // Bundled quality variants: pick one to play (best first)
     if (variants.size > 1) for (v in variants) acts.add(Triple(Lang.tr("Qualität") + ": " + (v.quality ?: v.title), AIcon.Play) { onVariant(v) })
-    acts.add(Triple(if (Library.isFav(item.id)) "Aus Favoriten entfernen" else "Zu Favoriten", AIcon.Star) { Library.toggleFav(ctx, item.id) })
+    acts.add(Triple(if (Library.isFav(item.id)) "Remove from Favorites" else "Zu Favoriten", AIcon.Star) { Library.toggleFav(ctx, item.id) })
     if (inList != null) {
         acts.add(Triple("Nach oben", AIcon.Up) { ChannelLists.move(ctx, inList.id, item.id, -1) })
         acts.add(Triple("Nach unten", AIcon.Down) { ChannelLists.move(ctx, inList.id, item.id, 1) })
-        acts.add(Triple("Aus „${inList.name}“ entfernen", AIcon.Close) { ChannelLists.remove(ctx, inList.id, item.id) })
+        acts.add(Triple("Remove from “${inList.name}”", AIcon.Close) { ChannelLists.remove(ctx, inList.id, item.id) })
     }
     for (l in ChannelLists.lists.toList()) {
         if (l.id == inList?.id) continue
-        if (item.id in l.ids) acts.add(Triple("In „${l.name}“ – entfernen", AIcon.Check) { ChannelLists.remove(ctx, l.id, item.id) })
-        else acts.add(Triple("Zu „${l.name}“", AIcon.Plus) { ChannelLists.add(ctx, l.id, item.id) })
+        if (item.id in l.ids) acts.add(Triple("Remove from “${l.name}”", AIcon.Check) { ChannelLists.remove(ctx, l.id, item.id) })
+        else acts.add(Triple("Add to “${l.name}“", AIcon.Plus) { ChannelLists.add(ctx, l.id, item.id) })
     }
     if (onNewList != null) acts.add(Triple("Neue Senderliste …", AIcon.Plus, onNewList))
     OptionPopup(acts.map { it.first }, -1, onClose, acts.map { it.second }) { i -> onClose(); acts[i].third() }
@@ -597,7 +597,7 @@ fun ReminderCard(r: Reminder, modifier: Modifier, onClose: () -> Unit, onSwitch:
             Text(raw = true, text = r.chTitle, color = Muted, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         PillButton("Umschalten", Modifier.focusRequester(fr), light = true) { onSwitch() }
-        PillButton("Schließen") { onClose() }
+        PillButton("Close") { onClose() }
     }
 }
 
@@ -611,7 +611,7 @@ private fun LiveHome(live: List<Item>, genres: Map<String, List<Item>>, favs: Li
     if (recent.isNotEmpty()) rows.add("Zuletzt gesehen" to recent)
     if (favs.isNotEmpty()) rows.add("Favoriten" to favs.take(40))
     for ((k, l) in genres) rows.add((LiveGenre.byKey(k)?.label ?: k) to l.take(40))
-    if (rows.isEmpty()) rows.add("Alle Sender" to live.take(40))
+    if (rows.isEmpty()) rows.add("All Channels" to live.take(40))
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 48.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         itemsIndexed(rows, key = { _, r -> r.first }) { ri, r ->
             Column {

@@ -34,7 +34,7 @@ private val PREVIEW_H = 225.dp
 @Composable
 internal fun ViewPage(ctx: Context, live: Boolean = false) {
     CatPrefs.init(ctx); BrowsePrefs.init(ctx)
-    val tabs = listOf("Karten", "Seitenleiste", "Raster", "Startseite", "Kategorien")
+    val tabs = listOf("Karten", "Seitenleiste", "Raster", "Home", "Kategorien")
     val tab = ViewLive.tab
     // When a tab is highlighted, the sub page switches immediately: Left/Right pages through all areas
     val tabChips: @Composable () -> Unit = {
@@ -55,17 +55,17 @@ internal fun ViewPage(ctx: Context, live: Boolean = false) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { tabChips() }
     if (!live) Hint(
         when (tab) {
-            0 -> "Karten: So sehen einzelne Filme und Serien in den Listen aus (Poster oder breites Bild, Größe, Infos)."
-            1 -> "Seitenleiste: Das Menü am Rand mit Startseite, Filme, Serien und Live TV. Du kannst sie links, rechts oder oben anzeigen."
-            2 -> "Raster: Wie viele Spalten und Zeilen die Rasteransicht (zum Beispiel „Alle Filme“) zeigt."
-            3 -> "Startseite: Aussehen der ersten Seite nach dem Start. Welche Reihen erscheinen, stellst du über „Startseite anpassen“ ein."
-            else -> "Kategorien: Die Ordner deines Anbieters oder automatische Genres und ihre Darstellung."
+            0 -> "Cards: Choose how movies and shows appear in browsing rows (poster, wide artwork, size, and details)."
+            1 -> "Sidebar: Place the Home, Movies, TV Shows, and Live TV navigation on the left, right, or top."
+            2 -> "Grid: Set the number of rows and columns on pages such as All Movies."
+            3 -> "Home: Customize the first screen. Choose which rows appear under Customize Home."
+            else -> "Categories: Choose how provider folders and automatic genres appear."
         }
     )
     // Every choice applies immediately: one click shows it on the real home screen with your own titles
     // Every area except the sidebar can be tried live: the real screen opens with your own titles, every choice acts at once
     PillButton("Live-Vorschau starten", light = true, icon = AIcon.Play) { ViewLive.active = true }
-    Hint("Zeigt die echte App mit deinen Titeln; die Einstellungen erscheinen in einer schmalen Leiste unten. Ein Klick auf eine Auswahl wirkt sofort.")
+    Hint("Preview your actual library while adjusting the design. Changes appear immediately.")
     when (tab) {
         0 -> CardsTab(ctx)
         1 -> SidebarTab(ctx)
@@ -211,14 +211,14 @@ private fun CardsTab(ctx: Context) {
     }) {
         Text("Kartengröße", color = Muted, fontSize = 15.sp)
         Chips(listOf("Klein", "Normal", "Groß"), General.cardSize, hSize) { General.setCardView(ctx, it, General.cardArt) }
-        Text("Bilder bei Filmen und Serien", color = Muted, fontSize = 15.sp)
+        Text("Artwork for movies and TV shows", color = Muted, fontSize = 15.sp)
         Chips(listOf("Cover", "Szenenbild"), General.cardArt, hArt) { General.setCardView(ctx, General.cardSize, it) }
         Text("Vorschau beim Markieren", color = Muted, fontSize = 15.sp)
-        Chips(listOf("Infos auf dem Poster", "Breites Szenenbild"), General.previewStyle, hStyle) { General.setPreviewStyle(ctx, it) }
+        Chips(listOf("Details on the poster", "Breites Szenenbild"), General.previewStyle, hStyle) { General.setPreviewStyle(ctx, it) }
         Text("Standard-Ansicht", color = Muted, fontSize = 15.sp)
         Chips(listOf("Raster", "Kino"), if (BrowsePrefs.detail) 1 else 0, hView) { BrowsePrefs.set(ctx, it == 1) }
-        Hint("Raster zeigt viele Titel auf einmal. Kino zeigt oben die Details zum markierten Titel und unten eine Reihe zum Durchblättern.")
-        Hint("Beim Markieren einer Auswahl zeigt die Vorschau sofort die Wirkung, OK übernimmt sie. Schriftgröße und Farben findest du unter „Design“.")
+        Hint("Grid shows more titles at once. Cinema shows a featured title above a browsable row.")
+        Hint("Highlight an option to preview it, then press OK to apply. Text size and colors are under Design.")
     }
 }
 
@@ -247,10 +247,10 @@ private fun SidebarTab(ctx: Context) {
     }) {
         Text("Position", color = Muted, fontSize = 15.sp)
         Chips(SidebarPrefs.POS_NAMES, SidebarPrefs.pos, hPos) { SidebarPrefs.set(ctx, pos = it) }
-        ToggleRow("Immer mit Text", "Aus: nur Symbole, die Texte erscheinen beim Hineingehen. An: Symbole und Texte sind immer zu sehen (braucht mehr Platz).", SidebarPrefs.labels) {
+        ToggleRow("Always show labels", "Off shows icons until focused. On keeps labels visible but takes more space.", SidebarPrefs.labels) {
             SidebarPrefs.set(ctx, labels = it)
         }
-        Hint("Zurück bringt dich jederzeit in die Seitenleiste – auch wenn sie rechts oder oben steht.")
+        Hint("Press Back to return to navigation, whether the sidebar is on the left, right, or top.")
     }
 }
 
@@ -305,7 +305,7 @@ private fun GridTab(ctx: Context) {
         StepRow("Zeilen (Raster)", rows.toString(),
             { AppSettings.setGrid(ctx, cols, rows - 1) },
             { AppSettings.setGrid(ctx, cols, rows + 1) })
-        Hint("Das Raster kannst du zusätzlich direkt in der Rasteransicht mit dem Raster-Knopf ändern.")
+        Hint("You can also adjust the grid directly from the grid-view button.")
     }
 }
 
@@ -349,12 +349,12 @@ private fun HomeTab(ctx: Context) {
             }
         }
     }) {
-        Text("Banner wechselt", color = Muted, fontSize = 15.sp)
-        Chips(heroOpts.map { if (it == 0) "nie" else "alle $it s" }, heroOpts.indexOf(General.heroSec).coerceAtLeast(0), hHero) { General.setHeroSec(ctx, heroOpts[it]) }
-        StepRow("Kartengröße (Reihen)", AppSettings.cardW.toString(),
+        Text("Featured banner changes", color = Muted, fontSize = 15.sp)
+        Chips(heroOpts.map { if (it == 0) "Never" else "every $it sec" }, heroOpts.indexOf(General.heroSec).coerceAtLeast(0), hHero) { General.setHeroSec(ctx, heroOpts[it]) }
+        StepRow("Card size (rows)", AppSettings.cardW.toString(),
             { AppSettings.setCardW(ctx, AppSettings.cardW - 10) },
             { AppSettings.setCardW(ctx, AppSettings.cardW + 10) })
-        Hint("Beim Markieren einer Auswahl zeigt die Vorschau sofort die Wirkung, OK übernimmt sie.")
+        Hint("Highlight an option to preview the effect. Press OK to apply it.")
     }
 }
 
@@ -405,6 +405,6 @@ private fun CategoriesTab(ctx: Context) {
         val cv = listOf("Liste mit Vorschau", "Kacheln")
         Text("Ansicht", color = Muted, fontSize = 15.sp)
         Chips(cv, if (CatPrefs.listView) 0 else 1, hView) { CatPrefs.set(ctx, it == 0) }
-        Hint("Beim Markieren einer Auswahl zeigt die Vorschau sofort die Wirkung, OK übernimmt sie.")
+        Hint("Highlight an option to preview the effect. Press OK to apply it.")
     }
 }

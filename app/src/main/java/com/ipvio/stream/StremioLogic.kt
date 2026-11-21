@@ -21,17 +21,14 @@ object StremioLogic {
     }
 
     /**
-     * DragonStreams: its MP4 links often play the wrong title, so they are never used. Only MKV and CDN links play;
-     * links without any marker are kept only when the addon sent no MKV or CDN link at all.
+     * DragonStreams MP4 links have sometimes contained a different title than their labels.
+     * They must remain visible and manually selectable, but must not be auto-played.
+     * A source's extension never determines whether it appears in the source picker.
      */
-    /** Label start of DragonStreams MP4 links offered only because nothing else exists (never auto-played). */
-    const val LAST_RESORT = "MP4 · may be wrong content · "
+    const val LAST_RESORT = "MP4 · verify content · "
 
-    fun dragonFilter(l: List<Pair<String, String>>): List<Int> {
-        val kinds = l.map { streamKind(it.first, it.second) }
-        val hasGood = kinds.any { it == "mkv" || it == "cdn" }
-        return kinds.indices.filter { i -> kinds[i] == "mkv" || kinds[i] == "cdn" || (!hasGood && kinds[i] == null) }
-    }
+    fun dragonManualOnly(addon: String, info: String, url: String): Boolean =
+        addon.contains("dragon", ignoreCase = true) && streamKind(info, url) == "mp4"
 
     /**
      * Turns whatever the user pasted into the addon's base address (no trailing slash):
@@ -79,6 +76,29 @@ object StremioLogic {
         s = s.replace(Regex("^\\s*[A-Z]{2,3}\\s*[-:|]\\s*"), "")
         s = s.replace(Regex("\\b(4K|UHD|FHD|HD|SD|HEVC|H265|MULTI|SUB|DUB)\\b", RegexOption.IGNORE_CASE), " ")
         return s.replace(Regex("\\s+"), " ").trim()
+    }
+
+    /** When Cinemeta returns Survivor plus spinoffs, do not silently pick the first IMDb ID. */
+    data class ImdbHit(val id: String, val name: String, val year: Int?, val type: String)
+
+    private fun normalTitle(value: String): String = cleanTitle(value)
+        .lowercase().replace(Regex("[^a-z0-9]+"), " ").trim().replace(Regex("\\s+"), " ")
+
+    fun chooseImdb(title: String, year: Int?, series: Boolean, hits: List<ImdbHit>): String? {
+        val expectedType = if (series) "series" else "movie"
+        val target = normalTitle(title)
+        if (target.isEmpty()) return null
+        val matches = hits.filter { isImdb(it.id) && (it.type.isBlank() || it.type == expectedType) }
+            .filter { normalTitle(it.name) == target }
+        if (matches.isEmpty()) return null
+        // Respect exact show identity before the year: different series editions often share "Survivor".
+        return matches.minWithOrNull(
+            compareBy<ImdbHit>(
+                { if (it.type == expectedType) 0 else 1 },
+                { if (year == null || it.year == null) 1 else kotlin.math.abs(it.year - year) },
+                { if (it.year == null) 1 else 0 }
+            )
+        )?.id
     }
 
     /** First release year in a Cinemeta "releaseInfo" ("2008–2013", "2019"). */

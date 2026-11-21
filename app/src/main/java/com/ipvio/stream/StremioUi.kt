@@ -43,6 +43,7 @@ fun StremioSourcesPopup(
     var imdb by remember { mutableStateOf<String?>(null) }
     var noId by remember { mutableStateOf(false) }
     var sources by remember { mutableStateOf<List<Stremio.Source>?>(null) }
+    var refreshToken by remember { mutableIntStateOf(0) }
     var resolving by remember { mutableStateOf(false) }
     var rdError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -62,10 +63,13 @@ fun StremioSourcesPopup(
     // Your IPTV: its own section under the addon sources (needs no IMDb id; the provider's copy is found by name)
     var iptv by remember { mutableStateOf<Stremio.Source?>(null) }
     var iptvState by remember { mutableStateOf("loading") }   // loading, found, none
-    LaunchedEffect(imdb, season, ep) {
+    LaunchedEffect(imdb, season, ep, refreshToken) {
         val id = imdb ?: return@LaunchedEffect
         sources = null; partial = emptyList()
-        sources = Stremio.streams(item.kind, id, season, ep) { partial = it }
+        // Manual source screens should query the add-ons again, not trust a cached
+        // subset from when DragonStreams was unavailable. Auto-play can use prefetch.
+        sources = Stremio.streams(item.kind, id, season, ep,
+            onPart = { partial = it }, refresh = !auto || refreshToken > 0)
     }
     fun choose(s: Stremio.Source) {
         NowSources.set(item.id, imdb, want, Stremio.rank((sources ?: partial) + listOfNotNull(iptv), want, cid), s)
@@ -112,7 +116,15 @@ fun StremioSourcesPopup(
                 .background(Surf.copy(alpha = 0.98f)).border(1.dp, DS.Overlay3, shape).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("Sources", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold, raw = true)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Sources", color = Color.White, fontSize = 24.sp,
+                    fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f), raw = true)
+                PillButton("Refresh sources", raw = true) {
+                    refreshToken++
+                    noVerified = false
+                }
+            }
             Text(item.title + if (series) "  ·  S$season E$ep" else "", color = Muted, fontSize = 16.sp, maxLines = 1, raw = true)
             if (series) {
                 Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -129,6 +141,15 @@ fun StremioSourcesPopup(
             if (noVerified) Text("No stream could be confirmed as this " + (if (series) "episode" else "movie") + ". Choose one below.",
                 color = DS.Gold, fontSize = 15.sp, raw = true)
             if (sources == null && partial.isNotEmpty()) Text("More addons are still answering …", color = Muted, fontSize = 13.sp, raw = true)
+            // If other addons answered but DragonStreams did not, show the actual per-addon
+            // status instead of silently making it look like the source was never installed.
+            val dragonInstalled = Stremio.addons.any { it.streams && it.name.contains("dragon", true) }
+            if (sources != null && dragonInstalled && list.orEmpty().none { it.addon.contains("dragon", true) }) {
+                val detail = Stremio.lastReport.firstOrNull { it.substringBefore(':').contains("dragon", true) }
+                    ?: "DragonStreams did not return any playable streams."
+                Text("$detail · Choose Refresh sources to try again.", color = DS.Gold,
+                    fontSize = 13.sp, maxLines = 2, raw = true)
+            }
             when {
                 noId -> Text("Couldn't match this title on IMDb. Adding a free TMDB key (Settings > API keys) makes matching more reliable.", color = Muted, fontSize = 16.sp)
                 list == null -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -191,6 +212,7 @@ internal fun SourceRow(s: Stremio.Source, match: Int, wrong: Boolean, lastGood: 
         val (tag, col) = when {
             active -> "Playing" to Color.White
             wrong -> "Reported wrong" to Color(0xFFFF6B5E)
+            s.label.startsWith(StremioLogic.LAST_RESORT) -> "Manual selection" to Color(0xFFFFB020)
             match == StremioLogic.VERIFIED -> "Match" to Color(0xFF4ADE80)
             match == StremioLogic.MISMATCH -> "Other episode/title" to Color(0xFFFFB020)
             else -> "Unverified" to Muted
