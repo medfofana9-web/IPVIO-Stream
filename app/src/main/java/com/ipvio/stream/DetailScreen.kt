@@ -556,7 +556,7 @@ private fun DetailScreenFull(
                                         item.kind != Kind.SERIES -> "Resume · " + (resume.pos / 60000) + " min"
                                         resumeSE == null -> "Resume"
                                         resume.next -> "Up next: " + (if (oneSeason) "Episode ${resumeSE.second}" else "S${resumeSE.first} · Episode ${resumeSE.second}")
-                                        else -> "Fortsetzen · " + (if (oneSeason) "Episode ${resumeSE.second}" else "S${resumeSE.first} · Episode ${resumeSE.second}")
+                                        else -> if (resumeSE.first > 0) "Resume S${resumeSE.first} E${resumeSE.second}" else "Resume episode ${resumeSE.second}"
                                     }
                                     HeroButton(label, AIcon.Play, true, Modifier.focusRequester(playFocus), bh) {
                                         // Use the exact currently displayed episode. Never feed
