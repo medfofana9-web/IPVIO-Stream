@@ -44,6 +44,7 @@ fun StremioSourcesPopup(
     var noId by remember { mutableStateOf(false) }
     var sources by remember { mutableStateOf<List<Stremio.Source>?>(null) }
     var refreshToken by remember { mutableIntStateOf(0) }
+    var retriedAlternate by remember(item.id) { mutableStateOf(false) }
     var resolving by remember { mutableStateOf(false) }
     var rdError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -70,13 +71,14 @@ fun StremioSourcesPopup(
         // a cached partial list. This matters when DragonStreams answers later.
         val found = Stremio.streams(item.kind, id, season, ep,
             onPart = { partial = it }, refresh = !auto || refreshToken > 0)
-        if (found.isEmpty() && Stremio.addons.any { it.streams }) {
+        if (found.isEmpty() && !retriedAlternate && Stremio.addons.any { it.streams }) {
             // Some IPTV providers have the IMDb ID of a spin-off with the same name
             // (e.g. Survivor). When no addon finds streams for that ID, retry with
             // Cinemeta's exact title/year match, never with an unrelated title.
             // Updating imdb reruns this effect; a repeated ID cannot loop.
-            val alternate = StremioLogic.alternateImdb(id, Stremio.imdbFor(item, null))
+            val alternate = Stremio.alternateImdbFor(item, id)
             if (alternate != null) {
+                retriedAlternate = true
                 imdb = alternate
                 return@LaunchedEffect
             }
