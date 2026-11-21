@@ -28,7 +28,7 @@ fun TrackSettingsSection(ctx: Context) {
         if (AppSettings.audioLang.isNotEmpty()) SelectRow("Secondary audio language", Langs.AUDIO2[a2].second, Langs.AUDIO2.map { it.second }, a2) {
             AppSettings.setTrackExtra(ctx, Langs.AUDIO2[it].first, AppSettings.subMode, AppSettings.ccPref)
         }
-        SelectRow("Untertitel", Langs.SUB_MODES[AppSettings.subMode], Langs.SUB_MODES, AppSettings.subMode) {
+        SelectRow("Subtitles", Langs.SUB_MODES[AppSettings.subMode], Langs.SUB_MODES, AppSettings.subMode) {
             AppSettings.setTrackExtra(ctx, AppSettings.audioLang2, it, AppSettings.ccPref)
         }
         if (AppSettings.subMode != TrackLogic.SUB_OFF) {
