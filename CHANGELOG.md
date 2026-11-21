@@ -1,5 +1,11 @@
 # Changelog
 
+## Fof TV – Netflix seasons, Movies / TV Shows pages, speed
+
+- Speed: the hero card's glow, halo and picture are one cached layer again (no shadow, no inner parallax) – this afternoon's card repainted the whole top area on every scroll frame. Weak sticks keep the calm look instead of the Netflix preview.
+- Seasons and episodes look like Netflix: plain season list (shown season bold with its episode count in red), "Episodes / Season N" heading, flat episode rows with the big episode number, 16:9 still with a red progress line, title with the length on the right and three lines of description; the selected row gets a soft light surface and a round play button.
+- Movies and TV Shows pages: big "Movies" / "TV Shows" title with a Genres menu on the picture; Continue Watching, Top 10 of that kind, My List and a spotlight row come before the genre rows.
+
 ## Fof TV – Netflix look, parts 2 and 3: title page, player, launch
 
 - Title page: green "% Match" with year, genre, length, quality and the TOP 10 tag in one line; new Rate button (Liked / Not for me; liked titles feed "Because you like …"); Trailer moved into the main button row.

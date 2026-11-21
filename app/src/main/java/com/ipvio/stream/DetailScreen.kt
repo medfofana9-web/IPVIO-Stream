@@ -731,7 +731,7 @@ private fun DetailScreenFull(
                     horizontalArrangement = Arrangement.spacedBy(dpx(14))
                 ) {
                     LazyColumn(
-                        Modifier.width(dpx(170)).fillMaxHeight(),
+                        Modifier.width(dpx(200)).fillMaxHeight(),
                         state = seasonRowState,
                         verticalArrangement = Arrangement.spacedBy(dpx(3)),
                         contentPadding = PaddingValues(vertical = dpx(6))
@@ -756,11 +756,11 @@ private fun DetailScreenFull(
                             Modifier.padding(bottom = dpx(10)),
                             horizontalArrangement = Arrangement.spacedBy(dpx(16)), verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Episodes  ·  Season $season", raw = true, color = Tok.TextHi, fontSize = spx(21),
+                            Text("Episodes", raw = true, color = Color.White, fontSize = spx(28),
                                 fontWeight = FontWeight.Bold, letterSpacing = 0.sp)
+                            Text("Season $season", raw = true, color = Color(0xFFBCBCBC), fontSize = spx(20), fontWeight = FontWeight.Medium)
                             // Fof TV: no permanent remote hints (clutter); only a short note while episode info loads
                             if (epLoading) Text("Updating episode info", color = Muted, fontSize = spx(13))
-                            Text("${eps.size} episodes", color = Muted, fontSize = spx(14))
                             if (item.episodes.size > EpisodeLogic.LONG) DetailPill("Find episode", icon = AIcon.Down) { jumpOpen = !jumpOpen }
                         }
                         // Long season: sections (TMDB seasons or blocks of 50 episodes) instead of an endless list
@@ -846,100 +846,81 @@ private fun DetailScreenFull(
 
 @Composable
 private fun EpisodeRow(ep: Episode, em: EpMeta?, v: Variant, prog: ResumeLogic.EpPos?, modifier: Modifier, onFocus: () -> Unit, onToggleSeen: () -> Unit, onClick: () -> Unit) {
+    // Netflix-style episode row: big episode number, 16:9 still with a red progress line, title with the length on the
+    // right, two lines of description. Flat; the selected row gets a soft light surface (no frame, no lift).
     var f by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(dpx(14))
-    // Quiet, stable focus: a slight lift and crisp outline instead of a large GPU-heavy shadow.
-    val sc by androidx.compose.animation.core.animateFloatAsState(if (f) focusScale(1.012f) else 1f, label = "ep")
+    val shape = RoundedCornerShape(dpx(8))
     Row(
-        modifier.fillMaxWidth().padding(vertical = dpx(4))
-            .graphicsLayer { scaleX = sc; scaleY = sc; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f) }
-            .clip(shape).background(if (f) Color(0xFF222632) else Color(0xFF141820))
-            .border(if (f) 2.dp else 1.dp, if (f) Color(0xFFD7DAF3) else Color(0x28FFFFFF), shape)
+        modifier.fillMaxWidth().padding(vertical = dpx(3))
+            .clip(shape).background(if (f) Color(0x29FFFFFF) else Color.Transparent)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
             .favKeys(onToggleSeen)
             .clickable(onClick = onClick)
-            .padding(dpx(10)),
-        horizontalArrangement = Arrangement.spacedBy(dpx(12)), verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = dpx(14), vertical = dpx(14)),
+        horizontalArrangement = Arrangement.spacedBy(dpx(22)), verticalAlignment = Alignment.CenterVertically
     ) {
+        Text(raw = true, text = ep.num.toString(), color = if (f) Color.White else Color(0xFF8C8C8C), fontSize = spx(30),
+            fontWeight = FontWeight.Medium, modifier = Modifier.width(dpx(44)), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         Box(
-            Modifier.width(dpx(194)).height(dpx(110)).clip(RoundedCornerShape(dpx(10)))
-                .background(Brush.linearGradient(listOf(lerp(Surf2, Accent1, 0.22f), Surf2))),
+            Modifier.width(dpx(214)).height(dpx(120)).clip(RoundedCornerShape(dpx(6))).background(Color(0xFF1F1F1F)),
             contentAlignment = Alignment.Center
         ) {
             if (em?.still != null) {
-                // No spoilers: an episode not watched yet shows a blurred picture (tiny image scaled up, works on every
-                // Android version; real blur on Android 12+), sharp again once watched
+                // No spoilers: an episode not watched yet shows a blurred picture, sharp again once watched
                 val hide = FofPrefs.spoilerPics && prog?.done != true
                 if (hide) {
                     val ctxI = androidx.compose.ui.platform.LocalContext.current
                     val req = remember(em.still) { coil.request.ImageRequest.Builder(ctxI).data(em.still).size(32, 18).build() }
                     AsyncImage(req, null, Modifier.fillMaxSize().blur(14.dp), contentScale = ContentScale.Crop)
                 } else AsyncImage(em.still, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            } else BrandMark(Modifier.size(dpx(40)).graphicsLayer { alpha = 0.5f })
+            // Selected: Netflix's round play button over the still
+            if (f) Box(Modifier.align(Alignment.Center).size(dpx(46)).clip(CircleShape).background(Color(0x99000000))
+                .border(2.dp, Color.White, CircleShape), contentAlignment = Alignment.Center) {
+                AppIcon(AIcon.Play, Color.White, size = dpx(20))
             }
-            else Text("E${ep.num}", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
-            // Every episode is immediately identifiable, even with spoilers hidden.
-            Text(raw = true, text = "EP  " + ep.num.toString().padStart(2, '0'),
-                color = Color.White, fontSize = spx(12), fontWeight = FontWeight.ExtraBold,
-                letterSpacing = 1.sp,
-                modifier = Modifier.align(Alignment.TopStart).padding(dpx(10))
-                    .clip(RoundedCornerShape(50)).background(Color(0xC408090D))
-                    .padding(horizontal = dpx(10), vertical = dpx(5)))
-            // Selected: round play button in the middle
-            if (f) Box(Modifier.align(Alignment.Center).size(dpx(42)).clip(RoundedCornerShape(50)).background(Color(0xEBF4F6FB)), contentAlignment = Alignment.Center) {
-                AppIcon(AIcon.Play, Color(0xFF05070D), size = dpx(20))
-            }
-            // Progress: bar at the bottom, watched = check mark top right
-            if (prog != null && prog.done) Box(Modifier.align(Alignment.TopEnd).padding(6.dp)) { Badge("Watched", DS.Scrim, Accent2, AIcon.Check) }
-            else if (prog != null && prog.fraction > 0.02f) Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color(0x66FFFFFF))) {
-                Box(Modifier.fillMaxWidth(prog.fraction).fillMaxHeight().background(Accent2))
+            // Progress: red line at the bottom (full when watched)
+            val frac = if (prog?.done == true) 1f else prog?.fraction ?: 0f
+            if (frac > 0.02f) Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(dpx(4)).background(Color(0x80808080))) {
+                Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(Color(0xFFE60023)))
             }
         }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(raw = true, text = "${ep.num}. ${em?.name ?: ep.title}", color = Tok.TextHi, fontSize = spx(21), fontWeight = if (f) FontWeight.Bold else FontWeight.SemiBold,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(dpx(8))) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
+                Text(raw = true, text = em?.name ?: ep.title, color = Color.White, fontSize = spx(20), fontWeight = FontWeight.Bold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                if (prog?.done == true) AppIcon(AIcon.Check, Color(0xFF46D369), size = dpx(18))
                 v.quality?.let { QualityBadge(it) }
-                em?.imdb?.let { Badge("IMDb $it", Color(0xFFF5C518), Color.Black) }
-                if (em?.imdb == null) em?.rating?.let { RatingBadge(it, Color(0x26FFFFFF)) }
-                em?.runtime?.let { Badge("$it Min") }
+                em?.runtime?.let { Text(raw = true, text = if (it >= 60) "${it / 60}h ${it % 60}m" else "${it}m", color = Color(0xFFD2D2D2), fontSize = spx(18), fontWeight = FontWeight.Medium) }
             }
-            em?.air?.let { Text(raw = true, text = it, color = Muted, fontSize = spx(13)) }
-            em?.overview?.takeIf { !(FofPrefs.spoilerText && prog?.done != true) }?.let { Text(raw = true, text = it, color = if (f) Tok.TextMid else Tok.TextLow, fontSize = spx(15), lineHeight = spx(20), maxLines = 2, overflow = TextOverflow.Ellipsis) }
-            // (Hint "hold OK = mark as watched" removed: marking stays available by holding OK and under "More")
+            em?.overview?.takeIf { !(FofPrefs.spoilerText && prog?.done != true) }?.let {
+                Text(raw = true, text = it, color = Color(0xFFBCBCBC), fontSize = spx(16), lineHeight = spx(23), maxLines = 3, overflow = TextOverflow.Ellipsis)
+            }
+            // Fof touch: the air date in small type
+            em?.air?.let { Text(raw = true, text = it, color = Color(0xFF7A7A7A), fontSize = spx(13)) }
         }
     }
 }
 
-/** Season list entry: bar at the left and episode count for the shown season, light frame on focus. */
+/** Season list entry (Netflix): plain text, the shown season bright and bold with its episode count, focus = white capsule. */
 @Composable
 private fun SeasonEntry(season: Int, count: Int, selected: Boolean, modifier: Modifier, onRight: () -> Unit) {
     var f by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(dpx(10))
-    Row(
+    val shape = RoundedCornerShape(dpx(6))
+    Column(
         modifier.fillMaxWidth().clip(shape)
-            // Round 17b: shown season with a green shimmer, selected one as light glass (no white frame)
-            .background(
-                if (f) Brush.horizontalGradient(listOf(Color(0x2EFFFFFF), Color(0x14FFFFFF)))
-                else if (selected) Brush.horizontalGradient(listOf(Accent1.copy(alpha = 0.18f), Color.Transparent))
-                else Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent))
-            )
+            .background(if (f) Color.White else Color.Transparent)
             .onFocusChanged { f = it.isFocused }
             .onPreviewKeyEvent { ev ->
                 if (ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionRight) { if (ev.nativeKeyEvent.repeatCount == 0) onRight(); true } else false
             }
             .clickable(onClick = onRight)
-            .padding(horizontal = dpx(12), vertical = dpx(9)),
-        horizontalArrangement = Arrangement.spacedBy(dpx(10)), verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = dpx(14), vertical = dpx(10))
     ) {
-        Box(
-            Modifier.width(dpx(3)).height(dpx(if (selected) 30 else 17))
-                .then(if (selected) Modifier.shadow(dpx(10), RoundedCornerShape(50), ambientColor = Accent1, spotColor = Accent1) else Modifier)
-                .clip(RoundedCornerShape(50)).background(if (selected) Accent1 else Color.Transparent)
-        )
-        Column {
-            Text("Season $season", color = if (selected || f) Tok.TextHi else Tok.TextLow, fontSize = spx(17), fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
-            if (selected) Text(text = if (count == 1) "1 episode" else "$count episodes", color = Muted, fontSize = spx(12))
-        }
+        Text("Season $season", color = if (f) Color.Black else if (selected) Color.White else Color(0xFF8C8C8C),
+            fontSize = spx(if (selected) 21 else 19), fontWeight = if (selected || f) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
+        if (selected) Text(text = if (count == 1) "1 episode" else "$count episodes", color = if (f) Color(0xFF444444) else Color(0xFFE60023),
+            fontSize = spx(13), fontWeight = FontWeight.SemiBold)
     }
 }
 

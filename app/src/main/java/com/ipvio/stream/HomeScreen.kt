@@ -697,12 +697,22 @@ fun HomeScreen(
                             val top = if (isM) topM else topS
                             val noun = if (isM) "Filme" else "TV Shows"
                             val kind = if (isM) Kind.MOVIE else Kind.SERIES
-                            if (ready.isNotEmpty()) item(key = "hero$tab") { Hero(ready.toList(), heroH, false, onOpen, heroPlay, header, { heroScroll(states[tab]) }) { scope.launch { states[tab].animateScrollToItem(0) } } }
+                            val gSpecs = Catalog.genres(kind)
+                            val catName = if (isM) "Movies" else "TV Shows"
+                            val pickGenre: (Int) -> Unit = { i -> gSpecs.getOrNull(i)?.let { sp -> scope.launch { onBrowse(BrowseReq(catName + " · " + sp.title, Catalog.items(sp, 4), SORT_PLAYLIST)) } } }
+                            if (ready.isNotEmpty()) item(key = "hero$tab") { Hero(ready.toList(), heroH, false, onOpen, heroPlay, header, { heroScroll(states[tab]) },
+                                category = catName, genres = gSpecs.map { it.title }, onGenre = pickGenre) { scope.launch { states[tab].animateScrollToItem(0) } } }
                             else item(key = "top$tab") { header(Modifier) }
+                            // Netflix category order: Continue Watching, Top 10 of this kind, My List, a spotlight row, then genres
                             val rl = resumeK
                             if (rl.isNotEmpty()) item(key = "res$tab") { ResumeRow(rl, cardW, onResume, onOpen) }
+                            val t10 = trendK.take(10)
+                            if (t10.size >= 3) item(key = "t10$tab") { ItemsRow("Top 10 $catName Today", t10, cardW, onOpen, style = CARD_TOP10) { onBrowse(BrowseReq("Top 10 $catName Today", trendK, SORT_PLAYLIST)) } }
                             val wl = watchK
                             if (wl.isNotEmpty()) item(key = "wl$tab") { ItemsRow("Meine Liste", wl, cardW, onOpen) { onBrowse(BrowseReq("Meine Liste · $noun", wl, SORT_PLAYLIST)) } }
+                            if (tasteTop.isNotEmpty()) item(key = "spot$tab") {
+                                ExtraRow(if (isM) "Movies We Think You'll Love" else "TV Shows Picked for You", "taste:" + (if (isM) "movies:" else "shows:") + Profiles.active, cardW, onOpen, onBrowse, style = CARD_SPOT) { TasteRows.forKind(ctx, kind, tasteTop) }
+                            }
                             val recent = histK
                             if (recent.isNotEmpty()) item(key = "hr$tab") { ItemsRow("Zuletzt geschaut", recent, cardW, onOpen) { onBrowse(BrowseReq("Zuletzt geschaut · $noun", recent, SORT_PLAYLIST)) } }
                             // Fof TV: the Stremio addons are the catalog here, not the provider's categories
@@ -1059,7 +1069,8 @@ private fun heroScroll(st: LazyListState): Int = if (st.firstVisibleItemIndex ==
 @Composable
 private fun Hero(
     featured: List<Item>, heroH: Dp, home: Boolean, onOpen: (Item) -> Unit, onPlay: (Item) -> Unit,
-    header: @Composable (Modifier) -> Unit, scrollY: () -> Int = { 0 }, onFocusTop: () -> Unit
+    header: @Composable (Modifier) -> Unit, scrollY: () -> Int = { 0 },
+    category: String? = null, genres: List<String> = emptyList(), onGenre: (Int) -> Unit = {}, onFocusTop: () -> Unit
 ) {
     val ctx = LocalContext.current
     var idx by remember { mutableIntStateOf(0) }
@@ -1081,25 +1092,48 @@ private fun Hero(
     val cardShape = RoundedCornerShape(dpx(26))
     val cardTop = dpx(78)
     Box(Modifier.fillMaxWidth().height(heroH + dpx(40)).background(Bg).clipToBounds().onFocusChanged { if (it.hasFocus) Billboard.cardFocus = false }) {
-        // Ambient light from the artwork behind the card (fills the margins around it)
-        Box(Modifier.fillMaxSize().graphicsLayer { alpha = 0.9f }) { MoodGlow(rememberMeta(item)?.backdrop) }
-        Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x2EFFFFFF), Color(0x0FFFFFFF), Color.Transparent), radius = 1500f)))
-        // Picture and its gradients in one cached layer inside the rounded card
-        Box(Modifier.fillMaxSize().padding(start = dpx(32), end = dpx(32), top = cardTop, bottom = dpx(10))
-            .shadow(dpx(30), cardShape, ambientColor = Color.Black, spotColor = Color.Black)
-            .clip(cardShape).background(Color.Black)
-            .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }) {
-            Crossfade(item, animationSpec = tween(heroFadeMs), label = "heroBg") { c ->
-                val m = rememberMeta(c)
-                m?.backdrop?.let { AsyncImage(it, null, Modifier.fillMaxSize().graphicsLayer {
-                    translationY = if (Look.motion == 0) 0f else scrollY() * 0.25f
-                }, contentScale = ContentScale.Crop, alignment = Alignment.TopEnd) }
+        // Performance (Fire TV / onn): glow, halo, picture and gradients are ONE cached layer – painted once per title,
+        // then only composited. No shadow and no inner parallax (both forced a full repaint on every scroll frame).
+        Box(Modifier.fillMaxSize().graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }) {
+            MoodGlow(rememberMeta(item)?.backdrop)
+            Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x24FFFFFF), Color.Transparent), radius = 1500f)))
+            Box(Modifier.fillMaxSize().padding(start = dpx(32), end = dpx(32), top = cardTop, bottom = dpx(10))
+                .clip(cardShape).background(Color.Black)) {
+                Crossfade(item, animationSpec = tween(heroFadeMs), label = "heroBg") { c ->
+                    val m = rememberMeta(c)
+                    m?.backdrop?.let { AsyncImage(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopEnd) }
+                }
+                // Light shading only where the text sits (bottom left), the picture stays bright
+                Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Color(0xB3000000), 0.35f to Color(0x59000000), 0.6f to Color.Transparent)))
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xCC000000))))
             }
-            // Light shading only where the text sits (bottom left), the picture stays bright
-            Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Color(0xB3000000), 0.35f to Color(0x59000000), 0.6f to Color.Transparent)))
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xCC000000))))
         }
         header(Modifier.align(Alignment.TopStart))
+        // Netflix category page: big "Movies" / "TV Shows" with a Genres menu at the top of the picture
+        if (category != null) Row(
+            Modifier.align(Alignment.TopStart).padding(start = dpx(72), top = cardTop + dpx(26)),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(26))
+        ) {
+            Text(raw = true, text = category, color = Color.White, fontSize = spx(44), fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp)
+            if (genres.isNotEmpty()) {
+                var open by remember { mutableStateOf(false) }
+                var gf by remember { mutableStateOf(false) }
+                Box {
+                    Row(
+                        Modifier.height(dpx(40)).clip(RoundedCornerShape(dpx(4)))
+                            .background(if (gf) Color.White else Color(0x99000000))
+                            .border(1.dp, if (gf) Color.White else Color(0xE6FFFFFF), RoundedCornerShape(dpx(4)))
+                            .onFocusChanged { gf = it.isFocused }.clickable { open = true }
+                            .padding(horizontal = dpx(16)),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(12))
+                    ) {
+                        Text("Genres", color = if (gf) Color.Black else Color.White, fontSize = spx(17), fontWeight = FontWeight.SemiBold)
+                        AppIcon(AIcon.Down, if (gf) Color.Black else Color.White, size = dpx(14))
+                    }
+                    if (open) OptionPopup(genres, -1, { open = false }) { i -> open = false; onGenre(i) }
+                }
+            }
+        }
         Column(
             Modifier.align(Alignment.BottomStart).padding(start = dpx(80), bottom = dpx(if (home) 52 else 42)).widthIn(max = dpx(760)),
             verticalArrangement = Arrangement.spacedBy(dpx(10))

@@ -873,7 +873,7 @@ fun RowPosterCard(item: Item, baseW: Dp, modifier: Modifier, overlay0: Int = 0, 
         if (item.id in Top10.ids && p < 0.5f) Top10Tag(Modifier.align(Alignment.TopEnd))
         val strip = when {
             item.kind == Kind.SERIES && NewEpisodes.list.any { it.id == item.id } -> "New Episodes"
-            (m?.year ?: item.year?.toString())?.take(4)?.toIntOrNull()?.let { it >= java.util.Calendar.getInstance().get(java.util.Calendar.YEAR) } == true -> "New"
+            (m?.year ?: item.year?.toString())?.take(4)?.toIntOrNull()?.let { it >= THIS_YEAR } == true -> "New"
             else -> null
         }
         if (strip != null && p < 0.5f) RedStrip(strip, Modifier.align(Alignment.BottomCenter))
@@ -1134,6 +1134,9 @@ private fun SpotChip(text: String, icon: AIcon, primary: Boolean) {
     }
 }
 
+
+/** Current year, read once (not per card and frame). */
+val THIS_YEAR: Int = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
 
 /** Titles in today's Top 10 (for the corner tag on every card in the app). */
 object Top10 { var ids by mutableStateOf<Set<String>>(emptySet()) }
