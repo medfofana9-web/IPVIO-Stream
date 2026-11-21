@@ -213,7 +213,7 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
                     }
                     if (n == "SEARCH") {
                         CatRow(
-                            Lang.tr("Sender suchen") + if (query.isNotBlank()) ": $query" else "", -1, sel == "SEARCH",
+                            Lang.tr("Search channels") + if (query.isNotBlank()) ": $query" else "", -1, sel == "SEARCH",
                             if (sel == "SEARCH") Modifier.focusRequester(ContentFocus.req) else Modifier,
                             onFocus = { sel = "SEARCH" },
                             onRight = { runCatching { kbFirst.requestFocus() } },
@@ -358,19 +358,19 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     AppIcon(AIcon.Plus, Accent1, size = 22.dp)
-                    Text(raw = true, text = Lang.tr("Zu „") + addList.name + Lang.tr("“ hinzufügen: OK auf einem Sender fügt ihn hinzu bzw. entfernt ihn wieder"),
+                    Text(raw = true, text = Lang.tr("Add to “") + addList.name + Lang.tr("”: press OK on a channel to add or remove it"),
                         color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    PillButton("Fertig", light = true) { finishAdd() }
+                    PillButton("Done", light = true) { finishAdd() }
                 }
-                if (sel == "SEARCH") Field(query, { query = it.take(40) }, "Sendername eingeben", Modifier.padding(bottom = 12.dp), inner = Modifier.focusRequester(searchReq))
+                if (sel == "SEARCH") Field(query, { query = it.take(40) }, "Enter a channel name", Modifier.padding(bottom = 12.dp), inner = Modifier.focusRequester(searchReq))
                 if (list.isEmpty()) EmptyState(
                     if (sel == FAV_CAT) AIcon.Heart else AIcon.Live,
-                    if (sel == FAV_CAT) "Noch keine Favoriten" else if (sel == "SEARCH") (if (query.isBlank()) "Sender suchen" else "Keine Treffer") else if (curList != null) "Diese Liste ist noch leer" else "Keine Sender",
+                    if (sel == FAV_CAT) "No favorites yet" else if (sel == "SEARCH") (if (query.isBlank()) "Search channels" else "No results") else if (curList != null) "This list is empty" else "No channels",
                     when {
-                        sel == "SEARCH" -> "Tippe rechts mit der Tastatur. Gesucht wird im Sendernamen und in der Kategorie."
-                        sel == FAV_CAT -> "Auf einem Sender OK gedrückt halten und „Zu Favoriten“ wählen."
-                        curList != null -> "In „Alle Sender“ oder einer Kategorie auf einem Sender OK gedrückt halten und „Zu …“ wählen."
-                        else -> "In dieser Kategorie gibt es keine Sender. Links eine andere Kategorie wählen."
+                        sel == "SEARCH" -> "Use the keyboard on the right to search channel names and categories."
+                        sel == FAV_CAT -> "Hold OK on a channel and choose Add to Favorites."
+                        curList != null -> "In All Channels or a category, hold OK on a channel and choose Add to list."
+                        else -> "No channels in this category. Select another category on the left."
                     }
                 ) else LazyColumn(
                     state = chanState,
@@ -558,12 +558,12 @@ fun ChannelMenu(item: Item, inList: ChList?, onNewList: (() -> Unit)?, variants:
     if (inList != null) {
         acts.add(Triple("Nach oben", AIcon.Up) { ChannelLists.move(ctx, inList.id, item.id, -1) })
         acts.add(Triple("Nach unten", AIcon.Down) { ChannelLists.move(ctx, inList.id, item.id, 1) })
-        acts.add(Triple("Aus „${inList.name}“ entfernen", AIcon.Close) { ChannelLists.remove(ctx, inList.id, item.id) })
+        acts.add(Triple("Remove from “${inList.name}”", AIcon.Close) { ChannelLists.remove(ctx, inList.id, item.id) })
     }
     for (l in ChannelLists.lists.toList()) {
         if (l.id == inList?.id) continue
-        if (item.id in l.ids) acts.add(Triple("In „${l.name}“ – entfernen", AIcon.Check) { ChannelLists.remove(ctx, l.id, item.id) })
-        else acts.add(Triple("Zu „${l.name}“", AIcon.Plus) { ChannelLists.add(ctx, l.id, item.id) })
+        if (item.id in l.ids) acts.add(Triple("Remove from “${l.name}”", AIcon.Check) { ChannelLists.remove(ctx, l.id, item.id) })
+        else acts.add(Triple("Add to “${l.name}“", AIcon.Plus) { ChannelLists.add(ctx, l.id, item.id) })
     }
     if (onNewList != null) acts.add(Triple("Neue Senderliste …", AIcon.Plus, onNewList))
     OptionPopup(acts.map { it.first }, -1, onClose, acts.map { it.second }) { i -> onClose(); acts[i].third() }
