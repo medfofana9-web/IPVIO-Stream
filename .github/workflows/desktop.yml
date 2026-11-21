@@ -1,6 +1,7 @@
 name: Fof TV for Mac
 
-# Builds the Mac app (desktop/) as a .dmg on a Mac runner and publishes it as a GitHub release "mac-<version>-<run>".
+# Builds the Mac app (desktop/) as a .zip (Mac runners are not available on this account; electron-builder
+# packages the Mac app on Linux) and publishes it as a GitHub release "mac-<version>-<run>".
 # Never a prerelease and never "latest": the TV updater and promote.yml only look at the Android releases.
 on:
   push:
@@ -13,20 +14,20 @@ permissions:
 
 jobs:
   mac:
-    runs-on: macos-14
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Build .dmg (Intel and Apple silicon)
+      - name: Build Mac app (Intel and Apple silicon)
         working-directory: desktop
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: |
           npm install --no-audit --no-fund
-          npx electron-builder --mac dmg --x64 --arm64 --publish never
+          npx electron-builder --mac zip --x64 --arm64 --publish never
           ls -la dist
       - name: Publish
         env:
@@ -34,6 +35,6 @@ jobs:
         run: |
           V=$(node -p "require('./desktop/package.json').version")
           TAG="mac-$V-${{ github.run_number }}"
-          gh release create "$TAG" desktop/dist/*.dmg -R "${{ github.repository }}" --latest=false \
+          gh release create "$TAG" desktop/dist/*.zip -R "${{ github.repository }}" --latest=false \
             --title "Fof TV for Mac $V (build ${{ github.run_number }})" \
-            --notes "Fof TV for Mac. Intel Macs: FofTV-$V-x64.dmg. Apple silicon (M1 and newer): FofTV-$V-arm64.dmg. First start: right-click the app in Applications → Open → Open (the app is not signed with an Apple developer certificate yet)."
+            --notes "Fof TV for Mac. Intel Macs: FofTV-$V-x64.zip. Apple silicon (M1 and newer): FofTV-$V-arm64.zip. Double-click the zip, drag Fof TV to Applications. First start: right-click Fof TV → Open → Open (the app is not signed with an Apple developer certificate yet)."

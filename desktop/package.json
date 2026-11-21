@@ -7,7 +7,7 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --mac dmg --x64 --arm64 --publish never"
+    "dist": "electron-builder --mac zip --x64 --arm64 --publish never"
   },
   "dependencies": {
     "hls.js": "^1.5.17",
@@ -21,15 +21,32 @@
     "appId": "com.fof.tv.desktop",
     "productName": "Fof TV",
     "artifactName": "FofTV-${version}-${arch}.${ext}",
-    "directories": { "buildResources": "assets", "output": "dist" },
-    "files": ["main.js", "preload.js", "renderer/**", "node_modules/hls.js/dist/hls.min.js", "node_modules/mpegts.js/dist/mpegts.js", "package.json"],
+    "directories": {
+      "buildResources": "assets",
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**",
+      "node_modules/hls.js/dist/hls.min.js",
+      "node_modules/mpegts.js/dist/mpegts.js",
+      "package.json"
+    ],
     "mac": {
       "category": "public.app-category.entertainment",
       "icon": "assets/icon.png",
-      "target": ["dmg"],
+      "target": [
+        "zip"
+      ],
       "identity": null,
       "darkModeSupport": true
     },
-    "dmg": { "title": "Fof TV", "backgroundColor": "#000000" }
-  }
+    "dmg": {
+      "title": "Fof TV",
+      "backgroundColor": "#000000"
+    },
+    "publish": null
+  },
+  "repository": "https://github.com/medfofana9-web/IPVIO-Stream"
 }
