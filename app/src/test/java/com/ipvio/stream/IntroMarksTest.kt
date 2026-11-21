@@ -23,6 +23,12 @@ class IntroMarksTest {
         assertFalse(IntroMarks.valid(0, 16 * 60_000L, 2_400_000))
     }
 
+    @Test fun recapUsesSameConfirmedWindowRules() {
+        assertTrue(IntroMarks.valid(0, 25_000, 2_100_000))
+        assertTrue(IntroMarks.Window(0, 25_000).contains(10_000))
+        assertFalse(IntroMarks.Window(0, 25_000).contains(25_000))
+    }
+
     @Test fun rejectsMarkersPastEpisodeDuration() {
         assertFalse(IntroMarks.valid(30_000, 150_000, 100_000))
     }
