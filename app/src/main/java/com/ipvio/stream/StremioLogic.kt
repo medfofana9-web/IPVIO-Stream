@@ -48,6 +48,14 @@ object StremioLogic {
         return s
     }
 
+    /** Only actual HTTP(S) stream addresses are eligible for direct playback. */
+    fun isHttpStreamUrl(value: String): Boolean {
+        val url = value.trim()
+        if (!url.startsWith("https://", ignoreCase = true) && !url.startsWith("http://", ignoreCase = true)) return false
+        val authority = url.substringAfter("://").substringBefore('/').substringBefore('?').substringBefore('#')
+        return authority.isNotBlank() && !authority.contains('@') && !authority.any { it.isWhitespace() }
+    }
+
     fun manifestUrl(base: String) = "$base/manifest.json"
 
     /** Stremio's type for the kind of item: "movie" or "series". */
