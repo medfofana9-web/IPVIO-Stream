@@ -1603,9 +1603,19 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             if (cur.live && cur.archive == null) LiveTimeshift.reconnect(player) else player.prepare()
                         }
                         // Other sources of exactly this movie/episode (addon streams or the playlist's other qualities)
-                        if (addonContent || currentAlts().size > 1) PillButton("Change source", raw = true) {
-                            failed = false; msg = null
-                            if (addonContent) { controls = false; srcPanel = true } else openPanel(Panel.QUALITY)
+                        val gameSources = SportSession.streams(cur.itemId)
+                        if (gameSources.any { it.id != cur.itemId } || addonContent || currentAlts().size > 1) {
+                            PillButton("Change source", raw = true) {
+                                failed = false; msg = null
+                                when {
+                                    gameSources.any { it.id != cur.itemId } -> {
+                                        controls = false
+                                        streamPick = cur.title to gameSources
+                                    }
+                                    addonContent -> { controls = false; srcPanel = true }
+                                    else -> openPanel(Panel.QUALITY)
+                                }
+                            }
                         }
                     }
                 }
