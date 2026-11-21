@@ -108,6 +108,8 @@ fun SearchScreen(
     BackHandler(enabled = inSidebar && tab != 0) { onTab(0) }
 
     val q = SearchState.query.trim()
+    // The preview should never show a focused title from the previous query.
+    LaunchedEffect(q) { focusItem = null }
     // A new search starts at the top of the results (the list kept the scroll position of the previous one) – only while
     // typing, so returning from a title page keeps its place
     LaunchedEffect(q) { if (fieldFocused && state.firstVisibleItemIndex > 0) runCatching { state.scrollToItem(0) } }
@@ -245,9 +247,12 @@ fun SearchScreen(
         Row(Modifier.fillMaxSize().sidebarPad()) {
             // Left: input, quick filters, suggestions and last searches above the keyboard, the keyboard at the bottom
             Column(
-                Modifier.width(340.dp).fillMaxHeight().padding(start = DS.PageX, top = 16.dp, bottom = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                Modifier.width(350.dp).fillMaxHeight().padding(start = DS.PageX, top = 16.dp, bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                FofEyebrow("DISCOVER", Modifier.padding(bottom = 6.dp), compact = true)
+                Text("Find something great.", raw = true, color = Color.White, fontSize = 25.sp,
+                    fontWeight = FontWeight.ExtraBold, maxLines = 2)
                 if (AppSettings.systemKeyboard) {
                     // The device's own keyboard (e.g. Gboard) in a normal text field: OK or a tap opens it
                     Field(
@@ -299,6 +304,15 @@ fun SearchScreen(
                     modifier = Modifier.padding(start = 24.dp, top = 22.dp, bottom = 4.dp), raw = true)
                 if (q.length >= 2) Row(Modifier.padding(start = 24.dp, top = 18.dp, bottom = 2.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("All", "Movies", "TV Shows", "Live TV").forEachIndexed { i, n -> MiniChip(n, fl == i, raw = true) { SearchState.filter = i } }
+                }
+                // The previously unused title preview is now integrated into the results screen.
+                // Reserve a fixed slot while searching so loading metadata never shifts D-pad focus.
+                if (q.length >= 2) {
+                    SearchInfoPanel(
+                        focusItem ?: topRes.firstOrNull() ?: rm.firstOrNull() ?: rs.firstOrNull() ?: rl.firstOrNull(),
+                        Modifier.fillMaxWidth().height(190.dp)
+                            .padding(start = 24.dp, end = 24.dp, top = 10.dp, bottom = 3.dp)
+                    )
                 }
                 CompositionLocalProvider(LocalSearchFocus provides { focusItem = it }) {
                     LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = state, contentPadding = PaddingValues(bottom = 48.dp)) {
@@ -406,7 +420,7 @@ private fun SearchRowHeader(title: String, count: Int, headerReq: FocusRequester
             } else false
         }, trailing = AIcon.Right) { PillMemory.key = key; onAll() }
         Spacer(Modifier.width(16.dp))
-        Box(Modifier.width(4.dp).height(22.dp).clip(RoundedCornerShape(2.dp)).background(Accent1))
+        Box(Modifier.width(4.dp).height(22.dp).clip(RoundedCornerShape(2.dp)).background(FofVisual.Violet))
         Spacer(Modifier.width(10.dp))
         Text(title, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
     }
@@ -590,7 +604,7 @@ private val LocalSearchFocus = compositionLocalOf<(Item) -> Unit> { {} }
 @Composable
 private fun SearchInfoPanel(item: Item?, modifier: Modifier) {
     val ctx = LocalContext.current
-    val shape = RoundedCornerShape(DS.RadiusM)
+    val shape = RoundedCornerShape(DS.RadiusL)
     Box(modifier.glass(shape, 2)) {
         if (item == null) {
             Text("Suche nach einem Titel: hier erscheinen Beschreibung, Bewertung und Format des markierten Treffers.", color = Muted, fontSize = 16.sp,
@@ -618,7 +632,9 @@ private fun SearchInfoPanel(item: Item?, modifier: Modifier) {
                 if (img != null) coil.compose.AsyncImage(img, null, Modifier.fillMaxSize(), contentScale = if (item.kind == Kind.LIVE) androidx.compose.ui.layout.ContentScale.Fit else androidx.compose.ui.layout.ContentScale.Crop)
             }
             Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(raw = true, text = item.title, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                FofEyebrow(if (item.kind == Kind.MOVIE) "MOVIE" else if (item.kind == Kind.SERIES) "SERIES" else "LIVE TV", compact = true)
+                Text(raw = true, text = item.title, color = Color.White, fontSize = 24.sp,
+                    fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 val parts = ArrayList<String>()
                 parts.add(when (item.kind) { Kind.MOVIE -> "Film"; Kind.SERIES -> "Serie"; else -> "Live" })
                 (item.year?.toString() ?: m?.year)?.let { parts.add(it) }

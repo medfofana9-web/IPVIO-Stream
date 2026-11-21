@@ -69,15 +69,16 @@ fun PRoundButton(
     content: @Composable (Color) -> Unit
 ) {
     var f by remember { mutableStateOf(false) }
-    val sc by animateFloatAsState(if (f) focusScale(1.12f) else 1f, animationSpec = tween(140), label = "pbtn")
+    val sc by animateFloatAsState(if (f) focusScale(1.075f) else 1f, animationSpec = tween(145), label = "pbtn")
     Box(
         modifier
             .focusProperties { canFocus = enabled }
             .graphicsLayer { scaleX = sc; scaleY = sc }
             .size(size)
             .clip(CircleShape)
-            .background(if (f) Color.White else PT.BtnBg)
+            .background(if (f) Color.White else FofVisual.GlassDark)
             .then(if (f) Modifier else Modifier.background(FofGlass.sheen(0, false)))
+            .border(if (f) 2.dp else 1.dp, if (f) FofVisual.Violet else FofVisual.GlassBorder, CircleShape)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onLabel(label) }
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
@@ -90,9 +91,10 @@ fun PRoundButton(
 @Composable
 fun PChip(text: String, modifier: Modifier = Modifier, filled: Boolean = false, icon: AIcon? = null, raw: Boolean = false) {
     Box(
-        modifier.height(26.dp).clip(RoundedCornerShape(DS.RadiusXs))
-            .background(if (filled) Color.White else Color(0x29FFFFFF))
-            .padding(horizontal = 10.dp),
+        modifier.height(28.dp).clip(RoundedCornerShape(DS.RadiusXs))
+            .background(if (filled) Color.White else FofVisual.GlassDark)
+            .border(1.dp, if (filled) Color.White else FofVisual.GlassBorder, RoundedCornerShape(DS.RadiusXs))
+            .padding(horizontal = 11.dp),
         contentAlignment = Alignment.Center
     ) {
         IconLabel(icon, text, if (filled) PT.Ink else Color.White, 14.sp, FontWeight.Bold, iconSize = 15.dp, raw = raw)
@@ -159,7 +161,7 @@ fun PSeekTrack(
         val frac = (pos().toFloat() / d).coerceIn(0f, 1f)
         val pw = frac * w
         // Clean bar (Apple TV style): the played part in the accent, no glow around it
-        if (pw > 0f) drawRoundRect(Accent1, Offset(0f, top), Size(pw, th), rad)
+        if (pw > 0f) drawRoundRect(FofVisual.Violet, Offset(0f, top), Size(pw, th), rad)
         for (s in segs()) {
             val x1 = (s.start.toFloat() / d).coerceIn(0f, 1f) * w
             val x2 = (s.end.toFloat() / d).coerceIn(0f, 1f) * w
@@ -167,7 +169,7 @@ fun PSeekTrack(
         }
         val tr = 7f.dp.toPx() + 4f.dp.toPx() * fp
         val cx = pw.coerceIn(tr, (w - tr).coerceAtLeast(tr))
-        if (fp > 0.01f) drawCircle(Accent2, radius = tr, center = Offset(cx, cy), alpha = fp)
+        if (fp > 0.01f) drawCircle(FofVisual.VioletDeep, radius = tr, center = Offset(cx, cy), alpha = fp)
         drawCircle(Color.White, radius = tr - 3f.dp.toPx() * fp, center = Offset(cx, cy))
     }
 }
@@ -323,8 +325,9 @@ fun BoxScope.PPanelFrame(
             .then(modifier)
             .padding(24.dp)
     ) {
-        Text(title, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
-        Text(hint, color = Muted, fontSize = 14.sp, maxLines = 1, modifier = Modifier.padding(top = 2.dp, bottom = 16.dp))
+        FofEyebrow("PLAYER SETTINGS", Modifier.padding(bottom = 16.dp), compact = true)
+        Text(title, color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+        Text(hint, color = FofVisual.Secondary, fontSize = 14.sp, maxLines = 1, modifier = Modifier.padding(top = 4.dp, bottom = 18.dp))
         content()
     }
 }
@@ -357,7 +360,8 @@ fun PPanelRow(
     val shape = RoundedCornerShape(DS.RadiusS)
     Row(
         modifier.fillMaxWidth().height(PT.RowHeight).clip(shape)
-            .background(if (f) Color.White else if (tinted) DS.Overlay1 else Color.Transparent)
+            .background(if (f) Color.White else if (selected || tinted) DS.Overlay1 else Color.Transparent)
+            .border(1.dp, if (f) FofVisual.Violet else if (selected) FofVisual.GlassBorder else Color.Transparent, shape)
             .onFocusChanged { f = it.isFocused }
             .then(if (chevron || trailing != null) Modifier.onPreviewKeyEvent { e ->
                 if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionRight) { onClick(); true } else false

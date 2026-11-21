@@ -1678,7 +1678,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                         Modifier.align(Alignment.TopStart).padding(start = PT.MarginX, top = PT.MarginY, end = 360.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(baseTitle, color = Color.White, fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis, raw = cur.archive != null)
+                        FofEyebrow("NOW PLAYING", Modifier.padding(bottom = 4.dp), compact = true)
+                        Text(baseTitle, color = Color.White, fontSize = 32.sp, lineHeight = 38.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis, raw = cur.archive != null)
                         cur.archive?.let { a ->
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                 PChip("Archiv", icon = AIcon.Catchup)
@@ -1713,6 +1714,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                         .padding(start = PT.MarginX, end = PT.MarginX, bottom = PT.MarginY)
                 ) {
                     if (cur.live) {
+                        FofEyebrow("LIVE TELEVISION", Modifier.padding(bottom = 14.dp), compact = true)
                         LiveInfoBlock(curItem, cur.title, if (curIdx >= 0) curIdx + 1 else 0, epg)
                         Spacer(Modifier.height(20.dp))
                         val fav = Library.isFav(cur.itemId)
@@ -1838,6 +1840,13 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                         }
                     } else {
                         val stepS = (step / 1000).toString()
+                        Row(Modifier.fillMaxWidth().padding(bottom = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("PLAYBACK", color = FofVisual.Violet, fontSize = 12.sp,
+                                fontWeight = FontWeight.ExtraBold, letterSpacing = 1.6.sp, raw = true)
+                            Spacer(Modifier.weight(1f))
+                            Text("◀ / ▶  SEEK", color = FofVisual.Secondary, fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp, raw = true)
+                        }
                         PSeekBar(
                             Modifier.fillMaxWidth().focusRequester(seekFocus),
                             pos = posNow, dur = durNow, buffered = bufNow, segs = segsNow,
@@ -1934,7 +1943,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             Modifier.fillMaxWidth().padding(top = 12.dp).height(20.dp),
                             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(ctrlLabel, color = Muted, fontSize = 14.sp, maxLines = 1, modifier = Modifier.weight(1f))
+                            Text(ctrlLabel.ifBlank { "Sources  ·  Subtitles  ·  Episodes  ·  Watch Together" }, color = FofVisual.Secondary, fontSize = 14.sp, maxLines = 1, modifier = Modifier.weight(1f), raw = true)
                             if (AppSettings.showEndTime) PEndsAt(posNow, durNow) { SPEEDS[speedIdx] }
                         }
                     }
