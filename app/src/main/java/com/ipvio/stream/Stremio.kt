@@ -213,6 +213,28 @@ object Stremio {
         }
     }
 
+    /**
+     * Uncached retry for a failed provider IMDb ID. The regular imdbFor()
+     * intentionally uses a per-title cache, which cannot find another ID.
+     * Never substitute a similarly named spinoff or different release year.
+     */
+    suspend fun alternateImdbFor(item: Item, failedId: String): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            val title = StremioLogic.cleanTitle(item.title).ifBlank { item.title }
+            val year = item.year ?: return@runCatching null
+            val metas = JSONObject(get(StremioLogic.searchUrl(item.kind, title)))
+                .optJSONArray("metas") ?: return@runCatching null
+            val hits = (0 until metas.length()).mapNotNull { i ->
+                val o = metas.optJSONObject(i) ?: return@mapNotNull null
+                val id = o.optString("imdb_id").ifBlank { o.optString("id") }
+                if (!StremioLogic.isImdb(id)) return@mapNotNull null
+                StremioLogic.ImdbHit(id, o.optString("name"),
+                    StremioLogic.year(o.optString("releaseInfo")), o.optString("type"))
+            }
+            StremioLogic.chooseAlternateImdb(title, year, item.kind == Kind.SERIES, failedId, hits)
+        }.getOrNull()
+    }
+
     private val streamCache = java.util.concurrent.ConcurrentHashMap<String, Pair<Long, List<Source>>>()
 
     /** Streams, kept 10 minutes: the detail page asks ahead, so Play has them at once. */
