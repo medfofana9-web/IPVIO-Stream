@@ -117,7 +117,7 @@ fun SearchScreen(
 
     val q = SearchState.query.trim()
     // The preview should never show a focused title from the previous query.
-    LaunchedEffect(q, fl) { focusItem = null }
+    LaunchedEffect(q, SearchState.filter) { focusItem = null }
     // A new search starts at the top of the results (the list kept the scroll position of the previous one) – only while
     // typing, so returning from a title page keeps its place
     LaunchedEffect(q) { if (fieldFocused && state.firstVisibleItemIndex > 0) runCatching { state.scrollToItem(0) } }
