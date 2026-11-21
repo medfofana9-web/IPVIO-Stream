@@ -559,10 +559,14 @@ object SportData {
 
     fun has(text: String, key: String) = (" $text ").contains(" $key ")
 
-    /** Do both teams appear in the show text? Field events (F1, golf) never match by team names. */
+    /** A team matchup needs both names. A field event needs its specific event title. */
     fun matches(g: Game, text: String): Boolean {
-        if (g.solo) return false
         val n = normCached(text)
+        if (g.solo) {
+            val event = normCached(g.title)
+            return event.contains(' ') && event != normCached(g.league) &&
+                event !in genericEventTitles && has(n, event)
+        }
         val home = eventKeys(g.home)
         val away = eventKeys(g.away)
         val shared = home.intersect(away.toSet())
@@ -578,6 +582,8 @@ object SportData {
             awaySpans.any { awaySpan -> homeSpan.last < awaySpan.first || awaySpan.last < homeSpan.first }
         }
     }
+
+    private val genericEventTitles = setOf("formula 1", "formula one", "grand prix", "pga tour", "lpga tour", "ufc fight night")
 
     private fun eventKeys(team: Team): List<String> {
         val full = normCached(team.name)
