@@ -383,13 +383,23 @@ fun HomeScreen(
             if (ready.toList() != hit.second) { ready.clear(); ready.addAll(hit.second) }
             return@LaunchedEffect
         }
-        ready.clear()
-        for (c in candidates) {
-            val m = Catalog.meta(c) ?: MetaRepo.basic(ctx, c)
-            if (m?.backdrop != null) ready.add(c)
-            if (ready.size >= 6) break
+        // Metadata retrieval may read the disk or fetch artwork. Keeping it off
+        // the UI thread avoids pauses during remote navigation, and replacing
+        // the candidates in one snapshot avoids a blank hero between cards.
+        val next = withContext(Dispatchers.IO) {
+            val found = ArrayList<Item>(6)
+            for (c in candidates) {
+                val m = Catalog.meta(c) ?: MetaRepo.basic(ctx, c)
+                if (m?.backdrop != null) found.add(c)
+                if (found.size >= 6) break
+            }
+            found.toList()
         }
-        HeroCache.byTab[tab] = ids to ready.toList()
+        if (next != ready.toList()) {
+            ready.clear()
+            ready.addAll(next)
+        }
+        HeroCache.byTab[tab] = ids to next
     }
     // Switched here from another screen via the sidebar (e.g. search): focus the content
     LaunchedEffect(Unit) {
