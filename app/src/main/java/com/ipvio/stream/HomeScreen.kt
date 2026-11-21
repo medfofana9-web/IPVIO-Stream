@@ -485,7 +485,7 @@ fun HomeScreen(
     // it under another id or not at all: exact title + kind match first, else the saved entry itself (ResumeMatch)
     // Top picture's main button: resume a started title at its saved spot, otherwise play it
     val heroPlay: (Item) -> Unit = { it -> WatchStore.entries.firstOrNull { e -> e.itemId == it.id && !e.next && e.pos > 60_000 }?.let { e -> onResume(e, it) } ?: onPlayNow(it) }
-    val resumeList by remember(byId) { derivedStateOf { WatchStore.entries.map { e -> e to (lk(e.itemId) ?: ResumeMatch.find(e, byId)) } } }
+    val resumeList by remember(byId) { derivedStateOf { WatchStore.entries.map { e -> e to (lk(e.itemId) ?: CatalogItems.get(e.itemId) ?: ResumeMatch.find(e, byId)) } } }
     // Movies/series tab: the same lists filtered by kind, kept between recompositions
     val vodKind = if (tab == 1) Kind.MOVIE else Kind.SERIES
     val resumeK = remember(resumeList, vodKind) { resumeList.filter { it.second.kind == vodKind } }
@@ -1003,18 +1003,27 @@ private fun ResumeCard(item: Item, se: Pair<Int, Int>?, badge: String?, sub: Str
     val sc by animateFloatAsState(if (f) focusScale(if (clean) 1.04f else 1.06f) else 1f, tween(150), label = "res")
     val shape = RoundedCornerShape(DS.RadiusM)
     val still = ep?.still
-    val img = still ?: m?.backdrop ?: m?.poster ?: item.logo
+    // Grey tiles fix: try every picture in turn (episode still, scene, poster, logo, then Cinemeta's pictures by IMDb id)
+    // and move on when one fails to load; with nothing left, a title card instead of an empty grey box
+    val tt = item.id.removePrefix("stremio:").takeIf { StremioLogic.isImdb(it) } ?: m?.imdbId?.takeIf { StremioLogic.isImdb(it) }
+    val cands = remember(still, m?.backdrop, m?.poster, item.logo, tt) {
+        listOfNotNull(still, m?.backdrop?.let { cardBackdrop(it) }, tt?.let { "https://images.metahub.space/background/medium/$it/img" },
+            m?.poster?.let { cardPoster(it) }, tt?.let { "https://images.metahub.space/poster/medium/$it/img" }, item.logo).distinct()
+    }
+    var ci by remember(cands) { mutableIntStateOf(0) }
+    val img = cands.getOrNull(ci)
     Box(
         modifier.graphicsLayer { scaleX = sc; scaleY = sc }.billboardFocus(item) { f = it }.clickable(onClick = onClick)
             .aspectRatio(16f / 9f).clip(shape).background(Color(0xFF16161A))
             .border(if (f) 3.dp else 1.dp, if (f) Color.White else Color(0x14FFFFFF), shape)
     ) {
-        if (img != null) {
-            val blur = still != null && FofPrefs.spoilerPics && badge != null
+        if (img == null) ArtPlaceholder(item, Modifier.fillMaxSize(), showTitle = false)
+        else {
+            val blur = img == still && FofPrefs.spoilerPics && badge != null
             if (blur) {
                 val req = remember(still) { coil.request.ImageRequest.Builder(ctx).data(still).size(32, 18).build() }
-                AsyncImage(req, item.title, Modifier.fillMaxSize().blur(14.dp), contentScale = ContentScale.Crop)
-            } else AsyncImage(img, item.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                AsyncImage(req, item.title, Modifier.fillMaxSize().blur(14.dp), contentScale = ContentScale.Crop, onError = { ci++ })
+            } else AsyncImage(img, item.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, onError = { ci++ })
         }
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.35f to Color.Transparent, 1f to Color(0xE6000000))))
         if (badge != null) Box(
@@ -1028,7 +1037,7 @@ private fun ResumeCard(item: Item, se: Pair<Int, Int>?, badge: String?, sub: Str
             Text(raw = true, text = line, color = Color(0xB3FFFFFF), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (progress > 0f) Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Color(0x40FFFFFF))) {
-            Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Color.White))
+            Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Color(0xFFE60023)))
         }
     }
 }
