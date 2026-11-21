@@ -54,7 +54,7 @@ fun openTrailer(ctx: Context, key: String?, title: String) {
     try {
         ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_USER_ACTION))
     } catch (e: Exception) {
-        Toast.makeText(ctx, Lang.tr("Keine App zum Öffnen des Trailers gefunden"), Toast.LENGTH_LONG).show()
+        Toast.makeText(ctx, Lang.tr("No app is available to open the trailer."), Toast.LENGTH_LONG).show()
     }
 }
 
@@ -63,7 +63,7 @@ fun openExternal(ctx: Context, url: String, title: String) {
     try {
         ctx.startActivity(Intent.createChooser(i, "Externer Player").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_USER_ACTION))
     } catch (e: Exception) {
-        Toast.makeText(ctx, Lang.tr("Kein externer Player installiert (z. B. VLC)"), Toast.LENGTH_LONG).show()
+        Toast.makeText(ctx, Lang.tr("No external video player is installed (such as VLC)."), Toast.LENGTH_LONG).show()
     }
 }
 
@@ -107,12 +107,12 @@ fun DetailScreen(
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 if (!failed) {
                     Spinner(Accent2, Modifier.size(48.dp))
-                    Text("Folgen werden geladen …", color = Muted, fontSize = 18.sp)
+                    Text("Loading episodes…", color = Muted, fontSize = 18.sp)
                 } else {
                     Text(item.title, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-                    Text("Die Folgen konnten nicht geladen werden. Verbindung oder Zugang prüfen.", color = Muted, fontSize = 17.sp)
-                    PillButton("Erneut versuchen", Modifier.focusRequester(retry)) { tryNo++ }
-                    if (!embedded) PillButton("Zurück", light = true) { onBack() }
+                    Text("Could not load episodes. Check your internet connection and provider.", color = Muted, fontSize = 17.sp)
+                    PillButton("Try again", Modifier.focusRequester(retry)) { tryNo++ }
+                    if (!embedded) PillButton("Back", light = true) { onBack() }
                 }
             }
         }
@@ -511,7 +511,7 @@ private fun DetailScreenFull(
                             }
                         } else Text(
                             raw = meta?.overview != null,
-                            text = meta?.overview ?: if (MetaRepo.usable(item)) "Keine Beschreibung gefunden." else "Tipp: Unter Einstellungen > API-Schlüssel einen eigenen TMDB-Schlüssel eintragen, dann erscheinen hier Beschreibung, Cover und Bewertungen.",
+                            text = meta?.overview ?: if (MetaRepo.usable(item)) "No description is available." else "Tip: Add a TMDB API key under Settings > API Keys to show descriptions, artwork, and ratings.",
                             color = Tok.TextMid, fontSize = spx(17), lineHeight = spx(25),
                             // Short and medium descriptions (up to about 800 characters) are shown completely, without "Read more".
                             // In the cinema preview (without buttons) it is at most 6 lines.
@@ -521,7 +521,7 @@ private fun DetailScreenFull(
                             onTextLayout = { if (!descExpanded) descOverflow = it.hasVisualOverflow }
                         )
                         if (showActions && (descOverflow || descExpanded) && (descExpanded || (meta?.overview?.length ?: 0) > FULL_TEXT_CHARS)) {
-                            DetailPill(if (descExpanded) "Weniger" else "Mehr lesen", Modifier.onFocusChanged { topMoreFocused = it.isFocused }, trailing = if (descExpanded) AIcon.Up else AIcon.Down) { descExpanded = !descExpanded }
+                            DetailPill(if (descExpanded) "Weniger" else "Read more", Modifier.onFocusChanged { topMoreFocused = it.isFocused }, trailing = if (descExpanded) AIcon.Up else AIcon.Down) { descExpanded = !descExpanded }
                         }
                         if (showActions) {
                         Spacer(Modifier.height(4.dp))
@@ -723,8 +723,8 @@ private fun DetailScreenFull(
                             Text("EPISODES", raw = true, color = FofVisual.Violet, fontSize = spx(14),
                                 fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
                             // Fof TV: no permanent remote hints (clutter); only a short note while episode info loads
-                            if (epLoading) Text("lade Infos …", color = Muted, fontSize = spx(14))
-                            if (item.episodes.size > EpisodeLogic.LONG) DetailPill("Zu Folge springen", icon = AIcon.Down) { jumpOpen = !jumpOpen }
+                            if (epLoading) Text("Loading details…", color = Muted, fontSize = spx(14))
+                            if (item.episodes.size > EpisodeLogic.LONG) DetailPill("Jump to episode", icon = AIcon.Down) { jumpOpen = !jumpOpen }
                         }
                         // Long season: sections (TMDB seasons or blocks of 50 episodes) instead of an endless list
                         if (groups.size > 1) {
@@ -753,7 +753,7 @@ private fun DetailScreenFull(
                                 Modifier.width(280.dp), inner = Modifier.focusRequester(jumpReq), number = true, onDone = { doJump() }
                             )
                             DetailPill("Springen", light = true) { doJump() }
-                            DetailPill("Abbrechen") { jumpOpen = false; jumpText = "" }
+                            DetailPill("Cancel") { jumpOpen = false; jumpText = "" }
                         }
                         LazyColumn(Modifier.fillMaxWidth().weight(1f), state = epListState, contentPadding = PaddingValues(bottom = dpx(40))) {
                             itemsIndexed(shown, key = { j0, ep -> "e${ep.season}_${ep.num}_$j0" }) { j, ep ->
@@ -797,9 +797,9 @@ private fun DetailScreenFull(
             if (credits == null && (meta?.tmdbId ?: 0) > 0 && CreditsRepo.lastError != null) item(key = "cerr") {
                 Text("Cast unavailable: ${CreditsRepo.lastError}", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 24.dp))
             }
-            if (similar.isNotEmpty()) item(key = "similar") { SimilarRow("Ähnliche Titel in deiner Playlist", similar, simState, if (memKey?.startsWith("s:") == true) memKey.drop(2) else null, restoreReq) { i -> DetailFocus.last[item.id] = "s:" + i.id; onOpenItem(i) } }
+            if (similar.isNotEmpty()) item(key = "similar") { SimilarRow("Similar titles in your library", similar, simState, if (memKey?.startsWith("s:") == true) memKey.drop(2) else null, restoreReq) { i -> DetailFocus.last[item.id] = "s:" + i.id; onOpenItem(i) } }
             if (MetaRepo.enabled()) item {
-                Text("Dieses Produkt verwendet die TMDB-API, wird aber nicht von TMDB unterstützt oder zertifiziert.",
+                Text("This product uses the TMDB API but is not endorsed or certified by TMDB.",
                     color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 32.dp))
             }
         }
@@ -902,7 +902,7 @@ private fun SeasonEntry(season: Int, count: Int, selected: Boolean, modifier: Mo
         )
         Column {
             Text("Season $season", color = if (selected || f) Tok.TextHi else Tok.TextLow, fontSize = spx(26), fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
-            if (selected) Text(text = if (count == 1) "1 Folge" else "$count episodes", color = Muted, fontSize = spx(15))
+            if (selected) Text(text = if (count == 1) "1 episode" else "$count episodes", color = Muted, fontSize = spx(15))
         }
     }
 }
