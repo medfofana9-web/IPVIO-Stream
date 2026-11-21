@@ -204,15 +204,14 @@ fun HeroButton(text: String, icon: AIcon, primary: Boolean, modifier: Modifier =
     var f by remember { mutableStateOf(false) }
     val pulse = rememberPulse()
     val s by animateFloatAsState(if (f) focusScale(1.07f) else 1f, label = "herobtn")
-    val shape = RoundedCornerShape(50)
+    val shape = RoundedCornerShape(dpx(6))
     // Make Watch/Resume a genuine primary action even before focus moves to it;
     // other actions stay translucent. Focus keeps a contrasting lavender ring.
-    val ink = if (primary || f) Color(0xFF0A0A0C) else Color.White
+    val ink = if (f) Color(0xFF0A0A0C) else Color.White
     Row(
         modifier.graphicsLayer { val k = s * pulse.scale; scaleX = k; scaleY = k }.height(dpx(h)).clip(shape)
-            .background(if (primary) Color(0xFFF2F0FA) else if (f) DS.FocusFill else Color(0x3DFFFFFF))
-            .then(if (f || primary) Modifier else Modifier.background(FofGlass.sheen(0, false)))
-            .border(if (f) 2.dp else 1.dp, if (f) Color(0xFFE60023) else if (primary) Color(0xFFF2F0FA) else Color(0x66FFFFFF), shape)
+            // Netflix on TV: every button translucent grey, the focused one white with dark text
+            .background(if (f) Color.White else Color(0x996D6D6E))
             .onFocusChanged { f = it.isFocused }
             .trackFocus()
             .clickable(onClick = { pulse.pulse(); onClick() })

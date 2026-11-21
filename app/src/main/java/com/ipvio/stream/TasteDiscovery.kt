@@ -188,7 +188,7 @@ private fun RatePoster(i: Item, r: Int, modifier: Modifier, onClick: () -> Unit)
             .border(if (r == Discovery.LOVED || r == Discovery.LIKED) 3.dp else 1.dp, frame, shape)) {
             coil.compose.AsyncImage(i.logo, i.title, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
             if (r == Discovery.NOPE) Box(Modifier.fillMaxSize().background(Color(0xB3000000)))
-            if (r == Discovery.LOVED) Box(Modifier.fillMaxSize().background(Color(0x337B5CFF)))
+            if (r == Discovery.LOVED) Box(Modifier.fillMaxSize().background(Color(0x40E60023)))
             if (label != null) Box(Modifier.align(Alignment.BottomCenter).padding(8.dp).clip(RoundedCornerShape(50))
                 .background(if (r == Discovery.NOPE) Color(0xCC1C1C20) else Color.White).padding(horizontal = 10.dp, vertical = 4.dp)) {
                 Text(label, color = if (r == Discovery.NOPE) Color.White else Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold, raw = true)
@@ -309,7 +309,7 @@ internal fun PeopleStep(chosen: MutableMap<Int, String>, onChange: () -> Unit) {
                     Box(Modifier.size(110.dp).clip(CircleShape).background(Color(0xFF15161A))
                         .border(if (on) 3.dp else if (f) 2.dp else 1.dp, if (on) Color(0xFFE60023) else if (f) Color.White else Color(0x1FFFFFFF), CircleShape)) {
                         coil.compose.AsyncImage(p.photo, p.name, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
-                        if (on) Box(Modifier.fillMaxSize().background(Color(0x337B5CFF)))
+                        if (on) Box(Modifier.fillMaxSize().background(Color(0x40E60023)))
                     }
                     Spacer(Modifier.height(8.dp))
                     Text(p.name, color = if (f || on) Color.White else Color(0x99FFFFFF), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, raw = true)

@@ -63,20 +63,15 @@ fun FofWelcome(onPick: (Int) -> Unit) {
     FofAccount.init(ctx)
     // The account's profiles and their PIN state (new profiles from other TVs appear here)
     LaunchedEffect(FofAccount.signedInState) { if (FofAccount.signedInState) AccountCloud.refreshPins(ctx) }
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
-        PickerBackdrop()
+    Box(Modifier.fillMaxSize().background(Color(0xFF141414))) {
         // Top bar: Fof TV mark on the left, greeting and time on the right
-        val now by produceState(System.currentTimeMillis()) { while (true) { value = System.currentTimeMillis(); delay(15_000) } }
         Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(horizontal = 56.dp, vertical = 36.dp), verticalAlignment = Alignment.CenterVertically) {
-            FofLogo(44.dp, 30.sp)
+            Text("FOF TV", color = Color(0xFFE60023), fontSize = 40.sp, fontWeight = FontWeight.Black, letterSpacing = (-0.5).sp, raw = true)
             Spacer(Modifier.weight(1f))
-            Column(horizontalAlignment = Alignment.End) {
-                Text(android.text.format.DateFormat.getTimeFormat(ctx).format(java.util.Date(now)), color = Color(0xB3FFFFFF), fontSize = 24.sp, fontWeight = FontWeight.Medium, raw = true)
-            }
         }
         Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(if (manage) "Manage profiles" else "Who's watching?", color = Color.White,
-                fontSize = 56.sp, fontWeight = FontWeight.Bold, letterSpacing = (-1.4).sp, raw = true)
+            Text(if (manage) "Manage Profiles" else "Who's watching?", color = Color.White,
+                fontSize = 58.sp, fontWeight = FontWeight.Medium, raw = true)
             // The account this TV is signed in to, as a quiet line under the title
             Spacer(Modifier.height(8.dp))
             // Not signed in: say plainly what is missing (this TV shows nothing from the account until it signs in)
@@ -238,9 +233,9 @@ fun FofWelcome(onPick: (Int) -> Unit) {
 @Composable
 private fun ProfileTile(name: String, avatar: ProfileAvatars.Preset, locked: Boolean, manage: Boolean, small: Boolean, modifier: Modifier, kids: Boolean = false, onLong: () -> Unit = {}, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
-    val s by animateFloatAsState(if (f) 1.065f else 1f, androidx.compose.animation.core.tween(160), label = "pt")
+    val s by animateFloatAsState(if (f) 1.08f else 1f, androidx.compose.animation.core.tween(160), label = "pt")
     // Avatar tile (as on Netflix): focus = white frame and a slight lift; the others are dimmed a little
-    val shape = RoundedCornerShape(if (small) 8.dp else 10.dp)
+    val shape = RoundedCornerShape(6.dp)
     Column(
         modifier.onFocusChanged { f = it.isFocused }.combinedClickable(onClick = onClick, onLongClick = onLong).graphicsLayer { scaleX = s; scaleY = s },
         horizontalAlignment = Alignment.CenterHorizontally
@@ -249,7 +244,7 @@ private fun ProfileTile(name: String, avatar: ProfileAvatars.Preset, locked: Boo
             Box(Modifier.fillMaxSize().clip(shape)
                 .border(if (f) 4.dp else 0.dp, if (f) Color.White else Color.Transparent, shape)) {
                 FofAvatar(avatar, Modifier.fillMaxSize())
-                if (!f) Box(Modifier.fillMaxSize().background(Color(0x33000000)))
+
             }
             if (locked || manage) Box(
                 Modifier.align(Alignment.BottomEnd).padding(8.dp).size(38.dp).clip(CircleShape).background(Color(0xE61C1C20)),
@@ -259,28 +254,31 @@ private fun ProfileTile(name: String, avatar: ProfileAvatars.Preset, locked: Boo
         Spacer(Modifier.height(18.dp))
         if (kids) Text("KIDS", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp, raw = true,
             modifier = Modifier.padding(bottom = 6.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFE60023)).padding(horizontal = 8.dp, vertical = 2.dp))
-        Text(name, color = if (f) Color.White else Color(0xCCFFFFFF),
-            fontSize = if (small) 21.sp else 26.sp,
-            fontWeight = if (f) FontWeight.Bold else FontWeight.Medium, maxLines = 1, raw = true)
+        Text(name, color = if (f) Color.White else Color(0xFF808080),
+            fontSize = if (small) 21.sp else 25.sp,
+            fontWeight = FontWeight.Normal, maxLines = 1, raw = true)
     }
 }
 
 @Composable
 private fun AddTile(small: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
-    val s by animateFloatAsState(if (f) 1.065f else 1f, androidx.compose.animation.core.tween(160), label = "pa")
+    val s by animateFloatAsState(if (f) 1.08f else 1f, androidx.compose.animation.core.tween(160), label = "pa")
     Column(
         modifier.onFocusChanged { f = it.isFocused }.clickable(onClick = onClick).graphicsLayer { scaleX = s; scaleY = s },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            Modifier.size(if (small) 136.dp else 180.dp).clip(RoundedCornerShape(if (small) 8.dp else 10.dp))
-                .background(if (f) Color(0x40FFFFFF) else Color(0x1AFFFFFF))
-                .border(if (f) 4.dp else 1.dp, if (f) Color.White else Color(0x33FFFFFF), RoundedCornerShape(if (small) 8.dp else 10.dp)),
+            Modifier.size(if (small) 136.dp else 180.dp).clip(RoundedCornerShape(6.dp))
+                .border(if (f) 4.dp else 0.dp, if (f) Color.White else Color.Transparent, RoundedCornerShape(6.dp)),
             contentAlignment = Alignment.Center
-        ) { Text("+", color = if (f) Color.White else Color(0x99FFFFFF), fontSize = 72.sp, fontWeight = FontWeight.Light, raw = true) }
+        ) {
+            Box(Modifier.size(if (small) 76.dp else 100.dp).clip(CircleShape).background(if (f) Color.White else Color(0xFF808080)), contentAlignment = Alignment.Center) {
+                Text("+", color = Color(0xFF141414), fontSize = if (small) 52.sp else 66.sp, fontWeight = FontWeight.Bold, raw = true)
+            }
+        }
         Spacer(Modifier.height(18.dp))
-        Text("Add profile", color = if (f) Color.White else Color(0x99FFFFFF), fontSize = if (small) 21.sp else 26.sp, fontWeight = if (f) FontWeight.Bold else FontWeight.Medium, raw = true)
+        Text("Add Profile", color = if (f) Color.White else Color(0xFF808080), fontSize = if (small) 21.sp else 25.sp, fontWeight = FontWeight.Normal, raw = true)
     }
 }
 
@@ -289,9 +287,10 @@ private fun OutlinePill(label: String, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(50)
     Box(
-        Modifier.onFocusChanged { f = it.isFocused }.then(if (f) Modifier.clip(shape).background(Color.White) else Modifier.glass(shape, 0)).clickable(onClick = onClick)
-            .padding(horizontal = 34.dp, vertical = 14.dp)
-    ) { Text(label, color = if (f) Color.Black else Color(0xB3FFFFFF), fontSize = 20.sp, fontWeight = FontWeight.SemiBold, raw = true) }
+        Modifier.onFocusChanged { f = it.isFocused }.background(if (f) Color.White else Color.Transparent)
+            .border(1.dp, if (f) Color.White else Color(0xFF808080)).clickable(onClick = onClick)
+            .padding(horizontal = 34.dp, vertical = 12.dp)
+    ) { Text(label.uppercase(), color = if (f) Color.Black else Color(0xFF808080), fontSize = 19.sp, fontWeight = FontWeight.Medium, letterSpacing = 3.sp, raw = true) }
 }
 
 /** "Good morning" until noon, "Good afternoon" until 6 pm, then "Good evening" (device time). */
@@ -340,11 +339,10 @@ internal fun PosterWall() {
 private fun SubtleAction(label: String, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(50)
-    Row(Modifier.onFocusChanged { f = it.isFocused }.clip(shape).background(if (f) Color.White else Color(0x59000000))
-        .border(1.5.dp, if (f) Color.White else Color(0xB3FFFFFF), shape).clickable(onClick = onClick).padding(horizontal = 30.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (label == "Manage Profiles") AppIcon(AIcon.Edit, if (f) Color.Black else Color.White, size = 18.dp)
-        Text(label, color = if (f) Color.Black else Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, raw = true)
+    Row(Modifier.onFocusChanged { f = it.isFocused }.background(if (f) Color.White else Color.Transparent)
+        .border(1.dp, if (f) Color.White else Color(0xFF808080)).clickable(onClick = onClick).padding(horizontal = 34.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        Text(label.uppercase(), color = if (f) Color.Black else Color(0xFF808080), fontSize = 19.sp, fontWeight = FontWeight.Medium, letterSpacing = 3.sp, raw = true)
     }
 }
 

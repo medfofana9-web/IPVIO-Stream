@@ -1146,6 +1146,7 @@ private fun Hero(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(dpx(12))
                     ) {
+                        Kicker(Lang.tr(kindLabel(c.kind)))
                         qualityOf(c)?.let { PreviewQualityBadge(it) }
                     }
                     HeroTitle(c, m, if (home) 80 else 72, dpx(560), dpx(170))

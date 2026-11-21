@@ -159,15 +159,12 @@ fun BillboardInfo(item0: Item, modifier: Modifier = Modifier) {
     }
 }
 
-/** Small overline with a glowing bar (kind, New, quality). */
+/** Netflix-style type tag over the title: a red "F" and the kind in spaced grey letters. */
 @Composable
 fun Kicker(text: String, raw: Boolean = true) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(12))) {
-        Box(
-            Modifier.width(dpx(5)).height(dpx(24)).shadow(dpx(10), RoundedCornerShape(50), ambientColor = Accent1, spotColor = Accent1)
-                .clip(RoundedCornerShape(50)).background(Accent1)
-        )
-        Text(raw = raw, text = text, color = Accent2, fontSize = spx(17), fontWeight = FontWeight.SemiBold, letterSpacing = 3.sp, maxLines = 1)
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
+        Text(raw = true, text = "F", color = Color(0xFFE60023), fontSize = spx(24), fontWeight = FontWeight.Black)
+        Text(raw = raw, text = text.uppercase(), color = Color(0xFFB3B3B3), fontSize = spx(15), fontWeight = FontWeight.Bold, letterSpacing = 4.sp, maxLines = 1)
     }
 }
 

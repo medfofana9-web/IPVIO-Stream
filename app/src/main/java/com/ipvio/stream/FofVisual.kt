@@ -33,6 +33,17 @@ internal object FofVisual {
 
 @Composable
 internal fun FofEyebrow(section: String, modifier: Modifier = Modifier, compact: Boolean = false) {
+    val sport = listOf("GAME", "MATCH", "SPORT", "LIVE FEATURE").any { section.uppercase().contains(it) }
+    if (!sport) {
+        // Netflix look: no pill, just the red mark and the type in spaced grey letters ("F  SERIES")
+        val t = section.uppercase().removeSuffix(" DETAILS")
+        if (t in setOf("MOVIE", "SERIES", "NOW PLAYING", "LIVE TELEVISION", "LIVE TV")) Row(modifier, verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("F", raw = true, color = Color(0xFFE60023), fontSize = if (compact) 18.sp else 22.sp, fontWeight = FontWeight.Black)
+            Text(t, raw = true, color = Color(0xFFB3B3B3), fontSize = if (compact) 12.sp else 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
+        }
+        return
+    }
     val shape = RoundedCornerShape(50)
     Row(
         modifier.background(FofVisual.GlassDark, shape)

@@ -1,5 +1,12 @@
 # Changelog
 
+## Fof TV – Netflix "Who's watching?" and finishing touches
+
+- "Who's watching?" like Netflix: plain dark screen, red FOF TV word mark top left, square avatars with grey names (white frame and white name on focus), grey "+" Add Profile, grey outlined MANAGE PROFILES / SIGN IN buttons. No backdrop, no clock.
+- Buttons on the big picture and title pages: translucent grey, the focused one white (Netflix TV).
+- The "FOF TV / section" pills are gone outside Sports; titles show a red "F" with the type in spaced letters (like Netflix's "N SERIES"). Sports keeps its own mix.
+- Remaining violet tints (taste setup) are red.
+
 ## Fof TV – Netflix seasons, Movies / TV Shows pages, speed
 
 - Speed: the hero card's glow, halo and picture are one cached layer again (no shadow, no inner parallax) – this afternoon's card repainted the whole top area on every scroll frame. Weak sticks keep the calm look instead of the Netflix preview.
