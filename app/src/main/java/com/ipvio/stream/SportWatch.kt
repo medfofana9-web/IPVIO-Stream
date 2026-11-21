@@ -207,11 +207,20 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
     val ctx = LocalContext.current
     SportFix.init(ctx)
     val g = SportFeed.latest[g0.key] ?: g0
-    @Suppress("UNUSED_VARIABLE") val ready = SportWatch.prepVersion   // recompose once the channel lookups are built
-    // Streams of this game from the addons (Pengu …) join the list once found
-    @Suppress("UNUSED_VARIABLE") val addonV = SportAddons.version
+    val prepVersion = SportWatch.prepVersion
+    val addonVersion = SportAddons.version
+    val epgVersion = SportWatch.version
     LaunchedEffect(g.key) { runCatching { SportAddons.find(ctx, g) } }
-    val hits = SportWatch.resolve(g, hub.live)
+    // Matching a game against thousands of channels must never happen in
+    // composition. Until the first lookup is complete show an actual
+    // searching state, not the misleading "no matching channel" message.
+    val hitsLoading by produceState<List<SportWatch.Hit>?>(null, g.key, g.nets, hub.live, prepVersion, addonVersion, epgVersion) {
+        value = withContext(Dispatchers.Default) {
+            SportWatch.prewarm(hub.live)
+            SportWatch.resolve(g, hub.live)
+        }
+    }
+    val hits = hitsLoading.orEmpty()
     var pick by remember { mutableStateOf(false) }
     val first = remember { FocusRequester() }
     HubPageFrame("Live ansehen", g.groupName, { hub.nav.pop() }, first, rawTitle = false) {
@@ -248,9 +257,10 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
                 FilterPill("Mehr Infos", false, Modifier.trackFocus(), aicon = AIcon.Info) { hub.nav.open(HubPage.Match(g)) }
             }
         }
-        if (hits.isEmpty()) HubEmpty(
-            AIcon.Live, "Kein passender Sender gefunden",
-            "ESPN liefert keine Streams. Gesucht wird in deinem TV-Guide und in deinen Sendernamen. Du kannst den Sender auch selbst zuordnen; die App merkt sich das für dieses Spiel."
+        if (hitsLoading == null) HubLoading("Finding live game streams…")
+        else if (hits.isEmpty()) HubEmpty(
+            AIcon.Live, "No matching channel found yet",
+            "This game's sources have not been identified. Your TV guide, channel names, and installed live-sports addons were checked. You can also assign a channel manually."
         ) else LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(bottom = dpx(30)), verticalArrangement = Arrangement.spacedBy(dpx(4))) {
             itemsIndexed(hits, key = { _, h -> h.ch.id }) { _, h ->
                 FRow({ hub.watchOn(g, h.ch, hits.map { it.ch }) }) {
