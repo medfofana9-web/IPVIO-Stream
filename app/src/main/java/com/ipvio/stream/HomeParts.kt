@@ -114,8 +114,8 @@ fun cardGrid(contentW: Dp, size: Int = General.cardSize, perRow: Int = 0): CardG
     val pgap = dpx(14)
     fun col(n: Int, g: Dp) = (contentW - g * (n - 1)) / n
     // "View" button: small = more cards per row, large = fewer
-    val land = intArrayOf(8, 6, 5)[size.coerceIn(0, 2)]
-    val poster = if (perRow > 0) perRow else intArrayOf(10, 8, 6)[size.coerceIn(0, 2)]
+    val land = intArrayOf(7, 5, 4)[size.coerceIn(0, 2)]
+    val poster = if (perRow > 0) perRow else intArrayOf(9, 7, 5)[size.coerceIn(0, 2)]
     val wide = intArrayOf(5, 4, 3)[size.coerceIn(0, 2)]
     return CardGrid(col(land, gap), col(poster, pgap), col(land, gap), gap, col(wide, gap), pgap)
 }
@@ -202,14 +202,16 @@ fun rememberFullMeta(item: Item, base: Meta?, enabled: Boolean = true): Meta? {
 fun HeroButton(text: String, icon: AIcon, primary: Boolean, modifier: Modifier = Modifier, h: Int = 50, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     val pulse = rememberPulse()
-    val s by animateFloatAsState(if (f) focusScale(1.06f) else 1f, label = "herobtn")
+    val s by animateFloatAsState(if (f) focusScale(1.07f) else 1f, label = "herobtn")
     val shape = RoundedCornerShape(50)
-    val ink = if (f) DS.FocusInk else Color.White
+    // Make Watch/Resume a genuine primary action even before focus moves to it;
+    // other actions stay translucent. Focus keeps a contrasting lavender ring.
+    val ink = if (primary || f) Color(0xFF0A0A0C) else Color.White
     Row(
         modifier.graphicsLayer { val k = s * pulse.scale; scaleX = k; scaleY = k }.height(dpx(h)).clip(shape)
-            .background(if (f) DS.FocusFill else Color(0x33FFFFFF))
-            .then(if (f) Modifier else Modifier.background(FofGlass.sheen(0, false)))
-            .border(1.dp, if (f) DS.FocusFill else Color(0x40FFFFFF), shape)
+            .background(if (primary) Color(0xFFF2F0FA) else if (f) DS.FocusFill else Color(0x3DFFFFFF))
+            .then(if (f || primary) Modifier else Modifier.background(FofGlass.sheen(0, false)))
+            .border(if (f) 2.dp else 1.dp, if (f) Color(0xFFB9B4F0) else if (primary) Color(0xFFF2F0FA) else Color(0x66FFFFFF), shape)
             .onFocusChanged { f = it.isFocused }
             .trackFocus()
             .clickable(onClick = { pulse.pulse(); onClick() })
@@ -217,8 +219,30 @@ fun HeroButton(text: String, icon: AIcon, primary: Boolean, modifier: Modifier =
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(dpx(h * 0.28f))
     ) {
-        AppIcon(icon, if (f) DS.FocusInk else if (primary) Accent1 else Color.White, size = dpx(h * 0.4f))
+        AppIcon(icon, ink, size = dpx(h * 0.4f))
         Text(text, color = ink, fontSize = spx(h * 0.34f), fontWeight = FontWeight.SemiBold, maxLines = 1)
+    }
+}
+
+/** Cinematic editorial label for featured movie / series banners.
+ * No per-frame animation or expensive blur; visible immediately on the TV.
+ */
+@Composable
+fun SpotlightKicker(type: String) {
+    val shape = RoundedCornerShape(50)
+    Row(
+        Modifier.clip(shape).background(Color(0x990A0A0F))
+            .border(1.dp, Color(0x55FFFFFF), shape)
+            .padding(horizontal = dpx(13), vertical = dpx(8)),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(dpx(10))
+    ) {
+        Box(Modifier.size(dpx(7)).clip(CircleShape).background(Color(0xFFB9B4F0)))
+        Text(raw = true, text = "FOF TV  /  SPOTLIGHT", color = Color.White, fontSize = spx(13),
+            fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp, maxLines = 1)
+        Box(Modifier.width(1.dp).height(dpx(14)).background(Color(0x66FFFFFF)))
+        Text(raw = true, text = type.uppercase(), color = Color(0xFFC5C2DC), fontSize = spx(12),
+            fontWeight = FontWeight.Bold, maxLines = 1)
     }
 }
 
@@ -259,10 +283,14 @@ fun RowTitle(
     onAll: (() -> Unit)?
 ) {
     Row(
-        Modifier.fillMaxWidth().padding(start = dpx(29), end = dpx(28), top = dpx(28)),
-        verticalAlignment = Alignment.CenterVertically
+        Modifier.fillMaxWidth().padding(start = dpx(29), end = dpx(28), top = dpx(34)),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(dpx(12))
     ) {
-        Text(title, color = Color.White, fontSize = spx(DS.SectionTitleSp), fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+        // Editorial section marker shared by Home, Movies and TV. A cheap solid surface,
+        // not a live blur or a per-frame gradient.
+        Box(Modifier.width(dpx(4)).height(dpx(23)).clip(RoundedCornerShape(50)).background(Color(0xFFB9B4F0)))
+        Text(title, color = Color.White, fontSize = spx(DS.SectionTitleSp + 2), fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f), raw = raw)
         if (onAll != null) {
             var f by remember { mutableStateOf(false) }
@@ -543,25 +571,34 @@ fun LandscapeCard(item: Item, modifier: Modifier, onClick: () -> Unit) {
     val st = rememberMetaState(item)
     val m = st.meta
     var f by remember { mutableStateOf(false) }
-    val s by animateFloatAsState(if (f) focusScale(1.07f) else 1f, label = "land")
-    val shape = RoundedCornerShape(dpx(8))
+    val s by animateFloatAsState(if (f) focusScale(1.045f) else 1f, label = "land")
+    val shape = RoundedCornerShape(dpx(14))
     val rowF = LocalRowFocus.current
     val dimA by animateFloatAsState(if (rowF && !f && !FofPrefs.cleanLook) 0.5f else 1f, tween(if (Look.motion == 0) 0 else 320), label = "dim")
     val img = m?.backdrop?.let { cardBackdrop(it) } ?: m?.poster?.let { cardPoster(it) } ?: item.logo
     Box(
-        modifier.aspectRatio(1.3f).graphicsLayer { scaleX = s; scaleY = s }.focusGlow(f, shape).clip(shape)
+        modifier.aspectRatio(1.55f).graphicsLayer { scaleX = s; scaleY = s }.focusGlow(f, shape).clip(shape)
             .background(Brush.linearGradient(listOf(colorFor(item).copy(alpha = .75f), Surf2)))
-            .border(1.dp, if (f) Color(0x40FFFFFF) else CardLine, shape)
+            .border(if (f) 2.dp else 1.dp, if (f) Color.White else CardLine, shape)
             .billboardFocus(item) { f = it }
             .trackFocus()
             .clickable(onClick = onClick)
     ) {
         if (img == null) ArtPlaceholder(item, Modifier.fillMaxSize(), showTitle = false)
         else AsyncImage(img, item.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.35f to Color.Transparent, 1f to Color(0xF5070709))))
-        if (item.kind != Kind.SERIES && DeadLinks.isDead(item.url)) AppIcon(AIcon.Warning, DS.Gold, Modifier.align(Alignment.TopStart).padding(dpx(8)), dpx(18))
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.20f to Color.Transparent, 0.65f to Color(0x99070709), 1f to Color(0xFA070709))))
+        // A readable content-type capsule works even when artwork is visually busy.
+        Text(
+            raw = true, text = if (item.kind == Kind.SERIES) "SERIES" else "MOVIE",
+            color = Color.White, fontSize = spx(11), fontWeight = FontWeight.Bold, letterSpacing = 1.sp,
+            modifier = Modifier.align(Alignment.TopStart).padding(dpx(11))
+                .clip(RoundedCornerShape(50)).background(Color(0xB0080910))
+                .border(1.dp, Color(0x55FFFFFF), RoundedCornerShape(50))
+                .padding(horizontal = dpx(10), vertical = dpx(5))
+        )
+        if (item.kind != Kind.SERIES && DeadLinks.isDead(item.url)) AppIcon(AIcon.Warning, DS.Gold, Modifier.align(Alignment.TopEnd).padding(dpx(9)), dpx(18))
         Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = dpx(12), end = dpx(12), bottom = dpx(10))) {
-            Text(raw = true, text = item.title, color = Color.White, fontSize = spx(16), fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(raw = true, text = item.title, color = Color.White, fontSize = spx(18), fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             m?.genres?.firstOrNull()?.let { Text(raw = true, text = it, color = SoftInk, fontSize = spx(13), maxLines = 1) }
             Row(Modifier.padding(top = dpx(4)), verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -819,12 +856,32 @@ fun RowPosterCard(item: Item, baseW: Dp, modifier: Modifier, overlay0: Int = 0, 
         .then(if (item.kind == Kind.MOVIE || item.kind == Kind.SERIES) Modifier.quickActions(item, onClick) else Modifier)
         .clickable(onClick = onClick)
     if (clean) Column(modifier.width(w)) {
-        Box(Modifier.width(w).height(h).then(focusMod)) { visual(Modifier.fillMaxSize()) }
-        Spacer(Modifier.height(dpx(10)))
-        Text(raw = true, text = item.title, color = if (f) Color.White else Color(0xE6FFFFFF), fontSize = spx(15), fontWeight = FontWeight.SemiBold,
-            maxLines = 1, overflow = TextOverflow.Ellipsis)
-        (item.year ?: m?.year?.take(4)?.toIntOrNull())?.let { y ->
-            Text(raw = true, text = y.toString(), color = Color(0x80FFFFFF), fontSize = spx(13), maxLines = 1)
+        Box(Modifier.width(w).height(h).then(focusMod)) {
+            visual(Modifier.fillMaxSize())
+            // Resume progress is visible directly in every Home/Movie/TV rail.
+            // It is drawn over artwork without additional network requests.
+            val progress = WatchStore.entries.firstOrNull {
+                it.itemId == item.id && !it.next && it.dur > 0L && it.pos > 0L
+            }?.let { (it.pos.toFloat() / it.dur).coerceIn(0f, 1f) }
+            if (progress != null && progress in 0.01f..0.99f) {
+                Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(dpx(5)).background(Color(0x99000000))) {
+                    Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Color(0xFFB9B4F0)))
+                }
+            }
+        }
+        Spacer(Modifier.height(dpx(12)))
+        Text(raw = true, text = item.title, color = Color.White, fontSize = spx(17), lineHeight = spx(21),
+            fontWeight = if (f) FontWeight.ExtraBold else FontWeight.SemiBold,
+            maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(7))) {
+            (m?.year ?: item.year?.toString())?.let { y ->
+                Text(raw = true, text = y.take(4), color = Tok.TextLow, fontSize = spx(13), maxLines = 1)
+            }
+            m?.genres?.firstOrNull()?.let { genre ->
+                Box(Modifier.size(dpx(3)).clip(CircleShape).background(Tok.TextLow))
+                Text(raw = true, text = genre, color = Tok.TextLow, fontSize = spx(13), maxLines = 1,
+                    overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            }
         }
     }
     else if (overlay == 0) Box(modifier.width(w).height(h).then(focusMod)) { visual(Modifier.fillMaxSize()) }
@@ -894,7 +951,7 @@ fun CardGridRows(list: List<Item>, style: Int, firstReq: FocusRequester?, onOpen
     val live = list.firstOrNull()?.kind == Kind.LIVE
     // same column count as cardGrid ("Ansicht" button)
     val sz = General.cardSize.coerceIn(0, 2)
-    val perRow = if (style == CARD_LAND || live) intArrayOf(8, 6, 5)[sz] else intArrayOf(10, 8, 6)[sz]
+    val perRow = if (style == CARD_LAND || live) intArrayOf(7, 5, 4)[sz] else intArrayOf(9, 7, 5)[sz]
     val gap = if (style == CARD_LAND || live) g.gap else g.posterGap
     Column(Modifier.padding(start = RowPadX, end = RowPadX, top = dpx(12)), verticalArrangement = Arrangement.spacedBy(gap)) {
         list.chunked(perRow).forEachIndexed { r, row ->
