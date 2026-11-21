@@ -69,6 +69,7 @@ object AppSettings {
     /** Program guide time zone: 0 = provider (Berlin), 1 = local device (preferred for FOF TV). */
     var tzMode by mutableIntStateOf(1)
     var autoSkipIntro by mutableStateOf(false)
+    var autoSkipRecap by mutableStateOf(false)
     /** Start the next episode right when the credits begin (only if credits times are known). */
     var autoSkipOutro by mutableStateOf(false)
     /** Clock on screen: on/off, corner (0 top right, 1 top left, 2 bottom right, 3 bottom left), opacity in %, size (0 small, 1 medium, 2 large). */
@@ -115,6 +116,7 @@ object AppSettings {
         showEndTime = p.getBoolean("show_end", true)
         tzMode = p.getInt("tz_mode", 1).coerceIn(0, 1)
         autoSkipIntro = p.getBoolean("auto_skip", false)
+        autoSkipRecap = p.getBoolean("auto_skip_recap", false)
         autoSkipOutro = p.getBoolean("auto_outro", false)
         clockOn = p.getBoolean("clock_on", false)
         autoFps = p.getBoolean("auto_fps", true)
@@ -244,6 +246,11 @@ object AppSettings {
         autoSkipIntro = autoSkip
         prefs(c).edit().putBoolean("auto_next", autoNext).putInt("hide_sec", this.hideSec)
             .putBoolean("show_end", endTime).putBoolean("auto_skip", autoSkip).apply()
+    }
+
+    fun setAutoRecap(c: Context, on: Boolean) {
+        autoSkipRecap = on
+        prefs(c).edit().putBoolean("auto_skip_recap", on).apply()
     }
 
     fun setAutoOutro(c: Context, on: Boolean) {
