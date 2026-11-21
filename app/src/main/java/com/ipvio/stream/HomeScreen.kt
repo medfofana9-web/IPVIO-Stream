@@ -1091,7 +1091,13 @@ private fun Hero(
                 // with IMDb and Rotten Tomatoes rating (fetched the first time, then remembered on the device)
                 val m = rememberFullMeta(c, rememberMeta(c))
                 Column(verticalArrangement = Arrangement.spacedBy(dpx(if (home) 10 else 8))) {
-                    Kicker(Lang.tr(kindLabel(c.kind)) + (qualityOf(c)?.let { q -> "  ·  " + q.uppercase() } ?: ""))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(dpx(12))
+                    ) {
+                        SpotlightKicker(Lang.tr(kindLabel(c.kind)))
+                        qualityOf(c)?.let { PreviewQualityBadge(it) }
+                    }
                     HeroTitle(c, m, if (home) 80 else 72, dpx(560), dpx(170))
                     HeroMetaLine(c, m, dots = !home)
                     m?.overview?.takeIf { it.isNotBlank() }?.let {
@@ -1119,6 +1125,13 @@ private fun Hero(
             Modifier.align(Alignment.BottomEnd).padding(end = dpx(if (home) 33 else 42), bottom = dpx(if (home) 30 else 20)),
             horizontalArrangement = Arrangement.spacedBy(dpx(12)), verticalAlignment = Alignment.CenterVertically
         ) {
+            // High-contrast editorial numbering makes the cinematic reel feel intentional.
+            Text(
+                raw = true,
+                text = (idx + 1).toString().padStart(2, '0') + "  /  " + featured.size.toString().padStart(2, '0'),
+                color = Color(0xDDECEAF7), fontSize = spx(14), fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp
+            )
             // Active dot fills up until the next change (shows when the picture changes)
             val prog = remember(idx) { androidx.compose.animation.core.Animatable(0f) }
             LaunchedEffect(idx, General.heroSec) {
