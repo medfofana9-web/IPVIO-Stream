@@ -1345,6 +1345,17 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 SportSession.choose(ch)
                 switchTo(ch, if (SportSession.owns(ch.id)) SportSession.zapList() else zapSrc)
             }
+        }, onWrongGame = {
+            streamPick = null
+            val next = SportSession.next(cur.itemId)
+            if (next != null) {
+                notice = "Wrong game reported. Trying another matchup source."
+                switchTo(next, SportSession.zapList())
+            } else {
+                player.pause()
+                controls = true
+                notice = "No other matched streams for this game."
+            }
         }, onClose = { streamPick = null })
     }
     multiStart?.let { ms ->
@@ -1850,14 +1861,14 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                                 scope.launch {
                                     var list = SportSession.streams(cur.itemId)
                                     var g = SportSession.game(cur.itemId)
-                                    if (list.size < 2 && here != null) {
+                                    if (g == null && !SportSession.owns(cur.itemId) && here != null) {
                                         // Not started from a game: find the live game this channel is showing
                                         val found = withContext(Dispatchers.Default) {
                                             runCatching {
                                                 SportWatch.prewarm(liveAll)
-                                                SportFeed.latest.values.filter { it.state == 1 }.firstNotNullOfOrNull { lg ->
+                                                SportFeed.latest.values.asSequence().filter { it.state == 1 }.mapNotNull { lg ->
                                                     SportWatch.channels(lg, liveAll).takeIf { cs -> cs.any { it.id == here.id } }?.let { lg to it }
-                                                }
+                                                }.take(2).toList().singleOrNull()
                                             }.getOrNull()
                                         }
                                         if (found != null) {
@@ -1866,7 +1877,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                                             SportSession.start(found.first, list, liveAll)
                                         }
                                     }
-                                    if (list.size < 2) notice = "No other streams found for this game"
+                                    if (list.isEmpty()) notice = "No matched streams found for this game"
                                     else { controls = false; streamPick = ((g?.let { x -> if (x.solo || x.away.name.isBlank()) x.title else x.away.name + " vs " + x.home.name } ?: here?.title ?: "This game") to list) }
                                 }
                             }) {
