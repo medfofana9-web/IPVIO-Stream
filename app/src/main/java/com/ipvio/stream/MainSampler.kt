@@ -86,7 +86,9 @@ object MainSampler {
                     st.filter { it.className.startsWith("com.ipvio.stream") }.map { key(it) }.distinct().forEach { appAll.merge(it, 1, Int::plus) }
                 }
             }
-            Thread.sleep(3)
+            // Sampling is observational: do not starve the UI thread on
+            // two-core software-rendered TV emulators while measuring it.
+            Thread.sleep(10)
         }
         fun dump(name: String, m: Map<String, Int>, n: Int) {
             Log.i("FofProfile", "[$tag] -- $name (of $busy busy samples)")
@@ -96,5 +98,5 @@ object MainSampler {
         dump("top frame", self, 30)
         dump("innermost app frame", appTop, 40)
         dump("app frames anywhere on the stack", appAll, 40)
-    }.apply { isDaemon = true; priority = Thread.MAX_PRIORITY }.start()
+    }.apply { isDaemon = true; priority = Thread.NORM_PRIORITY }.start()
 }

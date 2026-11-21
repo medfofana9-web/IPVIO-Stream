@@ -72,9 +72,13 @@ fun SearchScreen(
     val scope = rememberCoroutineScope()
     val all = PlaylistStore.channels
     // Build the index in the background; searches also run in the background and only after a short typing pause
-    val index by produceState(SearchCache.get(all), all) { value = safely(null) { SearchCache.build(all) } }
+    val index by produceState(SearchCache.get(all), all) {
+        value = withContext(Dispatchers.Default) { safely(null) { SearchCache.build(all) } }
+    }
     val byId = index?.byId.orEmpty()
-    val suggestIdx by produceState<WordSuggest?>(null, all) { value = safely(null) { SearchCache.suggest(all) } }
+    val suggestIdx by produceState<WordSuggest?>(null, all) {
+        value = withContext(Dispatchers.Default) { safely(null) { SearchCache.suggest(all) } }
+    }
     val firstSugg = remember { FocusRequester() }
     val hist = History.ids.mapNotNull { byId[it] }
     // Smaller cards than elsewhere so more hits are visible next to the keyboard
@@ -119,10 +123,15 @@ fun SearchScreen(
         val idx = index ?: return@produceState
         if (q.length < 2) { value = q to none; return@produceState }
         delay(250)
-        value = q to safely(none) {
-            val (m, s, l) = idx.find(q)
-            Triple(PlaylistLogic.firstPerKey(m) { it.mk + "|" + it.lang }, s, l)
+        // Playlist-wide indexing/deduplication is CPU-heavy; doing it in
+        // the Compose effect on Main freezes D-pad focus while typing.
+        val results = withContext(Dispatchers.Default) {
+            safely(none) {
+                val (movies, series, channels) = idx.find(q)
+                Triple(PlaylistLogic.firstPerKey(movies) { it.mk + "|" + it.lang }, series, channels)
+            }
         }
+        value = q to results
     }
     val searching = q.length >= 2 && found.first != q
     val (rm0, rs0, rl0) = if (q.length < 2 || searching) none else found.second
@@ -166,15 +175,19 @@ fun SearchScreen(
         value = null
         if (q.length < 3) return@produceState
         delay(450)
-        value = runCatching { TmdbExtra.person(q) }.getOrNull()?.let { (n, l) -> n to l.distinctBy { it.id } }
+        value = withContext(Dispatchers.IO) {
+            runCatching { TmdbExtra.person(q) }.getOrNull()?.let { (n, l) -> n to l.distinctBy { it.id } }
+        }
     }
     val sport by produceState(Triple(emptyList<SportData.Game>(), emptyList<Pair<SportData.League, SportData.Team>>(), emptyList<SportData.League>()), q) {
         value = Triple(emptyList(), emptyList(), emptyList())
         if (q.length < 2) return@produceState
         delay(300)
-        value = safely(Triple(emptyList(), emptyList(), emptyList())) {
-            val g = SearchSports.games()
-            Triple(SearchSports.findGames(g, q), SearchSports.findTeams(g, q), SearchSports.findLeagues(q))
+        value = withContext(Dispatchers.Default) {
+            safely(Triple(emptyList(), emptyList(), emptyList())) {
+                val g = SearchSports.games()
+                Triple(SearchSports.findGames(g, q), SearchSports.findTeams(g, q), SearchSports.findLeagues(q))
+            }
         }
     }
     // A genre name ("comedy", "horror", "sci fi"): popular titles of that genre, movies and shows
@@ -192,7 +205,9 @@ fun SearchScreen(
         value = emptyList()
         if (q.length < 3) return@produceState
         delay(350)
-        value = safely(emptyList()) { SearchGuide.shows(live, q) }
+        value = withContext(Dispatchers.Default) {
+            safely(emptyList()) { SearchGuide.shows(live, q) }
+        }
     }
     val cmReady = q.length >= 2 && cm.first == q
     val cmM = if ((fl == 0 || fl == 1) && cmReady) cm.second.first else emptyList()
