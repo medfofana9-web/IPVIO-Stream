@@ -14,10 +14,14 @@ class DragonFilterTest {
         assertEquals(null, StremioLogic.streamKind("1080p", "https://x.example/a"))
     }
 
-    @Test fun mp4NeverUsedAndUnmarkedOnlyWithoutBetter() {
-        val l = listOf("MP4" to "https://a/1", "MKV" to "https://a/2", "x" to "https://a/3", "CDN" to "https://a/4")
-        assertEquals(listOf(1, 3), StremioLogic.dragonFilter(l))
-        assertEquals(listOf(1), StremioLogic.dragonFilter(listOf("MP4" to "https://a/1", "x" to "https://a/2")))
-        assertEquals(emptyList<Int>(), StremioLogic.dragonFilter(listOf("MP4" to "https://a/1")))
+    @Test fun dragonMp4IsVisibleButReservedForManualChoice() {
+        // DragonStreams MP4 is no longer silently removed just because a CDN or MKV exists.
+        assertEquals(true, StremioLogic.dragonManualOnly("DragonStreams", "1080p MP4", "https://a/1"))
+        assertEquals(true, StremioLogic.dragonManualOnly("dragon streams", "1080p", "https://a/movie.mp4"))
+        assertEquals(false, StremioLogic.dragonManualOnly("DragonStreams", "MKV", "https://a/2"))
+        assertEquals(false, StremioLogic.dragonManualOnly("DragonStreams", "CDN", "https://cdn.example/a"))
+        assertEquals(false, StremioLogic.dragonManualOnly("Other addon", "MP4", "https://a/1"))
+        assertEquals(false, StremioLogic.safeForAutomaticPlay(StremioLogic.VERIFIED,
+            StremioLogic.LAST_RESORT + "DragonStreams MP4"))
     }
 }
