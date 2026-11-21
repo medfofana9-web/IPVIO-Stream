@@ -1873,11 +1873,6 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                                 AppIcon(AIcon.Lists, it, size = 26.dp)
                             }
                             // Multiview from here (also with the Fast-forward key on live TV)
-                            if (cur.live && SportSession.owns(cur.itemId)) PRoundButton(label = if (SportPrefs.bugOff) "Show score" else "Hide score", onLabel = setLabel, onClick = {
-                                SportPrefs.setBugOff(ctx, !SportPrefs.bugOff)
-                            }) {
-                                AppIcon(AIcon.Star, it, size = 26.dp)
-                            }
                             if (cur.live && cur.archive == null) PRoundButton(label = "Multiview", onLabel = setLabel, onClick = {
                                 curItem?.let { ci -> second = null; controls = false; player.stop(); multiStart = listOf(ci) }
                             }) {
