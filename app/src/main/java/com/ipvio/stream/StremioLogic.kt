@@ -21,17 +21,14 @@ object StremioLogic {
     }
 
     /**
-     * DragonStreams: its MP4 links often play the wrong title, so they are never used. Only MKV and CDN links play;
-     * links without any marker are kept only when the addon sent no MKV or CDN link at all.
+     * DragonStreams MP4 links have sometimes contained a different title than their labels.
+     * They must remain visible and manually selectable, but must not be auto-played.
+     * A source's extension never determines whether it appears in the source picker.
      */
-    /** Label start of DragonStreams MP4 links offered only because nothing else exists (never auto-played). */
-    const val LAST_RESORT = "MP4 · may be wrong content · "
+    const val LAST_RESORT = "MP4 · verify content · "
 
-    fun dragonFilter(l: List<Pair<String, String>>): List<Int> {
-        val kinds = l.map { streamKind(it.first, it.second) }
-        val hasGood = kinds.any { it == "mkv" || it == "cdn" }
-        return kinds.indices.filter { i -> kinds[i] == "mkv" || kinds[i] == "cdn" || (!hasGood && kinds[i] == null) }
-    }
+    fun dragonManualOnly(addon: String, info: String, url: String): Boolean =
+        addon.contains("dragon", ignoreCase = true) && streamKind(info, url) == "mp4"
 
     /**
      * Turns whatever the user pasted into the addon's base address (no trailing slash):
