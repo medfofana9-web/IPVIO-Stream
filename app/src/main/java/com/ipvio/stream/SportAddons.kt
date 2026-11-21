@@ -38,7 +38,6 @@ object SportAddons {
     /** Looks the game up in every addon's live catalogs; at most a few seconds. */
     suspend fun find(c: Context, g: SportData.Game, refresh: Boolean = false): List<Item> = withContext(Dispatchers.IO) {
         if (!refresh) cache[g.key]?.let { if (cacheFresh(System.currentTimeMillis(), it.first, it.second.isNotEmpty())) return@withContext it.second }
-        if (g.solo) return@withContext emptyList()
         Stremio.ensure(c)
         val cats = Stremio.addons.flatMap { a -> a.cats.filter { it.type.lowercase() in LIVE_TYPES }.map { a to it } }
         val found = coroutineScope {
