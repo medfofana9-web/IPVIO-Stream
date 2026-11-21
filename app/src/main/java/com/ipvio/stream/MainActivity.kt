@@ -594,9 +594,16 @@ private fun AppContent() {
                 // only with a remembered position (fully watched movies do not start from the beginning; for series possibly the next episode)
                 val e = WatchStore.entries.firstOrNull { it.itemId == last.id }
                 if (e != null) {
-                    pushTop(last)
-                    val t = WatchStore.target(ctx, last, e)
-                    start(last, t.first, t.second, e.pos)
+                    val t = WatchStore.targetFresh(ctx, last, e)
+                    if (t.second.isNotBlank()) {
+                        pushTop(last)
+                        start(last, t.first, t.second, e.pos)
+                    } else {
+                        AppNav.autoStream = last.id
+                        AppNav.autoResume = Triple(e.season, e.ep, e.pos)
+                        AppNav.autoResumeId = last.id
+                        pushTop(last)
+                    }
                 }
             }
         }
