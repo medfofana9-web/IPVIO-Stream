@@ -563,7 +563,30 @@ object SportData {
     fun matches(g: Game, text: String): Boolean {
         if (g.solo) return false
         val n = normCached(text)
-        return keysCached(g.home).any { has(n, it) } && keysCached(g.away).any { has(n, it) }
+        val home = eventKeys(g.home)
+        val away = eventKeys(g.away)
+        val shared = home.intersect(away.toSet())
+        val padded = " $n "
+        fun spans(keys: List<String>): Sequence<IntRange> = keys.asSequence().filterNot { it in shared }.flatMap { key ->
+            val token = " $key "
+            generateSequence(padded.indexOf(token).takeIf { it >= 0 }) { start ->
+                padded.indexOf(token, start + 1).takeIf { it >= 0 }
+            }.map { start -> (start + 1)..(start + key.length) }
+        }
+        val awaySpans = spans(away).toList()
+        return spans(home).any { homeSpan ->
+            awaySpans.any { awaySpan -> homeSpan.last < awaySpan.first || awaySpan.last < homeSpan.first }
+        }
+    }
+
+    private fun eventKeys(team: Team): List<String> {
+        val full = normCached(team.name)
+        val short = normCached(team.short)
+        val first = full.substringBefore(' ')
+        val last = full.substringAfterLast(' ')
+        return listOf(full, short.takeUnless { it == first && full != first }.orEmpty(),
+            last.takeIf { it.length >= 5 && it !in GENERIC }.orEmpty())
+            .filter { it.length >= 3 }.distinct()
     }
 
     private val chanCache = HashMap<String, Pair<Int, List<Item>>>()
