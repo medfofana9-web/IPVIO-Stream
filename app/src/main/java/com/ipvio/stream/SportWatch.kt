@@ -210,7 +210,12 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
     val prepVersion = SportWatch.prepVersion
     val addonVersion = SportAddons.version
     val epgVersion = SportWatch.version
-    LaunchedEffect(g.key) { runCatching { SportAddons.find(ctx, g) } }
+    var addonPending by remember(g.key) { mutableStateOf(true) }
+    LaunchedEffect(g.key) {
+        try { SportAddons.find(ctx, g) } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (_: Exception) { /* recover with playlist channels and manual selection */ }
+        finally { addonPending = false }
+    }
     // Matching a game against thousands of channels must never happen in
     // composition. Until the first lookup is complete show an actual
     // searching state, not the misleading "no matching channel" message.
@@ -257,7 +262,7 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
                 FilterPill("Mehr Infos", false, Modifier.trackFocus(), aicon = AIcon.Info) { hub.nav.open(HubPage.Match(g)) }
             }
         }
-        if (hitsLoading == null) HubLoading("Finding live game streams…")
+        if (hitsLoading == null || (hits.isEmpty() && addonPending)) HubLoading("Finding live game streams…")
         else if (hits.isEmpty()) HubEmpty(
             AIcon.Live, "No matching channel found yet",
             "This game's sources have not been identified. Your TV guide, channel names, and installed live-sports addons were checked. You can also assign a channel manually."
