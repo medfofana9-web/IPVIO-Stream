@@ -1,5 +1,10 @@
 # Changelog
 
+## Fof TV – speed and Continue Watching pictures
+
+- Speed (measured on the emulator perf test, Home scrolling, median frame): 150 ms with the Netflix preview mode → 48 ms now (before today: 61–77 ms). The fast focus is back on every profile (no changing background, no dimming, no growing previews); covers show without text under them, like Netflix. All the Netflix styling stays.
+- Continue Watching never shows an empty grey tile: each card tries the episode still, scene picture, Cinemeta's picture by IMDb id, poster and logo in turn, and finally shows a title card. Progress line is red.
+
 ## Fof TV – Netflix Search, Live TV and Sports
 
 - Search like Netflix: no headline, the query sits on a plain line with a magnifier, the on-screen keyboard has no key boxes (grey letters, the selected key white).
