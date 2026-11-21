@@ -264,6 +264,10 @@ jobs:
             adb shell input keyevent 23; sleep 1; adb shell 'for i in 1 2 3 4; do input keyevent 20; sleep 0.4; done'; adb shell input keyevent 23; sleep 8; adb exec-out screencap -p > p_taste2.png
             adb shell 'for i in 1 2 3 4 5 6; do input keyevent 20; sleep 0.4; done'; adb shell input keyevent 23; sleep 8; adb exec-out screencap -p > p_taste3.png
             (adb shell pidof com.fof.tv > /dev/null && echo "taste: app still running" || echo "taste: APP CLOSED") | tee -a journey.txt
+            # Capture evidence at the moment of a profile setup exit. Earlier
+            # the crash buffer was collected before Taste, hiding its cause.
+            adb logcat -d -b crash > crash_taste.txt || true
+            adb logcat -d -s ActivityManager ActivityTaskManager lowmemorykiller > taste_process.txt || true
       - name: Summary
         if: always()
         run: |
@@ -281,14 +285,18 @@ jobs:
             if [ -n "$n" ] && [ "$n" -lt 30000 ]; then echo "CHECK PASS provider movies/series skipped ($n titles)"; else echo "CHECK FAIL provider movies/series skipped (${n:-no index})"; fi
             if grep -q "FofFreeze" marks.txt logcat.txt 2>/dev/null; then echo "CHECK FAIL no frozen screen: $(grep -h FofFreeze marks.txt logcat.txt | head -2)"; else echo "CHECK PASS no frozen screen"; fi
             if grep -q "APP CLOSED" journey.txt; then echo "CHECK FAIL app stays open (search, Live TV, every screen)"; else echo "CHECK PASS app stays open (search, Live TV, every screen)"; fi
-            if grep -q "FATAL EXCEPTION" logcat.txt crash_search.txt 2>/dev/null; then echo "CHECK FAIL no crash"; else echo "CHECK PASS no crash"; fi
+            # The system ConfigUpdater can crash on CI emulators because of a
+            # locked Downloads database. Do not report unrelated Android
+            # process crashes as FOF TV failures. A crash in our package is
+            # always a failure, including the Taste onboarding phase.
+            if grep -q "Process: com.fof.tv," logcat.txt crash_search.txt crash_taste.txt 2>/dev/null; then echo "CHECK FAIL no crash (FOF TV process)"; else echo "CHECK PASS no FOF TV crash in captured logs"; fi
             fp=$(grep -o "first poster card composed after [0-9]* ms" cold_profile.txt logcat.txt 2>/dev/null | head -1 | grep -o "[0-9]* ms" | grep -o "[0-9]*")
             if [ -n "$fp" ] && [ "$fp" -lt 15000 ]; then echo "CHECK PASS home posters after restart ($fp ms)"; else echo "CHECK FAIL home posters after restart (${fp:-none} ms)"; fi
             grep -q "HAS\[livetv-guide\] USA | Sports: yes" journey.txt && echo "CHECK PASS Live TV guide shows categories" || echo "CHECK FAIL Live TV guide shows categories"
             [ -s playlist_ready.txt ] && echo "CHECK PASS playlist loaded" || echo "CHECK FAIL playlist loaded"
             # Smoothness while scrolling Home (frames held up by the app's own work, not by the emulator's slow drawing)
             tot=$(grep -o "Total frames rendered: [0-9]*" gfx_home.txt | grep -o "[0-9]*$"); slow=$(grep -o "Number Slow UI thread: [0-9]*" gfx_home.txt | grep -o "[0-9]*$")
-            if [ -n "$tot" ] && [ "$tot" -gt 0 ] && [ $((slow * 100 / tot)) -lt 60 ]; then echo "CHECK PASS smooth Home scrolling ($slow of $tot frames slow in the app)"; else echo "CHECK FAIL smooth Home scrolling (${slow:-?} of ${tot:-?} frames slow in the app)"; fi
+            if [ -n "$tot" ] && [ "$tot" -gt 0 ] && [ $((slow * 100 / tot)) -lt 25 ]; then echo "CHECK PASS smooth Home scrolling ($slow of $tot frames slow in the app)"; else echo "CHECK FAIL smooth Home scrolling (${slow:-?} of ${tot:-?} frames slow in the app)"; fi
             grep -q "HAS\[search-denzel\] Denzel Washington: yes" journey.txt && echo "CHECK PASS search finds a person" || echo "CHECK FAIL search finds a person"
           } | tee checks.txt
           echo "== sports and search timings"; grep -E "sports:|search:|first poster|profile picked" marks.txt | sed 's/^.*FofProfile: //' || true
