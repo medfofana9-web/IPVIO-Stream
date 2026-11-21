@@ -262,10 +262,10 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
         } while (true)
     }
     val searching = hitsLoading == null || (automatic.isEmpty() && addonPending)
-    // Automatic problem report: a live game for which neither the guide, the channel names nor the addons found a feed
     LaunchedEffect(g.key, searching, automatic.isEmpty()) {
-        if (!searching && automatic.isEmpty() && g.state == 1) AutoReport.issue(ctx, "no-channel",
-            g.league + " – " + (if (g.solo) g.title else g.away.short + " at " + g.home.short) + (g.tv.takeIf { it.isNotBlank() }?.let { " (TV: $it)" } ?: ""))
+        if (g.state == 1 && !searching && automatic.isEmpty() && SportAddons.report(g) != null) {
+            FrameStats.incident(ctx, FrameStats.Incident.SPORTS_NO_MATCH)
+        }
     }
     var pick by remember { mutableStateOf(false) }
     val first = remember { FocusRequester() }
