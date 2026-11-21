@@ -110,11 +110,18 @@ object RowStates {
 @Composable
 fun Modifier.restoreFocus(id: String): Modifier {
     val fr = remember { FocusRequester() }
-    LaunchedEffect(Unit) {
+    LaunchedEffect(id) {
         if (LastFocus.pending == id) {
-            delay(150)
-            runCatching { fr.requestFocus() }
-            LastFocus.pending = null
+            // Lazy cards can mount after the row returns. Retry briefly instead
+            // of clearing the focus target before it can accept focus.
+            repeat(7) {
+                delay(50)
+                if (LastFocus.pending != id) return@LaunchedEffect
+                if (runCatching { fr.requestFocus() }.getOrDefault(false)) {
+                    LastFocus.pending = null
+                    return@LaunchedEffect
+                }
+            }
         }
     }
     return this.focusRequester(fr)

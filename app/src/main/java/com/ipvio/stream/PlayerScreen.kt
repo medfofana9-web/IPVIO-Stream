@@ -1152,6 +1152,21 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             if (!openStream(player, playUrl, if (cur.startMs > 0) cur.startMs else 0L)) { msg = PlayerLogic.MSG_FORMAT; buffering = false }
         }
     }
+    // Prefer another mapped game feed quickly when the first one never starts.
+    // Regular live TV and streams already playing are unaffected.
+    LaunchedEffect(cur.url) {
+        val startupDelay = SportsStartupLogic.nextFeedDelayMs(
+            SportSession.isVerified(ctx, cur.itemId), SportSession.streams(cur.itemId).size
+        )
+        if (cur.live && cur.archive == null && startupDelay != null) {
+            delay(startupDelay)
+            if (SportsStartupLogic.shouldTryNext(
+                    readyOnce, SportSession.owns(cur.itemId), SportSession.streams(cur.itemId).size
+                ) && player.playbackState != Player.STATE_READY && DeviceCaps.online(ctx)) {
+                sportFailover()
+            }
+        }
+    }
     LaunchedEffect(Unit) {
         while (true) {
             if (!cur.live) {

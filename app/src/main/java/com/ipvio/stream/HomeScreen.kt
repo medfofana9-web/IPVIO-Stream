@@ -60,10 +60,6 @@ private object HeroCache {
     val byTab = HashMap<Int, Pair<List<String>, List<Item>>>()
 }
 
-private object HomeReturn {
-    var returning = false
-}
-
 /** Last adopted genre state and trend list – kept when leaving the home screen. */
 private object HomeVer {
     var value = -1
@@ -377,7 +373,6 @@ fun HomeScreen(
         QuickTile("Favoriten", "Your favorites", 7, Color(0xFF7F1D1D), Color(0xFF3A0B0B), Color(0xFFFB7185), image = tileImg[MenuLogic.FAVS]) { onTab(MenuLogic.FAVS) },
         QuickTile("Meine Liste", "${watchList.count { it.kind != Kind.LIVE }} titles", 8, Color(0xFF134E4A), Color(0xFF082725), Color(0xFF2DD4BF), image = tileImg[MenuLogic.MYLIST]) { onTab(MenuLogic.MYLIST) }
     )
-    DisposableEffect(Unit) { onDispose { HomeReturn.returning = true } }
 
     LaunchedEffect(candidates) {
         // Switching between Home / Movies / Series: the big picture of this area is taken over at once instead of
@@ -406,19 +401,9 @@ fun HomeScreen(
             }
         }
     }
-    LaunchedEffect(Unit) {
-        if (HomeReturn.returning) {
-            HomeReturn.returning = false
-            delay(1200)
-            if (LastFocus.pending != null) {
-                LastFocus.pending = null
-                val st = states[tab]
-                val atTop = (tab == 0 && st.firstVisibleItemIndex == 0) || (tab in 1..2 && st.firstVisibleItemIndex <= 1)
-                if (atTop) runCatching { ContentFocus.req.requestFocus() }
-            }
-        }
-    }
-
+    // Returning from playback preserves the row's LazyListState and lets the
+    // exact card's restoreFocus() request focus. Do not clear that request
+    // after a fixed delay or jump focus back to the hero.
     var inSidebar by remember { mutableStateOf(false) }
     val sideFocus = remember { FocusRequester() }
     // App start: focus on "Watch now" instead of the sidebar. The top picture appears only once playlist and info are loaded
