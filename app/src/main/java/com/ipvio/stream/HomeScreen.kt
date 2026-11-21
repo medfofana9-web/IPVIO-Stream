@@ -615,7 +615,7 @@ fun HomeScreen(
                                         // "Because you watched …": the last catalog title you watched
                                         val seed = History.ids.firstNotNullOfOrNull { id -> CatalogItems.get(id) }
                                         if (seed != null) item(key = "because" + seed.id) {
-                                            ExtraRow("Because you watched " + seed.title, "because:" + seed.id.removePrefix("stremio:"), cardW, onOpen, onBrowse, style = CARD_SPOT) { TmdbExtra.because(seed) }
+                                            ExtraRow("Because you watched " + seed.title, "because:" + seed.id.removePrefix("stremio:"), cardW, onOpen, onBrowse, style = CARD_SPOT, onSpotlightPlay = heroPlay) { TmdbExtra.because(seed) }
                                         }
                                         // Picked in the taste setup: up to two "Because you like …" rows
                                         tasteSeeds.filter { it.id != seed?.id }.take(2).forEach { ts ->
@@ -625,7 +625,7 @@ fun HomeScreen(
                                         }
                                         // From this profile's own setup answers (nothing for a profile that skipped it)
                                         if (tasteTop.isNotEmpty()) {
-                                            item(key = "taste:picked") { ExtraRow("We think you'll love this", "taste:picked:" + Profiles.active, cardW, onOpen, onBrowse, style = CARD_SPOT) { TasteRows.picked(ctx, tasteTop) } }
+                                            item(key = "taste:picked") { ExtraRow("We think you'll love this", "taste:picked:" + Profiles.active, cardW, onOpen, onBrowse, style = CARD_SPOT, onSpotlightPlay = heroPlay) { TasteRows.picked(ctx, tasteTop) } }
                                             item(key = "taste:movies") { ExtraRow("Movies you might love", "taste:movies:" + Profiles.active, cardW, onOpen, onBrowse) { TasteRows.forKind(ctx, Kind.MOVIE, tasteTop) } }
                                             item(key = "taste:shows") { ExtraRow("Shows matching your taste", "taste:shows:" + Profiles.active, cardW, onOpen, onBrowse) { TasteRows.forKind(ctx, Kind.SERIES, tasteTop) } }
                                         }
@@ -852,13 +852,13 @@ object PillMemory {
 
 /** A row from TMDB (needs the TMDB key); left out while empty, so it never leaves a gap. */
 @Composable
-private fun ExtraRow(title: String, key: String, cardW: Int, onOpen: (Item) -> Unit, onBrowse: (BrowseReq) -> Unit, style: Int = -1, load: suspend () -> List<Item>) {
+private fun ExtraRow(title: String, key: String, cardW: Int, onOpen: (Item) -> Unit, onBrowse: (BrowseReq) -> Unit, style: Int = -1, onSpotlightPlay: ((Item) -> Unit)? = null, load: suspend () -> List<Item>) {
     // null = still loading: the row keeps its place (a row popping in later pushed the screen while moving through it)
     val list by produceState(TmdbExtra.cached(key).takeIf { it.size >= 3 }, key) { value = runCatching { load() }.getOrDefault(emptyList()) }
     val l = list
     if (l == null) { Spacer(Modifier.fillMaxWidth().height(dpx(300))); return }
     if (l.size < 3) return
-    ItemsRow(title, l, cardW, onOpen, style = style) { onBrowse(BrowseReq(title, l, SORT_PLAYLIST)) }
+    ItemsRow(title, l, cardW, onOpen, style = style, onSpotlightPlay = onSpotlightPlay) { onBrowse(BrowseReq(title, l, SORT_PLAYLIST)) }
 }
 
 /** Collections (sagas): wide picture cards; OK opens the movies in order. */
@@ -907,7 +907,8 @@ private fun CatalogRow(spec: Catalog.Spec, cardW: Int, onOpen: (Item) -> Unit, o
 private fun ItemsRow(
     title: String, list: List<Item>, cardW: Int, onOpen: (Item) -> Unit,
     firstReq: FocusRequester? = null, style: Int = -1,
-    upReq: FocusRequester? = null, leftReq: FocusRequester? = null, onAll: () -> Unit
+    upReq: FocusRequester? = null, leftReq: FocusRequester? = null,
+    onSpotlightPlay: ((Item) -> Unit)? = null, onAll: () -> Unit
 ) {
     // After "Show all" and back: focus the link of this row again
     val key = NavState.tab.toString() + "|" + title
@@ -923,7 +924,7 @@ private fun ItemsRow(
     // Picture type from "View" (default: cover); Top 10 always cover
     val st = if (style >= 0) style else if (General.cardArt == 1) CARD_LAND else CARD_POSTER
     CardRow(title, list, st, onOpen, { PillMemory.key = key; onAll() }, RowStates.get("${NavState.tab}|$title"), headerReq, firstCard,
-        upReq = upReq, leftReq = leftReq)
+        upReq = upReq, leftReq = leftReq, onSpotlightPlay = onSpotlightPlay)
 }
 
 @Composable
