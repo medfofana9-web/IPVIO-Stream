@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -634,7 +635,8 @@ const val CARD_SPOT = 3
 fun CardRow(
     title: String, list: List<Item>, style: Int, onOpen: (Item) -> Unit, onAll: (() -> Unit)?,
     state: LazyListState, linkReq: FocusRequester = remember { FocusRequester() }, firstCard: FocusRequester = remember { FocusRequester() },
-    raw: Boolean = false, upReq: FocusRequester? = null, leftReq: FocusRequester? = null
+    raw: Boolean = false, upReq: FocusRequester? = null, leftReq: FocusRequester? = null,
+    onSpotlightPlay: ((Item) -> Unit)? = null
 ) {
     val g = LocalCardGrid.current
     val live = list.firstOrNull()?.kind == Kind.LIVE
@@ -674,7 +676,10 @@ fun CardRow(
                 when {
                     it.kind == Kind.LIVE -> ChannelNowCard(it, track.width(g.chan).then(fr)) { onOpen(it) }
                     style == CARD_LAND -> LandscapeCard(it, track.width(g.land).restoreFocus(it.id).then(fr)) { onOpen(it) }
-                    style == CARD_SPOT -> SpotlightCard(it, track.width(g.land * 1.75f).restoreFocus(it.id).then(fr)) { onOpen(it) }
+                    style == CARD_SPOT && onSpotlightPlay != null -> SpotlightCard(
+                        it, Modifier.width(g.land * 1.75f).onFocusChanged { state -> if (state.hasFocus) cur = i },
+                        fr, track.restoreFocus(it.id), { onSpotlightPlay(it) }, { onOpen(it) }
+                    )
                     // TryBox-style Top 10: a huge outlined rank number with the cover tucked against it
                     style == CARD_TOP10 && i < 10 -> Row(verticalAlignment = Alignment.Bottom) {
                         Top10Number(i + 1)
@@ -1078,11 +1083,13 @@ fun Top10Number(rank: Int) {
 
 
 /**
- * TryBox-style spotlight card ("We think you'll love this!"): wide scene picture, the official title logo at the
- * bottom left and Play / More info under it. OK opens the title (Play lives on the detail page).
+ * TryBox-style spotlight card ("We think you'll love this!"): wide artwork with separately focusable playback and detail actions.
  */
 @Composable
-fun SpotlightCard(item: Item, modifier: Modifier, onClick: () -> Unit) {
+fun SpotlightCard(
+    item: Item, modifier: Modifier, playModifier: Modifier, infoModifier: Modifier,
+    onPlay: () -> Unit, onInfo: () -> Unit
+) {
     val m = rememberMeta(item)
     val full = rememberFullMeta(item, m)
     var f by remember { mutableStateOf(false) }
@@ -1095,9 +1102,8 @@ fun SpotlightCard(item: Item, modifier: Modifier, onClick: () -> Unit) {
         modifier.aspectRatio(1.78f).graphicsLayer { scaleX = s; scaleY = s }.focusGlow(f, shape).clip(shape)
             .background(Brush.linearGradient(listOf(colorFor(item).copy(alpha = .75f), Surf2)))
             .border(if (f) 3.dp else 0.dp, if (f) Color.White else Color.Transparent, shape)
-            .billboardFocus(item) { f = it }
-            .trackFocus()
-            .clickable(onClick = onClick)
+            .onFocusChanged { f = it.hasFocus }
+            .focusGroup()
     ) {
         if (img == null) ArtPlaceholder(item, Modifier.fillMaxSize(), showTitle = false)
         else AsyncImage(img, item.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
@@ -1106,23 +1112,10 @@ fun SpotlightCard(item: Item, modifier: Modifier, onClick: () -> Unit) {
         Column(Modifier.align(Alignment.BottomStart).padding(start = dpx(22), bottom = dpx(20)), verticalArrangement = Arrangement.spacedBy(dpx(14))) {
             HeroTitle(item, full, 34, dpx(260), dpx(80))
             Row(horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
-                SpotChip("Play", AIcon.Play, true)
-                SpotChip("More info", AIcon.Info, false)
+                HeroButton("Play", AIcon.Play, true, playModifier, h = 38, onClick = onPlay)
+                HeroButton("More info", AIcon.Info, false, infoModifier, h = 38, onClick = onInfo)
             }
         }
         Box(Modifier.fillMaxSize().drawBehind { val d = 1f - dimA; if (d > 0.01f) drawRect(Color.Black.copy(alpha = d)) })
-    }
-}
-
-@Composable
-private fun SpotChip(text: String, icon: AIcon, primary: Boolean) {
-    val shape = RoundedCornerShape(50)
-    val ink = if (primary) Color(0xFF0A0A0C) else Color.White
-    Row(
-        Modifier.height(dpx(38)).clip(shape).background(if (primary) Color.White else Color(0x66505056)).padding(horizontal = dpx(16)),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(8))
-    ) {
-        AppIcon(icon, ink, size = dpx(16))
-        Text(text, color = ink, fontSize = spx(15), fontWeight = FontWeight.SemiBold, maxLines = 1, raw = true)
     }
 }
