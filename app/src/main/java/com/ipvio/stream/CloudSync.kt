@@ -244,6 +244,7 @@ object CloudSync {
         withContext(Dispatchers.Main) {
             runCatching {
                 WatchStore.reload(c); Library.reload(c); History.reload(c); EpProgress.dropCache()
+                IntroMarks.refreshedFromCloud()
                 CatalogItems.reload(c); CatFavs.reload(c); ChannelLists.reload(c); SportLeagues.reload(c); SportFavs.reload(c)
             }
         }
