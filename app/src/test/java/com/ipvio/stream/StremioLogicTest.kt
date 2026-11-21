@@ -19,6 +19,19 @@ class StremioLogicTest {
         assertEquals("https://a.io/stream/series/tt0903747:2:5.json", StremioLogic.streamUrl("https://a.io", Kind.SERIES, "tt0903747", 2, 5))
     }
 
+    @Test fun survivorLookupPrefersExactTitleAndYearOverSpinOffs() {
+        val hits = listOf(
+            StremioLogic.ImdbHit("tt2345678", "Australian Survivor", 2016, "series"),
+            StremioLogic.ImdbHit("tt0239195", "Survivor", 2000, "series"),
+            StremioLogic.ImdbHit("tt4567890", "Survivor", 1987, "movie"),
+            StremioLogic.ImdbHit("tt9876543", "Survivor", 2020, "series")
+        )
+        assertEquals("tt0239195", StremioLogic.chooseImdb("Survivor", 2000, true, hits))
+        assertEquals("tt0239195", StremioLogic.chooseImdb("Survivor (US)", 2000, true, hits))
+        assertNull(StremioLogic.chooseImdb("Survivor South Africa", 2000, true, hits))
+        assertEquals("tt4567890", StremioLogic.chooseImdb("Survivor", 1987, false, hits))
+    }
+
     @Test fun titles_labels_quality() {
         assertEquals("Breaking Bad", StremioLogic.cleanTitle("EN - Breaking Bad [4K] (2008)"))
         assertEquals(2008, StremioLogic.year("2008–2013"))
