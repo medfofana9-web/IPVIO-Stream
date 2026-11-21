@@ -481,9 +481,9 @@ private fun DetailScreenFull(
                         .onFocusChanged { heroFocused = it.hasFocus }
                 ) {
                     Column(Modifier.align(if (embedded && !showActions) Alignment.TopStart else Alignment.BottomStart).widthIn(max = dpx(980)).padding(bottom = dpx(18)), verticalArrangement = Arrangement.spacedBy(dpx(12))) {
-                        // Round 17b: overline with glow bar, huge title (design "Cinematic Remake", picture 2)
+                        // Cinematic detail identity stays consistent with Home, Player and Sports.
                         Row(horizontalArrangement = Arrangement.spacedBy(dpx(14)), verticalAlignment = Alignment.CenterVertically) {
-                            Kicker(kindLabel(item.kind), raw = false)
+                            FofEyebrow(if (item.kind == Kind.SERIES) "SERIES DETAILS" else "MOVIE DETAILS")
                             qualityOf(item)?.let { PreviewQualityBadge(it) }
                         }
                         // Netflix-style: the official title logo when there is one, otherwise the title in large type
@@ -491,11 +491,14 @@ private fun DetailScreenFull(
                         HeroMetaLine(item, meta, dots = false)
                         // Movie started: small progress bar with remaining time
                         if (item.kind != Kind.SERIES && resume != null && resume.dur > 0 && !ResumeLogic.finished(resume.pos, resume.dur)) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
-                                Box(Modifier.width(dpx(180)).height(dpx(4)).clip(RoundedCornerShape(50)).background(Color(0x40FFFFFF))) {
-                                    Box(Modifier.fillMaxWidth((resume.pos.toFloat() / resume.dur).coerceIn(0f, 1f)).fillMaxHeight().background(Accent2))
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(12))) {
+                                Text("CONTINUE WATCHING", raw = true, color = FofVisual.Violet,
+                                    fontSize = spx(12), fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
+                                Box(Modifier.width(dpx(190)).height(dpx(5)).clip(RoundedCornerShape(50)).background(Color(0x40FFFFFF))) {
+                                    Box(Modifier.fillMaxWidth((resume.pos.toFloat() / resume.dur).coerceIn(0f, 1f)).fillMaxHeight().background(FofVisual.Violet))
                                 }
-                                Text("noch " + ((resume.dur - resume.pos) / 60000).coerceAtLeast(1) + " Min", color = Muted, fontSize = spx(14))
+                                Text(((resume.dur - resume.pos) / 60000).coerceAtLeast(1).toString() + " min left",
+                                    raw = true, color = Tok.TextMid, fontSize = spx(14))
                             }
                         }
                         if (meta?.overview == null && !metaDone) {
@@ -709,9 +712,11 @@ private fun DetailScreenFull(
                     }
                     Column(Modifier.weight(1f).fillMaxHeight()) {
                         Row(
-                            Modifier.padding(bottom = dpx(6)),
+                            Modifier.padding(bottom = dpx(10)),
                             horizontalArrangement = Arrangement.spacedBy(dpx(16)), verticalAlignment = Alignment.CenterVertically
                         ) {
+                            Text("EPISODES", raw = true, color = FofVisual.Violet, fontSize = spx(14),
+                                fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
                             // Fof TV: no permanent remote hints (clutter); only a short note while episode info loads
                             if (epLoading) Text("lade Infos …", color = Muted, fontSize = spx(14))
                             if (item.episodes.size > EpisodeLogic.LONG) DetailPill("Zu Folge springen", icon = AIcon.Down) { jumpOpen = !jumpOpen }
