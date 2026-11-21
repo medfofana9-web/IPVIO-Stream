@@ -808,7 +808,7 @@ private fun EpisodeRow(ep: Episode, em: EpMeta?, v: Variant, prog: ResumeLogic.E
             .then(if (f) Modifier.shadow(dpx(24), shape, ambientColor = Tok.Lift, spotColor = Tok.Lift) else Modifier)
             .clip(shape).background(FofGlass.body(if (f) 1 else 0, f))
             .background(FofGlass.sheen(if (f) 1 else 0, f))
-            .border(if (f) 2.dp else 1.dp, if (f) Color.White else FofGlass.edge(false), shape)
+            .border(if (f) 2.dp else 1.dp, if (f) FofGlass.rim() else FofGlass.edge(false), shape)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
             .favKeys(onToggleSeen)
             .clickable(onClick = onClick)
