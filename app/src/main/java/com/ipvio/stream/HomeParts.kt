@@ -761,6 +761,8 @@ fun CenterFollow(state: LazyListState, cur: Int) {
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun RowPosterCard(item: Item, baseW: Dp, modifier: Modifier, overlay0: Int = 0, aspect: Float = 1.5f, expand: Boolean = true, onClick: () -> Unit) {
+    val ctx = LocalContext.current
+    val lowRam = remember(ctx) { Mem.tier(ctx) == 0 }
     // Clean look (Nuvio style): calm focus (small scale, white frame), no dimming, no preview; title and year under the poster
     val clean = FofPrefs.cleanLook
     MainSampler.firstCard()
@@ -805,11 +807,16 @@ fun RowPosterCard(item: Item, baseW: Dp, modifier: Modifier, overlay0: Int = 0, 
         label = "pp"
     )
     val w = if (wide) baseW + (h * (16f / 9f) - baseW) * p else baseW
-    val s by animateFloatAsState(if (fx && (!open || !wide)) focusScale(if (wide) 1.05f else if (clean) 1.06f else 1.12f) else 1f,
-        if (clean) tween(150) else androidx.compose.animation.core.spring(), label = "ps")
+    val s by animateFloatAsState(
+        if (fx && (!open || !wide)) focusScale(
+            if (wide) 1.05f else if (clean) 1.06f else if (lowRam && !expand) 1.045f else 1.12f
+        ) else 1f,
+        if (Look.motion == 0) snap() else if (lowRam || clean) tween(110)
+        else androidx.compose.animation.core.spring(), label = "ps")
     // 17b: in the selected row the other cards step back
     val rowF = LocalRowFocus.current
-    val dimA by animateFloatAsState(if (rowF && !f && !clean) 0.5f else 1f, tween(if (Look.motion == 0) 0 else 320), label = "dim")
+    val dimA by animateFloatAsState(if (rowF && !f && !clean) 0.5f else 1f,
+        if (Look.motion == 0 || lowRam) snap() else tween(180), label = "dim")
     val shape = RoundedCornerShape(dpx(10))
     // The expanded scene image draws its own frame
     // Image only. The focus sits on the poster slot (bottom), not on the wide card: otherwise Right/Left skips
