@@ -1,5 +1,12 @@
 # Changelog
 
+## Fof TV 1.3.127 (November 2026)
+
+- TryBox-style look: red is the new default accent ("Fof Red" replaces the white "Fof Premium" preset in the same slot, so saved choices keep their place); the brand mark and the old violet highlights are red.
+- "Who's watching?": one black-and-white cinematic still of a popular title (its logo bottom left) instead of the poster wall, square avatar tiles with a white frame on focus, outlined "Manage Profiles" button with a pencil.
+- Home hero is a rounded card inset under the header with the artwork's color glowing behind it; buttons read "Play" / "More Info".
+- Today's Top 10 shows large outlined rank numbers with each cover tucked against its number.
+
 ## Fof TV 1.3.126 (November 2026)
 
 - Settings hub has fewer tiles: "View" now lives inside "Design and color" (below the design options), and "Menu" lives inside "Customize home" (below the home rows). Nothing was removed; the reset button also shows on Customize home. Returning from the live View preview opens Design and color.

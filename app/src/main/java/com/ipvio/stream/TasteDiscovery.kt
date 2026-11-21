@@ -178,7 +178,7 @@ private fun RatePoster(i: Item, r: Int, modifier: Modifier, onClick: () -> Unit)
     val s by animateFloatAsState(if (f) 1.06f else 1f, tween(140), label = "rp")
     val shape = RoundedCornerShape(12.dp)
     val (frame, label) = when (r) {
-        Discovery.LOVED -> Color(0xFFB9B4F0) to "Love it"
+        Discovery.LOVED -> Color(0xFFE60023) to "Love it"
         Discovery.LIKED -> Color(0xFF8FD3A8) to "Like it"
         Discovery.NOPE -> Color(0x66FFFFFF) to "Not for me"
         else -> Color(0x1FFFFFFF) to null
@@ -307,7 +307,7 @@ internal fun PeopleStep(chosen: MutableMap<Int, String>, onChange: () -> Unit) {
                     .onFocusChanged { f = it.isFocused }.clickable { if (on) chosen.remove(p.id) else chosen[p.id] = p.name; onChange() },
                     horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(Modifier.size(110.dp).clip(CircleShape).background(Color(0xFF15161A))
-                        .border(if (on) 3.dp else if (f) 2.dp else 1.dp, if (on) Color(0xFFB9B4F0) else if (f) Color.White else Color(0x1FFFFFFF), CircleShape)) {
+                        .border(if (on) 3.dp else if (f) 2.dp else 1.dp, if (on) Color(0xFFE60023) else if (f) Color.White else Color(0x1FFFFFFF), CircleShape)) {
                         coil.compose.AsyncImage(p.photo, p.name, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
                         if (on) Box(Modifier.fillMaxSize().background(Color(0x337B5CFF)))
                     }

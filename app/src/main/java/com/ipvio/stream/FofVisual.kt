@@ -24,8 +24,8 @@ import androidx.compose.ui.unit.sp
  * Solid/cached layers instead of realtime blurring make this safe for lower-memory TV sticks.
  */
 internal object FofVisual {
-    val Violet = Color(0xFFB9B4F0)
-    val VioletDeep = Color(0xFF8C84DA)
+    val Violet = Color(0xFFE60023)
+    val VioletDeep = Color(0xFFB0001B)
     val Secondary = Color(0xFFC5C7D5)
     val GlassDark = Color(0xE6161723)
     val GlassBorder = Color(0x4DFFFFFF)

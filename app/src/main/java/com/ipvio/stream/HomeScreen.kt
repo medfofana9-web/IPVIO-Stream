@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -1074,25 +1075,32 @@ private fun Hero(
     // Picture across the full width (also behind the header), faded into the background at the left and bottom.
     // Round 14: without arrows; the description has more width (up to about the middle of the picture) and is no longer cut off (max. 250 characters).
     // Round 17c: parallax while scrolling (the constant zoom was removed for performance)
-    Box(Modifier.fillMaxWidth().height(heroH).background(Bg).clipToBounds().onFocusChanged { if (it.hasFocus) Billboard.cardFocus = false }) {
-        // Picture and its three gradients in one cached layer: painted once, then only moved (parallax) while scrolling.
-        // Before: four full-screen fills on every frame, which kept the onn/Fire TV graphics chip behind (measured).
-        Box(Modifier.fillMaxSize().graphicsLayer {
-            translationY = if (Look.motion == 0) 0f else scrollY() * 0.4f
-            compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
-        }) {
+    // TryBox-style: the header sits above, the picture is a rounded card inset from the edges with the artwork's
+    // color glowing softly behind it (one ambient light, no full-bleed picture under the header).
+    val cardShape = RoundedCornerShape(dpx(26))
+    val cardTop = dpx(78)
+    Box(Modifier.fillMaxWidth().height(heroH + dpx(40)).background(Bg).clipToBounds().onFocusChanged { if (it.hasFocus) Billboard.cardFocus = false }) {
+        // Ambient light from the artwork behind the card (fills the margins around it)
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = 0.9f }) { MoodGlow(rememberMeta(item)?.backdrop) }
+        Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x2EFFFFFF), Color(0x0FFFFFFF), Color.Transparent), radius = 1500f)))
+        // Picture and its gradients in one cached layer inside the rounded card
+        Box(Modifier.fillMaxSize().padding(start = dpx(32), end = dpx(32), top = cardTop, bottom = dpx(10))
+            .shadow(dpx(30), cardShape, ambientColor = Color.Black, spotColor = Color.Black)
+            .clip(cardShape).background(Color.Black)
+            .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }) {
             Crossfade(item, animationSpec = tween(heroFadeMs), label = "heroBg") { c ->
                 val m = rememberMeta(c)
-                m?.backdrop?.let { AsyncImage(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopEnd) }
+                m?.backdrop?.let { AsyncImage(it, null, Modifier.fillMaxSize().graphicsLayer {
+                    translationY = if (Look.motion == 0) 0f else scrollY() * 0.25f
+                }, contentScale = ContentScale.Crop, alignment = Alignment.TopEnd) }
             }
-            Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Bg, 0.28f to Bg.copy(alpha = .9f), 0.5f to Bg.copy(alpha = .45f), 0.72f to Color.Transparent)))
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Bg.copy(alpha = .55f), 0.22f to Color.Transparent, 0.62f to Color.Transparent, 0.88f to Bg.copy(alpha = .85f), 1f to Bg)))
-            Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color.Transparent, Bg.copy(alpha = .35f)), radius = 2200f)))
-            MoodGlow(rememberMeta(item)?.backdrop)
+            // Light shading only where the text sits (bottom left), the picture stays bright
+            Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Color(0xB3000000), 0.35f to Color(0x59000000), 0.6f to Color.Transparent)))
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xCC000000))))
         }
         header(Modifier.align(Alignment.TopStart))
         Column(
-            Modifier.align(Alignment.BottomStart).padding(start = dpx(39), bottom = dpx(if (home) 34 else 26)).widthIn(max = dpx(780)),
+            Modifier.align(Alignment.BottomStart).padding(start = dpx(80), bottom = dpx(if (home) 52 else 42)).widthIn(max = dpx(760)),
             verticalArrangement = Arrangement.spacedBy(dpx(10))
         ) {
             Crossfade(item, animationSpec = tween(if (heroFadeMs == 0) 0 else 180), label = "heroText") { c ->
@@ -1103,7 +1111,6 @@ private fun Hero(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(dpx(12))
                     ) {
-                        SpotlightKicker(Lang.tr(kindLabel(c.kind)))
                         qualityOf(c)?.let { PreviewQualityBadge(it) }
                     }
                     HeroTitle(c, m, if (home) 80 else 72, dpx(560), dpx(170))
@@ -1120,7 +1127,7 @@ private fun Hero(
                 val h = if (home) 52 else 46
                 // Started already: the main action is Resume, with the time left (it resumes at the saved spot)
                 val resumeE = WatchStore.entries.firstOrNull { it.itemId == item.id && !it.next && it.pos > 60_000 && it.dur > it.pos }
-                HeroButton(if (resumeE != null) "Resume  ·  " + ((resumeE.dur - resumeE.pos) / 60_000).coerceAtLeast(1) + " min left" else "Watch Now",
+                HeroButton(if (resumeE != null) "Resume  ·  " + ((resumeE.dur - resumeE.pos) / 60_000).coerceAtLeast(1) + " min left" else "Play",
                     AIcon.Play, true, Modifier.focusRequester(ContentFocus.req), h) { onPlay(item) }
                 if (home) HeroButton("More Info", AIcon.Info, false, Modifier.focusRequester(HeroFocus.second), h = h) { onOpen(item) }
                 else {
@@ -1130,7 +1137,7 @@ private fun Hero(
             }
         }
         if (featured.size > 1) Row(
-            Modifier.align(Alignment.BottomEnd).padding(end = dpx(if (home) 33 else 42), bottom = dpx(if (home) 30 else 20)),
+            Modifier.align(Alignment.BottomEnd).padding(end = dpx(76), bottom = dpx(if (home) 56 else 46)),
             horizontalArrangement = Arrangement.spacedBy(dpx(12)), verticalAlignment = Alignment.CenterVertically
         ) {
             // High-contrast editorial numbering makes the cinematic reel feel intentional.

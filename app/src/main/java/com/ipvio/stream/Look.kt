@@ -30,7 +30,7 @@ object Look {
     val ACCENTS = listOf(
         // Fof TV premium (Netflix-style red on true black); the earlier coral is kept as the last preset
         // Premium default: platinum white on near-black (Apple TV style), no brand red on bars and buttons
-        AccentPreset("Fof Premium", 0xF2F2F5, 0xFFFFFF),
+        AccentPreset("Fof Red", 0xE60023, 0xFF3B4F),
         AccentPreset("Violett & Türkis", 0x7C5CFF, 0x00D4C8),
         AccentPreset("Ozean", 0x2F6FE0, 0x5CD6FF),
         AccentPreset("Smaragd", 0x0A7F58, 0x4ADE80),

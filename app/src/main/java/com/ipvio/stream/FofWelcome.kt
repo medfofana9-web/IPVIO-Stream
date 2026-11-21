@@ -64,7 +64,7 @@ fun FofWelcome(onPick: (Int) -> Unit) {
     // The account's profiles and their PIN state (new profiles from other TVs appear here)
     LaunchedEffect(FofAccount.signedInState) { if (FofAccount.signedInState) AccountCloud.refreshPins(ctx) }
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        PosterWall()
+        PickerBackdrop()
         // Top bar: Fof TV mark on the left, greeting and time on the right
         val now by produceState(System.currentTimeMillis()) { while (true) { value = System.currentTimeMillis(); delay(15_000) } }
         Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(horizontal = 56.dp, vertical = 36.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -75,15 +75,8 @@ fun FofWelcome(onPick: (Int) -> Unit) {
             }
         }
         Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
-            FofEyebrow(if (manage) "MANAGE PROFILES" else "YOUR SCREEN, YOUR WAY", compact = true)
-            Spacer(Modifier.height(16.dp))
             Text(if (manage) "Manage profiles" else "Who's watching?", color = Color.White,
-                fontSize = 54.sp, fontWeight = FontWeight.ExtraBold, raw = true)
-            Spacer(Modifier.height(10.dp))
-            if (FofAccount.signedInState) Text(
-                if (manage) "Make each space your own." else "Pick a profile and continue where you left off.",
-                color = FofVisual.Secondary, fontSize = 19.sp, raw = true
-            )
+                fontSize = 56.sp, fontWeight = FontWeight.Bold, letterSpacing = (-1.4).sp, raw = true)
             // The account this TV is signed in to, as a quiet line under the title
             Spacer(Modifier.height(8.dp))
             // Not signed in: say plainly what is missing (this TV shows nothing from the account until it signs in)
@@ -246,14 +239,14 @@ private fun ProfileTile(name: String, avatar: ProfileAvatars.Preset, locked: Boo
     var f by remember { mutableStateOf(false) }
     val s by animateFloatAsState(if (f) 1.065f else 1f, androidx.compose.animation.core.tween(160), label = "pt")
     // Avatar tile (as on Netflix): focus = white frame and a slight lift; the others are dimmed a little
-    val shape = RoundedCornerShape(if (small) 14.dp else 18.dp)
+    val shape = RoundedCornerShape(if (small) 8.dp else 10.dp)
     Column(
         modifier.onFocusChanged { f = it.isFocused }.combinedClickable(onClick = onClick, onLongClick = onLong).graphicsLayer { scaleX = s; scaleY = s },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(Modifier.size(if (small) 136.dp else 180.dp)) {
             Box(Modifier.fillMaxSize().clip(shape)
-                .border(if (f) 3.dp else 1.dp, if (f) FofGlass.rim() else FofGlass.edge(false), shape)) {
+                .border(if (f) 4.dp else 0.dp, if (f) Color.White else Color.Transparent, shape)) {
                 FofAvatar(avatar, Modifier.fillMaxSize())
                 if (!f) Box(Modifier.fillMaxSize().background(Color(0x33000000)))
             }
@@ -265,11 +258,7 @@ private fun ProfileTile(name: String, avatar: ProfileAvatars.Preset, locked: Boo
         Spacer(Modifier.height(18.dp))
         Text(name, color = if (f) Color.White else Color(0xCCFFFFFF),
             fontSize = if (small) 21.sp else 26.sp,
-            fontWeight = if (f) FontWeight.ExtraBold else FontWeight.Medium, maxLines = 1, raw = true)
-        Spacer(Modifier.height(10.dp))
-        Box(Modifier.width(if (f) 52.dp else 24.dp).height(3.dp)
-            .clip(RoundedCornerShape(50))
-            .background(if (f) FofVisual.Violet else Color.Transparent))
+            fontWeight = if (f) FontWeight.Bold else FontWeight.Medium, maxLines = 1, raw = true)
     }
 }
 
@@ -282,9 +271,9 @@ private fun AddTile(small: Boolean, modifier: Modifier = Modifier, onClick: () -
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            Modifier.size(if (small) 136.dp else 180.dp).clip(RoundedCornerShape(if (small) 14.dp else 18.dp))
-                .background(if (f) Color(0x33B9B4F0) else Color(0x0FFFFFFF))
-                .border(if (f) 3.dp else 1.dp, if (f) FofVisual.Violet else FofVisual.GlassBorder, RoundedCornerShape(if (small) 14.dp else 18.dp)),
+            Modifier.size(if (small) 136.dp else 180.dp).clip(RoundedCornerShape(if (small) 8.dp else 10.dp))
+                .background(if (f) Color(0x40FFFFFF) else Color(0x1AFFFFFF))
+                .border(if (f) 4.dp else 1.dp, if (f) Color.White else Color(0x33FFFFFF), RoundedCornerShape(if (small) 8.dp else 10.dp)),
             contentAlignment = Alignment.Center
         ) { Text("+", color = if (f) Color.White else Color(0x99FFFFFF), fontSize = 72.sp, fontWeight = FontWeight.Light, raw = true) }
         Spacer(Modifier.height(18.dp))
@@ -348,8 +337,34 @@ internal fun PosterWall() {
 private fun SubtleAction(label: String, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(50)
-    Box(Modifier.onFocusChanged { f = it.isFocused }.clip(shape).background(if (f) Color.White else Color.Transparent)
-        .border(1.dp, if (f) Color.White else Color(0x33FFFFFF), shape).clickable(onClick = onClick).padding(horizontal = 28.dp, vertical = 12.dp)) {
-        Text(label, color = if (f) Color.Black else Color(0x99FFFFFF), fontSize = 18.sp, fontWeight = FontWeight.Medium, raw = true)
+    Row(Modifier.onFocusChanged { f = it.isFocused }.clip(shape).background(if (f) Color.White else Color(0x59000000))
+        .border(1.5.dp, if (f) Color.White else Color(0xB3FFFFFF), shape).clickable(onClick = onClick).padding(horizontal = 30.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (label == "Manage Profiles") AppIcon(AIcon.Edit, if (f) Color.Black else Color.White, size = 18.dp)
+        Text(label, color = if (f) Color.Black else Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, raw = true)
+    }
+}
+
+
+/**
+ * TryBox-style backdrop for "Who's watching?": one cinematic still of today's most popular title, in black and white,
+ * dimmed, with that title's logo at the bottom left. Falls back to the poster wall until the catalog is cached.
+ */
+@Composable
+internal fun PickerBackdrop() {
+    val pick = remember {
+        (Catalog.cached(Catalog.popular(Kind.MOVIE)).take(6) + Catalog.cached(Catalog.popular(Kind.SERIES)).take(4)).shuffled().firstOrNull()
+    }
+    if (pick == null) { PosterWall(); return }
+    val m = rememberMeta(pick)
+    val full = rememberFullMeta(pick, m)
+    val url = m?.backdrop
+    if (url == null) { PosterWall(); return }
+    val gray = remember { androidx.compose.ui.graphics.ColorFilter.colorMatrix(androidx.compose.ui.graphics.ColorMatrix().apply { setToSaturation(0f) }) }
+    coil.compose.AsyncImage(url, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop, colorFilter = gray)
+    Box(Modifier.fillMaxSize().background(Color(0x8C000000)))
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color(0x99000000), 0.3f to Color.Transparent, 0.7f to Color.Transparent, 1f to Color(0xE6000000))))
+    Box(Modifier.fillMaxSize().padding(start = 56.dp, bottom = 48.dp), contentAlignment = Alignment.BottomStart) {
+        Box(Modifier.alpha(0.85f)) { HeroTitle(pick, full, 52, 340.dp, 110.dp) }
     }
 }

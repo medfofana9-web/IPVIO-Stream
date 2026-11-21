@@ -419,7 +419,7 @@ private fun PosterGrid(list: List<Item>?, chosen: MutableList<Item>) {
                 .clickable { if (!chosen.removeAll { it.id == i.id }) chosen.add(i) }) {
                 Box(
                     Modifier.fillMaxWidth().aspectRatio(2f / 3f).focusGlow(f, shape).clip(shape).background(Color(0xFF15161A))
-                        .border(if (on) 3.dp else 1.dp, if (on) Color(0xFFB9B4F0) else Color(0x1FFFFFFF), shape)
+                        .border(if (on) 3.dp else 1.dp, if (on) Color(0xFFE60023) else Color(0x1FFFFFFF), shape)
                 ) {
                     coil.compose.AsyncImage(i.logo, i.title, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
                     if (on) Box(Modifier.fillMaxSize().background(Color(0x337B5CFF)))

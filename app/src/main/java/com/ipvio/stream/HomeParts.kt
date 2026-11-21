@@ -211,7 +211,7 @@ fun HeroButton(text: String, icon: AIcon, primary: Boolean, modifier: Modifier =
         modifier.graphicsLayer { val k = s * pulse.scale; scaleX = k; scaleY = k }.height(dpx(h)).clip(shape)
             .background(if (primary) Color(0xFFF2F0FA) else if (f) DS.FocusFill else Color(0x3DFFFFFF))
             .then(if (f || primary) Modifier else Modifier.background(FofGlass.sheen(0, false)))
-            .border(if (f) 2.dp else 1.dp, if (f) Color(0xFFB9B4F0) else if (primary) Color(0xFFF2F0FA) else Color(0x66FFFFFF), shape)
+            .border(if (f) 2.dp else 1.dp, if (f) Color(0xFFE60023) else if (primary) Color(0xFFF2F0FA) else Color(0x66FFFFFF), shape)
             .onFocusChanged { f = it.isFocused }
             .trackFocus()
             .clickable(onClick = { pulse.pulse(); onClick() })
@@ -237,7 +237,7 @@ fun SpotlightKicker(type: String) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(dpx(10))
     ) {
-        Box(Modifier.size(dpx(7)).clip(CircleShape).background(Color(0xFFB9B4F0)))
+        Box(Modifier.size(dpx(7)).clip(CircleShape).background(Color(0xFFE60023)))
         Text(raw = true, text = "FOF TV  /  SPOTLIGHT", color = Color.White, fontSize = spx(13),
             fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp, maxLines = 1)
         Box(Modifier.width(1.dp).height(dpx(14)).background(Color(0x66FFFFFF)))
@@ -289,7 +289,7 @@ fun RowTitle(
     ) {
         // Editorial section marker shared by Home, Movies and TV. A cheap solid surface,
         // not a live blur or a per-frame gradient.
-        Box(Modifier.width(dpx(4)).height(dpx(23)).clip(RoundedCornerShape(50)).background(Color(0xFFB9B4F0)))
+        Box(Modifier.width(dpx(4)).height(dpx(23)).clip(RoundedCornerShape(50)).background(Color(0xFFE60023)))
         Text(title, color = Color.White, fontSize = spx(DS.SectionTitleSp + 2), fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f), raw = raw)
         if (onAll != null) {
@@ -672,7 +672,12 @@ fun CardRow(
                 when {
                     it.kind == Kind.LIVE -> ChannelNowCard(it, track.width(g.chan).then(fr)) { onOpen(it) }
                     style == CARD_LAND -> LandscapeCard(it, track.width(g.land).restoreFocus(it.id).then(fr)) { onOpen(it) }
-                    // 17c: on the home screen no preview expands (the info is already shown large at the top), Top 10 without numbers
+                    // TryBox-style Top 10: a huge outlined rank number with the cover tucked against it
+                    style == CARD_TOP10 && i < 10 -> Row(verticalAlignment = Alignment.Bottom) {
+                        Top10Number(i + 1)
+                        RowPosterCard(it, g.poster, track.restoreFocus(it.id).then(fr).offset(x = -dpx(34)), overlay0 = 0, expand = false) { onOpen(it) }
+                    }
+                    // 17c: on the home screen no preview expands (the info is already shown large at the top)
                     else -> RowPosterCard(it, g.poster, track.restoreFocus(it.id).then(fr), overlay0 = 0, expand = false) { onOpen(it) }
                 }
             }
@@ -880,7 +885,7 @@ fun RowPosterCard(item: Item, baseW: Dp, modifier: Modifier, overlay0: Int = 0, 
             }?.let { (it.pos.toFloat() / it.dur).coerceIn(0f, 1f) }
             if (progress != null && progress in 0.01f..0.99f) {
                 Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(dpx(5)).background(Color(0x99000000))) {
-                    Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Color(0xFFB9B4F0)))
+                    Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Color(0xFFE60023)))
                 }
             }
         }
@@ -1047,4 +1052,23 @@ fun ChannelDetailRows(list: List<Item>, firstReq: FocusRequester?, onOpen: (Item
             }
         }
     }
+}
+
+
+/** Outlined rank number of the Top 10 row (drawn as a stroke, like TryBox / Netflix). */
+@Composable
+fun Top10Number(rank: Int) {
+    androidx.compose.foundation.text.BasicText(
+        rank.toString(),
+        Modifier.padding(bottom = dpx(2)),
+        style = androidx.compose.ui.text.TextStyle(
+            color = Color(0x8CFFFFFF),
+            fontSize = spx(if (rank == 10) 190 else 230),
+            fontWeight = FontWeight.Black,
+            letterSpacing = (-14).sp,
+            lineHeight = spx(200),
+            drawStyle = androidx.compose.ui.graphics.drawscope.Stroke(width = 5f)
+        ),
+        maxLines = 1
+    )
 }

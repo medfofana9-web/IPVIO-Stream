@@ -196,7 +196,7 @@ fun SettingsHub(onAdd: () -> Unit, reload: () -> Unit) {
 /** One quiet Fof violet icon accent instead of a different hue on every settings card.
  * Keep the same cheap glass surfaces used elsewhere, without live blur on TV GPUs.
  */
-private val SettingsIconInk = Color(0xFFB9B4F0)
+private val SettingsIconInk = Color(0xFFE60023)
 
 @Composable
 private fun SettingsCard(cat: Cat, idx: Int, modifier: Modifier, onClick: () -> Unit) {

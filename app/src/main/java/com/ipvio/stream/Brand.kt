@@ -31,7 +31,7 @@ fun FofLogo(markSize: androidx.compose.ui.unit.Dp, textSize: androidx.compose.ui
         androidx.compose.foundation.layout.Spacer(Modifier.width(markSize * 0.3f))
         Text("fof", color = androidx.compose.ui.graphics.Color.White, fontSize = textSize, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, raw = true)
         androidx.compose.foundation.layout.Spacer(Modifier.width(markSize * 0.12f))
-        Text("TV", color = androidx.compose.ui.graphics.Color(0xFFB9B4F0), fontSize = textSize * 0.42f, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, raw = true,
+        Text("TV", color = androidx.compose.ui.graphics.Color(0xFFE60023), fontSize = textSize * 0.42f, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, raw = true,
             modifier = Modifier.padding(top = markSize * 0.12f))
     }
 }
