@@ -22,30 +22,30 @@ fun TrackSettingsSection(ctx: Context) {
     val a2 = Langs.AUDIO2.indexOfFirst { it.first == AppSettings.audioLang2 }.coerceAtLeast(0)
     val si = Langs.SUBS.indexOfFirst { it.first == AppSettings.subLang }.coerceAtLeast(0)
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SelectRow("Tonspur", Langs.AUDIO[ai].second, Langs.AUDIO.map { it.second }, ai) {
+        SelectRow("Audio language", Langs.AUDIO[ai].second, Langs.AUDIO.map { it.second }, ai) {
             AppSettings.setLangs(ctx, Langs.AUDIO[it].first, AppSettings.subLang)
         }
-        if (AppSettings.audioLang.isNotEmpty()) SelectRow("Zweite Tonspur", Langs.AUDIO2[a2].second, Langs.AUDIO2.map { it.second }, a2) {
+        if (AppSettings.audioLang.isNotEmpty()) SelectRow("Zweite Audio language", Langs.AUDIO2[a2].second, Langs.AUDIO2.map { it.second }, a2) {
             AppSettings.setTrackExtra(ctx, Langs.AUDIO2[it].first, AppSettings.subMode, AppSettings.ccPref)
         }
         SelectRow("Untertitel", Langs.SUB_MODES[AppSettings.subMode], Langs.SUB_MODES, AppSettings.subMode) {
             AppSettings.setTrackExtra(ctx, AppSettings.audioLang2, it, AppSettings.ccPref)
         }
         if (AppSettings.subMode != TrackLogic.SUB_OFF) {
-            SelectRow("Sprache der Untertitel", Langs.SUBS[si].second, Langs.SUBS.map { it.second }, si) {
+            SelectRow("Subtitle language", Langs.SUBS[si].second, Langs.SUBS.map { it.second }, si) {
                 AppSettings.setLangs(ctx, AppSettings.audioLang, Langs.SUBS[it].first)
             }
             ToggleRow(
-                "Untertitel für Hörgeschädigte (CC)",
-                "Bevorzugt Untertitel mit Geräuschen und Sprecherangaben ([Musik], [Tür knallt]), wenn der Stream welche hat.",
+                "Closed captions (CC)",
+                "Prefer captions with sound descriptions and speaker labels when available.",
                 AppSettings.ccPref
             ) { AppSettings.setTrackExtra(ctx, AppSettings.audioLang2, AppSettings.subMode, it) }
         }
     }
     Hint(
-        "„Nur bei fremder Tonspur“: Läuft ein Titel in einer Sprache, die du nicht eingestellt hast (z. B. Japanisch), " +
-            "erscheinen Untertitel automatisch; bei deiner Sprache bleiben sie aus. Wählst du im Player unter Audio & Untertitel " +
-            "von Hand, merkt sich die App das für diese Serie bzw. diesen Film – die nächste Folge startet gleich richtig."
+        "„Nur bei fremder Audio language“: Läuft ein Titel in einer Sprache, die du nicht eingestellt hast (z. B. Japanisch), " +
+            "subtitles appear automatically. They stay off for your selected audio language. If you select tracks in the player, " +
+            "FOF TV remembers your choice for that movie or series, including its next episode."
     )
 }
 
@@ -54,22 +54,22 @@ fun TrackSettingsSection(ctx: Context) {
 fun SourceSettingsSection(ctx: Context) {
     PlaybackPrefs.init(ctx)
     DeviceCaps.init(ctx)
-    SectionTitle("Quelle & Qualität")
-    val opts = listOf("Automatisch (passend zum Gerät)", "Immer die höchste", "Höchstens Full HD", "Höchstens HD (spart Daten)")
-    SelectRow("Bei mehreren Quellen", opts[PlaybackPrefs.quality], opts, PlaybackPrefs.quality) { PlaybackPrefs.setQuality(ctx, it) }
+    SectionTitle("Sources & Quality")
+    val opts = listOf("Automatic (best for this device)", "Always highest quality", "Up to Full HD", "Up to HD (saves data)")
+    SelectRow("When multiple sources exist", opts[PlaybackPrefs.quality], opts, PlaybackPrefs.quality) { PlaybackPrefs.setQuality(ctx, it) }
     ToggleRow(
-        "Bei Störung automatisch wechseln",
-        "Ruckelt ein Titel mehrmals oder lässt er sich nicht abspielen, nimmt die App eine andere (kleinere) Quelle desselben Titels – an derselben Stelle.",
+        "Switch sources on failure",
+        "If a stream repeatedly buffers or fails, FOF TV tries another source for the same title and resumes at the same position.",
         PlaybackPrefs.autoFallback
     ) { PlaybackPrefs.setFallback(ctx, it) }
-    Text("Dieses Gerät: " + DeviceCaps.summary(), color = Muted, fontSize = 15.sp)
+    Text("This device: " + DeviceCaps.summary(), color = Muted, fontSize = 15.sp)
     if (PlaybackPrefs.learnedCap in 1..3) Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Gelernt: 4K ruckelte hier mehrmals – Automatik nimmt höchstens Full HD.", color = DS.Gold, fontSize = 15.sp)
-        SmallPill("Zurücksetzen") { PlaybackPrefs.resetLearned(ctx) }
+        Text("Learned preference: 4K buffered repeatedly on this device, so automatic selection uses up to Full HD.", color = DS.Gold, fontSize = 15.sp)
+        SmallPill("Reset") { PlaybackPrefs.resetLearned(ctx) }
     }
     Hint(
-        "Viele Anbieter haben denselben Film mehrfach (4K, FHD, HD). „Automatisch“ nimmt die beste Quelle, die dein Gerät flüssig " +
-            "schafft: 4K nur mit 4K-Bildschirm und passendem Decoder. Eine feste Wahl auf der Detailseite hat immer Vorrang."
+        "Some providers offer the same movie in multiple qualities (4K, Full HD, HD). Automatic chooses the highest quality your device can handle: " +
+            "4K requires a compatible display and decoder. A source you choose manually always takes priority."
     )
 }
 
@@ -77,21 +77,21 @@ fun SourceSettingsSection(ctx: Context) {
 @Composable
 fun DeadLinksSection(ctx: Context) {
     DeadLinks.init(ctx)
-    SectionTitle("Defekte Links")
+    SectionTitle("Broken sources")
     Text(
-        if (DeadLinks.count == 0) "Keine gestörten Titel bekannt." else "${DeadLinks.count} Titel als gestört gemerkt",
+        if (DeadLinks.count == 0) "No broken sources recorded." else "${DeadLinks.count} sources marked as failing",
         color = if (DeadLinks.count == 0) Muted else Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold
     )
     ToggleRow(
-        "Gestörte Titel ausblenden",
-        "Blendet Filme und Sender aus, die beim Abspielen „nicht mehr vorhanden“ meldeten oder mehrmals scheiterten. Sonst tragen sie ein Warnsymbol.",
+        "Hide failing titles",
+        "Hides movies or channels that repeatedly fail or report they are unavailable. Otherwise, they display a warning icon.",
         DeadLinks.hide
     ) { DeadLinks.setHide(ctx, it) }
-    if (DeadLinks.count > 0) ConfirmPill("Liste leeren") { DeadLinks.clear(ctx) }
+    if (DeadLinks.count > 0) ConfirmPill("Clear list") { DeadLinks.clear(ctx) }
     Hint(
-        "Die App prüft nicht von sich aus Tausende Links – das würde dein Anbieter als Missbrauch werten. Sie merkt sich nur, " +
-            "was beim Abspielen schiefging. Ohne Internet, bei Zugangs- oder Serverproblemen wird nichts gemerkt. Spielt ein Titel wieder, " +
-            "ist er sofort freigegeben."
+        "FOF TV does not proactively check thousands of provider links. It only remembers " +
+            "failures that happen during playback. Connectivity, authorization, or server issues are not counted as broken content. " +
+            "A working title is immediately restored."
     )
 }
 
@@ -99,14 +99,14 @@ fun DeadLinksSection(ctx: Context) {
 @Composable
 fun ChannelListsSection(ctx: Context) {
     ChannelLists.init(ctx)
-    SectionTitle("Eigene Senderlisten")
+    SectionTitle("Custom channel lists")
     val ls = ChannelLists.lists
-    Text(if (ls.isEmpty()) "Noch keine eigenen Listen." else ls.joinToString("  ·  ") { it.name + " (" + it.ids.size + ")" }, color = if (ls.isEmpty()) Muted else Color.White, fontSize = 16.sp, raw = ls.isNotEmpty())
+    Text(if (ls.isEmpty()) "No custom channel lists yet." else ls.joinToString("  ·  ") { it.name + " (" + it.ids.size + ")" }, color = if (ls.isEmpty()) Muted else Color.White, fontSize = 16.sp, raw = ls.isNotEmpty())
     Hint(
-        "Anlegen: Live TV > „Neue Senderliste“ oder auf einem Sender OK gedrückt halten > „Neue Senderliste …“. " +
-            "OK gedrückt halten auf einem Sender: Favorit, zu einer Liste hinzufügen oder entfernen, in der Liste nach oben/unten schieben. " +
-            "OK gedrückt halten auf einer Liste: umbenennen oder löschen. Hat deine Fernbedienung eine Menü-Taste, geht es auch damit. " +
-            "Im Player wechselst du mit Links zu deinen Listen; Umschalten bleibt in der Liste."
+        "To create a list, open Live TV > New channel list, or long-press OK on a channel and choose New channel list. " +
+            "Long-press OK on a channel to favorite it, add or remove it from a list, or change its position. " +
+            "Long-press OK on a list to rename or delete it. The remote's Menu key also works, when available. " +
+            "Use Left in the player to switch between your lists; channel switching stays within the active list."
     )
 }
 
@@ -114,42 +114,42 @@ fun ChannelListsSection(ctx: Context) {
 @Composable
 fun ReminderSettingsSection(ctx: Context) {
     Reminders.init(ctx)
-    SectionTitle("Erinnerungen")
+    SectionTitle("Reminders")
     val leads = ReminderLogic.LEADS
     val li = leads.indexOf(Reminders.leadMin).coerceAtLeast(0)
-    SelectRow("Erinnern", if (Reminders.leadMin == 0) "Zum Beginn" else "${Reminders.leadMin} Min vorher",
-        leads.map { if (it == 0) "Zum Beginn" else "$it Min vorher" }, li) { Reminders.setLead(ctx, leads[it]) }
+    SelectRow("Remind me", if (Reminders.leadMin == 0) "At start" else "${Reminders.leadMin} min before",
+        leads.map { if (it == 0) "At start" else "$it min before" }, li) { Reminders.setLead(ctx, leads[it]) }
     val list = Reminders.list.toList()
-    if (list.isEmpty()) Text("Keine Erinnerungen gesetzt.", color = Muted, fontSize = 16.sp)
+    if (list.isEmpty()) Text("Keine Reminders gesetzt.", color = Muted, fontSize = 16.sp)
     else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         list.forEach { r ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Text(raw = true, text = dayLabel(r.start) + " " + hhmm(r.start) + "  " + r.title + "  ·  " + r.chTitle, color = Color.White, fontSize = 16.sp, maxLines = 1)
-                SmallPill("Löschen") { Reminders.toggle(ctx, r) }
+                SmallPill("Delete") { Reminders.toggle(ctx, r) }
             }
         }
     }
     Hint(
-        "Im TV-Guide auf einer späteren Sendung OK drücken > „Erinnern“. Ist die App offen, erscheint eine Karte mit „Umschalten“ " +
-            "(auch während du etwas anderes schaust). Ist sie geschlossen, kommt eine Benachrichtigung – antippen öffnet den Sender. " +
-            "Das Gerät muss dafür eingeschaltet sein (Standby reicht meist); manche Geräte zeigen Benachrichtigungen nur in ihrer Mitteilungsliste."
+        "Im TV-Guide auf einer späteren Sendung OK drücken > „Remind me“. Ist die App offen, erscheint eine Karte mit „Umschalten“ " +
+            "even while watching something else. When the app is closed, tapping a notification opens the channel. " +
+            "The device must remain powered on; some devices show alerts only in their notification center."
     )
 }
 
 /** Live TV: archive (catchup) – how many channels offer it and how to use it. */
 @Composable
 fun CatchupSection() {
-    SectionTitle("Archiv (Catchup)")
+    SectionTitle("Catch-up TV")
     val n = Catchup.count
     IconLabel(
         AIcon.Catchup,
-        if (n == 0) "Deine Playlist meldet keine Sender mit Archiv." else "$n Sender mit Archiv",
+        if (n == 0) "Your playlist contains no channels with catch-up TV." else "$n channels with catch-up",
         if (n == 0) Muted else Color.White, 16.sp, FontWeight.SemiBold, iconSize = 18.dp, iconTint = if (n == 0) Muted else Accent2
     )
     Hint(
-        "Sender mit Archiv tragen das Archiv-Symbol. Im TV-Guide lassen sich vergangene Sendungen dieser Sender mit OK abspielen " +
-            "(Spulen-Tasten = einen Tag zurück/vor). Im Player: „Von Anfang an“ startet die laufende Sendung neu, „Archiv“ listet " +
-            "die verpassten Sendungen. Am Ende einer Sendung geht es mit der nächsten weiter, Zurück führt zum Live-Bild. " +
-            "Welche Sender ein Archiv haben und wie viele Tage es reicht, bestimmt dein Anbieter."
+        "Catch-up channels display an archive icon. In the TV guide, press OK on a past program to watch it. " +
+            "Use Rewind/Fast-forward to move one day. In the player, Start from beginning restarts the current program; Catch-up lists " +
+            "previous programs. Playback proceeds to the next program when one ends, and Back returns to live TV. " +
+            "Catch-up availability and retention are controlled by your provider."
     )
 }
