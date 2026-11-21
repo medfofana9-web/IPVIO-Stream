@@ -318,7 +318,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     // the player is only recomposed when the result really changes.
     val hasDur by remember { derivedStateOf { dur > 0 } }
     val activeSeg by remember { derivedStateOf { val p = pos; segs.firstOrNull { p >= it.start && p < it.end - 1000 } } }
-    val manualIntroActive by remember {
+    val manualIntroActive by remember(savedIntro) {
         derivedStateOf { AppSettings.skipIntro && savedIntro?.contains(pos) == true && activeSeg == null }
     }
     val showNextCard by remember(hasNext) {
