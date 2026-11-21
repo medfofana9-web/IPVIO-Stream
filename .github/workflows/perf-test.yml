@@ -258,7 +258,9 @@ jobs:
             (adb shell pidof com.fof.tv && echo RUNNING || echo NOT-RUNNING) | tee alive.txt
             # Taste setup of a profile: sports, then teams (NFL picked), then shows
             adb shell am force-stop com.fof.tv; sleep 2
-            adb shell am start -W -n com.fof.tv/com.ipvio.stream.MainActivity --ez fof_taste true >/dev/null; sleep 6
+            adb shell am start -W -n com.fof.tv/com.ipvio.stream.MainActivity --ez fof_taste true | tee taste_launch.txt; sleep 6
+            adb shell dumpsys activity activities | grep -E "mResumedActivity|topResumedActivity" | head -3 | tee -a taste_launch.txt || true
+            (adb shell pidof com.fof.tv > /dev/null && echo "taste-start: app running" || echo "taste-start: APP CLOSED before input") | tee -a journey.txt
             adb shell input keyevent 23; sleep 6; adb exec-out screencap -p > p_taste0.png
             adb shell input keyevent 22; sleep 1; adb shell input keyevent 23; sleep 4; adb exec-out screencap -p > p_taste1.png
             adb shell input keyevent 23; sleep 1; adb shell 'for i in 1 2 3 4; do input keyevent 20; sleep 0.4; done'; adb shell input keyevent 23; sleep 8; adb exec-out screencap -p > p_taste2.png
@@ -310,7 +312,8 @@ jobs:
           } | tee checks.txt
           echo "== sports and search timings"; grep -E "sports:|search:|first poster|profile picked" marks.txt | sed 's/^.*FofProfile: //' || true
           echo "== main-thread hotspots"; grep -E "\\[home\\] [0-9]+ |\\[home\\] busy=" marks.txt | tail -45 || true
-          echo "== FOF app exit evidence"; grep -E "com.fof.tv|am_kill|am_crash|ANR|low memory" taste_process.txt crash_taste.txt 2>/dev/null | tail -30 || true
+          echo "== FOF app exit evidence"; cat taste_launch.txt 2>/dev/null | tail -15 || true
+          grep -E "com.fof.tv|am_kill|am_crash|ANR|low memory" taste_process.txt crash_taste.txt 2>/dev/null | tail -30 || true
           grep -q RUNNING alive.txt && ! grep -q NOT-RUNNING alive.txt && ! grep -q "CHECK FAIL" checks.txt
       - name: Key rotation signing works (throwaway keys)
         if: always()
