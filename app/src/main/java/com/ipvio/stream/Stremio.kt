@@ -220,7 +220,9 @@ object Stremio {
     /** Streams, kept 10 minutes: the detail page asks ahead, so Play has them at once. */
     /** [onPart]: called with everything found so far each time an addon answers (the list fills as answers arrive). */
     suspend fun streams(kind: Kind, imdb: String, season: Int, ep: Int, onPart: ((List<Source>) -> Unit)? = null): List<Source> {
-        val k = "$kind|$imdb|$season|$ep"
+        // Include the installed addon set so adding/updating DragonStreams immediately
+        // fetches its streams instead of replaying a stale ten-minute cache.
+        val k = "$kind|$imdb|$season|$ep|" + addons.filter { it.streams }.joinToString(";") { it.base }
         streamCache[k]?.let { if (System.currentTimeMillis() - it.first < 10 * 60_000L) return it.second }
         // Already being looked up (the title page asked ahead): join that lookup instead of asking every addon again,
         // and show its answers as they arrive. Play then starts as soon as the first lookup has its sources.
@@ -310,7 +312,11 @@ object Stremio {
                     // hid results that Nuvio could display for Survivor and other titles.
                     // The manual picker must show every usable HTTP(S)/RD source the addon returns.
                     // Safety is enforced independently by content-match ranking and auto-play checks.
-                    val l = runCatching { parse(a.name, b) }.getOrDefault(emptyList())
+                    val l = runCatching { parse(a.name, b) }.getOrDefault(emptyList()).map { source ->
+                        if (StremioLogic.dragonManualOnly(a.name, source.info, source.url)) {
+                            source.copy(label = StremioLogic.LAST_RESORT + source.label)
+                        } else source
+                    }
                     if (onPart != null && l.isNotEmpty()) { partial.addAll(l); val snap = synchronized(partial) { partial.toList() }; withContext(Dispatchers.Main) { onPart(snap) } }
                     l to (a.name + ": " + when {
                         l.isNotEmpty() -> "${l.size} playable"
@@ -324,7 +330,9 @@ object Stremio {
             }
         }.awaitAll()
         if (stream.isNotEmpty()) lastReport = res.map { it.second }
-        res.flatMap { it.first }.distinctBy { it.url.ifEmpty { "h:" + it.hash + "|" + it.file } }
+        // Retain identical URLs from different addons: dropping a cross-addon
+        // duplicate can make DragonStreams vanish from the source picker.
+        res.flatMap { it.first }.distinctBy { it.addon.lowercase() + "|" + it.url.ifEmpty { "h:" + it.hash + "|" + it.file } }
             .sortedWith(compareByDescending<Source> { it.q }.thenBy { if (it.hash != null) 1 else 0 })
     }
 
