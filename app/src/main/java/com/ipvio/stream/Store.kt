@@ -49,7 +49,7 @@ object AppSettings {
     var subColor by mutableIntStateOf(0)
     var subBg by mutableIntStateOf(1)
     var subEdge by mutableIntStateOf(2)
-    var audioLang by mutableStateOf("")
+    var audioLang by mutableStateOf("en")
     /** Second audio language (fallback when the first is not available). */
     var audioLang2 by mutableStateOf("")
     /** Subtitle language ("" = same as the app). Whether they are on is controlled by [subMode]. */
@@ -66,8 +66,8 @@ object AppSettings {
     var autoNext by mutableStateOf(true)
     var hideSec by mutableIntStateOf(4)
     var showEndTime by mutableStateOf(true)
-    /** Time zone for program times: 0 = Germany (Berlin), 1 = time zone of the device. Many TVs are set to UTC. */
-    var tzMode by mutableIntStateOf(0)
+    /** Program guide time zone: 0 = provider (Berlin), 1 = local device (preferred for FOF TV). */
+    var tzMode by mutableIntStateOf(1)
     var autoSkipIntro by mutableStateOf(false)
     /** Start the next episode right when the credits begin (only if credits times are known). */
     var autoSkipOutro by mutableStateOf(false)
@@ -100,7 +100,7 @@ object AppSettings {
         subColor = p.getInt("sub_color", 0).coerceIn(0, SubStyle.COLORS.lastIndex)
         subBg = p.getInt("sub_bg", 1).coerceIn(0, SubStyle.BGS.lastIndex)
         subEdge = p.getInt("sub_edge", 2).coerceIn(0, SubStyle.EDGES.lastIndex)
-        audioLang = p.getString("audio_lang", "") ?: ""
+        audioLang = p.getString("audio_lang", "en") ?: "en"
         audioLang2 = p.getString("audio_lang2", "") ?: ""
         subLang = p.getString("sub_lang", "") ?: ""
         // Before: subtitle language empty = off. Derive from that without a new setting.
@@ -113,7 +113,7 @@ object AppSettings {
         autoNext = p.getBoolean("auto_next", true)
         hideSec = p.getInt("hide_sec", 4).coerceIn(3, 15)
         showEndTime = p.getBoolean("show_end", true)
-        tzMode = p.getInt("tz_mode", 0).coerceIn(0, 1)
+        tzMode = p.getInt("tz_mode", 1).coerceIn(0, 1)
         autoSkipIntro = p.getBoolean("auto_skip", false)
         autoSkipOutro = p.getBoolean("auto_outro", false)
         clockOn = p.getBoolean("clock_on", false)
