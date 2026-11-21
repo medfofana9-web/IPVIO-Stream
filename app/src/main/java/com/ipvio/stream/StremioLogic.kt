@@ -68,6 +68,15 @@ object StremioLogic {
     fun isImdb(id: String?): Boolean = id != null && Regex("tt\\d{5,}").matches(id)
 
     /**
+     * If a provider supplied an IMDb ID with no addon results, a separate exact
+     * title/year lookup may recover an alternate ID (e.g. Survivor vs. a spin-off).
+     * Never retry with the same ID or a malformed result.
+     */
+    fun alternateImdb(previous: String?, candidate: String?): String? =
+        candidate?.takeIf { isImdb(it) && it != previous }
+
+
+    /**
      * Title cleanup for the catalog search: provider titles often carry tags such as "EN - ", "[4K]", "(2019)", "|DE|".
      */
     fun cleanTitle(t: String): String {
