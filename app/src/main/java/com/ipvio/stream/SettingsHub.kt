@@ -697,6 +697,9 @@ private fun PlayerPage(ctx: Context) {
     ToggleRow("Automatically Skip Intros", "Automatically skip intros with confirmed timing. Never guess unknown intro positions.", AppSettings.autoSkipIntro) {
         AppSettings.setPlayerExtra(ctx, AppSettings.autoNext, AppSettings.hideSec, AppSettings.showEndTime, it)
     }
+    ToggleRow("Automatically Skip Recaps", "Automatically skip previously marked recap segments for each episode.", AppSettings.autoSkipRecap) {
+        AppSettings.setAutoRecap(ctx, it)
+    }
     ToggleRow("Automatically Play Next Episode", "Start the next episode when the current one finishes.", AppSettings.autoNext) {
         AppSettings.setPlayerExtra(ctx, it, AppSettings.hideSec, AppSettings.showEndTime, AppSettings.autoSkipIntro)
     }
@@ -739,7 +742,7 @@ private fun PlayerPage(ctx: Context) {
     ToggleRow("Bildrate anpassen", "Passt die Bildwiederholrate des Fernsehers an den Film an (z. B. 24 Bilder), wenn der Fernseher das ohne Bildaussetzer kann. Bei Fire TV zusätzlich in den Geräteeinstellungen „Originale Bildrate anpassen“ prüfen.", AppSettings.autoFps) {
         AppSettings.setAutoFps(ctx, it)
     }
-    Hint("Intro times may come from TheIntroDB. If a show is missing timestamps, use the player menu to mark Intro Start and Intro End for that episode. Markers stay with the active profile and that episode only.")
+    Hint("Intro times may come from TheIntroDB. When timestamps are unavailable, use the player menu to mark Intro Start/End or Recap Start/End. A marker applies only to that episode in the active profile.")
     SectionTitle("Zusatzbild")
     DualPrefs.init(ctx)
     SelectRow("Anordnung", DualPrefs.ARRANGE_NAMES[DualPrefs.split], DualPrefs.ARRANGE_NAMES, DualPrefs.split) { DualPrefs.set(ctx, split = it) }
