@@ -257,10 +257,10 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     var ctrlLabel by remember { mutableStateOf("") }
     var segs by remember { mutableStateOf<List<Seg>>(emptyList()) }
     var introMarkVersion by remember { mutableIntStateOf(0) }
-    val savedIntro = remember(cur.itemId, cur.season, cur.episode, introMarkVersion, dur) {
+    val savedIntro = remember(cur.itemId, cur.season, cur.episode, introMarkVersion, IntroMarks.syncRevision, dur) {
         IntroMarks.load(ctx, cur.itemId, cur.season, cur.episode, dur)
     }
-    val savedRecap = remember(cur.itemId, cur.season, cur.episode, introMarkVersion, dur) {
+    val savedRecap = remember(cur.itemId, cur.season, cur.episode, introMarkVersion, IntroMarks.syncRevision, dur) {
         IntroMarks.load(ctx, cur.itemId, cur.season, cur.episode, dur, "recap")
     }
     var epg by remember { mutableStateOf<List<EpgEntry>>(emptyList()) }
