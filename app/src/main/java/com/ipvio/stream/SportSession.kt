@@ -153,6 +153,8 @@ object SportSession {
 
     /** Every stream found for the game that [chId] belongs to (channels that worked before first). */
     fun streams(chId: String?): List<Item> = chId?.let { gameOfCh[it] }?.let { cands[it] }.orEmpty()
+        .filter { it.id == chId || (it.id !in failed && !DeadLinks.isDead(it.url)) }
+        .distinctBy { it.url }
 
     /** [ch] becomes the game's stream: Up/Down and the ticker come back to it. */
     fun choose(ch: Item) { gameOfCh[ch.id]?.let { k -> pick[k] = ch; failed.remove(ch.id) } }
@@ -161,7 +163,9 @@ object SportSession {
     fun next(chId: String): Item? {
         val k = gameOfCh[chId] ?: return null
         failed.add(chId)
-        val n = cands[k]?.firstOrNull { it.id !in failed } ?: return null
+        val failedUrl = cands[k]?.firstOrNull { it.id == chId }?.url
+        val n = cands[k]?.firstOrNull { it.id !in failed && it.url != failedUrl && !DeadLinks.isDead(it.url) }
+        if (n == null) { pick.remove(k); return null }
         pick[k] = n
         return n
     }
@@ -240,7 +244,7 @@ private fun Ticker(games: List<SportData.Game>, current: String) {
 
 /** Other streams of the game being watched; OK switches, Back closes. */
 @Composable
-fun GameStreamPicker(title: String, streams: List<Item>, currentId: String?, onPick: (Item) -> Unit, onClose: () -> Unit) {
+fun GameStreamPicker(title: String, streams: List<Item>, currentId: String?, onPick: (Item) -> Unit, onWrongGame: () -> Unit, onClose: () -> Unit) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     androidx.compose.ui.window.Popup(
         alignment = Alignment.Center, onDismissRequest = onClose,
@@ -255,7 +259,8 @@ fun GameStreamPicker(title: String, streams: List<Item>, currentId: String?, onP
                 .border(1.dp, Color(0x33FFFFFF), shape).padding(14.dp)
         ) {
             Text(title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, raw = true, modifier = Modifier.padding(start = 6.dp, bottom = 4.dp))
-            Text("Streams found for this game", color = Color(0x99FFFFFF), fontSize = 14.sp, raw = true, modifier = Modifier.padding(start = 6.dp, bottom = 10.dp))
+            OptionRow("Wrong game? Try another source", false, Modifier, onClick = onWrongGame)
+            Text("Matchup sources", color = Color(0x99FFFFFF), fontSize = 14.sp, raw = true, modifier = Modifier.padding(start = 6.dp, bottom = 10.dp))
             androidx.compose.foundation.lazy.LazyColumn(state = androidx.compose.foundation.lazy.rememberLazyListState(maxOf(start - 2, 0))) {
                 items(streams.size) { i ->
                     val ch = streams[i]
