@@ -547,11 +547,11 @@ private fun DetailScreenFull(
                                         val t = WatchStore.target(ctx, item, resume)
                                         onPlay(t.second, t.first, resume.pos)
                                     }
-                                    HeroButton("Von vorn", AIcon.Rewind, false, Modifier, bh) { playUrl?.let { onPlay(it, item.title + (if (item.kind == Kind.SERIES) " S" + season + "E" + (eps.firstOrNull()?.num ?: 1) else ""), 0L) } }
+                                    HeroButton("Start over", AIcon.Rewind, false, Modifier, bh) { playUrl?.let { onPlay(it, item.title + (if (item.kind == Kind.SERIES) " S" + season + "E" + (eps.firstOrNull()?.num ?: 1) else ""), 0L) } }
                                 } else {
                                     // Watched movie: "Play again" instead of "Play"
                                     val seenMovie = item.kind == Kind.MOVIE && progress[ResumeLogic.key(0, 0)]?.done == true
-                                    HeroButton(if (seenMovie) "Erneut abspielen" else "Abspielen", if (seenMovie) AIcon.Rewind else AIcon.Play, true, Modifier.focusRequester(playFocus), bh) {
+                                    HeroButton(if (seenMovie) "Play again" else "Play", if (seenMovie) AIcon.Rewind else AIcon.Play, true, Modifier.focusRequester(playFocus), bh) {
                                         // Playlist link known as broken (or a Stremio-only title): offer the addon streams instead
                                         if ((playUrl.isNullOrBlank() || DeadLinks.isDead(playUrl)) && Stremio.addons.isNotEmpty()) { stremioAuto = true; showStremio = true; return@HeroButton }
                                         playUrl?.let { onPlay(it, item.title + (if (item.kind == Kind.SERIES) " S" + season + "E" + (eps.firstOrNull()?.num ?: 1) else ""), 0L) }
@@ -559,9 +559,14 @@ private fun DetailScreenFull(
                                 }
                                 // Fof TV: one calm row – Play, My List, Trailer, More. Everything used rarely is in "More"
                                 val inList = Library.isWatch(item.id)
-                                HeroButton(if (inList) "In Meiner Liste" else "Meine Liste", if (inList) AIcon.Check else AIcon.Plus, false, Modifier, bh) { Library.toggleWatch(ctx, item.id) }
-                                // Trailer lives in More: the row keeps Play as the clear first action
-                                // 24/7: the show plays without end, in order or shuffled (addon shows)
+                                HeroButton(if (inList) "In My List" else "My List", if (inList) AIcon.Check else AIcon.Plus, false, Modifier, bh) { Library.toggleWatch(ctx, item.id) }
+                                // Keep addon sources one remote click away for every movie/TV title,
+                                // even if a provider stream already exists.
+                                if (item.kind != Kind.LIVE && Stremio.addons.any { it.streams }) {
+                                    HeroButton("Sources", AIcon.Globe, false, Modifier, bh) {
+                                        stremioAuto = false; showStremio = true
+                                    }
+                                }
                                 if (item.kind == Kind.SERIES && item.id.startsWith("stremio:")) HeroButton(if (busy247) "Starting …" else "24/7", AIcon.Live, false, Modifier, bh) { if (!busy247) show247 = true }
                                 HeroButton("More", AIcon.Gear, false, Modifier, bh) { showMore = true }
                             }
@@ -602,41 +607,41 @@ private fun DetailScreenFull(
                                 if (Stremio.addons.isNotEmpty() && item.kind != Kind.LIVE) acts.add(Triple("Choose a stream", AIcon.Globe) { stremioAuto = false; showStremio = true })
                                 acts.add(Triple("Trailer", AIcon.Play) { openTrailer(ctx, meta?.trailerKey, item.title) })
                                 val fav = Library.isFav(item.id)
-                                acts.add(Triple(if (fav) "Aus Favoriten entfernen" else "Zu Favoriten", if (fav) AIcon.HeartFilled else AIcon.Heart) { Library.toggleFav(ctx, item.id) })
-                                if (!playUrl.isNullOrBlank()) acts.add(Triple("Extern", AIcon.External) { playUrl?.let { openExternal(ctx, it, item.title) } })
+                                acts.add(Triple(if (fav) "Remove from Favorites" else "Add to Favorites", if (fav) AIcon.HeartFilled else AIcon.Heart) { Library.toggleFav(ctx, item.id) })
+                                if (!playUrl.isNullOrBlank()) acts.add(Triple("Open externally", AIcon.External) { playUrl?.let { openExternal(ctx, it, item.title) } })
                                 if (item.kind == Kind.SERIES) {
                                     val seasonKeys = eps.map { ResumeLogic.key(it.season, it.num) }
                                     val seasonSeen = seasonKeys.isNotEmpty() && seasonKeys.all { progress[it]?.done == true }
-                                    acts.add(Triple(if (seasonSeen) "Staffel zurücksetzen" else "Staffel gesehen", if (seasonSeen) AIcon.Rewind else AIcon.Check) {
+                                    acts.add(Triple(if (seasonSeen) "Reset season" else "Mark season watched", if (seasonSeen) AIcon.Rewind else AIcon.Check) {
                                         EpProgress.mark(ctx, item.id, seasonKeys, !seasonSeen); if (!seasonSeen) dropResume(seasonKeys); progVer++
                                     })
                                     if (seasons.size > 1) {
                                         val allKeys = item.episodes.map { ResumeLogic.key(it.season, it.num) }
                                         val allSeen = allKeys.isNotEmpty() && allKeys.all { progress[it]?.done == true }
-                                        acts.add(Triple(if (allSeen) "Serie zurücksetzen" else "Serie gesehen", if (allSeen) AIcon.Rewind else AIcon.Check) {
+                                        acts.add(Triple(if (allSeen) "Reset series" else "Mark series watched", if (allSeen) AIcon.Rewind else AIcon.Check) {
                                             EpProgress.mark(ctx, item.id, allKeys, !allSeen); if (!allSeen) dropResume(allKeys); progVer++
                                         })
                                     }
                                 } else if (item.kind == Kind.MOVIE) {
                                     val k = ResumeLogic.key(0, 0)
                                     val seen = progress[k]?.done == true
-                                    acts.add(Triple(if (seen) "Als ungesehen markieren" else "Als gesehen markieren", if (seen) AIcon.Rewind else AIcon.Check) {
+                                    acts.add(Triple(if (seen) "Mark unwatched" else "Mark watched", if (seen) AIcon.Rewind else AIcon.Check) {
                                         EpProgress.mark(ctx, item.id, listOf(k), !seen); if (!seen) dropResume(listOf(k)); progVer++
                                     })
                                 }
-                                if (item.id in History.ids) acts.add(Triple("Aus „Zuletzt geschaut“ entfernen", AIcon.Close) { History.remove(ctx, item.id) })
+                                if (item.id in History.ids) acts.add(Triple("Remove from Recently Watched", AIcon.Close) { History.remove(ctx, item.id) })
                                 OptionPopup(acts.map { it.first }, -1, { showMore = false }, acts.map { it.second }) { i -> showMore = false; acts[i].third() }
                             }
                         }
                         if (item.kind == Kind.MOVIE && movieAlts.size > 1) Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                             // Choose the source explicitly (takes precedence over quality) or automatically to suit the device
-                            val so = listOf("Automatisch") + movieVars.map { it.label }
-                            DropdownPill("Quelle", prefLabel ?: "Automatisch", so, so.indexOf(prefLabel).coerceAtLeast(0), active = prefLabel != null) {
+                            val so = listOf("Automatic") + movieVars.map { it.label }
+                            DropdownPill("Source", prefLabel ?: "Automatic", so, so.indexOf(prefLabel).coerceAtLeast(0), active = prefLabel != null) {
                                 prefLabel = if (it == 0) null else so[it]; save()
                             }
                             if (movieQs.size > 1 && prefLabel == null) {
-                                val qo = listOf("Automatisch (passend zum Gerät)") + movieQs
-                                DropdownPill("Qualität", prefQ ?: "Automatisch", qo, qo.indexOf(prefQ).coerceAtLeast(0), active = prefQ != null) {
+                                val qo = listOf("Automatic (best for device)") + movieQs
+                                DropdownPill("Quality", prefQ ?: "Automatic", qo, qo.indexOf(prefQ).coerceAtLeast(0), active = prefQ != null) {
                                     prefQ = if (it == 0) null else qo[it]; save()
                                 }
                             }
@@ -644,34 +649,34 @@ private fun DetailScreenFull(
                         }
                         if (item.kind != Kind.SERIES && DeadLinks.isDead(item.url)) IconLabel(
                             AIcon.Warning,
-                            if (movieAlts.size > 1) "Diese Quelle war zuletzt nicht erreichbar – es wird eine andere genommen."
-                            else "Diese Quelle war zuletzt nicht erreichbar.",
+                            if (movieAlts.size > 1) "This source failed recently. FOF TV will try another one."
+                            else "This source failed recently.",
                             DS.Gold, 14.sp, iconSize = 16.dp, maxLines = 3
                         )
                         if (multi) Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                             if (qualities.size > 1) {
-                                val qo = listOf("Automatisch (passend zum Gerät)") + qualities
-                                DropdownPill("Qualität", prefQ ?: "Automatisch", qo, qo.indexOf(prefQ).coerceAtLeast(0), active = prefQ != null) {
+                                val qo = listOf("Automatic (best for device)") + qualities
+                                DropdownPill("Quality", prefQ ?: "Automatic", qo, qo.indexOf(prefQ).coerceAtLeast(0), active = prefQ != null) {
                                     prefQ = if (it == 0) null else qo[it]; save()
                                 }
                             }
                             if (langs.size > 1) {
-                                val lo = listOf("Automatisch") + langs
-                                DropdownPill("Sprache", prefLang ?: "Automatisch", lo, lo.indexOf(prefLang).coerceAtLeast(0), active = prefLang != null) {
+                                val lo = listOf("Automatic") + langs
+                                DropdownPill("Language", prefLang ?: "Automatic", lo, lo.indexOf(prefLang).coerceAtLeast(0), active = prefLang != null) {
                                     prefLang = if (it == 0) null else lo[it]; save()
                                 }
                             }
                             if (labels.size > 1) {
-                                val vo = listOf("Automatisch") + labels
-                                DropdownPill("Quelle", prefLabel ?: "Automatisch", vo, vo.indexOf(prefLabel).coerceAtLeast(0), active = prefLabel != null) {
+                                val vo = listOf("Automatic") + labels
+                                DropdownPill("Source", prefLabel ?: "Automatic", vo, vo.indexOf(prefLabel).coerceAtLeast(0), active = prefLabel != null) {
                                     prefLabel = if (it == 0) null else vo[it]; save()
                                 }
                             }
-                            Text("gilt für alle Folgen", color = Muted, fontSize = 13.sp)
+                            Text("Applies to all episodes", color = Muted, fontSize = 13.sp)
                         }
                         credits?.directors?.takeIf { it.isNotEmpty() }?.let { ds ->
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text("Regie", color = Muted, fontSize = 14.sp)
+                                Text("Director", color = Muted, fontSize = 14.sp)
                                 ds.take(3).forEach { d -> DetailPill(d.name) { onPerson(PersonRef(d.id, d.name, d.photo, item.id)) } }
                             }
                         }
