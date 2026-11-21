@@ -30,6 +30,17 @@ object SportLogic {
     /** A show in the sports area: channel, show, running now? */
     class Slot(val ch: Item, val prog: EpgEntry, val live: Boolean)
 
+    /** The match resolver needs the whole guide, including feeds with generic channel labels. */
+    fun matchSlots(channels: List<Item>, progs: (Item) -> List<EpgEntry>, nowSec: Long): List<Slot> = buildList {
+        for (channel in channels) {
+            for (entry in progs(channel)) {
+                if (entry.end > nowSec && entry.start <= nowSec + 3 * 3600) {
+                    add(Slot(channel, entry, entry.start <= nowSec))
+                }
+            }
+        }
+    }
+
     /**
      * What is running now and soon (up to [horizonSec]) on sports channels, plus sports shows on all other channels.
      * [progs] delivers the program of a channel (from the loaded TV guide).
