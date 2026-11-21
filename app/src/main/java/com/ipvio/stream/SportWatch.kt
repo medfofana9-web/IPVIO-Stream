@@ -159,7 +159,12 @@ object SportWatch {
         val pr = prepFor(live)
         val sig = ((((((System.identityHashCode(live) * 31 + live.size) * 31 + version) * 31 + SportAddons.cached(g).size) * 31 + SportAddons.version) * 31 + (fixed?.hashCode() ?: 0)) * 31 +
             learned.hashCode()) * 31 + SportLearn.version) * 31 + (if (pr != null) 1 else 0)
-        synchronized(cache) { cache[g.key]?.let { if (it.first == sig) return it.second } }
+        // Broadcasters and game state can arrive after the initial schedule.
+        // A negative match for the first snapshot must not hide a newly
+        // published PSG/other-game TV channel on the same event key.
+        val broadcastSig = 31 * (31 * (31 * (31 * g.nets.hashCode() + g.tv.hashCode()) + g.state) + g.start.hashCode()) + g.end.hashCode()
+        val fullSig = 31 * sig + broadcastSig
+        synchronized(cache) { cache[g.key]?.let { if (it.first == fullSig) return it.second } }
         val out = ArrayList<Hit>()
         if (fixed != null) live.firstOrNull { it.id == fixed }?.let { out.add(Hit(it, 0, "")) }
         learned.forEach { id -> live.firstOrNull { it.id == id }?.let { out.add(Hit(it, 5, "")) } }
@@ -185,7 +190,7 @@ object SportWatch {
         }
         // Working channels before ones marked broken; the rest of the list is the backup order for the player
         val r = out.distinctBy { it.ch.id }.sortedBy { if (DeadLinks.isDead(it.ch.url)) 1 else 0 }
-        synchronized(cache) { if (cache.size > 800) cache.clear(); cache[g.key] = sig to r }
+        synchronized(cache) { if (cache.size > 800) cache.clear(); cache[g.key] = fullSig to r }
         return r
     }
 
