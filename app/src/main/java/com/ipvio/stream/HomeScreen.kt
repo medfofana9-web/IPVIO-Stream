@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -380,7 +381,9 @@ fun HomeScreen(
         val ids = candidates.map { it.id }
         val hit = HeroCache.byTab[tab]
         if (hit != null && hit.first == ids) {
-            if (ready.toList() != hit.second) { ready.clear(); ready.addAll(hit.second) }
+            if (ready.toList() != hit.second) Snapshot.withMutableSnapshot {
+                ready.clear(); ready.addAll(hit.second)
+            }
             return@LaunchedEffect
         }
         // Metadata retrieval may read the disk or fetch artwork. Keeping it off
@@ -395,7 +398,7 @@ fun HomeScreen(
             }
             found.toList()
         }
-        if (next != ready.toList()) {
+        if (next != ready.toList()) Snapshot.withMutableSnapshot {
             ready.clear()
             ready.addAll(next)
         }
