@@ -55,7 +55,7 @@ object Profiles {
         "ipvio_variants", "ipvio_guide", "ipvio_browse", "ipvio_cat", "ipvio_general", "ipvio_lang",
         "ipvio_chlists", "ipvio_tracks", "ipvio_eprog",
         // Fof TV per-profile stores (deleted with the profile)
-        "ipvio_sportfavs", "ipvio_sportleagues", "ipvio_sporthub", "fof_flags", "fof_gameday", "fof_sport", "fof_catalog_items", "fof_taste"
+        "ipvio_sportfavs", "ipvio_sportleagues", "ipvio_sporthub", "fof_flags", "fof_gameday", "fof_sport", "fof_catalog_items", "fof_taste", "fof_intro_marks_v1"
     )
 
     val list = mutableStateListOf<Profile>()
