@@ -26,7 +26,8 @@ internal object IntroMarks {
     fun markStart(context: Context, itemId: String, season: Int, episode: Int, atMs: Long, kind: String = "intro") {
         if (season <= 0 || episode <= 0) return
         val k = key(itemId, season, episode, kind)
-        prefs(context).edit().putLong("${k}_start", atMs.coerceAtLeast(0L)).remove("${k}_end").apply()
+        prefs(context).edit().putLong("${k}_start", atMs.coerceAtLeast(0L)).putLong("${k}_end", -1L).apply()
+        CloudSync.kick(context)
     }
     fun finish(context: Context, itemId: String, season: Int, episode: Int, atMs: Long, durationMs: Long, kind: String = "intro"): Boolean {
         if (season <= 0 || episode <= 0) return false
@@ -35,12 +36,16 @@ internal object IntroMarks {
         val start = p.getLong("${k}_start", -1L)
         if (!valid(start, atMs, durationMs)) return false
         p.edit().putLong("${k}_end", atMs).apply()
+        CloudSync.kick(context)
         return true
     }
     fun hasStart(context: Context, itemId: String, season: Int, episode: Int, kind: String = "intro"): Boolean =
-        season > 0 && episode > 0 && prefs(context).contains(key(itemId, season, episode, kind) + "_start")
+        season > 0 && episode > 0 &&
+            prefs(context).getLong(key(itemId, season, episode, kind) + "_start", -1L) >= 0L
     fun clear(context: Context, itemId: String, season: Int, episode: Int, kind: String = "intro") {
         val k = key(itemId, season, episode, kind)
-        prefs(context).edit().remove("${k}_start").remove("${k}_end").apply()
+        // Tombstones sync correctly even when another device still has the old markers.
+        prefs(context).edit().putLong("${k}_start", -1L).putLong("${k}_end", -1L).apply()
+        CloudSync.kick(context)
     }
 }
