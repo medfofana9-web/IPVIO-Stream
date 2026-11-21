@@ -381,10 +381,32 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
             }
             else -> item(key = "empty") { HubEmpty(AIcon.Info, "Heute keine Spiele gefunden.", "In deinen Ligen ist heute nichts angesetzt. Im Spielplan siehst du die nächsten Tage.", "Spielplan öffnen") { hub.goTab(2, null) } }
         }
+        // Cinematic game-day masthead: a recognizable Sports identity without another network request.
+        item(key = "gameday-masthead") {
+            Column(Modifier.fillMaxWidth().padding(top = dpx(14), bottom = dpx(2)),
+                verticalArrangement = Arrangement.spacedBy(dpx(12))) {
+                FofEyebrow("GAME DAY")
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(dpx(5))) {
+                        Text("Every game. One place.", raw = true, color = Tok.TextHi,
+                            fontSize = spx(38), fontWeight = FontWeight.ExtraBold, maxLines = 1)
+                        Text("Your live matchups, upcoming games and favorite teams.", raw = true,
+                            color = Tok.TextMid, fontSize = spx(17), maxLines = 1)
+                    }
+                    if (games.any { it.state == 1 }) {
+                        Text(raw = true, text = games.count { it.state == 1 }.toString() + " LIVE",
+                            color = FofVisual.Violet, fontSize = spx(19), fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
         // Clean overview, live first: Live now, Starting soon, My teams, then one section each for soccer, basketball and
         // football, and the two sports channels at the end. Leagues, teams and news live in their own tabs.
         val nowS = System.currentTimeMillis() / 1000
         val liveAll = games.filter { it.state == 1 }.sortedWith(compareBy({ if (it.solo) 1 else 0 }, { if (it.key in m.withCh) 0 else 1 }, { if (SportHubFavs.isFavGame(it)) 0 else 1 }, { popularity(it) }))
+        // The featured match is a real playable/contextual game, selected by the existing ranking,
+        // not a fabricated event. Other games remain accessible in the live and upcoming rails.
+        if (top != null) item(key = "featured-match") { FeaturedPanel(top, hub) }
         if (liveAll.isNotEmpty()) item(key = "live") {
             LaunchedEffect(Unit) { MainSampler.mark("sports: live row shown") }
             GameTileRow("Live now", liveAll, hub) { hub.goTab(1, null) }
@@ -430,12 +452,17 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
 @Composable
 private fun FeaturedPanel(g: SportData.Game, hub: HubCtx) {
     val shape = RoundedCornerShape(DS.RadiusL)
-    val chans = hub.chans(g)
+    // Channel matching can be expensive on giant lists; never block remote navigation on the UI thread.
+    val chans by produceState(emptyList<Item>(), g.key, hub.live) {
+        value = withContext(Dispatchers.Default) { hub.chans(g) }
+    }
     val l = SportData.leagueOf(g)
     Column(
-        Modifier.fillMaxWidth().clip(shape).background(featuredBrush(g)).border(1.dp, Tok.Line, shape).padding(dpx(22)),
-        verticalArrangement = Arrangement.spacedBy(dpx(14))
+        Modifier.fillMaxWidth().clip(shape).background(featuredBrush(g))
+            .border(1.dp, FofVisual.GlassBorder, shape).padding(dpx(26)),
+        verticalArrangement = Arrangement.spacedBy(dpx(15))
     ) {
+        FofEyebrow(if (g.state == 1) "LIVE FEATURE" else "FEATURED MATCH", compact = true)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
             if (l != null) TeamLogo(SportData.leagueLogos[l.path], "", dpx(30))
             Text(raw = true, text = listOf(g.groupName, g.note).filter { it.isNotBlank() }.distinct().joinToString(" · "), color = Tok.TextHi, fontSize = spx(18),
