@@ -78,6 +78,29 @@ object StremioLogic {
         return s.replace(Regex("\\s+"), " ").trim()
     }
 
+    /** When Cinemeta returns Survivor plus spinoffs, do not silently pick the first IMDb ID. */
+    data class ImdbHit(val id: String, val name: String, val year: Int?, val type: String)
+
+    private fun normalTitle(value: String): String = cleanTitle(value)
+        .lowercase().replace(Regex("[^a-z0-9]+"), " ").trim().replace(Regex("\\s+"), " ")
+
+    fun chooseImdb(title: String, year: Int?, series: Boolean, hits: List<ImdbHit>): String? {
+        val expectedType = if (series) "series" else "movie"
+        val target = normalTitle(title)
+        if (target.isEmpty()) return null
+        val matches = hits.filter { isImdb(it.id) && (it.type.isBlank() || it.type == expectedType) }
+            .filter { normalTitle(it.name) == target }
+        if (matches.isEmpty()) return null
+        // Respect exact show identity before the year: different series editions often share "Survivor".
+        return matches.minWithOrNull(
+            compareBy<ImdbHit>(
+                { if (it.type == expectedType) 0 else 1 },
+                { if (year == null || it.year == null) 1 else kotlin.math.abs(it.year - year) },
+                { if (it.year == null) 1 else 0 }
+            )
+        )?.id
+    }
+
     /** First release year in a Cinemeta "releaseInfo" ("2008–2013", "2019"). */
     fun year(releaseInfo: String?): Int? = releaseInfo?.let { Regex("\\d{4}").find(it)?.value?.toIntOrNull() }
 
