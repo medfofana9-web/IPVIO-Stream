@@ -46,8 +46,8 @@ object SportAddons {
                 async {
                     val metas = runCatching { metasOf(cat) }.getOrNull() ?: return@async emptyList<Item>()
                     val hits = (0 until metas.length()).mapNotNull { metas.optJSONObject(it) }.filter { m ->
-                        val text = m.optString("name") + " " + m.optString("description") + " " + m.optJSONArray("genres")?.join(" ").orEmpty()
-                        SportData.matches(g, text)
+                        // Catalog descriptions may mention several unrelated games.
+                        SportData.matches(g, m.optString("name"))
                     }.take(4)
                     hits.flatMap { m -> runCatching { streamsOf(a, m.optString("type").ifBlank { cat.type }, m.optString("id"), m.optString("name")) }.getOrDefault(emptyList()) }
                 }
