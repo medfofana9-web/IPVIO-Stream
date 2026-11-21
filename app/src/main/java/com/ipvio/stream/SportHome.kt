@@ -91,13 +91,17 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
             delay(if (value.isNotEmpty()) 10_000L else 180_000L)
         }
     }
-    LaunchedEffect(games, live, SportWatch.prepVersion, SportAddons.version) {
+    // Live scores refresh every ten seconds. Re-running playlist-wide matching
+    // on each scoreboard update causes visible card jank on memory-limited TVs.
+    // Key discovery to game identity (not changing score/clock fields).
+    val gameKeys = remember(games) { games.map { it.key } }
+    LaunchedEffect(gameKeys, live, SportWatch.prepVersion, SportAddons.version) {
         if (live.isEmpty() || games.isEmpty()) return@LaunchedEffect
-        // Indexing and matching may scan tens of thousands of channels.
-        // Each result becomes instantly available while the remaining games warm.
         withContext(kotlinx.coroutines.Dispatchers.Default) {
             SportWatch.prewarm(live)
             for (g in games) {
+                // Avoid repeating a heavy match when only the game clock moved.
+                if (readyGames.containsKey(g.key)) continue
                 val channels = SportWatch.channels(g, live)
                 withContext(kotlinx.coroutines.Dispatchers.Main) { readyGames[g.key] = channels }
             }
