@@ -185,9 +185,7 @@ object SportWatch {
             val nearStart = kotlin.math.abs(s.prog.start - g.start) <= 90 * 60 ||
                 (multiDay && s.prog.start in g.start..g.end && g.state != 2)
             if (!nearStart || (g.state == 1 && !s.live)) continue
-            val exact = if (g.solo) g.title.isNotBlank() &&
-                SportData.has(SportData.normCached(s.prog.title), SportData.normCached(g.title))
-            else SportData.matches(g, s.prog.title)
+            val exact = SportData.matches(g, s.prog.title)
             if (exact) out.add(Hit(s.ch, 1, s.prog.title))
             else if (showMatches(g, s.prog.title)) out.add(Hit(s.ch, 6, s.prog.title))
         }
@@ -217,7 +215,7 @@ object SportWatch {
         val c = SportSession.appCtx()
         return hits.sortedWith(compareBy<Hit>(
             { if (DeadLinks.isDead(it.ch.url)) 1 else 0 },
-            { if (it.why == 0) 0 else if (it.why == 2) 1 else 2 },
+            { it.why },
             { if (c != null) -FeedScore.score(c, it.ch.id) else 0 }
         )).map { it.ch }
     }
