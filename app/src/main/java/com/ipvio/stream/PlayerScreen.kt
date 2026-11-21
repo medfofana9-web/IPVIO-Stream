@@ -867,7 +867,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                         bufSince = nowT; wdTries = 0
                         val rv = revertTo
                         if (rv != null && rv.first != cur.url) { revertTo = null; cur = cur.copy(url = rv.first, startMs = rv.second, note = null); notice = "That source did not start – back to the previous one" }
-                        else if (switchSource("Quelle startet nicht", sameFirst = false)) msg = null
+                        else if (switchSource("Source did not start", sameFirst = false)) msg = null
                         else if (Marathon.owns(cur.itemId)) { msg = "This episode will not start – next episode …"; marathonNext() }
                         else if (stremioFallback()) msg = "Looking for another source in your Stremio addons …"
                         else { msg = "This stream does not start."; failed = true; player.stop() }
@@ -879,7 +879,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     else if (nowT - bufSince > (if (cur.live) 15_000L else 30_000L) && (cur.live || wdTries < 2)) {
                         // Live: reconnect without limit (like a receiver), movie/series: twice
                         wdTries++; bufSince = nowT
-                        msg = if (cur.live) "Verbindung hängt – neuer Versuch ($wdTries)" else "Verbindung hängt – neuer Versuch ($wdTries/2)"
+                        msg = if (cur.live) "Connection stalled — reconnecting (attempt $wdTries)" else "Connection stalled — reconnecting ($wdTries/2)"
                         if (cur.live && cur.archive == null) LiveTimeshift.reconnect(player) else player.prepare()
                     }
                 } else {
@@ -920,7 +920,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             override fun onPlayerError(e: PlaybackException) {
                 pError = true
                 val status = httpStatusOf(e)
-                Diag.report("Wiedergabe: " + e.errorCodeName + (if (status > 0) " (HTTP $status)" else ""))
+                Diag.report("Playback: " + e.errorCodeName + (if (status > 0) " (HTTP $status)" else ""))
                 val decoder = e.errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
                     e.errorCode == PlaybackException.ERROR_CODE_DECODING_FAILED ||
                     e.errorCode == PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED ||
@@ -963,16 +963,16 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 }
                 if (retries < (if (liveNow) 50 else 3) && !isPermanentHttp(status) && !decoder) {
                     retries++
-                    msg = if (liveNow) "Verbindung unterbrochen – neuer Versuch ($retries)" else "Verbindung unterbrochen – neuer Versuch ($retries/3)"
+                    msg = if (liveNow) "Connection interrupted — retrying (attempt $retries)" else "Connection interrupted — retrying ($retries/3)"
                     // Live: keep trying with a growing pause (at most 15 s), and back to the live picture
                     h.postDelayed({ if (liveNow) LiveTimeshift.reconnect(player) else player.prepare() }, minOf(1500L * retries, 15_000L))
                 } else {
                     // Finally failed: remember the link (only if the link is the cause) and try another source
                     if (cur.archive == null && DeadLinkLogic.counts(status, decoder, DeviceCaps.online(ctx))) DeadLinks.fail(ctx, cur.url, DeadLinkLogic.permanent(status))
-                    if (switchSource(if (decoder) "Format nicht abspielbar" else "Quelle gestört", sameFirst = !decoder)) { pError = false; msg = null }
+                    if (switchSource(if (decoder) "Unsupported playback format" else "Source unavailable", sameFirst = !decoder)) { pError = false; msg = null }
                     else if (Marathon.owns(cur.itemId)) { msg = "This episode will not play – next episode …"; marathonNext() }
                     else if (stremioFallback()) { msg = "Looking for another source in your Stremio addons …" }
-                    else if (cur.archive != null) msg = "Diese Sendung ist im Archiv des Anbieters nicht abrufbar.  Zurück = Live-Sender."
+                    else if (cur.archive != null) msg = "This program is not available in your provider archive. Back returns to live TV."
                     else { msg = Lang.tr(playbackErrorText(e.errorCode, status, cur.live, TlsFallback.isHostMismatch(e))); failed = true; if (Boomer.enabled) boomerFail = true }
                 }
             }
@@ -1582,7 +1582,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 Modifier.align(Alignment.TopStart).padding(start = PT.MarginX, top = PT.MarginY)
                     .clip(RoundedCornerShape(DS.RadiusS)).background(Color(0x80000000)).padding(horizontal = 14.dp, vertical = 8.dp)
             ) {
-                Text("Staffel " + cur.season + " · Folge " + cur.episode, color = Color(0xB3FFFFFF), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text("Season " + cur.season + " · Episode " + cur.episode, color = Color(0xB3FFFFFF), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 epName?.let { Text(it, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, raw = true) }
             }
         }
@@ -1601,7 +1601,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         }
         if (awakeWarn) {
             Text(
-                "Bildschirm kann nicht wach gehalten werden – der Bildschirmschoner kann starten.",
+                "Unable to keep the screen awake — the screensaver may start.",
                 color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = PT.MarginY)
                     .clip(RoundedCornerShape(DS.RadiusS)).background(Color(0xCC8B1A1A)).padding(horizontal = 18.dp, vertical = 10.dp)
@@ -1682,15 +1682,15 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                         Text(baseTitle, color = Color.White, fontSize = 32.sp, lineHeight = 38.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis, raw = cur.archive != null)
                         cur.archive?.let { a ->
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                PChip("Archiv", icon = AIcon.Catchup)
+                                PChip("Catch-up", icon = AIcon.Catchup, raw = true)
                                 PChip(a.chTitle, raw = true)
                                 PChip(dayLabel(a.prog.start) + "  " + hhmm(a.prog.start) + "–" + hhmm(a.prog.end), raw = true)
                             }
                         }
                         if (cur.season > 0 && cur.episode > 0) {
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                PChip("Staffel " + cur.season)
-                                PChip("Folge " + cur.episode)
+                                PChip("Season " + cur.season, raw = true)
+                                PChip("Episode " + cur.episode, raw = true)
                             }
                             epName?.let { Text(it, color = Color(0xD9FFFFFF), fontSize = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, raw = true) }
                         }
@@ -1851,7 +1851,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             Modifier.fillMaxWidth().focusRequester(seekFocus),
                             pos = posNow, dur = durNow, buffered = bufNow, segs = segsNow,
                             scrubbing = { scrubTarget >= 0 },
-                            onFocus = { if (it) ctrlLabel = "Zeitleiste  ·  Links/Rechts = $stepS s springen  ·  Halten = weiter springen" },
+                            onFocus = { if (it) ctrlLabel = "Timeline · Left/Right seeks $stepS s · Hold to seek faster" },
                             onDown = { runCatching { firstFocus.requestFocus() } },
                             onSeekKey = { stepSeek(it) },
                             onRepeat = { repeatSeek(it) }
@@ -1859,10 +1859,10 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                         PTimeRow(posNow, durNow)
                         Spacer(Modifier.height(14.dp))
                         val arch = cur.archive != null
-                        val prevLabel = if (arch) (archPrev?.let { "Vorherige Sendung: " + hhmm(it.start) + "  " + it.title } ?: "Vorherige Sendung")
-                            else if (hasPrev) "Vorherige Folge: Staffel " + epList[epIdx - 1].season + ", Folge " + epList[epIdx - 1].num else "Vorherige Folge"
-                        val nextLabel = if (arch) (archNext?.let { "Nächste Sendung: " + hhmm(it.start) + "  " + it.title } ?: "Nächste Sendung: Live")
-                            else if (hasNext) "Nächste Folge: Staffel " + epList[epIdx + 1].season + ", Folge " + epList[epIdx + 1].num else "Nächste Folge"
+                        val prevLabel = if (arch) (archPrev?.let { "Previous program: " + hhmm(it.start) + "  " + it.title } ?: "Previous program")
+                            else if (hasPrev) "Previous episode: Season " + epList[epIdx - 1].season + ", Episode " + epList[epIdx - 1].num else "Previous episode"
+                        val nextLabel = if (arch) (archNext?.let { "Next program: " + hhmm(it.start) + "  " + it.title } ?: "Next program: Live TV")
+                            else if (hasNext) "Next episode: Season " + epList[epIdx + 1].season + ", Episode " + epList[epIdx + 1].num else "Next episode"
                         Box(
                             Modifier.fillMaxWidth().onPreviewKeyEvent { e ->
                                 if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionUp) { runCatching { seekFocus.requestFocus() }; true }
@@ -1883,7 +1883,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                                     }) {
                                         PlayerIcon(PIcon.PrevEp, it)
                                     }
-                                    PRoundButton(label = "$stepS Sekunden zurück", onLabel = setLabel, onClick = { stepSeek(-1, fromBar = false) }) { c ->
+                                    PRoundButton(label = "Rewind $stepS seconds", onLabel = setLabel, onClick = { stepSeek(-1, fromBar = false) }) { c ->
                                         Box(contentAlignment = Alignment.Center) {
                                             PlayerIcon(PIcon.Replay, c, size = 30.dp)
                                             Text(stepS, color = c, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.offset(y = 2.dp))
@@ -1893,7 +1893,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                                         Modifier.focusRequester(playBtn), size = PT.BtnPrimary,
                                         label = if (playing) "Pause" else "Abspielen", onLabel = setLabel, onClick = { togglePlay() }
                                     ) { PlayerIcon(if (playing) PIcon.Pause else PIcon.Play, it, size = 32.dp) }
-                                    PRoundButton(label = "$stepS Sekunden vor", onLabel = setLabel, onClick = { stepSeek(1, fromBar = false) }) { c ->
+                                    PRoundButton(label = "Forward $stepS seconds", onLabel = setLabel, onClick = { stepSeek(1, fromBar = false) }) { c ->
                                         Box(contentAlignment = Alignment.Center) {
                                             PlayerIcon(PIcon.Forward, c, size = 30.dp)
                                             Text(stepS, color = c, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.offset(y = 2.dp))
@@ -2013,7 +2013,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                         val curI = alts.indexOfFirst { it.url == cur.url }.coerceAtLeast(0)
                         alts.forEachIndexed { i, a ->
                             PPanelRow(
-                                a.label.ifBlank { a.quality ?: "Quelle ${i + 1}" }, i == curI,
+                                a.label.ifBlank { a.quality ?: "Source ${i + 1}" }, i == curI,
                                 if (i == curI) Modifier.focusRequester(panelFocus) else Modifier,
                                 trailingIcon = if (DeadLinks.isDead(a.url)) AIcon.Warning else null
                             ) {
@@ -2129,7 +2129,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                         if (cur.live && (SportAlerts.miniOn || SportAlerts.pinned.isNotEmpty())) add(MenuEntry(30, "Score overlay", null, true))
                         add(MenuEntry(0, "Sprungweite", "${step / 1000} s", true))
                         add(MenuEntry(1, "Untertitel-Stil", null, true))
-                        add(MenuEntry(2, "Videoqualität", currentAlts().size.takeIf { it > 1 }?.let { "$it Quellen" }, true))
+                        add(MenuEntry(2, "Videoqualität", currentAlts().size.takeIf { it > 1 }?.let { "$it sources" }, true))
                         add(MenuEntry(3, "Wiedergabe-Tempo", speedLabel(SPEEDS[speedIdx]), true))
                         add(MenuEntry(4, "Bildformat", ASPECTS[aspect].substringBefore(" ("), true))
                         if (epList.size > 1) add(MenuEntry(5, "Nächste Folge automatisch", if (AppSettings.autoNext) "An" else "Aus", false))
@@ -2249,7 +2249,7 @@ private fun BoxScope.MiniSeekDock(
 @Composable
 private fun NextPill(remain: () -> Long, auto: Boolean, showOk: Boolean, onClick: () -> Unit) {
     val r = remain()
-    val label = if (auto && r in 1..10_000L) Lang.tr("Nächste Folge") + " · " + ((r + 999) / 1000) + " s" else Lang.tr("Nächste Folge")
+    val label = if (auto && r in 1..10_000L) Lang.tr("Next episode") + " · " + ((r + 999) / 1000) + " s" else Lang.tr("Next episode")
     PSkipPill(label + (if (showOk) "  (OK)" else ""), onClick = onClick)
 }
 
