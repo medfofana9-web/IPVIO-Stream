@@ -126,22 +126,22 @@ fun StremioSourcesPopup(
     Popup(alignment = Alignment.Center, onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
         val shape = RoundedCornerShape(DS.RadiusM)
         Column(
-            Modifier.width(720.dp).heightIn(max = 520.dp).clip(shape)
-                .background(Surf.copy(alpha = 0.98f)).border(1.dp, DS.Overlay3, shape).padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            Modifier.width(650.dp).heightIn(max = 470.dp).clip(shape)
+                .background(Surf.copy(alpha = 0.98f)).border(1.dp, DS.Overlay3, shape).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Sources", color = Color.White, fontSize = 24.sp,
-                    fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f), raw = true)
+                Text("Choose a source", color = Color.White, fontSize = 21.sp,
+                    fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), raw = true)
                 PillButton("Refresh sources", raw = true) {
                     refreshToken++
                     noVerified = false
                 }
             }
-            Text(item.title + if (series) "  ·  S$season E$ep" else "", color = Muted, fontSize = 16.sp, maxLines = 1, raw = true)
+            Text(item.title + if (series) "  ·  Season $season · Episode $ep" else "", color = Muted, fontSize = 15.sp, maxLines = 1, raw = true)
             if (series) {
-                Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     StepRow("Season", "$season", { if (season > 1) { season--; ep = 1 } }, { season++; ep = 1 }, Modifier.focusRequester(stepFocus))
                     StepRow("Episode", "$ep", { if (ep > 1) ep-- }, { ep++ })
                 }
@@ -183,7 +183,7 @@ fun StremioSourcesPopup(
                 }
             }
             // Your IPTV section (always shown, under the addon sources)
-            Text("Your IPTV", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, raw = true)
+            Text("IPTV alternative", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, raw = true)
             when (iptvState) {
                 "loading" -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Spinner(Accent2, Modifier.size(20.dp))
