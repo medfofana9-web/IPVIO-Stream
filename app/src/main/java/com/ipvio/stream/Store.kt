@@ -59,6 +59,7 @@ object AppSettings {
     /** Prefer subtitles for the hard of hearing (CC/SDH). */
     var ccPref by mutableStateOf(false)
     var skipIntro by mutableStateOf(true)
+    var skipRecap by mutableStateOf(true)
     var showInfo by mutableStateOf(true)
     /** Search with the device's own keyboard (e.g. Gboard: other languages, voice input) instead of the built-in one. */
     var systemKeyboard by mutableStateOf(false)
@@ -108,6 +109,7 @@ object AppSettings {
         subMode = if (p.contains("sub_mode")) p.getInt("sub_mode", 0).coerceIn(0, 2) else if (subLang.isEmpty()) TrackLogic.SUB_OFF else TrackLogic.SUB_ALWAYS
         ccPref = p.getBoolean("cc_pref", false)
         skipIntro = p.getBoolean("skip_intro", true)
+        skipRecap = p.getBoolean("skip_recap", true)
         showInfo = p.getBoolean("show_info", true)
         systemKeyboard = p.getBoolean("sys_kb", false)
         seekStep = p.getInt("seek_step", 10).coerceIn(5, 120)
@@ -246,6 +248,11 @@ object AppSettings {
         autoSkipIntro = autoSkip
         prefs(c).edit().putBoolean("auto_next", autoNext).putInt("hide_sec", this.hideSec)
             .putBoolean("show_end", endTime).putBoolean("auto_skip", autoSkip).apply()
+    }
+
+    fun setSkipRecap(c: Context, on: Boolean) {
+        skipRecap = on
+        prefs(c).edit().putBoolean("skip_recap", on).apply()
     }
 
     fun setAutoRecap(c: Context, on: Boolean) {
