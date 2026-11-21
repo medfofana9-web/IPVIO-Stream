@@ -684,7 +684,8 @@ fun CardRow(
                     }
                     // 17c: on the home screen no preview expands (the info is already shown large at the top)
                     // Netflix: resting on a card opens it into a wide scene preview (title, match, year, genres)
-                    else -> RowPosterCard(it, g.poster, track.restoreFocus(it.id).then(fr), overlay0 = 0, expand = true) { onOpen(it) }
+                    // overlay 3: the preview opens over its neighbors (the row itself never re-lays-out while it animates)
+                    else -> RowPosterCard(it, g.poster, track.restoreFocus(it.id).then(fr), overlay0 = 3, expand = true) { onOpen(it) }
                 }
             }
         }
@@ -895,25 +896,8 @@ fun RowPosterCard(item: Item, baseW: Dp, modifier: Modifier, overlay0: Int = 0, 
         .billboardFocus(item) { f = it }.trackFocus()
         .then(if (item.kind == Kind.MOVIE || item.kind == Kind.SERIES) Modifier.quickActions(item, onClick) else Modifier)
         .clickable(onClick = onClick)
-    if (clean) Column(modifier.width(w)) {
-        Box(Modifier.width(w).height(h).then(focusMod)) {
-            visual(Modifier.fillMaxSize())
-        }
-        Spacer(Modifier.height(dpx(12)))
-        Text(raw = true, text = item.title, color = Color.White, fontSize = spx(17), lineHeight = spx(21),
-            fontWeight = if (f) FontWeight.ExtraBold else FontWeight.SemiBold,
-            maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(7))) {
-            (m?.year ?: item.year?.toString())?.let { y ->
-                Text(raw = true, text = y.take(4), color = Tok.TextLow, fontSize = spx(13), maxLines = 1)
-            }
-            m?.genres?.firstOrNull()?.let { genre ->
-                Box(Modifier.size(dpx(3)).clip(CircleShape).background(Tok.TextLow))
-                Text(raw = true, text = genre, color = Tok.TextLow, fontSize = spx(13), maxLines = 1,
-                    overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-            }
-        }
-    }
+    // Netflix: covers only, no title or year under them (also less text to lay out while scrolling)
+    if (clean) Box(modifier.width(w).height(h).then(focusMod)) { visual(Modifier.fillMaxSize()) }
     else if (overlay == 0) Box(modifier.width(w).height(h).then(focusMod)) { visual(Modifier.fillMaxSize()) }
     else {
         // In the layout the card always takes only its own space (nothing shifts) and expands over it: middle to both
