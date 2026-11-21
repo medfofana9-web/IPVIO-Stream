@@ -16,6 +16,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -282,6 +290,8 @@ fun App(pick: Boolean = false) {
         UpdatePromptHost()
         // The app closed by an error in the last 30 minutes: show why (once), so it can be reported
         LastCrashNotice()
+        // Short animated Fof TV logo on a cold start (Netflix-style opening, our own mark)
+        LaunchIntro()
     }
 }
 
@@ -751,6 +761,40 @@ private fun AppContent() {
                 val ch = liveAll.firstOrNull { it.id == r.chId }
                 if (ch != null) { top = null; browse = null; cats = null; start(ch, ch.title, ch.url) }
             }
+        }
+    }
+}
+
+
+private object IntroState { var shown = false }
+
+/**
+ * Cold-start intro (about 1.8 s): the red Fof TV mark grows out of black with a red light behind it, the word mark
+ * fades in, then everything fades away. Shown once per app start, never takes focus, skipped with animation "Off".
+ */
+@Composable
+private fun LaunchIntro() {
+    var on by remember { mutableStateOf(!IntroState.shown && Look.motion != 0) }
+    if (!on) return
+    val t = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(Unit) {
+        IntroState.shown = true
+        t.animateTo(1f, androidx.compose.animation.core.tween(1800, easing = androidx.compose.animation.core.LinearEasing))
+        on = false
+    }
+    val v = t.value
+    val grow = (v / 0.45f).coerceIn(0f, 1f)
+    val ease = 1f - (1f - grow) * (1f - grow) * (1f - grow)
+    val fadeOut = ((v - 0.78f) / 0.22f).coerceIn(0f, 1f)
+    val word = ((v - 0.3f) / 0.25f).coerceIn(0f, 1f)
+    Box(Modifier.fillMaxSize().graphicsLayer { alpha = 1f - fadeOut }.background(Color.Black), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = ease * 0.9f; scaleX = 0.6f + ease * 0.6f; scaleY = 0.6f + ease * 0.6f }
+            .background(androidx.compose.ui.graphics.Brush.radialGradient(listOf(Color(0x66E60023), Color(0x1AE60023), Color.Transparent), radius = 700f)))
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            BrandMark(Modifier.size(150.dp).graphicsLayer { val k = 0.55f + ease * 0.45f + fadeOut * 0.25f; scaleX = k; scaleY = k; alpha = grow })
+            Spacer(Modifier.height(22.dp))
+            Text("FOF TV", color = Color.White, fontSize = 40.sp, fontWeight = FontWeight.Black, letterSpacing = 6.sp, raw = true,
+                modifier = Modifier.graphicsLayer { alpha = word; translationY = (1f - word) * 18f })
         }
     }
 }

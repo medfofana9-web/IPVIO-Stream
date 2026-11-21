@@ -240,6 +240,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     var sleepAt by remember { mutableLongStateOf(0L) }
     var aspect by remember { mutableIntStateOf(General.defaultAspect) }
     var interact by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    // Netflix: after about 90 minutes of autoplay without a key press, ask before the next episode
+    var stillAsk by remember { mutableStateOf<Episode?>(null) }
     var flash by remember { mutableStateOf<Flash?>(null) }
     var info by remember { mutableStateOf<String?>(null) }
     var infoFor by remember { mutableStateOf("") }
@@ -826,7 +828,10 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 val nx = archNext
                 if (nx != null) playArchive(ch, nx) else backToLive()
             } else if (Marathon.owns(cur.itemId)) marathonNext()
-            else if (!cur.live && hasNext && AppSettings.autoNext && !nextDismissed) playEpisode(epList[epIdx + 1])
+            else if (!cur.live && hasNext && AppSettings.autoNext && !nextDismissed) {
+                val nx = epList[epIdx + 1]
+                if (System.currentTimeMillis() - interact > 90 * 60_000L) { player.pause(); stillAsk = nx } else playEpisode(nx)
+            }
         }
     })
 
@@ -1699,6 +1704,10 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             }
         }
 
+        stillAsk?.let { nx -> StillWatching(seriesItem?.title ?: cur.title, nx,
+            onContinue = { stillAsk = null; interact = System.currentTimeMillis(); playEpisode(nx) },
+            onStop = { stillAsk = null; onBack() }) }
+
         // ---------------------------------------------------------------- Control bar
         AnimatedVisibility(
             // No control bar under the TV guide: otherwise focus could slip from the guide into this menu
@@ -2358,4 +2367,24 @@ internal fun openStream(player: androidx.media3.exoplayer.ExoPlayer, url: String
     false
 } catch (e: Exception) {
     false
+}
+
+
+/** Netflix-style "Are you still watching?" over the paused picture after a long autoplay run. */
+@Composable
+private fun StillWatching(title: String, next: Episode, onContinue: () -> Unit, onStop: () -> Unit) {
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) { delay(80); runCatching { first.requestFocus() } }
+    androidx.activity.compose.BackHandler(onBack = onStop)
+    Box(Modifier.fillMaxSize().background(Color(0xD9000000)), contentAlignment = Alignment.CenterStart) {
+        Column(Modifier.padding(start = 96.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            Text("Are you still watching $title?", color = Color.White, fontSize = 38.sp, fontWeight = FontWeight.Bold, raw = true)
+            Text("Next: Season ${next.season}, Episode ${next.num}", color = Color(0xB3FFFFFF), fontSize = 20.sp, raw = true)
+            Spacer(Modifier.height(10.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                PSkipPill("Continue Watching", Modifier.focusRequester(first), onContinue)
+                PSkipPill("Back to Browse", Modifier, onStop)
+            }
+        }
+    }
 }

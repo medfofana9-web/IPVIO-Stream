@@ -31,6 +31,9 @@ object Parental {
     }
 
     /** Kids profile at creation: hide adult content for [profileId] (read when that profile opens). */
+    /** Kids profile? (adult content hidden for [profileId]) */
+    fun isKids(c: Context, profileId: Int): Boolean = prefsOf(c, profileId).getBoolean("parental_hide", false)
+
     fun setHideFor(c: Context, profileId: Int, v: Boolean) {
         prefsOf(c, profileId).edit().putBoolean("parental_hide", v).apply()
         if (profileId == Profiles.active) { hideAdult = v; version++ }

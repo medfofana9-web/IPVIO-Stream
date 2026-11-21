@@ -107,6 +107,7 @@ fun FofWelcome(onPick: (Int) -> Unit) {
                                 ProfileTile(
                                     nm, av, Parental.profileLocked(ctx, p.id) || pinned, manage, big,
                                     if (i == focusIdx) Modifier.focusRequester(first) else Modifier,
+                                    kids = Parental.isKids(ctx, p.id),
                                     // Hold OK on a profile: choose its picture right here (a locked profile asks in Manage)
                                     onLong = { if (!Parental.profileLocked(ctx, p.id)) picking = p.id }
                                 ) { if (manage) options = p.id else onPick(p.id) }
@@ -235,7 +236,7 @@ fun FofWelcome(onPick: (Int) -> Unit) {
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun ProfileTile(name: String, avatar: ProfileAvatars.Preset, locked: Boolean, manage: Boolean, small: Boolean, modifier: Modifier, onLong: () -> Unit = {}, onClick: () -> Unit) {
+private fun ProfileTile(name: String, avatar: ProfileAvatars.Preset, locked: Boolean, manage: Boolean, small: Boolean, modifier: Modifier, kids: Boolean = false, onLong: () -> Unit = {}, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     val s by animateFloatAsState(if (f) 1.065f else 1f, androidx.compose.animation.core.tween(160), label = "pt")
     // Avatar tile (as on Netflix): focus = white frame and a slight lift; the others are dimmed a little
@@ -256,6 +257,8 @@ private fun ProfileTile(name: String, avatar: ProfileAvatars.Preset, locked: Boo
             ) { AppIcon(if (manage) AIcon.Edit else AIcon.Lock, Color.White, size = 18.dp) }
         }
         Spacer(Modifier.height(18.dp))
+        if (kids) Text("KIDS", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp, raw = true,
+            modifier = Modifier.padding(bottom = 6.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFE60023)).padding(horizontal = 8.dp, vertical = 2.dp))
         Text(name, color = if (f) Color.White else Color(0xCCFFFFFF),
             fontSize = if (small) 21.sp else 26.sp,
             fontWeight = if (f) FontWeight.Bold else FontWeight.Medium, maxLines = 1, raw = true)

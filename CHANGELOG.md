@@ -1,5 +1,12 @@
 # Changelog
 
+## Fof TV – Netflix look, parts 2 and 3: title page, player, launch
+
+- Title page: green "% Match" with year, genre, length, quality and the TOP 10 tag in one line; new Rate button (Liked / Not for me; liked titles feed "Because you like …"); Trailer moved into the main button row.
+- Player: "Are you still watching?" after about 90 minutes of autoplay without a key press (Continue Watching / Back to Browse). Seek bar, Skip Intro and the Next Episode countdown were already there and are now red.
+- Launch: a short animated Fof TV logo on a cold start (skipped when animation is Off).
+- Kids profiles show a red KIDS tag on "Who's watching?".
+
 ## Fof TV – Netflix look, part 1: home and menu
 
 - Menu: back to the slim icon rail on the left that opens with labels (Netflix on TV); the top pill stays under Settings → menu position.
