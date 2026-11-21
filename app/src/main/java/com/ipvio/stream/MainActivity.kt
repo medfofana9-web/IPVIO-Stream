@@ -308,11 +308,14 @@ private fun AppContent() {
     var adding by remember { mutableStateOf(PlaylistStore.savedUrl(ctx) == null || resumeAdd) }
     // Top detail page (Item or PersonRef) plus back stack, so Back retraces Movie → Person → Movie
     var top by remember { mutableStateOf<Any?>(null) }
+    // A player return must not fade out and reconstruct the previous card grid.
+    // Keep its remembered list state and focused card visible immediately.
+    var returningFromPlayer by remember { mutableStateOf(false) }
     val trail = remember { mutableStateListOf<Any>() }
     val detail = top as? Item
     val personTop = top as? PersonRef
-    fun pushTop(x: Any) { top?.let { trail.add(it) }; top = x }
-    fun popTop() { top = trail.removeLastOrNull() }
+    fun pushTop(x: Any) { returningFromPlayer = false; top?.let { trail.add(it) }; top = x }
+    fun popTop() { returningFromPlayer = false; top = trail.removeLastOrNull() }
     var browse by remember { mutableStateOf<BrowseState?>(null) }
     var cats by remember { mutableStateOf<CatReq?>(null) }
     var playing by remember { mutableStateOf<PlayReq?>(null) }
@@ -381,6 +384,7 @@ private fun AppContent() {
     LaunchedEffect(all) { kotlinx.coroutines.delay(8_000); Classifier.restart(ctx, all) }   // after the first screen is up, and debounced while the list is still changing
 
     fun startChecked(item: Item, title: String, url: String, startMs: Long) {
+        returningFromPlayer = false
         History.add(ctx, item.id)
         val sm = SE_RE.find(title)
         val season = sm?.groupValues?.get(1)?.toIntOrNull() ?: 0
@@ -461,6 +465,7 @@ private fun AppContent() {
         // Live TV opens like TiviMate: the last channel plays in the corner above the TV guide (categories, channels,
         // program grid). Back closes the guide to the full picture, Back again returns to where you were.
         if (id == 3 && liveAll.isNotEmpty()) { openEpg(); return }
+        returningFromPlayer = false
         tab = id; CatMemory.reset()
         jumpTick++
     }
@@ -600,26 +605,27 @@ private fun AppContent() {
                         val tile = SportSession.returnKey?.takeIf { SportSession.owns(p.itemId) }
                         if (tile != null) LastFocus.pending = tile
                         else if (p.live || p.archive != null) LastFocus.pending = History.ids.firstOrNull { id -> liveAll.any { it.id == id } }
+                        returningFromPlayer = true
                         playing = null
                     }
                 }
             }
             // Round 17: every screen fades in softly (screenEnter); the player deliberately without an effect
             personTop != null -> key(personTop.id) { Box(Modifier.fillMaxSize().screenEnter()) { PersonScreen(personTop, all, onOpen = { pushTop(it) }, onBack = { popTop() }) } }
-            d != null -> key(d.id) { Box(Modifier.fillMaxSize().screenEnter()) {
+            d != null -> key(d.id) { Box(Modifier.fillMaxSize().then(if (returningFromPlayer) Modifier else Modifier.screenEnter())) {
                 DetailScreen(
                     d, all, onPlay = { url, t, pos -> start(d, t, url, pos) },
                     onPerson = { pushTop(it) }, onOpenItem = { pushTop(it) }, onBack = { popTop() }
                 )
             } }
-            b != null -> Box(Modifier.fillMaxSize().screenEnter()) { BrowseScreen(
+            b != null -> Box(Modifier.fillMaxSize().then(if (returningFromPlayer) Modifier else Modifier.screenEnter())) { BrowseScreen(
                 b, gridState, tab, onOpen = open,
                 onBack = { browse = null },
                 onGoTab = { if (it != MenuLogic.EPG) { browse = null; cats = null }; goTab(it) },
                 // Started from the cinema view: put the title's detail page underneath so "Back" lands there (not in the cinema view again)
                 all = all, onPlay = { i, t, url, pos -> if (i.kind != Kind.LIVE) pushTop(i); start(i, t, url, pos) }, onPerson = { pushTop(it) }
             ) }
-            c != null -> Box(Modifier.fillMaxSize().screenEnter()) { CategoriesScreen(
+            c != null -> Box(Modifier.fillMaxSize().then(if (returningFromPlayer) Modifier else Modifier.screenEnter())) { CategoriesScreen(
                 c, tab,
                 onPick = { name, list, sort -> browse = BrowseState(BrowseReq(name, list, sort)) },
                 onOpen = open,
@@ -652,13 +658,13 @@ private fun AppContent() {
                     }
                 }
             )
-            tab == 4 -> Box(Modifier.fillMaxSize().screenEnter()) { SearchScreen(
+            tab == 4 -> Box(Modifier.fillMaxSize().then(if (returningFromPlayer) Modifier else Modifier.screenEnter())) { SearchScreen(
                 tab = tab, state = states[4],
                 onOpen = open,
                 onBrowse = { browse = BrowseState(it) },
                 onTab = { goTab(it) }
             ) }
-            else -> Box(Modifier.fillMaxSize().screenEnter(tab)) { HomeScreen(
+            else -> Box(Modifier.fillMaxSize().then(if (returningFromPlayer) Modifier else Modifier.screenEnter(tab))) { HomeScreen(
                 tab = tab, onTab = { goTab(it) }, states = states,
                 onOpen = open,
                 onPlayNow = { i -> openScope.launch {
