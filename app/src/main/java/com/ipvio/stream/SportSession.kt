@@ -31,7 +31,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -178,7 +177,7 @@ fun BoxScope.SportPlayerOverlay() {
     val ch = SportSession.watching ?: return
     @Suppress("UNUSED_VARIABLE") val v = SportSession.version
     val g = SportSession.game(ch) ?: return
-    // The score bug refreshes itself while you watch (the Sports page, which refreshes scores, is closed then):
+    // Refresh the scores used by the game-switching ticker while the Sports page is closed:
     // every 12 s during the game, else every 30 s
     val gameKey = g.key
     LaunchedEffect(gameKey) {
@@ -195,7 +194,6 @@ fun BoxScope.SportPlayerOverlay() {
             delay(if ((SportFeed.latest[gameKey] ?: cur).state == 1) 8_000L else 30_000L)
         }
     }
-    if (!SportSession.busy && !SportPrefs.bugOff) Box(Modifier.align(Alignment.TopEnd).padding(top = 26.dp, end = 34.dp)) { ScoreBug(g) }
     var tick by remember { mutableIntStateOf(0) }
     LaunchedEffect(SportSession.switchedAt) { tick++; delay(7000); tick++ }
     val showTicker = System.currentTimeMillis() - SportSession.switchedAt < 7000 && !SportSession.busy
@@ -204,34 +202,6 @@ fun BoxScope.SportPlayerOverlay() {
         if (games.size > 1) Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 34.dp, vertical = 24.dp)) {
             Ticker(games, g.key)
         }
-    }
-}
-
-@Composable
-private fun ScoreBug(g: SportData.Game) {
-    val shape = RoundedCornerShape(12.dp)
-    Row(
-        Modifier.clip(shape).background(Color(0xE60B0B0D)).border(1.dp, Color(0x26FFFFFF), shape),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (g.solo) {
-            Text(raw = true, text = g.title.ifBlank { g.league }, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp), maxLines = 1)
-        } else {
-            BugTeam(g.away); BugTeam(g.home)
-        }
-        Text(raw = true, text = g.detail, color = Color(0xFFE6E6EA), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 12.dp), maxLines = 1)
-    }
-}
-
-@Composable
-private fun BugTeam(t: SportData.Team) {
-    Row(Modifier.background(teamColor(t).copy(alpha = 0.85f)).padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (t.logo != null) AsyncImage(t.logo, null, Modifier.size(22.dp))
-        Text(raw = true, text = t.abbr.ifBlank { t.short }, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 6.dp))
-        val s = scoreText(t)
-        if (s.isNotEmpty()) Text(raw = true, text = s, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(start = 8.dp))
     }
 }
 
