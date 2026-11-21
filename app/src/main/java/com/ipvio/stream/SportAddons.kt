@@ -36,8 +36,8 @@ object SportAddons {
         private set
 
     /** Looks the game up in every addon's live catalogs; at most a few seconds. */
-    suspend fun find(c: Context, g: SportData.Game): List<Item> = withContext(Dispatchers.IO) {
-        cache[g.key]?.let { if (cacheFresh(System.currentTimeMillis(), it.first, it.second.isNotEmpty())) return@withContext it.second }
+    suspend fun find(c: Context, g: SportData.Game, refresh: Boolean = false): List<Item> = withContext(Dispatchers.IO) {
+        if (!refresh) cache[g.key]?.let { if (cacheFresh(System.currentTimeMillis(), it.first, it.second.isNotEmpty())) return@withContext it.second }
         if (g.solo) return@withContext emptyList()
         Stremio.ensure(c)
         val cats = Stremio.addons.flatMap { a -> a.cats.filter { it.type.lowercase() in LIVE_TYPES }.map { a to it } }
@@ -62,9 +62,9 @@ object SportAddons {
 
     private fun metasOf(cat: Stremio.Cat): JSONArray {
         val url = "${cat.base}/catalog/${cat.type}/${cat.id}.json"
-        catCache[url]?.let { if (System.currentTimeMillis() - it.first < 60_000L) return it.second }
+        catCache[url]?.let { if (it.second.length() > 0 && System.currentTimeMillis() - it.first < 60_000L) return it.second }
         val arr = JSONObject(Stremio.rawGet(url)).optJSONArray("metas") ?: JSONArray()
-        catCache[url] = System.currentTimeMillis() to arr
+        if (arr.length() > 0) catCache[url] = System.currentTimeMillis() to arr
         return arr
     }
 
