@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' https: http: data: blob:; media-src * blob: data:; img-src * data: blob:; connect-src *;">
+<title>Fof TV</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="drag"></div>
+<div id="app"></div>
+<div id="player" class="hidden">
+  <video id="video" playsinline></video>
+  <div id="pl-ui">
+    <div class="pl-top"><button id="pl-back" class="pl-icon" title="Back (Esc)">&#x2190;</button><div><div id="pl-title"></div><div id="pl-sub"></div></div></div>
+    <div id="pl-msg" class="hidden"></div>
+    <div class="pl-bottom">
+      <div id="pl-seek"><div id="pl-buf"></div><div id="pl-pos"></div><div id="pl-knob"></div></div>
+      <div class="pl-row">
+        <button id="pl-play" class="pl-icon" title="Play / Pause (Space)">&#10074;&#10074;</button>
+        <button id="pl-rw" class="pl-icon" title="Back 10 s (&#x2190;)">&#x21BA;</button>
+        <button id="pl-ff" class="pl-icon" title="Forward 10 s (&#x2192;)">&#x21BB;</button>
+        <input id="pl-vol" type="range" min="0" max="1" step="0.05" value="1" title="Volume">
+        <span id="pl-time"></span>
+        <span class="grow"></span>
+        <button id="pl-next" class="pl-pill hidden">Next Episode &#x25B6;</button>
+        <button id="pl-src" class="pl-pill">Sources</button>
+        <button id="pl-full" class="pl-icon" title="Full screen (F)">&#x26F6;</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="toast" class="hidden"></div>
+<script src="../node_modules/hls.js/dist/hls.min.js"></script>
+<script src="../node_modules/mpegts.js/dist/mpegts.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

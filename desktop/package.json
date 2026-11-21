@@ -1,0 +1,35 @@
+{
+  "name": "fof-tv-desktop",
+  "productName": "Fof TV",
+  "version": "0.1.0",
+  "description": "Fof TV for Mac - your Fof TV account, profiles, addons and playlist on the desktop",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --mac dmg --x64 --arm64 --publish never"
+  },
+  "dependencies": {
+    "hls.js": "^1.5.17",
+    "mpegts.js": "^1.7.3"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.fof.tv.desktop",
+    "productName": "Fof TV",
+    "artifactName": "FofTV-${version}-${arch}.${ext}",
+    "directories": { "buildResources": "assets", "output": "dist" },
+    "files": ["main.js", "preload.js", "renderer/**", "node_modules/hls.js/dist/hls.min.js", "node_modules/mpegts.js/dist/mpegts.js", "package.json"],
+    "mac": {
+      "category": "public.app-category.entertainment",
+      "icon": "assets/icon.png",
+      "target": ["dmg"],
+      "identity": null,
+      "darkModeSupport": true
+    },
+    "dmg": { "title": "Fof TV", "backgroundColor": "#000000" }
+  }
+}
