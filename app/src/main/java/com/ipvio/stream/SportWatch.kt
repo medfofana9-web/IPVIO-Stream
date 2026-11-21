@@ -223,8 +223,17 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
     val epgVersion = SportWatch.version
     var addonPending by remember(g.key) { mutableStateOf(true) }
     LaunchedEffect(g.key) {
-        try { SportAddons.find(ctx, g) } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-        catch (_: Exception) { /* recover with playlist channels and manual selection */ }
+        try {
+            val found = SportAddons.find(ctx, g)
+            // A transient empty addon response on a cold start should not make
+            // the viewer leave and re-open the match. Retry once with a fresh
+            // catalog lookup before showing the final no-sources state.
+            if (found.isEmpty() && g.state == 1 && Stremio.addons.any { it.cats.isNotEmpty() }) {
+                kotlinx.coroutines.delay(350L)
+                kotlinx.coroutines.withTimeoutOrNull(4_000L) { SportAddons.find(ctx, g, refresh = true) }
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (_: Exception) { /* fall back to matching existing playlist channels */ }
         finally { addonPending = false }
     }
     // Matching a game against thousands of channels must never happen in
@@ -237,6 +246,9 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
         }
     }
     val hits = hitsLoading.orEmpty()
+    // Showing a definitive "not found" during the first asynchronous pass
+    // causes the incorrect empty -> exit -> success sequence seen on live PSG.
+    val searching = hitsLoading == null || (hits.isEmpty() && addonPending)
     var pick by remember { mutableStateOf(false) }
     val first = remember { FocusRequester() }
     HubPageFrame("Live ansehen", g.groupName, { hub.nav.pop() }, first, rawTitle = false) {
@@ -273,7 +285,7 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
                 FilterPill("Mehr Infos", false, Modifier.trackFocus(), aicon = AIcon.Info) { hub.nav.open(HubPage.Match(g)) }
             }
         }
-        if (hitsLoading == null || (hits.isEmpty() && addonPending)) HubLoading("Finding live game streams…")
+        if (searching) HubLoading("Checking live channels and addons…")
         else if (hits.isEmpty()) HubEmpty(
             AIcon.Live, "No matching channel found yet",
             "This game's sources have not been identified. Your TV guide, channel names, and installed live-sports addons were checked. You can also assign a channel manually."

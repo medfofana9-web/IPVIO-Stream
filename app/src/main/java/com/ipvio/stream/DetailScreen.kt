@@ -139,11 +139,10 @@ private fun DetailScreenFull(
     val listState = rememberLazyListState()
     var heroFocused by remember { mutableStateOf(false) }
     LaunchedEffect(heroFocused) {
-        // Back to the top in one smooth move; a quick check afterwards only corrects a late layout (no repeated snapping)
-        if (heroFocused) {
+        // Let one scroll animation complete. The previous forced scroll after
+        // 160 ms interrupted this animation and visibly snapped series cards.
+        if (heroFocused && (listState.firstVisibleItemIndex != 0 || listState.firstVisibleItemScrollOffset != 0)) {
             runCatching { listState.animateScrollToItem(0) }
-            delay(160)
-            if (listState.firstVisibleItemIndex != 0 || listState.firstVisibleItemScrollOffset != 0) listState.scrollToItem(0)
         }
     }
     BackHandler(enabled = !embedded, onBack = onBack)
@@ -689,16 +688,19 @@ private fun DetailScreenFull(
                 // Right in the episode list = next season, Left = to the season selection.
                 Row(
                     Modifier.fillMaxWidth().height(paneH).padding(top = dpx(16))
-                        .onFocusChanged { if (it.hasFocus && listState.firstVisibleItemIndex != EP_PANE) scope.launch { listState.scrollToItem(EP_PANE) } }
+                        .onFocusChanged {
+                            if (it.hasFocus && listState.firstVisibleItemIndex < EP_PANE)
+                                scope.launch { listState.animateScrollToItem(EP_PANE) }
+                        }
                         .focusProperties { enterTo { seasonReq } }
                         .focusGroup(),
-                    horizontalArrangement = Arrangement.spacedBy(dpx(18))
+                    horizontalArrangement = Arrangement.spacedBy(dpx(14))
                 ) {
                     LazyColumn(
-                        Modifier.width(dpx(202)).fillMaxHeight(),
+                        Modifier.width(dpx(170)).fillMaxHeight(),
                         state = seasonRowState,
-                        verticalArrangement = Arrangement.spacedBy(dpx(6)),
-                        contentPadding = PaddingValues(vertical = dpx(8))
+                        verticalArrangement = Arrangement.spacedBy(dpx(3)),
+                        contentPadding = PaddingValues(vertical = dpx(6))
                     ) {
                         items(seasons, key = { it }) { sn ->
                             val cnt = remember(item.id, sn) { item.episodes.count { it.season == sn } }
@@ -720,11 +722,12 @@ private fun DetailScreenFull(
                             Modifier.padding(bottom = dpx(10)),
                             horizontalArrangement = Arrangement.spacedBy(dpx(16)), verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Season $season  ·  ${eps.size} episodes", raw = true, color = Tok.TextHi, fontSize = spx(21),
+                            Text("Episodes  ·  Season $season", raw = true, color = Tok.TextHi, fontSize = spx(21),
                                 fontWeight = FontWeight.Bold, letterSpacing = 0.sp)
                             // Fof TV: no permanent remote hints (clutter); only a short note while episode info loads
                             if (epLoading) Text("Updating episode info", color = Muted, fontSize = spx(13))
-                            if (item.episodes.size > EpisodeLogic.LONG) DetailPill("Jump to episode", icon = AIcon.Down) { jumpOpen = !jumpOpen }
+                            Text("${eps.size} episodes", color = Muted, fontSize = spx(14))
+                            if (item.episodes.size > EpisodeLogic.LONG) DetailPill("Find episode", icon = AIcon.Down) { jumpOpen = !jumpOpen }
                         }
                         // Long season: sections (TMDB seasons or blocks of 50 episodes) instead of an endless list
                         if (groups.size > 1) {
@@ -821,10 +824,10 @@ private fun EpisodeRow(ep: Episode, em: EpMeta?, v: Variant, prog: ResumeLogic.E
             .favKeys(onToggleSeen)
             .clickable(onClick = onClick)
             .padding(dpx(10)),
-        horizontalArrangement = Arrangement.spacedBy(dpx(16)), verticalAlignment = Alignment.CenterVertically
+        horizontalArrangement = Arrangement.spacedBy(dpx(12)), verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            Modifier.width(dpx(228)).height(dpx(128)).clip(RoundedCornerShape(dpx(10)))
+            Modifier.width(dpx(194)).height(dpx(110)).clip(RoundedCornerShape(dpx(10)))
                 .background(Brush.linearGradient(listOf(lerp(Surf2, Accent1, 0.22f), Surf2))),
             contentAlignment = Alignment.Center
         ) {
@@ -876,7 +879,7 @@ private fun EpisodeRow(ep: Episode, em: EpMeta?, v: Variant, prog: ResumeLogic.E
 @Composable
 private fun SeasonEntry(season: Int, count: Int, selected: Boolean, modifier: Modifier, onRight: () -> Unit) {
     var f by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(dpx(12))
+    val shape = RoundedCornerShape(dpx(10))
     Row(
         modifier.fillMaxWidth().clip(shape)
             // Round 17b: shown season with a green shimmer, selected one as light glass (no white frame)
@@ -890,17 +893,17 @@ private fun SeasonEntry(season: Int, count: Int, selected: Boolean, modifier: Mo
                 if (ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionRight) { if (ev.nativeKeyEvent.repeatCount == 0) onRight(); true } else false
             }
             .clickable(onClick = onRight)
-            .padding(horizontal = dpx(14), vertical = dpx(12)),
-        horizontalArrangement = Arrangement.spacedBy(dpx(14)), verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = dpx(12), vertical = dpx(9)),
+        horizontalArrangement = Arrangement.spacedBy(dpx(10)), verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            Modifier.width(dpx(3)).height(dpx(if (selected) 38 else 20))
+            Modifier.width(dpx(3)).height(dpx(if (selected) 30 else 17))
                 .then(if (selected) Modifier.shadow(dpx(10), RoundedCornerShape(50), ambientColor = Accent1, spotColor = Accent1) else Modifier)
                 .clip(RoundedCornerShape(50)).background(if (selected) Accent1 else Color.Transparent)
         )
         Column {
-            Text("Season $season", color = if (selected || f) Tok.TextHi else Tok.TextLow, fontSize = spx(21), fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
-            if (selected) Text(text = if (count == 1) "1 episode" else "$count episodes", color = Muted, fontSize = spx(15))
+            Text("Season $season", color = if (selected || f) Tok.TextHi else Tok.TextLow, fontSize = spx(17), fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
+            if (selected) Text(text = if (count == 1) "1 episode" else "$count episodes", color = Muted, fontSize = spx(12))
         }
     }
 }

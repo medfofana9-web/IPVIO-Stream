@@ -120,7 +120,11 @@ class HubCtx(val nav: HubNav, val live: List<Item>, private val onPlay: (Item, L
                 // Exact addon game streams may arrive slower than the playlist
                 // index. Give discovery one bounded chance on the FIRST visit.
                 if (app != null && g.state != 2) {
-                    withTimeoutOrNull(5_000L) { SportAddons.find(app, g) }
+                    val found = withTimeoutOrNull(4_000L) { SportAddons.find(app, g) }.orEmpty()
+                    if (found.isEmpty() && Stremio.addons.any { it.cats.isNotEmpty() }) {
+                        // One cold-start retry without needing to exit the game page.
+                        withTimeoutOrNull(2_500L) { SportAddons.find(app, g, refresh = true) }
+                    }
                 }
                 val candidates = withContext(Dispatchers.Default) { SportWatch.channels(g, live) }
                 if (candidates.isNotEmpty()) {
