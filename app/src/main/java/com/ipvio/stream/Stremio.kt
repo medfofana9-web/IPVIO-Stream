@@ -217,7 +217,7 @@ object Stremio {
 
     /** Streams, kept 10 minutes: the detail page asks ahead, so Play has them at once. */
     /** [onPart]: called with everything found so far each time an addon answers (the list fills as answers arrive). */
-    suspend fun streams(kind: Kind, imdb: String, season: Int, ep: Int, onPart: ((List<Source>) -> Unit)? = null, refresh: Boolean = false): List<Source> {
+    suspend fun streams(kind: Kind, imdb: String, season: Int, ep: Int, refresh: Boolean = false, onPart: ((List<Source>) -> Unit)? = null): List<Source> {
         // Include the installed addon set so adding/updating DragonStreams immediately
         // fetches its streams instead of replaying a stale ten-minute cache.
         val k = "$kind|$imdb|$season|$ep|" + addons.filter { it.streams }.joinToString(";") { it.base }
