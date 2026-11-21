@@ -90,6 +90,7 @@ object FrameStats {
         SLOW_START("slow playback start"),
         PLAYBACK_ERROR("playback error"),
         REBUFFERING("repeated buffering"),
+        PROFILE_SYNC_ERROR("profile sync failed"),
         SPORTS_NO_MATCH("sports: no confirmed channel"),
         MARATHON_EXHAUSTED("24/7: no playable episode")
     }
