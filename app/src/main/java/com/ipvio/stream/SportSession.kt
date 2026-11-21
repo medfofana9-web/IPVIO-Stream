@@ -31,7 +31,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -43,11 +42,12 @@ import java.util.concurrent.ConcurrentHashMap
  * Fof TV: a game started from the sports area. Knows the channels that can carry each live game, so the player can
  *  - move to the next channel by itself when a stream does not start (failover),
  *  - switch between live games with Up/Down instead of channel numbers,
- *  - show the score of the game on screen and a ticker of the other live games.
+ *  - show a brief game-switching ticker.
  * Channels that started fine are remembered as "verified".
  */
 object SportSession {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var discoverJob: kotlinx.coroutines.Job? = null
 
     /** Game keys in Up/Down order. */
     @Volatile private var order: List<String> = emptyList()
@@ -94,11 +94,11 @@ object SportSession {
     fun owns(chId: String?) = chId != null && System.currentTimeMillis() - startedAt < 6 * 3600_000L && gameOfCh.containsKey(chId)
 
     /** Ends the session (a channel outside it was started). */
-    fun stop() { returnKey = null; order = emptyList(); cands.clear(); pick.clear(); gameOfCh.clear(); failed.clear() }
+    fun stop() { discoverJob?.cancel(); returnKey = null; order = emptyList(); cands.clear(); pick.clear(); gameOfCh.clear(); failed.clear() }
 
     /** Starts a session for [g] with its [first] channels; other live games are added in the background. */
     fun start(g: SportData.Game, first: List<Item>, live: List<Item>) {
-        val verified = app?.let { ok(it) } ?: emptySet()
+        discoverJob?.cancel()
         // Channels that worked before go first (same reason order otherwise)
         // Order from SportWatch.channels: how surely a feed shows the game, then how well it played here
         val sorted = first
@@ -112,28 +112,34 @@ object SportSession {
         sorted.forEach { gameOfCh.putIfAbsent(it.id, g.key) }
         switchedAt = System.currentTimeMillis()
         version++
-        scope.launch { addLiveGames(g, live, verified) }
+        discoverJob = scope.launch { addLiveGames(g, live, sorted) }
     }
 
     /** First channel to play for the game, verified channels first. */
     fun firstChannel(): Item? = order.firstOrNull()?.let { pick[it] }
 
-    private suspend fun addLiveGames(start: SportData.Game, live: List<Item>, verified: Set<String>) {
+    private suspend fun addLiveGames(start: SportData.Game, live: List<Item>, first: List<Item>) {
         runCatching { SportWatch.prewarm(live) }
         val others = SportFeed.latest.values.filter { it.state == 1 && it.key != start.key }
             .sortedWith(compareBy({ it.league }, { it.start })).take(30)
-        val keys = ArrayList<String>()
-        keys.add(start.key)
-        for (o in others) {
-            val ch = runCatching { SportWatch.channels(o, live) }.getOrDefault(emptyList())
-            if (ch.isEmpty()) continue
-            cands[o.key] = ch
-            pick.putIfAbsent(o.key, ch[0])
-            ch.forEach { gameOfCh.putIfAbsent(it.id, o.key) }
-            keys.add(o.key)
+        val usedIds = first.mapTo(HashSet()) { it.id }
+        val usedUrls = first.mapTo(HashSet()) { it.url }
+        val feeds = LinkedHashMap<String, List<Item>>()
+        for (game in others) {
+            val channels = SportWatch.channels(game, live).filter { it.id !in usedIds && it.url !in usedUrls }
+            if (channels.isEmpty()) continue
+            channels.forEach { usedIds.add(it.id); usedUrls.add(it.url) }
+            feeds[game.key] = channels
         }
-        order = keys
-        kotlinx.coroutines.withContext(Dispatchers.Main) { version++ }
+        kotlinx.coroutines.withContext(Dispatchers.Main) {
+            for ((key, channels) in feeds) {
+                cands[key] = channels
+                pick.putIfAbsent(key, channels.first())
+                channels.forEach { gameOfCh.putIfAbsent(it.id, key) }
+            }
+            order = listOf(start.key) + feeds.keys
+            version++
+        }
     }
 
     /** Up/Down list: one channel per live game. */
@@ -147,6 +153,8 @@ object SportSession {
 
     /** Every stream found for the game that [chId] belongs to (channels that worked before first). */
     fun streams(chId: String?): List<Item> = chId?.let { gameOfCh[it] }?.let { cands[it] }.orEmpty()
+        .filter { it.id !in failed && (it.id == chId || !DeadLinks.isDead(it.url)) }
+        .distinctBy { it.url }
 
     /** [ch] becomes the game's stream: Up/Down and the ticker come back to it. */
     fun choose(ch: Item) { gameOfCh[ch.id]?.let { k -> pick[k] = ch; failed.remove(ch.id) } }
@@ -155,7 +163,9 @@ object SportSession {
     fun next(chId: String): Item? {
         val k = gameOfCh[chId] ?: return null
         failed.add(chId)
-        val n = cands[k]?.firstOrNull { it.id !in failed } ?: return null
+        val failedUrl = cands[k]?.firstOrNull { it.id == chId }?.url
+        val n = cands[k]?.firstOrNull { it.id !in failed && it.url != failedUrl && !DeadLinks.isDead(it.url) }
+        if (n == null) { pick.remove(k); return null }
         pick[k] = n
         return n
     }
@@ -178,7 +188,7 @@ fun BoxScope.SportPlayerOverlay() {
     val ch = SportSession.watching ?: return
     @Suppress("UNUSED_VARIABLE") val v = SportSession.version
     val g = SportSession.game(ch) ?: return
-    // The score bug refreshes itself while you watch (the Sports page, which refreshes scores, is closed then):
+    // Refresh the scores used by the game-switching ticker while the Sports page is closed:
     // every 12 s during the game, else every 30 s
     val gameKey = g.key
     LaunchedEffect(gameKey) {
@@ -195,7 +205,6 @@ fun BoxScope.SportPlayerOverlay() {
             delay(if ((SportFeed.latest[gameKey] ?: cur).state == 1) 8_000L else 30_000L)
         }
     }
-    if (!SportSession.busy && !SportPrefs.bugOff) Box(Modifier.align(Alignment.TopEnd).padding(top = 26.dp, end = 34.dp)) { ScoreBug(g) }
     var tick by remember { mutableIntStateOf(0) }
     LaunchedEffect(SportSession.switchedAt) { tick++; delay(7000); tick++ }
     val showTicker = System.currentTimeMillis() - SportSession.switchedAt < 7000 && !SportSession.busy
@@ -204,34 +213,6 @@ fun BoxScope.SportPlayerOverlay() {
         if (games.size > 1) Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 34.dp, vertical = 24.dp)) {
             Ticker(games, g.key)
         }
-    }
-}
-
-@Composable
-private fun ScoreBug(g: SportData.Game) {
-    val shape = RoundedCornerShape(12.dp)
-    Row(
-        Modifier.clip(shape).background(Color(0xE60B0B0D)).border(1.dp, Color(0x26FFFFFF), shape),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (g.solo) {
-            Text(raw = true, text = g.title.ifBlank { g.league }, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp), maxLines = 1)
-        } else {
-            BugTeam(g.away); BugTeam(g.home)
-        }
-        Text(raw = true, text = g.detail, color = Color(0xFFE6E6EA), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 12.dp), maxLines = 1)
-    }
-}
-
-@Composable
-private fun BugTeam(t: SportData.Team) {
-    Row(Modifier.background(teamColor(t).copy(alpha = 0.85f)).padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (t.logo != null) AsyncImage(t.logo, null, Modifier.size(22.dp))
-        Text(raw = true, text = t.abbr.ifBlank { t.short }, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 6.dp))
-        val s = scoreText(t)
-        if (s.isNotEmpty()) Text(raw = true, text = s, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(start = 8.dp))
     }
 }
 
@@ -263,7 +244,7 @@ private fun Ticker(games: List<SportData.Game>, current: String) {
 
 /** Other streams of the game being watched; OK switches, Back closes. */
 @Composable
-fun GameStreamPicker(title: String, streams: List<Item>, currentId: String?, onPick: (Item) -> Unit, onClose: () -> Unit) {
+fun GameStreamPicker(title: String, streams: List<Item>, currentId: String?, onPick: (Item) -> Unit, onWrongGame: () -> Unit, onClose: () -> Unit) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     androidx.compose.ui.window.Popup(
         alignment = Alignment.Center, onDismissRequest = onClose,
@@ -278,7 +259,8 @@ fun GameStreamPicker(title: String, streams: List<Item>, currentId: String?, onP
                 .border(1.dp, Color(0x33FFFFFF), shape).padding(14.dp)
         ) {
             Text(title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, raw = true, modifier = Modifier.padding(start = 6.dp, bottom = 4.dp))
-            Text("Streams found for this game", color = Color(0x99FFFFFF), fontSize = 14.sp, raw = true, modifier = Modifier.padding(start = 6.dp, bottom = 10.dp))
+            OptionRow("Wrong game? Try another source", false, Modifier) { onWrongGame() }
+            Text("Matchup sources", color = Color(0x99FFFFFF), fontSize = 14.sp, raw = true, modifier = Modifier.padding(start = 6.dp, bottom = 10.dp))
             androidx.compose.foundation.lazy.LazyColumn(state = androidx.compose.foundation.lazy.rememberLazyListState(maxOf(start - 2, 0))) {
                 items(streams.size) { i ->
                     val ch = streams[i]

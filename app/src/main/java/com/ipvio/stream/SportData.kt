@@ -559,11 +559,39 @@ object SportData {
 
     fun has(text: String, key: String) = (" $text ").contains(" $key ")
 
-    /** Do both teams appear in the show text? Field events (F1, golf) never match by team names. */
+    /** A team matchup needs both names. A field event needs its specific event title. */
     fun matches(g: Game, text: String): Boolean {
-        if (g.solo) return false
         val n = normCached(text)
-        return keysCached(g.home).any { has(n, it) } && keysCached(g.away).any { has(n, it) }
+        if (g.solo) {
+            val event = normCached(g.title)
+            return event.contains(' ') && event != normCached(g.league) &&
+                event !in genericEventTitles && has(n, event)
+        }
+        val home = eventKeys(g.home)
+        val away = eventKeys(g.away)
+        val shared = home.intersect(away.toSet())
+        val padded = " $n "
+        fun spans(keys: List<String>): Sequence<IntRange> = keys.asSequence().filterNot { it in shared }.flatMap { key ->
+            val token = " $key "
+            generateSequence(padded.indexOf(token).takeIf { it >= 0 }) { start ->
+                padded.indexOf(token, start + 1).takeIf { it >= 0 }
+            }.map { start -> (start + 1)..(start + key.length) }
+        }
+        val awaySpans = spans(away).toList()
+        return spans(home).any { homeSpan ->
+            awaySpans.any { awaySpan -> homeSpan.last < awaySpan.first || awaySpan.last < homeSpan.first }
+        }
+    }
+
+    private val genericEventTitles = setOf("formula 1", "formula one", "grand prix", "pga tour", "lpga tour", "ufc fight night")
+
+    private fun eventKeys(team: Team): List<String> {
+        val full = normCached(team.name)
+        val short = normCached(team.short)
+        val first = full.substringBefore(' ')
+        // A city on its own is ambiguous even when it is the last word (Real Madrid vs Atlético Madrid).
+        val ambiguousShort = full != short && (short == first || short == "madrid")
+        return listOf(full, short.takeUnless { ambiguousShort }.orEmpty()).filter { it.length >= 3 }.distinct()
     }
 
     private val chanCache = HashMap<String, Pair<Int, List<Item>>>()

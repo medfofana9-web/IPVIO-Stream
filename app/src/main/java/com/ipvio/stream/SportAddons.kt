@@ -38,7 +38,6 @@ object SportAddons {
     /** Looks the game up in every addon's live catalogs; at most a few seconds. */
     suspend fun find(c: Context, g: SportData.Game, refresh: Boolean = false): List<Item> = withContext(Dispatchers.IO) {
         if (!refresh) cache[g.key]?.let { if (cacheFresh(System.currentTimeMillis(), it.first, it.second.isNotEmpty())) return@withContext it.second }
-        if (g.solo) return@withContext emptyList()
         Stremio.ensure(c)
         val cats = Stremio.addons.flatMap { a -> a.cats.filter { it.type.lowercase() in LIVE_TYPES }.map { a to it } }
         val found = coroutineScope {
@@ -46,8 +45,8 @@ object SportAddons {
                 async {
                     val metas = runCatching { metasOf(cat) }.getOrNull() ?: return@async emptyList<Item>()
                     val hits = (0 until metas.length()).mapNotNull { metas.optJSONObject(it) }.filter { m ->
-                        val text = m.optString("name") + " " + m.optString("description") + " " + m.optJSONArray("genres")?.join(" ").orEmpty()
-                        SportData.matches(g, text)
+                        // Catalog descriptions may mention several unrelated games.
+                        SportData.matches(g, m.optString("name"))
                     }.take(4)
                     hits.flatMap { m -> runCatching { streamsOf(a, m.optString("type").ifBlank { cat.type }, m.optString("id"), m.optString("name")) }.getOrDefault(emptyList()) }
                 }
