@@ -697,6 +697,9 @@ private fun PlayerPage(ctx: Context) {
     ToggleRow("Automatically Skip Intros", "Automatically skip intros with confirmed timing. Never guess unknown intro positions.", AppSettings.autoSkipIntro) {
         AppSettings.setPlayerExtra(ctx, AppSettings.autoNext, AppSettings.hideSec, AppSettings.showEndTime, it)
     }
+    ToggleRow("Show Skip Recap", "Offer Skip Recap for episodes with confirmed recap timestamps.", AppSettings.skipRecap) {
+        AppSettings.setSkipRecap(ctx, it)
+    }
     ToggleRow("Automatically Skip Recaps", "Automatically skip previously marked recap segments for each episode.", AppSettings.autoSkipRecap) {
         AppSettings.setAutoRecap(ctx, it)
     }
