@@ -110,12 +110,25 @@ input:focus{box-shadow:0 0 0 3px #c52d4544}
 .setting-status{margin-top:10px;color:var(--mut);font-size:14px}
 .settings-link{margin-top:18px;display:inline-block}
 @media(max-width:680px){.settings-grid{grid-template-columns:1fr}header{flex-wrap:wrap}}
+
+.portal{display:grid;grid-template-columns:184px minmax(0,1fr);gap:34px}
+.portal-nav{display:grid;gap:6px;align-content:start;position:sticky;top:24px;align-self:start}
+.portal-nav button{text-align:left;white-space:normal}
+.portal-nav [aria-current="page"]{background:#c52d4524;border-color:#ff879855;color:#ffafba}
+.metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin:26px 0}
+.metric-grid .card{display:grid;gap:9px;text-align:left;font:inherit;cursor:pointer}
+.metric-grid b{font-size:23px}
+.profile-grid .pf{border:0;background:none;color:inherit;min-width:0}
+.progress-art{width:48px;aspect-ratio:2/3;border-radius:7px;object-fit:cover;background:var(--s2)}
+.history-tools{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;margin:18px 0}
+.history-tools select{background:var(--s1);border:1px solid var(--line2);padding:8px;border-radius:9px}
+@media(max-width:720px){.portal{grid-template-columns:1fr;gap:20px}.portal-nav{position:static;display:flex;flex-wrap:wrap}.portal-nav button{white-space:nowrap}}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header><div class="logo"><i></i>fof<small>TV</small></div><div class="sp"></div><div id="hdr"></div></header>
-  <main id="app"></main>
+  <div id="portal"><nav id="portal-nav" aria-label="Account navigation" hidden></nav><main id="app"></main></div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -202,11 +215,19 @@ async function saveData(pid, mutate) {
 
 // ---------- screens
 function render() {
-  const nav = [["home", "Profiles"], ["settings", "TV setup"], ["account", "Account"]];
-  const current = state.view === "profile" ? "home" : (state.view || "home");
-  $("#hdr").innerHTML = S ? nav.map(([key, label]) =>
+  const nav = [["overview", "Overview"], ["home", "Profiles"], ["progress", "Watch Progress"], ["library", "My List"], ["settings", "Add-ons & IPTV"], ["devices", "Devices"], ["account", "Account"]];
+  const current = state.view === "profile" ? ({ resume: "progress", lists: "library" }[state.tab] || "home") : (state.view || "overview");
+  const portal = $("#portal"), side = $("#portal-nav");
+  portal.className = S ? "portal" : "";
+  side.className = S ? "portal-nav" : "";
+  side.hidden = !S;
+  side.innerHTML = S ? nav.map(([key, label]) =>
     `<button class="btn sm" ${current === key ? 'aria-current="page"' : ""} onclick="go('${key}')">${label}</button>`).join("") : "";
+  $("#hdr").innerHTML = "";
   if (!S) return signInView();
+  if (current === "overview") return overviewView();
+  if (state.view === "progress" || state.view === "library") return homeView(state.view === "progress" ? "resume" : "lists");
+  if (state.view === "devices") return devicesView();
   if (state.view === "settings") return settingsView();
   if (state.view === "account") return accountView();
   if (state.view === "profile" && state.cur) return profileView();
@@ -226,7 +247,7 @@ function signInView() {
     try {
       keep(await auth("token?grant_type=password", { email: $("#em").value.trim(), password: $("#pw").value }));
       await rpc("fof_register_device", { p_id: devId, p_name: "Website", p_kind: "Web browser", p_version: "web-1" }).catch(() => {});
-      state.view = "home"; await loadProfiles(); render();
+      state.view = "overview"; await loadProfiles(); render();
     } catch (e) { $("#er").textContent = /invalid/i.test(e.message) ? "Wrong email or password." : e.message; }
     $("#go").disabled = false;
   };
@@ -246,11 +267,52 @@ function avatarHtml(p) {
   const lock = state.pins[p.id]?.pin_set ? `<span class="lock">🔒</span>` : "";
   return `<div class="av" style="background:${TILE[p.slot % TILE.length]}">${img ? `<img src="${esc(img)}" alt="">` : esc((p.name || "?").trim().charAt(0).toUpperCase())}${lock}</div>`;
 }
-async function homeView() {
-  $("#app").innerHTML = `<h1>Who's watching?</h1><p class="lead">Pick a profile to change its name, picture, PIN, tastes, lists and teams.</p><div class="profiles" id="pl"><p class="muted">Loading…</p></div>`;
-  try { await loadProfiles(); } catch (e) { $("#pl").innerHTML = `<p class="err">${esc(e.message)}</p>`; return; }
-  $("#pl").innerHTML = state.profiles.map(p => `<div class="pf" onclick="openProfile('${p.id}')">${avatarHtml(p)}<b>${esc(p.name || "Profile")}</b></div>`).join("") +
-    (state.profiles.length < 10 ? `<div class="pf add" onclick="addProfile()"><div class="av">+</div><b>Add profile</b></div>` : "");
+const devicesRequest = () => api("GET", "/rest/v1/fof_devices?select=id,name,kind,app_version,last_seen,revoked&order=last_seen.desc");
+async function overviewView() {
+  $("#app").innerHTML = `<h1>Overview</h1><p class="lead">Manage your profiles, watch progress, TV sources and devices.</p>
+    <div class="metric-grid">
+      <button class="card" onclick="go('progress')"><b>Watch Progress</b><span class="note">Continue watching by profile</span></button>
+      <button class="card" onclick="go('settings')"><b>Add-ons &amp; IPTV</b><span class="note" id="overview-sources">Checking account sources…</span></button>
+      <button class="card" onclick="go('devices')"><b>Devices</b><span class="note" id="overview-devices">Checking devices…</span></button>
+    </div><h2>Profiles</h2><div class="profiles profile-grid" id="pl"></div>`;
+  const sources = $("#overview-sources"), devices = $("#overview-devices");
+  rpc("fof_secrets_get").then(rows => {
+    const count = sourceList(rows).length;
+    sources.textContent = `${count} synced add-on${count === 1 ? "" : "s"} · ${rows.some(r => r.name === "playlist" && r.value) ? "IPTV saved" : "No synced IPTV"}`;
+  }).catch(() => { sources.textContent = "Source status unavailable"; });
+  devicesRequest().then(rows => {
+    const count = rows.filter(d => !d.revoked && d.kind !== "Web browser").length;
+    devices.textContent = `${count} signed-in TV device${count === 1 ? "" : "s"}`;
+  }).catch(() => { devices.textContent = "Device status unavailable"; });
+  profileChoices($("#pl"));
+}
+
+async function profileChoices(grid, tab) {
+  grid.innerHTML = '<p class="muted">Loading profiles…</p>';
+  try { await loadProfiles(); }
+  catch { grid.innerHTML = '<p class="err">Could not load profiles.</p>'; return; }
+  if (!grid.isConnected) return;
+  grid.innerHTML = "";
+  state.profiles.forEach(p => {
+    const button = document.createElement("button");
+    button.className = "pf";
+    button.innerHTML = avatarHtml(p) + `<b>${esc(p.name || "Profile")}</b>`;
+    button.onclick = () => openProfile(p.id, tab);
+    grid.append(button);
+  });
+  if (!tab && state.profiles.length < 10) {
+    const add = document.createElement("button");
+    add.className = "pf add";
+    add.innerHTML = '<div class="av">+</div><b>Add profile</b>';
+    add.onclick = addProfile;
+    grid.append(add);
+  }
+}
+
+function homeView(tab) {
+  const title = tab === "resume" ? "Watch Progress" : tab === "lists" ? "My List" : "Profiles";
+  $("#app").innerHTML = `<h1>${title}</h1><p class="lead">Choose a profile.</p><div class="profiles profile-grid" id="pl"></div>`;
+  return profileChoices($("#pl"), tab);
 }
 
 function modal(html) { const m = document.createElement("div"); m.className = "modal"; m.innerHTML = `<div class="card">${html}</div>`; m.onclick = e => { if (e.target === m) m.remove(); }; document.body.appendChild(m); return m; }
@@ -427,13 +489,43 @@ async function libRemove(key, id) {
 
 // ---------- Continue Watching
 function resumeView() {
-  let l = []; try { l = JSON.parse(str(state.files, "ipvio_watch", "e") || "[]"); } catch {}
-  l.sort((a, b) => (b.ts || 0) - (a.ts || 0));
-  const fmt = ms => { const m = Math.round(ms / 60000); return m >= 60 ? Math.floor(m / 60) + " h " + (m % 60) + " min" : m + " min"; };
-  $("#pane").innerHTML = `<div class="card"><h2>Continue Watching</h2><p class="note" style="margin-bottom:14px">Exactly what this profile sees on every TV. Remove anything you don't want to finish.</p><div class="list">${
-    l.map((e, k) => `<div class="li"><div class="g"><b>${esc(e.t)}</b><small>${e.d ? fmt(e.p) + " of " + fmt(e.d) : ""}${e.ts ? " · " + new Date(e.ts).toLocaleString() : ""}</small>${e.d ? `<div class="bar"><i style="width:${Math.min(100, Math.round(e.p / e.d * 100))}%"></i></div>` : ""}</div><button class="btn sm bad" onclick="resumeRemove(${k})">Remove</button></div>`).join("") || `<p class="muted">Nothing in progress.</p>`
-  }</div></div>`;
-  state.resume = l;
+  const files = state.files;
+  let rows = [], catalog = [];
+  try { rows = JSON.parse(str(files, "ipvio_watch", "e") || "[]"); } catch {}
+  try { catalog = JSON.parse(str(files, "fof_catalog_items", "a") || "[]"); } catch {}
+  rows = Array.isArray(rows) ? rows.filter(row => row && typeof row === "object") : [];
+  const titles = new Map((Array.isArray(catalog) ? catalog : []).filter(Boolean).map(item => [item.i, item]));
+  rows.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  state.resume = rows;
+  $("#pane").innerHTML = `<section class="card"><h2>Watch Progress</h2><p class="note">Synced viewing activity for ${esc(state.cur.name || "this profile")}.</p>
+    <div class="history-tools"><input type="search" id="progress-search" aria-label="Search watch progress" placeholder="Search titles">
+    <select id="progress-kind" aria-label="Filter watch progress"><option value="all">All titles</option><option value="movie">Movies</option><option value="series">TV shows</option></select></div>
+    <div class="list" id="progress-rows"></div></section>`;
+  const search = $("#progress-search"), kind = $("#progress-kind"), list = $("#progress-rows");
+  function paint() {
+    const q = search.value.trim().toLowerCase();
+    list.innerHTML = rows.map((entry, index) => {
+      const item = titles.get(entry.i);
+      const title = item?.t || entry.t || "Untitled";
+      const series = !!(item?.s || entry.s > 0 || entry.e > 0);
+      if (kind.value !== "all" && kind.value !== (series ? "series" : "movie")) return "";
+      if (q && ![title, entry.t].some(value => String(value || "").toLowerCase().includes(q))) return "";
+      const duration = Number(entry.d) || 0, elapsed = Math.max(0, Number(entry.p) || 0);
+      const percent = duration > 0 ? Math.min(100, Math.round(elapsed / duration * 100)) : 0;
+      const episode = entry.e > 0 ? (entry.s > 0 ? "S" + entry.s + " E" + entry.e : "Episode " + entry.e) : "";
+      const info = [episode, duration > 0 && elapsed < duration ? Math.ceil((duration - elapsed) / 60000) + " min left" : "", entry.ts > 0 ? new Date(entry.ts).toLocaleDateString() : ""].filter(Boolean);
+      const art = /^https:\/\//i.test(item?.p || "") ? `<img class="progress-art" loading="lazy" src="${esc(item.p)}" alt="">` : "";
+      return `<div class="li">${art}<div class="g"><b>${esc(title)}</b><small>${esc(info.join(" · "))}</small>${duration > 0 ? `<div class="bar" role="progressbar" aria-label="Watched" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100"><i style="width:${percent}%"></i></div>` : ""}</div><button type="button" class="btn sm bad" data-index="${index}">Remove</button></div>`;
+    }).join("") || `<p class="muted">${rows.length ? "No matching titles." : "Nothing in progress."}</p>`;
+    list.querySelectorAll("button").forEach(button => { button.onclick = async () => {
+      button.disabled = true;
+      try { await resumeRemove(Number(button.dataset.index)); }
+      catch { button.disabled = false; toast("Could not remove this title."); }
+    }; });
+  }
+  search.oninput = paint;
+  kind.onchange = paint;
+  paint();
 }
 async function resumeRemove(k) {
   const gone = state.resume[k];
@@ -585,24 +677,28 @@ function sourceList(rows) {
 }
 
 function sourceLabel(address) {
-  try { return new URL(address).hostname || "Add-on"; } catch { return "Add-on"; }
+  try {
+    const url = new URL(address);
+    return /dragonstreams?/i.test(url.hostname) || url.pathname.split("/").some(part => /^dragonstreams?$/i.test(part))
+      ? "DragonStreams" : url.hostname || "Add-on";
+  } catch { return "Add-on"; }
 }
 
 async function settingsView() {
   const user = S.uid;
   const app = $("#app");
-  app.innerHTML = `<h1>TV setup</h1>
-    <p class="lead">Manage the sources used by FOF TV devices signed in to this account.</p>
+  app.innerHTML = `<h1>Add-ons &amp; IPTV</h1>
+    <p class="lead">These sources are saved to this account. An add-on or playlist installed only on a TV appears here after that TV syncs the same FOF TV account.</p>
     <div class="settings-grid" id="setup">
       <section class="card settings-wide">
         <h2>Stremio add-ons</h2>
         <p class="note">Paste an add-on’s manifest link or base address. Your TV checks compatibility during its next sync.</p>
         <form id="add-addon"><label class="field"><span>Add-on address</span><input name="address" type="password" required autocomplete="off" placeholder="https://provider.example/manifest.json"></label>
-        <button class="btn pri" disabled>Add add-on</button></form>
+        <button class="btn pri" disabled>Add add-on</button> <button class="btn" id="preview-addon" type="button" disabled>Preview manifest</button><p class="setting-status" id="manifest-preview" role="status"></p></form>
         <div class="list" id="source-list"><p class="muted">Loading add-ons…</p></div>
       </section>
       <section class="card">
-        <h2>Playlist</h2>
+        <h2>IPTV playlist</h2>
         <p class="note">Set an M3U playlist address for your TVs. Saving replaces the synced playlist.</p>
         <p class="setting-status" id="playlist-status"></p>
         <form id="set-playlist"><label class="field"><span>M3U URL</span><input name="address" type="password" required autocomplete="off"></label>
@@ -617,7 +713,7 @@ async function settingsView() {
       </section>
     </div>
     <p class="err" id="setup-error" role="alert"></p>
-    <button class="btn settings-link" type="button" onclick="go('account')">Manage signed-in devices</button>`;
+    <button class="btn settings-link" type="button" onclick="go('devices')">Manage signed-in devices</button>`;
   const panel = $("#setup");
   const error = $("#setup-error");
   const active = () => panel.isConnected && S?.uid === user && state.view === "settings";
@@ -626,9 +722,9 @@ async function settingsView() {
     const addons = sourceList(rows);
     const playlist = rows.some(row => row.name === "playlist" && row.value);
     const debrid = rows.some(row => row.name === "debrid" && row.value);
-    panel.querySelector("#playlist-status").textContent = playlist ? "Playlist saved" : "No playlist saved";
+    panel.querySelector("#playlist-status").textContent = playlist ? "IPTV playlist saved to this account" : "No IPTV playlist synced to this account";
     panel.querySelector("#debrid-status").textContent = debrid ? "Token saved" : "No token saved";
-    list.innerHTML = addons.map(address => `<div class="li"><div class="g"><b>${esc(sourceLabel(address))}</b></div><button type="button" class="btn sm bad">Remove</button></div>`).join("") || '<p class="muted">No add-ons saved.</p>';
+    list.innerHTML = addons.map(address => `<div class="li"><div class="g"><b>${esc(sourceLabel(address))}</b></div><button type="button" class="btn sm bad">Remove</button></div>`).join("") || '<p class="muted">No add-ons synced to this account.</p>';
     list.querySelectorAll("button").forEach((button, index) => {
       const address = addons[index];
       button.onclick = () => {
@@ -677,6 +773,26 @@ async function settingsView() {
       write(() => change(fields), form);
     };
   }
+  const preview = panel.querySelector("#manifest-preview");
+  const addonInput = panel.querySelector("#add-addon input");
+  const previewButton = panel.querySelector("#preview-addon");
+  addonInput.oninput = () => { preview.textContent = ""; };
+  previewButton.onclick = async () => {
+    const input = addonInput.value;
+    previewButton.disabled = true;
+    preview.textContent = "Checking manifest…";
+    try {
+      const url = sourceUrl(input, true) + "/manifest.json";
+      const response = await fetch(url, { credentials: "omit", referrerPolicy: "no-referrer", cache: "no-store", signal: AbortSignal.timeout(8000) });
+      if (!response.ok) throw new Error();
+      const manifest = await response.json();
+      if (!manifest?.id || typeof manifest.name !== "string") throw new Error();
+      const features = Array.isArray(manifest.resources) ? manifest.resources.map(resource => typeof resource === "string" ? resource : resource?.name).filter(Boolean) : [];
+      if (active() && addonInput.value === input) preview.textContent = [manifest.name, ...features].slice(0, 5).join(" · ");
+    } catch {
+      if (active() && addonInput.value === input) preview.textContent = "Browser preview unavailable. Your TV can still check this address after it syncs.";
+    } finally { if (active() && !busy) previewButton.disabled = false; }
+  };
   bind("#add-addon", async fields => {
     const value = sourceUrl(fields.get("address"), true);
     const fresh = sourceList(await rpc("fof_secrets_get"));
@@ -706,6 +822,19 @@ async function settingsView() {
       error.textContent = "Could not load TV setup. Reopen this page to try again.";
     }
   }
+}
+
+async function devicesView() {
+  $("#app").innerHTML = `<h1>Devices</h1><p class="lead">See when your TVs and browsers last checked in.</p><div class="settings-grid" id="devices-grid"><p class="muted">Loading devices…</p></div>`;
+  const grid = $("#devices-grid");
+  try {
+    const rows = await devicesRequest();
+    if (!grid.isConnected) return;
+    grid.innerHTML = rows.filter(d => !d.revoked).map(d => `<section class="card">
+      <h2>${esc(d.name || d.kind || "Device")}</h2><p class="note">${esc(d.kind || "Device")}${d.app_version ? " · " + esc(d.app_version) : ""}</p>
+      <p class="setting-status">${d.last_seen ? "Last seen " + esc(new Date(d.last_seen).toLocaleString()) : "Check-in time unavailable"}</p>
+      <p class="note">${d.id === devId ? "This browser" : "A device check-in does not verify which sources it applied."}</p></section>`).join("") || '<p class="muted">No signed-in devices.</p>';
+  } catch { if (grid.isConnected) grid.innerHTML = '<p class="err">Could not load devices.</p>'; }
 }
 
 async function accountView() {
