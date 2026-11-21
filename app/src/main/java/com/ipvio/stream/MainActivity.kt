@@ -468,6 +468,12 @@ private fun AppContent() {
         // The selected tab must become the visible screen. Previously a
         // detail, Browse or Categories overlay could stay above it, leaving
         // Search visibly stuck on the old "Popular series" catalog page.
+        // Also dismiss a failed player: selecting Settings/Sports/Search must
+        // never leave the full-screen playback error covering that tab.
+        if (playing != null) {
+            playing = null
+            AppNav.openGuide = false
+        }
         returningFromPlayer = false
         top = null
         trail.clear()
