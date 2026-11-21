@@ -2051,16 +2051,16 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
 
                 Panel.SUBSTYLE -> PSimplePanel(440.dp, "Subtitle appearance", back, { closePanel() }) {
                     Column(verticalArrangement = Arrangement.spacedBy(PT.RowGap)) {
-                        PPanelRow("Größe", false, Modifier.focusRequester(panelFocus), trailing = SubStyle.SIZES[AppSettings.subSize].first, chevron = true) {
+                        PPanelRow("Size", false, Modifier.focusRequester(panelFocus), trailing = SubStyle.SIZES[AppSettings.subSize].first, chevron = true) {
                             AppSettings.setSub(ctx, (AppSettings.subSize + 1) % SubStyle.SIZES.size, AppSettings.subColor, AppSettings.subBg, AppSettings.subEdge)
                         }
-                        PPanelRow("Farbe", false, trailing = SubStyle.COLORS[AppSettings.subColor].first, chevron = true) {
+                        PPanelRow("Text color", false, trailing = SubStyle.COLORS[AppSettings.subColor].first, chevron = true) {
                             AppSettings.setSub(ctx, AppSettings.subSize, (AppSettings.subColor + 1) % SubStyle.COLORS.size, AppSettings.subBg, AppSettings.subEdge)
                         }
-                        PPanelRow("Hintergrund", false, trailing = SubStyle.BGS[AppSettings.subBg].first, chevron = true) {
+                        PPanelRow("Background", false, trailing = SubStyle.BGS[AppSettings.subBg].first, chevron = true) {
                             AppSettings.setSub(ctx, AppSettings.subSize, AppSettings.subColor, (AppSettings.subBg + 1) % SubStyle.BGS.size, AppSettings.subEdge)
                         }
-                        PPanelRow("Rand", false, trailing = SubStyle.EDGES[AppSettings.subEdge], chevron = true) {
+                        PPanelRow("Text edge", false, trailing = SubStyle.EDGES[AppSettings.subEdge], chevron = true) {
                             AppSettings.setSub(ctx, AppSettings.subSize, AppSettings.subColor, AppSettings.subBg, (AppSettings.subEdge + 1) % SubStyle.EDGES.size)
                         }
                         Text("Press OK to cycle through options. The preview updates immediately.", color = Muted, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
