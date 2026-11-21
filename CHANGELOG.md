@@ -1,5 +1,12 @@
 # Changelog
 
+## Fof TV – Netflix look, part 1: home and menu
+
+- Menu: back to the slim icon rail on the left that opens with labels (Netflix on TV); the top pill stays under Settings → menu position.
+- Netflix behavior switched on once per profile: the background follows the selected title, the other cards dim, and resting on a card opens it into a wide scene preview (title logo, green "% Match", rating, year, length, genres, description). Can be switched back in View.
+- Home order (applied once): Continue Watching, My List, Top 10, then the discovery rows; rows renamed Netflix-style.
+- Badges on every cover: red TOP 10 corner tag, red "New Episodes" / "New" strip, red progress line on anything started.
+
 ## Fof TV 1.3.144 (November 2026)
 
 - TryBox-style menu: a floating glass pill at the top center (text tabs, active tab in a dark capsule, phone search at the end) with "FOF TV" in red on the left. New default for profiles that never picked a menu position; left/right stay available in Settings.

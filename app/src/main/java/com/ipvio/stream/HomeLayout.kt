@@ -84,11 +84,11 @@ private val HOME_BLOCKS = listOf(
     LayoutBlock("hero", "Große Slideshow", "Großes Bild oben mit aktuellen Filmen und Serien", fixed = true),
     // Fof TV (Nuvio order): Continue watching right under the big picture, then live sports
     LayoutBlock("resume", "Weiterschauen", "Dort weitermachen, wo du aufgehört hast"),
+    LayoutBlock("wl", "Meine Liste", "Titel, die du dir gemerkt hast"),
     LayoutBlock("sportlive", "Live sports", "Games on now: one click plays the right channel"),
     LayoutBlock("trend", "Top 10 heute", "Die beliebtesten Titel des Tages"),
     LayoutBlock("stremio", "From your Stremio addons", "Popular movies and series, plus your addons' catalogs"),
     LayoutBlock("because", "Weil du etwas geschaut hast", "Ähnliche Titel zu deinem letzten Film oder deiner letzten Serie"),
-    LayoutBlock("wl", "Meine Liste", "Titel, die du dir gemerkt hast"),
     LayoutBlock("newm", "Neue Filme", "Zuletzt hinzugefügte Filme"),
     LayoutBlock("news", "Neue Serien", "Zuletzt hinzugefügte Serien"),
     LayoutBlock("mg", "Filme nach Genre", "Reihen für die häufigsten Film-Genres"),
@@ -108,10 +108,11 @@ object HomeLayout : BlockLayout("ipvio_homelayout", HOME_BLOCKS, setOf("favch", 
 object FofHome {
     fun apply(c: android.content.Context) {
         val p = c.applicationContext.getSharedPreferences("fof_flags", android.content.Context.MODE_PRIVATE)
-        if (p.getBoolean("home_v1", false)) return
+        // v2 (Netflix order): Continue Watching, My List, Top 10, then the discovery rows
+        if (p.getBoolean("home_v2", false)) return
         HomeLayout.init(c)
         HomeLayout.reset(c)
-        p.edit().putBoolean("home_v1", true).apply()
+        p.edit().putBoolean("home_v1", true).putBoolean("home_v2", true).apply()
     }
 }
 

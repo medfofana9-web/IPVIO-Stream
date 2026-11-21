@@ -150,7 +150,7 @@ object SidebarPrefs {
     const val RIGHT = 1
     const val TOP = 2
     val POS_NAMES = listOf("Links", "Rechts", "Oben")
-    var pos by mutableIntStateOf(TOP)
+    var pos by mutableIntStateOf(LEFT)
         private set
     /** Always with text (otherwise icons only, texts when entering). */
     var labels by mutableStateOf(false)
@@ -158,8 +158,8 @@ object SidebarPrefs {
 
     fun init(c: android.content.Context) {
         val p = Profiles.sp(c, "ipvio_side")
-        // TryBox-style: the menu is a floating pill at the top unless this profile chose left or right
-        pos = p.getInt("pos", TOP).coerceIn(LEFT, TOP)
+        // Netflix on TV: a slim icon rail on the left that opens with labels; the top pill stays as an option
+        pos = p.getInt("pos", LEFT).coerceIn(LEFT, TOP)
         labels = p.getBoolean("labels", false)
     }
 

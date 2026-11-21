@@ -230,6 +230,7 @@ fun HomeScreen(
     val cmPopS by produceState(Catalog.cached(Catalog.popular(Kind.SERIES))) { value = Catalog.items(Catalog.popular(Kind.SERIES)) }
     val trendItems = remember(cmPopM, cmPopS) { (0 until 20).flatMap { listOfNotNull(cmPopM.getOrNull(it), cmPopS.getOrNull(it)) } }
     val trendTop = remember(trendItems) { trendItems.take(10) }
+    LaunchedEffect(trendTop) { Top10.ids = trendTop.mapTo(HashSet()) { it.id } }
     LaunchedEffect(Unit) { FofHome.apply(ctx) }
     val wlVod = remember(watchList) { watchList.filter { it.kind != Kind.LIVE } }
     // Live TV opens faster: genres and quality bundling of all channels are prepared in the background (both keep their result)
@@ -626,27 +627,27 @@ fun HomeScreen(
                                         // From this profile's own setup answers (nothing for a profile that skipped it)
                                         if (tasteTop.isNotEmpty()) {
                                             item(key = "taste:picked") { ExtraRow("We think you'll love this", "taste:picked:" + Profiles.active, cardW, onOpen, onBrowse, style = CARD_SPOT) { TasteRows.picked(ctx, tasteTop) } }
-                                            item(key = "taste:movies") { ExtraRow("Movies you might love", "taste:movies:" + Profiles.active, cardW, onOpen, onBrowse) { TasteRows.forKind(ctx, Kind.MOVIE, tasteTop) } }
-                                            item(key = "taste:shows") { ExtraRow("Shows matching your taste", "taste:shows:" + Profiles.active, cardW, onOpen, onBrowse) { TasteRows.forKind(ctx, Kind.SERIES, tasteTop) } }
+                                            item(key = "taste:movies") { ExtraRow("Movies We Think You'll Love", "taste:movies:" + Profiles.active, cardW, onOpen, onBrowse) { TasteRows.forKind(ctx, Kind.MOVIE, tasteTop) } }
+                                            item(key = "taste:shows") { ExtraRow("TV Shows Picked for You", "taste:shows:" + Profiles.active, cardW, onOpen, onBrowse) { TasteRows.forKind(ctx, Kind.SERIES, tasteTop) } }
                                         }
                                         // Actors and creators picked in the setup: what they are known for (TMDB)
                                         tastePeople.take(2).forEach { (pid, pn) ->
                                             item(key = "person:$pid") { ExtraRow("Because you love $pn", "person:$pid", cardW, onOpen, onBrowse) { TmdbExtra.personTitles(pid) } }
                                         }
                                         Catalog.home().forEach { sp -> item(key = "cm" + sp.title) { CatalogRow(sp, cardW, onOpen, onBrowse, topIds) } }
-                                        if (tasteTop.isNotEmpty()) item(key = "taste:new") { ExtraRow("Discover something new", "taste:new:" + Profiles.active, cardW, onOpen, onBrowse) { TasteRows.discover(ctx, tasteTop) } }
+                                        if (tasteTop.isNotEmpty()) item(key = "taste:new") { ExtraRow("Something New for You", "taste:new:" + Profiles.active, cardW, onOpen, onBrowse) { TasteRows.discover(ctx, tasteTop) } }
                                         // Curated discovery rows
-                                        item(key = "cur:acclaimed") { CatalogRow(Catalog.Spec("Critically acclaimed", "movie", "imdbRating"), cardW, onOpen, onBrowse, topIds) }
+                                        item(key = "cur:acclaimed") { CatalogRow(Catalog.Spec("Critically Acclaimed Movies", "movie", "imdbRating"), cardW, onOpen, onBrowse, topIds) }
                                         // Hidden gems: highly rated titles beyond the most famous ones (the top of the rating list and today's popular titles are left out)
-                                        item(key = "cur:gems") { ExtraRow("Hidden gems", "cur:gems", cardW, onOpen, onBrowse) {
+                                        item(key = "cur:gems") { ExtraRow("Hidden Gems for You", "cur:gems", cardW, onOpen, onBrowse) {
                                             val famous = (Catalog.cached(Catalog.popular(Kind.MOVIE)) + Catalog.cached(Catalog.popular(Kind.SERIES))).map { it.id }.toSet()
                                             val m = Catalog.items(Catalog.featured(Kind.MOVIE), 4).drop(40); val s = Catalog.items(Catalog.featured(Kind.SERIES), 4).drop(40)
                                             (0 until maxOf(m.size, s.size)).flatMap { listOfNotNull(m.getOrNull(it), s.getOrNull(it)) }.filter { it.id !in famous }.distinctBy { it.id }.take(30) } }
-                                        item(key = "cur:binge") { CatalogRow(Catalog.Spec("Binge-worthy series", "series", "imdbRating"), cardW, onOpen, onBrowse, topIds) }
-                                        item(key = "cur:short") { ExtraRow("Short movies for tonight", "cur:short", cardW, onOpen, onBrowse) {
+                                        item(key = "cur:binge") { CatalogRow(Catalog.Spec("Binge-worthy TV Shows", "series", "imdbRating"), cardW, onOpen, onBrowse, topIds) }
+                                        item(key = "cur:short") { ExtraRow("Quick Watches: Under 100 Minutes", "cur:short", cardW, onOpen, onBrowse) {
                                             Catalog.items(Catalog.popular(Kind.MOVIE), 3).filter { Catalog.meta(it)?.runtime?.let { r -> r in 60..100 } == true } } }
                                         item(key = "cur:classic") { val y = remember { listOf(1975, 1985, 1990, 1995, 1999).random() }
-                                            CatalogRow(Catalog.Spec("Rediscover a classic", "movie", "year", y.toString()), cardW, onOpen, onBrowse, topIds) }
+                                            CatalogRow(Catalog.Spec("Timeless Classics", "movie", "year", y.toString()), cardW, onOpen, onBrowse, topIds) }
                                         // What just came out on the big streaming services
                                         TmdbExtra.SERVICES.take(4).forEach { sv ->
                                             item(key = "new" + sv.id) { ExtraRow("New on " + sv.name, "new:" + sv.id, cardW, onOpen, onBrowse) { TmdbExtra.newOn(sv) } }
@@ -661,7 +662,7 @@ fun HomeScreen(
                                     "chnow" -> { if (nowChannels.isNotEmpty()) item(key = "chnow") { ChannelNowRow("Live TV", nowChannels, onOpen) { onTab(3) } } }
                                     // Top 10 always as whole covers (independent of the picture setting)
                                     "trend" -> { if (trendItems.size >= 3) item(key = "trend") {
-                                        ItemsRow("Today's Top 10", trendTop, cardW, onOpen, style = CARD_TOP10) { onBrowse(BrowseReq("Im Trend", trendItems, SORT_PLAYLIST)) }
+                                        ItemsRow("Top 10 Movies & Shows Today", trendTop, cardW, onOpen, style = CARD_TOP10) { onBrowse(BrowseReq("Im Trend", trendItems, SORT_PLAYLIST)) }
                                     } }
                                     "because" -> { /* Fof TV: based on the provider's titles, not shown */ }
                                     "wl" -> { if (wl.isNotEmpty()) item(key = "wl") { ItemsRow("Meine Liste", wl, cardW, onOpen) { onTab(MenuLogic.MYLIST) } } }

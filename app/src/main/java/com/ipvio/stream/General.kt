@@ -155,7 +155,9 @@ object General {
         perRow = p.getInt("per_row", 0).let { if (it == 0) 0 else it.coerceIn(3, 14) }
         kinoPerRow = p.getInt("kino_per_row", 0).let { if (it == 0) 0 else it.coerceIn(3, 14) }
         cardArt = p.getInt("card_art", 0).coerceIn(0, 1)
-        previewStyle = p.getInt("preview_style", 0).coerceIn(0, 1)
+        // Netflix look (once): the selected card opens into the wide scene preview
+        if (!p.getBoolean("netflix_v1", false)) p.edit().putInt("preview_style", 1).putBoolean("netflix_v1", true).apply()
+        previewStyle = p.getInt("preview_style", 1).coerceIn(0, 1)
         Parental.init(c)
         LangFilter.init(c)
         PlayerLocale.locale = Lang.locale()

@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -678,10 +679,11 @@ fun CardRow(
                     // TryBox-style Top 10: a huge outlined rank number with the cover tucked against it
                     style == CARD_TOP10 && i < 10 -> Row(verticalAlignment = Alignment.Bottom) {
                         Top10Number(i + 1)
-                        RowPosterCard(it, g.poster, track.restoreFocus(it.id).then(fr).offset(x = -dpx(34)), overlay0 = 0, expand = false) { onOpen(it) }
+                        RowPosterCard(it, g.poster, track.restoreFocus(it.id).then(fr).offset(x = -dpx(34)), overlay0 = 0, expand = true) { onOpen(it) }
                     }
                     // 17c: on the home screen no preview expands (the info is already shown large at the top)
-                    else -> RowPosterCard(it, g.poster, track.restoreFocus(it.id).then(fr), overlay0 = 0, expand = false) { onOpen(it) }
+                    // Netflix: resting on a card opens it into a wide scene preview (title, match, year, genres)
+                    else -> RowPosterCard(it, g.poster, track.restoreFocus(it.id).then(fr), overlay0 = 0, expand = true) { onOpen(it) }
                 }
             }
         }
@@ -867,8 +869,22 @@ fun RowPosterCard(item: Item, baseW: Dp, modifier: Modifier, overlay0: Int = 0, 
                 .graphicsLayer { alpha = ta; translationY = (1f - ta) * 14.dp.toPx() })
         }
         if (item.kind != Kind.SERIES && DeadLinks.isDead(item.url)) AppIcon(AIcon.Warning, DS.Gold, Modifier.align(Alignment.TopStart).padding(dpx(8)), dpx(18))
-        // New episode for a favorite series (disappears as soon as the series is opened)
-        if (item.kind == Kind.SERIES && NewEpisodes.list.any { it.id == item.id }) Box(Modifier.align(Alignment.TopStart).padding(dpx(8))) { Badge("Neue Folge", DS.Scrim, Accent2, AIcon.Sparkle) }
+        // Netflix-style badges: TOP 10 corner tag, red "New Episodes" / "Recently Added" strip at the bottom
+        if (item.id in Top10.ids && p < 0.5f) Top10Tag(Modifier.align(Alignment.TopEnd))
+        val strip = when {
+            item.kind == Kind.SERIES && NewEpisodes.list.any { it.id == item.id } -> "New Episodes"
+            (m?.year ?: item.year?.toString())?.take(4)?.toIntOrNull()?.let { it >= java.util.Calendar.getInstance().get(java.util.Calendar.YEAR) } == true -> "New"
+            else -> null
+        }
+        if (strip != null && p < 0.5f) RedStrip(strip, Modifier.align(Alignment.BottomCenter))
+        // Red progress line for anything started (Continue Watching look on every card)
+        val progress = WatchStore.entries.firstOrNull { it.itemId == item.id && !it.next && it.dur > 0L && it.pos > 0L }
+            ?.let { (it.pos.toFloat() / it.dur).coerceIn(0f, 1f) }
+        if (progress != null && progress in 0.01f..0.99f) {
+            Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = dpx(10), vertical = dpx(8)).height(dpx(4)).clip(RoundedCornerShape(50)).background(Color(0x80FFFFFF))) {
+                Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Color(0xFFE60023)))
+            }
+        }
         // 17c: darkening as a simple surface on top (cheaper than transparency of the whole card)
         Box(Modifier.fillMaxSize().drawBehind { val d = 1f - dimA; if (d > 0.01f) drawRect(Color.Black.copy(alpha = d)) })
     }
@@ -881,16 +897,6 @@ fun RowPosterCard(item: Item, baseW: Dp, modifier: Modifier, overlay0: Int = 0, 
     if (clean) Column(modifier.width(w)) {
         Box(Modifier.width(w).height(h).then(focusMod)) {
             visual(Modifier.fillMaxSize())
-            // Resume progress is visible directly in every Home/Movie/TV rail.
-            // It is drawn over artwork without additional network requests.
-            val progress = WatchStore.entries.firstOrNull {
-                it.itemId == item.id && !it.next && it.dur > 0L && it.pos > 0L
-            }?.let { (it.pos.toFloat() / it.dur).coerceIn(0f, 1f) }
-            if (progress != null && progress in 0.01f..0.99f) {
-                Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(dpx(5)).background(Color(0x99000000))) {
-                    Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Color(0xFFE60023)))
-                }
-            }
         }
         Spacer(Modifier.height(dpx(12)))
         Text(raw = true, text = item.title, color = Color.White, fontSize = spx(17), lineHeight = spx(21),
@@ -946,8 +952,9 @@ private fun PreviewInfo(item: Item, base: Meta, load: Boolean, modifier: Modifie
     val m = rememberFullMeta(item, base, load) ?: base
     val soft = Tok.TextMid
     Column(modifier, verticalArrangement = Arrangement.spacedBy(dpx(8))) {
-        Text(raw = true, text = item.title, color = Color.White, fontSize = spx(28), fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        TitleOrLogo(item, m)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(14))) {
+            matchPercent(LocalContext.current, m)?.let { Text(raw = true, text = "$it% Match", color = Color(0xFF46D369), fontSize = spx(19), fontWeight = FontWeight.Bold) }
             ScoreRow(m, 18)
             (m.year ?: item.year?.toString())?.let { Text(raw = true, text = it, color = soft, fontSize = spx(19), fontWeight = FontWeight.Medium) }
             if (item.kind == Kind.SERIES) Text(seriesCountText(item), color = soft, fontSize = spx(19), maxLines = 1)
@@ -1125,4 +1132,47 @@ private fun SpotChip(text: String, icon: AIcon, primary: Boolean) {
         AppIcon(icon, ink, size = dpx(16))
         Text(text, color = ink, fontSize = spx(15), fontWeight = FontWeight.SemiBold, maxLines = 1, raw = true)
     }
+}
+
+
+/** Titles in today's Top 10 (for the corner tag on every card in the app). */
+object Top10 { var ids by mutableStateOf<Set<String>>(emptySet()) }
+
+/** Netflix-style "TOP 10" corner tag. */
+@Composable
+fun Top10Tag(modifier: Modifier = Modifier) {
+    Column(
+        modifier.width(dpx(30)).clip(RoundedCornerShape(bottomStart = dpx(4))).background(Color(0xFFE60023)).padding(vertical = dpx(3)),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(raw = true, text = "TOP", color = Color.White, fontSize = spx(8), lineHeight = spx(9), fontWeight = FontWeight.Black, maxLines = 1)
+        Text(raw = true, text = "10", color = Color.White, fontSize = spx(13), lineHeight = spx(14), fontWeight = FontWeight.Black, maxLines = 1)
+    }
+}
+
+/** Netflix-style red strip at the bottom of a cover ("New Episodes", "Recently Added"). */
+@Composable
+fun RedStrip(text: String, modifier: Modifier = Modifier) {
+    Text(raw = true, text = text, color = Color.White, fontSize = spx(12), fontWeight = FontWeight.Bold, maxLines = 1,
+        modifier = modifier.clip(RoundedCornerShape(topStart = dpx(4), topEnd = dpx(4))).background(Color(0xFFE60023))
+            .padding(horizontal = dpx(9), vertical = dpx(3)))
+}
+
+
+/** Title logo when TMDB has one, otherwise the title in bold (expanded card preview). */
+@Composable
+private fun TitleOrLogo(item: Item, m: Meta) {
+    Box(Modifier.heightIn(max = dpx(70))) { HeroTitle(item, m, 28, dpx(320), dpx(70)) }
+}
+
+/**
+ * Netflix-style "% Match": the title's audience score, lifted when its genres are among this profile's liked genres
+ * and lowered for genres the profile said no to. Null without a score.
+ */
+fun matchPercent(c: android.content.Context, m: Meta): Int? {
+    val r = m.rating ?: return null
+    val liked = Taste.genres(c); val no = Taste.genresNo(c)
+    val hit = m.genres.count { g -> liked.any { it.equals(g, true) } }
+    val miss = m.genres.count { g -> no.any { it.equals(g, true) } }
+    return (r * 9.0 + 12 + hit * 6 - miss * 12).toInt().coerceIn(40, 99)
 }

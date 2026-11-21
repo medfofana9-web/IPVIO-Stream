@@ -45,7 +45,9 @@ object FofPrefs {
     fun init(c: Context) {
         val p = Profiles.sp(c, NAME)
         spoilerPics = p.getBoolean("spoiler_pics", true)
-        cleanLook = p.getBoolean("clean_look", true)
+        // Netflix look (once per profile): background follows the selected title, cards expand into a preview
+        if (!p.getBoolean("netflix_v1", false)) p.edit().putBoolean("clean_look", false).putBoolean("netflix_v1", true).apply()
+        cleanLook = p.getBoolean("clean_look", false)
         spoilerText = p.getBoolean("spoiler_text", false)
         oneClick = p.getBoolean("one_click", false)
         providerVod = p.getBoolean("provider_vod", false)
