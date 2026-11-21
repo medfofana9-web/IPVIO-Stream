@@ -21,6 +21,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -157,9 +160,17 @@ object SportWatch {
         val fixed = SportFix.map[SportFix.key(g)]
         val learned = SportLearn.lookup(g)
         val pr = prepFor(live)
-        val sig = ((((((System.identityHashCode(live) * 31 + live.size) * 31 + version) * 31 + SportAddons.cached(g).size) * 31 + (fixed?.hashCode() ?: 0)) * 31 +
-            learned.hashCode()) * 31 + SportLearn.version) * 31 + (if (pr != null) 1 else 0)
-        synchronized(cache) { cache[g.key]?.let { if (it.first == sig) return it.second } }
+        // Recalculate when addon results, TV networks or game state change.
+        // Otherwise an early empty result can remain cached after a match airs.
+        val fullSig = listOf(
+            System.identityHashCode(live), live.size, version,
+            SportAddons.version, SportAddons.cached(g).size,
+            fixed?.hashCode() ?: 0, learned.hashCode(), SportLearn.version,
+            if (pr != null) 1 else 0,
+            g.nets.hashCode(), g.tv.hashCode(), g.state,
+            g.start.hashCode(), g.end.hashCode()
+        ).fold(17) { acc, n -> acc * 31 + n }
+        synchronized(cache) { cache[g.key]?.let { if (it.first == fullSig) return it.second } }
         val out = ArrayList<Hit>()
         if (fixed != null) live.firstOrNull { it.id == fixed }?.let { out.add(Hit(it, 0, "")) }
         learned.forEach { id -> live.firstOrNull { it.id == id }?.let { out.add(Hit(it, 5, "")) } }
@@ -185,7 +196,7 @@ object SportWatch {
         }
         // Working channels before ones marked broken; the rest of the list is the backup order for the player
         val r = out.distinctBy { it.ch.id }.sortedBy { if (DeadLinks.isDead(it.ch.url)) 1 else 0 }
-        synchronized(cache) { if (cache.size > 800) cache.clear(); cache[g.key] = sig to r }
+        synchronized(cache) { if (cache.size > 800) cache.clear(); cache[g.key] = fullSig to r }
         return r
     }
 
@@ -207,11 +218,25 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
     val ctx = LocalContext.current
     SportFix.init(ctx)
     val g = SportFeed.latest[g0.key] ?: g0
-    @Suppress("UNUSED_VARIABLE") val ready = SportWatch.prepVersion   // recompose once the channel lookups are built
-    // Streams of this game from the addons (Pengu …) join the list once found
-    @Suppress("UNUSED_VARIABLE") val addonV = SportAddons.version
-    LaunchedEffect(g.key) { runCatching { SportAddons.find(ctx, g) } }
-    val hits = SportWatch.resolve(g, hub.live)
+    val prepVersion = SportWatch.prepVersion
+    val addonVersion = SportAddons.version
+    val epgVersion = SportWatch.version
+    var addonPending by remember(g.key) { mutableStateOf(true) }
+    LaunchedEffect(g.key) {
+        try { SportAddons.find(ctx, g) } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (_: Exception) { /* recover with playlist channels and manual selection */ }
+        finally { addonPending = false }
+    }
+    // Matching a game against thousands of channels must never happen in
+    // composition. Until the first lookup is complete show an actual
+    // searching state, not the misleading "no matching channel" message.
+    val hitsLoading by produceState<List<SportWatch.Hit>?>(null, g.key, g.nets, hub.live, prepVersion, addonVersion, epgVersion) {
+        value = withContext(Dispatchers.Default) {
+            SportWatch.prewarm(hub.live)
+            SportWatch.resolve(g, hub.live)
+        }
+    }
+    val hits = hitsLoading.orEmpty()
     var pick by remember { mutableStateOf(false) }
     val first = remember { FocusRequester() }
     HubPageFrame("Live ansehen", g.groupName, { hub.nav.pop() }, first, rawTitle = false) {
@@ -248,9 +273,10 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
                 FilterPill("Mehr Infos", false, Modifier.trackFocus(), aicon = AIcon.Info) { hub.nav.open(HubPage.Match(g)) }
             }
         }
-        if (hits.isEmpty()) HubEmpty(
-            AIcon.Live, "Kein passender Sender gefunden",
-            "ESPN liefert keine Streams. Gesucht wird in deinem TV-Guide und in deinen Sendernamen. Du kannst den Sender auch selbst zuordnen; die App merkt sich das für dieses Spiel."
+        if (hitsLoading == null || (hits.isEmpty() && addonPending)) HubLoading("Finding live game streams…")
+        else if (hits.isEmpty()) HubEmpty(
+            AIcon.Live, "No matching channel found yet",
+            "This game's sources have not been identified. Your TV guide, channel names, and installed live-sports addons were checked. You can also assign a channel manually."
         ) else LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(bottom = dpx(30)), verticalArrangement = Arrangement.spacedBy(dpx(4))) {
             itemsIndexed(hits, key = { _, h -> h.ch.id }) { _, h ->
                 FRow({ hub.watchOn(g, h.ch, hits.map { it.ch }) }) {

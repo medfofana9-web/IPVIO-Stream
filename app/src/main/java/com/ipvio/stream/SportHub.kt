@@ -96,39 +96,41 @@ class HubCtx(val nav: HubNav, val live: List<Item>, private val onPlay: (Item, L
     fun play(ch: Item, list: List<Item>) { HubMemory.keep = nav.stack.toList(); nav.clear(); onPlay(ch, list) }
     /** Watch Live: start the best channel directly, otherwise show the Watch Live page (assign by hand). */
     fun watch(g: SportData.Game) {
-        // Never block a known stream while searching add-on catalogs. The
-        // optional add-on lookup can continue after the first picture starts.
-        val c = chans(g)
-        if (c.isNotEmpty()) {
-            SportSession.start(g, c, live)
-            val first = SportSession.firstChannel() ?: c[0]
-            play(first, SportSession.zapList().ifEmpty { c })
-            val app = ctxApp
-            if (app != null && g.state != 2 && SportAddons.cached(g).isEmpty())
-                scopeApp?.launch { runCatching { SportAddons.find(app, g) } }
-            return
-        }
-
-        // No playlist/guide match: give addons a short chance to provide an
-        // exact game feed, then open Watch Live to let the viewer choose.
-        val app = ctxApp
-        val scope = scopeApp
-        if (app != null && scope != null && g.state != 2 && pendingAddon != g.key) {
-            pendingAddon = g.key
-            scope.launch {
-                try {
-                    withTimeoutOrNull(2_500L) { SportAddons.find(app, g) }
-                    val found = chans(g)
-                    if (found.isEmpty()) nav.open(HubPage.Watch(g))
-                    else {
-                        SportSession.start(g, found, live)
-                        play(SportSession.firstChannel() ?: found[0], SportSession.zapList().ifEmpty { found })
-                    }
-                } finally {
-                    pendingAddon = null
+        // On the first visit the playlist's channel index may still be warming.
+        // Never interpret that unfinished lookup as "no stream" for a game.
+        // Keep D-pad handling on the main thread and run source matching off it.
+        if (pendingAddon == g.key) return
+        val scope = scopeApp ?: return
+        pendingAddon = g.key
+        scope.launch {
+            try {
+                val app = ctxApp
+                val ready = withContext(Dispatchers.Default) {
+                    SportWatch.prewarm(live)
+                    SportWatch.channels(g, live)
                 }
+                if (ready.isNotEmpty()) {
+                    SportSession.start(g, ready, live)
+                    play(SportSession.firstChannel() ?: ready.first(), SportSession.zapList().ifEmpty { ready })
+                    // Warm optional sources only after launching the known channel.
+                    if (app != null && g.state != 2 && SportAddons.cached(g).isEmpty())
+                        launch(Dispatchers.IO) { runCatching { SportAddons.find(app, g) } }
+                    return@launch
+                }
+                // Exact addon game streams may arrive slower than the playlist
+                // index. Give discovery one bounded chance on the FIRST visit.
+                if (app != null && g.state != 2) {
+                    withTimeoutOrNull(5_000L) { SportAddons.find(app, g) }
+                }
+                val candidates = withContext(Dispatchers.Default) { SportWatch.channels(g, live) }
+                if (candidates.isNotEmpty()) {
+                    SportSession.start(g, candidates, live)
+                    play(SportSession.firstChannel() ?: candidates.first(), SportSession.zapList().ifEmpty { candidates })
+                } else nav.open(HubPage.Watch(g))
+            } finally {
+                pendingAddon = null
             }
-        } else if (pendingAddon != g.key) nav.open(HubPage.Watch(g))
+        }
     }
     /** A channel picked on the Watch Live page: same session, starting on that channel. */
     fun watchOn(g: SportData.Game, ch: Item, c: List<Item>) {

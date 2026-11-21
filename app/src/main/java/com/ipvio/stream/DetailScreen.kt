@@ -688,14 +688,14 @@ private fun DetailScreenFull(
                 // Episodes area (round 16): seasons on the left with the shown season marked, episodes on the right.
                 // Right in the episode list = next season, Left = to the season selection.
                 Row(
-                    Modifier.fillMaxWidth().height(paneH).padding(top = dpx(12))
-                        .onFocusChanged { if (it.hasFocus) scope.launch { listState.animateScrollToItem(EP_PANE) } }
+                    Modifier.fillMaxWidth().height(paneH).padding(top = dpx(16))
+                        .onFocusChanged { if (it.hasFocus && listState.firstVisibleItemIndex != EP_PANE) scope.launch { listState.scrollToItem(EP_PANE) } }
                         .focusProperties { enterTo { seasonReq } }
                         .focusGroup(),
-                    horizontalArrangement = Arrangement.spacedBy(dpx(28))
+                    horizontalArrangement = Arrangement.spacedBy(dpx(18))
                 ) {
                     LazyColumn(
-                        Modifier.width(dpx(250)).fillMaxHeight(),
+                        Modifier.width(dpx(202)).fillMaxHeight(),
                         state = seasonRowState,
                         verticalArrangement = Arrangement.spacedBy(dpx(6)),
                         contentPadding = PaddingValues(vertical = dpx(8))
@@ -720,10 +720,10 @@ private fun DetailScreenFull(
                             Modifier.padding(bottom = dpx(10)),
                             horizontalArrangement = Arrangement.spacedBy(dpx(16)), verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("EPISODES", raw = true, color = FofVisual.Violet, fontSize = spx(14),
-                                fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
+                            Text("Season $season  ·  ${eps.size} episodes", raw = true, color = Tok.TextHi, fontSize = spx(21),
+                                fontWeight = FontWeight.Bold, letterSpacing = 0.sp)
                             // Fof TV: no permanent remote hints (clutter); only a short note while episode info loads
-                            if (epLoading) Text("Loading details…", color = Muted, fontSize = spx(14))
+                            if (epLoading) Text("Updating episode info", color = Muted, fontSize = spx(13))
                             if (item.episodes.size > EpisodeLogic.LONG) DetailPill("Jump to episode", icon = AIcon.Down) { jumpOpen = !jumpOpen }
                         }
                         // Long season: sections (TMDB seasons or blocks of 50 episodes) instead of an endless list
@@ -749,14 +749,14 @@ private fun DetailScreenFull(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Field(
-                                jumpText, { v -> jumpText = v.filter { it.isDigit() }.take(4) }, "Folgennummer",
+                                jumpText, { v -> jumpText = v.filter { it.isDigit() }.take(4) }, "Episode number",
                                 Modifier.width(280.dp), inner = Modifier.focusRequester(jumpReq), number = true, onDone = { doJump() }
                             )
-                            DetailPill("Springen", light = true) { doJump() }
+                            DetailPill("Go", light = true) { doJump() }
                             DetailPill("Cancel") { jumpOpen = false; jumpText = "" }
                         }
                         LazyColumn(Modifier.fillMaxWidth().weight(1f), state = epListState, contentPadding = PaddingValues(bottom = dpx(40))) {
-                            itemsIndexed(shown, key = { j0, ep -> "e${ep.season}_${ep.num}_$j0" }) { j, ep ->
+                            itemsIndexed(shown, key = { _, ep -> "e${ep.season}_${ep.num}" }) { j, ep ->
                                 val i = (group?.from ?: 0) + j
                                 val em = metaOf(ep)
                                 val v = pick(ep)
@@ -809,24 +809,22 @@ private fun DetailScreenFull(
 @Composable
 private fun EpisodeRow(ep: Episode, em: EpMeta?, v: Variant, prog: ResumeLogic.EpPos?, modifier: Modifier, onFocus: () -> Unit, onToggleSeen: () -> Unit, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(dpx(16))
-    // Round 17b: the selected episode floats forward (glass, shadow, slightly larger) instead of a white frame; the others stay calm
-    val sc by androidx.compose.animation.core.animateFloatAsState(if (f) focusScale(1.02f) else 1f, label = "ep")
+    val shape = RoundedCornerShape(dpx(14))
+    // Quiet, stable focus: a slight lift and crisp outline instead of a large GPU-heavy shadow.
+    val sc by androidx.compose.animation.core.animateFloatAsState(if (f) focusScale(1.012f) else 1f, label = "ep")
     Row(
-        modifier.fillMaxWidth().padding(vertical = dpx(6))
+        modifier.fillMaxWidth().padding(vertical = dpx(4))
             .graphicsLayer { scaleX = sc; scaleY = sc; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f) }
-            .then(if (f) Modifier.shadow(dpx(24), shape, ambientColor = Tok.Lift, spotColor = Tok.Lift) else Modifier)
-            .clip(shape).background(FofGlass.body(if (f) 1 else 0, f))
-            .background(FofGlass.sheen(if (f) 1 else 0, f))
-            .border(if (f) 2.dp else 1.dp, if (f) FofGlass.rim() else FofGlass.edge(false), shape)
+            .clip(shape).background(if (f) Color(0xFF222632) else Color(0xFF141820))
+            .border(if (f) 2.dp else 1.dp, if (f) Color(0xFFD7DAF3) else Color(0x28FFFFFF), shape)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
             .favKeys(onToggleSeen)
             .clickable(onClick = onClick)
-            .padding(dpx(14)),
-        horizontalArrangement = Arrangement.spacedBy(dpx(22)), verticalAlignment = Alignment.CenterVertically
+            .padding(dpx(10)),
+        horizontalArrangement = Arrangement.spacedBy(dpx(16)), verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            Modifier.width(dpx(300)).height(dpx(169)).clip(RoundedCornerShape(dpx(12)))
+            Modifier.width(dpx(228)).height(dpx(128)).clip(RoundedCornerShape(dpx(10)))
                 .background(Brush.linearGradient(listOf(lerp(Surf2, Accent1, 0.22f), Surf2))),
             contentAlignment = Alignment.Center
         ) {
@@ -849,26 +847,26 @@ private fun EpisodeRow(ep: Episode, em: EpMeta?, v: Variant, prog: ResumeLogic.E
                     .clip(RoundedCornerShape(50)).background(Color(0xC408090D))
                     .padding(horizontal = dpx(10), vertical = dpx(5)))
             // Selected: round play button in the middle
-            if (f) Box(Modifier.align(Alignment.Center).size(dpx(58)).clip(RoundedCornerShape(50)).background(Color(0xEBF4F6FB)), contentAlignment = Alignment.Center) {
-                AppIcon(AIcon.Play, Color(0xFF05070D), size = dpx(26))
+            if (f) Box(Modifier.align(Alignment.Center).size(dpx(42)).clip(RoundedCornerShape(50)).background(Color(0xEBF4F6FB)), contentAlignment = Alignment.Center) {
+                AppIcon(AIcon.Play, Color(0xFF05070D), size = dpx(20))
             }
             // Progress: bar at the bottom, watched = check mark top right
-            if (prog != null && prog.done) Box(Modifier.align(Alignment.TopEnd).padding(6.dp)) { Badge("Gesehen", DS.Scrim, Accent2, AIcon.Check) }
+            if (prog != null && prog.done) Box(Modifier.align(Alignment.TopEnd).padding(6.dp)) { Badge("Watched", DS.Scrim, Accent2, AIcon.Check) }
             else if (prog != null && prog.fraction > 0.02f) Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color(0x66FFFFFF))) {
                 Box(Modifier.fillMaxWidth(prog.fraction).fillMaxHeight().background(Accent2))
             }
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(raw = true, text = "${ep.num}. ${em?.name ?: ep.title}", color = Tok.TextHi, fontSize = spx(if (f) 26 else 24), fontWeight = if (f) FontWeight.ExtraBold else FontWeight.Bold,
+                Text(raw = true, text = "${ep.num}. ${em?.name ?: ep.title}", color = Tok.TextHi, fontSize = spx(21), fontWeight = if (f) FontWeight.Bold else FontWeight.SemiBold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 v.quality?.let { QualityBadge(it) }
                 em?.imdb?.let { Badge("IMDb $it", Color(0xFFF5C518), Color.Black) }
                 if (em?.imdb == null) em?.rating?.let { RatingBadge(it, Color(0x26FFFFFF)) }
                 em?.runtime?.let { Badge("$it Min") }
             }
-            em?.air?.let { Text(raw = true, text = it, color = Muted, fontSize = spx(16)) }
-            em?.overview?.takeIf { !(FofPrefs.spoilerText && prog?.done != true) }?.let { Text(raw = true, text = it, color = if (f) Tok.TextMid else Tok.TextLow, fontSize = spx(18), lineHeight = spx(25), maxLines = 3, overflow = TextOverflow.Ellipsis) }
+            em?.air?.let { Text(raw = true, text = it, color = Muted, fontSize = spx(13)) }
+            em?.overview?.takeIf { !(FofPrefs.spoilerText && prog?.done != true) }?.let { Text(raw = true, text = it, color = if (f) Tok.TextMid else Tok.TextLow, fontSize = spx(15), lineHeight = spx(20), maxLines = 2, overflow = TextOverflow.Ellipsis) }
             // (Hint "hold OK = mark as watched" removed: marking stays available by holding OK and under "More")
         }
     }
@@ -896,12 +894,12 @@ private fun SeasonEntry(season: Int, count: Int, selected: Boolean, modifier: Mo
         horizontalArrangement = Arrangement.spacedBy(dpx(14)), verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            Modifier.width(dpx(5)).height(dpx(if (selected) 46 else 24))
+            Modifier.width(dpx(3)).height(dpx(if (selected) 38 else 20))
                 .then(if (selected) Modifier.shadow(dpx(10), RoundedCornerShape(50), ambientColor = Accent1, spotColor = Accent1) else Modifier)
                 .clip(RoundedCornerShape(50)).background(if (selected) Accent1 else Color.Transparent)
         )
         Column {
-            Text("Season $season", color = if (selected || f) Tok.TextHi else Tok.TextLow, fontSize = spx(26), fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
+            Text("Season $season", color = if (selected || f) Tok.TextHi else Tok.TextLow, fontSize = spx(21), fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
             if (selected) Text(text = if (count == 1) "1 episode" else "$count episodes", color = Muted, fontSize = spx(15))
         }
     }

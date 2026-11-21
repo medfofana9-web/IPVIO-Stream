@@ -12,6 +12,13 @@ class SportAddonCacheTest {
         assertFalse(SportAddons.cacheFresh(now, now - 500_000))
     }
 
+    @Test fun emptyDiscoveryExpiresQuicklySoSecondAttemptCanSucceed() {
+        val now = 10_000L
+        assertTrue(SportAddons.cacheFresh(now, now - 2_999L, hasResults = false))
+        assertFalse(SportAddons.cacheFresh(now, now - 3_000L, hasResults = false))
+        assertTrue(SportAddons.cacheFresh(now, now - 3_000L, hasResults = true))
+    }
+
     @Test fun futureDatedCacheNeverCountsAsFresh() {
         assertFalse(SportAddons.cacheFresh(1_000_000, 1_001_000))
     }
