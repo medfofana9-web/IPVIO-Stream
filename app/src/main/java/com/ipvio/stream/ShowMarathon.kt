@@ -40,7 +40,7 @@ object Marathon {
     fun stop() { showId = null; order = emptyList(); context = null }
 
     /** Starts the channel for [item] (an addon show); null when the show has no episodes or no episode would play. */
-    suspend fun start(c: Context, item: Item, shuffle: Boolean): Pick? {
+    suspend fun start(c: Context, item: Item, shuffle: Boolean, continueFromLast: Boolean = true): Pick? {
         val id = item.id.removePrefix("stremio:").takeIf { StremioLogic.isImdb(it) } ?: return null
         val eps = (LazySeries.load(c, item) ?: item).episodes.map { it.season to it.num }
         if (eps.isEmpty()) return null
@@ -49,10 +49,13 @@ object Marathon {
         title = item.title; imdb = id; year = item.year ?: Catalog.meta(item)?.year?.toString()?.take(4)?.toIntOrNull()
         order = MarathonLogic.order(eps, shuffle, System.currentTimeMillis())
         val last = WatchStore.entries.firstOrNull { it.itemId == item.id && it.season > 0 }?.let { it.season to it.ep }
-        idx = if (shuffle) 0 else MarathonLogic.startIndex(order, last)
+        idx = if (shuffle || !continueFromLast) 0 else MarathonLogic.startIndex(order, last)
         showId = item.id
         return resolve(0)
     }
+
+    /** The next scheduled episode; discovery may skip unavailable episodes. */
+    fun upcoming(): String? = order.getOrNull(idx + 1)?.let { (s, e) -> "S${s}E$e" }
 
     /** The next episode with a working link (null when the channel was stopped meanwhile or nothing plays). */
     suspend fun next(): Pick? {
