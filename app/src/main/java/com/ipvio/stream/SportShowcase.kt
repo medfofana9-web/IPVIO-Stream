@@ -100,7 +100,7 @@ internal fun GameTileCard(g: SportData.Game, modifier: Modifier = Modifier, onCl
                 // Team colors: away on the left, home on the right, fading into the card (one gradient, cheap to draw)
                 .then(teamTint(g)?.let { Modifier.background(it) } ?: Modifier)
                 .background(FofGlass.sheen(1, f))
-                .border(if (f) 2.dp else 1.dp, if (f) Color.White else FofGlass.edge(false), shape)
+                .border(if (f) 2.dp else 1.dp, if (f) FofGlass.rim() else FofGlass.edge(false), shape)
                 .onFocusChanged { f = it.isFocused }
                 .trackFocus()
                 .restoreFocus("game:" + g.key)
