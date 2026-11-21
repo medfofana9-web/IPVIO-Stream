@@ -325,7 +325,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         derivedStateOf { AppSettings.skipIntro && savedIntro?.contains(pos) == true && activeSeg == null }
     }
     val manualRecapActive by remember(savedRecap) {
-        derivedStateOf { AppSettings.skipIntro && savedRecap?.contains(pos) == true && activeSeg == null && !manualIntroActive }
+        derivedStateOf { AppSettings.skipRecap && savedRecap?.contains(pos) == true && activeSeg == null && !manualIntroActive }
     }
     val showNextCard by remember(hasNext) {
         derivedStateOf { hasNext && !cur.live && dur > 0 && dur - pos < 30_000 && !nextDismissed }
