@@ -201,16 +201,14 @@ object Stremio {
             runCatching {
                 val q = StremioLogic.cleanTitle(item.title).ifBlank { item.title }
                 val metas = JSONObject(get(StremioLogic.searchUrl(item.kind, q))).optJSONArray("metas") ?: return@runCatching null
-                var best: String? = null
-                for (i in 0 until metas.length()) {
-                    val o = metas.optJSONObject(i) ?: continue
+                val hits = (0 until metas.length()).mapNotNull { i ->
+                    val o = metas.optJSONObject(i) ?: return@mapNotNull null
                     val id = o.optString("imdb_id").ifBlank { o.optString("id") }
-                    if (!StremioLogic.isImdb(id)) continue
-                    if (best == null) best = id
-                    val y = StremioLogic.year(o.optString("releaseInfo"))
-                    if (item.year != null && y == item.year) { best = id; break }
+                    if (!StremioLogic.isImdb(id)) return@mapNotNull null
+                    StremioLogic.ImdbHit(id, o.optString("name"),
+                        StremioLogic.year(o.optString("releaseInfo")), o.optString("type"))
                 }
-                best
+                StremioLogic.chooseImdb(q, item.year, item.kind == Kind.SERIES, hits)
             }.getOrNull()?.also { idCache[item.mk] = it }
         }
     }
