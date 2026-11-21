@@ -498,13 +498,15 @@ private fun DetailScreenFull(
                 ) {
                     Column(Modifier.align(if (embedded && !showActions) Alignment.TopStart else Alignment.BottomStart).widthIn(max = dpx(980)).padding(bottom = dpx(18)), verticalArrangement = Arrangement.spacedBy(dpx(12))) {
                         // Cinematic detail identity stays consistent with Home, Player and Sports.
-                        Row(horizontalArrangement = Arrangement.spacedBy(dpx(14)), verticalAlignment = Alignment.CenterVertically) {
-                            FofEyebrow(if (item.kind == Kind.SERIES) "SERIES DETAILS" else "MOVIE DETAILS")
-                            qualityOf(item)?.let { PreviewQualityBadge(it) }
-                        }
                         // Netflix-style: the official title logo when there is one, otherwise the title in large type
                         HeroTitle(item, meta, 84, dpx(620), dpx(170))
-                        HeroMetaLine(item, meta, dots = false)
+                        // Netflix metadata line: green match, then year · genre · length, quality badge
+                        Row(horizontalArrangement = Arrangement.spacedBy(dpx(14)), verticalAlignment = Alignment.CenterVertically) {
+                            meta?.let { mm -> matchPercent(ctx, mm)?.let { Text("$it% Match", raw = true, color = Color(0xFF46D369), fontSize = spx(19), fontWeight = FontWeight.Bold) } }
+                            HeroMetaLine(item, meta, dots = false)
+                            qualityOf(item)?.let { PreviewQualityBadge(it) }
+                            if (item.id in Top10.ids) Top10Tag()
+                        }
                         // Movie started: small progress bar with remaining time
                         if (item.kind != Kind.SERIES && resume != null && resume.dur > 0 && !ResumeLogic.finished(resume.pos, resume.dur)) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(12))) {
@@ -584,6 +586,13 @@ private fun DetailScreenFull(
                                 // Fof TV: one calm row – Play, My List, Trailer, More. Everything used rarely is in "More"
                                 val inList = Library.isWatch(item.id)
                                 HeroButton(if (inList) "In My List" else "My List", if (inList) AIcon.Check else AIcon.Plus, false, Modifier, bh) { Library.toggleWatch(ctx, item.id) }
+                                // Netflix: Rate (cycles Like → Not for me → not rated) and the trailer right in the main row
+                                var rated by remember(item.id) { mutableIntStateOf(Taste.rating(ctx, item.id)) }
+                                HeroButton(when (rated) { 1 -> "Liked"; -1 -> "Not for me"; else -> "Rate" }, if (rated == 1) AIcon.HeartFilled else AIcon.Heart, false, Modifier, bh) {
+                                    rated = when (rated) { 0 -> 1; 1 -> -1; else -> 0 }
+                                    Taste.rate(ctx, item.id, rated)
+                                }
+                                if (meta?.trailerKey != null) HeroButton("Trailer", AIcon.Play, false, Modifier, bh) { openTrailer(ctx, meta?.trailerKey, item.title) }
                                 // Keep addon sources one remote click away for every movie/TV title,
                                 // even if a provider stream already exists.
                                 if (item.kind != Kind.LIVE && Stremio.addons.any { it.streams }) {

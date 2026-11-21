@@ -79,6 +79,20 @@ object Taste {
     fun sports(c: Context): Set<String> = prefs(c).getStringSet("sports", emptySet()).orEmpty()
     fun genres(c: Context): List<String> = prefs(c).getString("genres", "").orEmpty().split('|').filter { it.isNotBlank() }
     fun titles(c: Context): List<String> = prefs(c).getString("titles", "").orEmpty().split('|').filter { it.isNotBlank() }
+
+    /** Netflix-style rating of one title: 1 = liked (feeds "Because you like …"), -1 = not for me, 0 = not rated. */
+    fun rating(c: Context, id: String): Int = when (id) {
+        in titles(c) -> 1
+        in prefs(c).getString("disliked", "").orEmpty().split('|') -> -1
+        else -> 0
+    }
+
+    fun rate(c: Context, id: String, v: Int) {
+        val liked = titles(c).filter { it != id }.toMutableList()
+        val no = prefs(c).getString("disliked", "").orEmpty().split('|').filter { it.isNotBlank() && it != id }.toMutableList()
+        if (v > 0) liked.add(0, id) else if (v < 0) no.add(0, id)
+        prefs(c).edit().putString("titles", liked.joinToString("|")).putString("disliked", no.take(300).joinToString("|")).apply()
+    }
     /** Titles rated "Not for me" in the setup (left out of recommendations). */
     fun nope(c: Context): Set<String> = prefs(c).getString("nope", "").orEmpty().split('|').filter { it.isNotBlank() }.toSet()
     /** Genres that the ratings point to, best first (feeds "Picked for you" and the other taste rows). */
