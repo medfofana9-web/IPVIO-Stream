@@ -248,6 +248,30 @@ object TmdbExtra {
         }
     }
 
+    /** One TMDB user review (author, score out of 10 or null, text, date "yyyy-mm-dd", avatar URL or null). */
+    class Review(val author: String, val rating: Double?, val text: String, val date: String, val avatar: String?)
+
+    private val reviewCache = ConcurrentHashMap<String, List<Review>>()
+
+    /** TMDB user reviews of a title (newest first, at most 12); empty without a key or when there are none. */
+    suspend fun reviews(tmdbId: Int, tv: Boolean): List<Review> {
+        if (!enabled() || tmdbId <= 0) return emptyList()
+        val k = (if (tv) "tv:" else "movie:") + tmdbId
+        reviewCache[k]?.let { return it }
+        val got = withContext(Dispatchers.IO) {
+            results(http(url((if (tv) "tv/" else "movie/") + tmdbId + "/reviews"))).mapNotNull { o ->
+                val text = o.optString("content").trim().ifBlank { return@mapNotNull null }
+                val d = o.optJSONObject("author_details")
+                val av = d?.optString("avatar_path")?.takeIf { it.startsWith("/") && !it.startsWith("/http") }?.let { "https://image.tmdb.org/t/p/w92$it" }
+                val r = d?.takeIf { !it.isNull("rating") }?.optDouble("rating")?.takeIf { !it.isNaN() }
+                Review(o.optString("author").ifBlank { d?.optString("username").orEmpty() }, r,
+                    text.replace(Regex("\\s+"), " "), o.optString("created_at").take(10), av)
+            }.sortedByDescending { it.date }.take(12)
+        }
+        reviewCache[k] = got
+        return got
+    }
+
     /** Newest titles on a streaming service in the US (movies and series mixed). */
     suspend fun newOn(s: Service): List<Item> = list("new:${s.id}") {
         withContext(Dispatchers.IO) {

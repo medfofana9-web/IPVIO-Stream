@@ -1,5 +1,11 @@
 # Changelog
 
+## Fof TV 1.3.144 (November 2026)
+
+- TryBox-style menu: a floating glass pill at the top center (text tabs, active tab in a dark capsule, phone search at the end) with "FOF TV" in red on the left. New default for profiles that never picked a menu position; left/right stay available in Settings.
+- Spotlight cards: "We think you'll love this" (from the taste setup) and "Because you watched …" show wide scene cards with the title logo and Play / More info.
+- Title page: takes on the artwork's color, new "Reviews" row (TMDB user reviews; OK opens the whole review), and "You Might Also Like" adds TMDB recommendations to the library matches.
+
 ## Fof TV 1.3.127 (November 2026)
 
 - TryBox-style look: red is the new default accent ("Fof Red" replaces the white "Fof Premium" preset in the same slot, so saved choices keep their place); the brand mark and the old violet highlights are red.

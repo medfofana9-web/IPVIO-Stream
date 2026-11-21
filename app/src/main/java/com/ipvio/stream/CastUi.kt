@@ -63,7 +63,7 @@ object DetailFocus {
 }
 
 // Row padding: otherwise the enlarged focused card is clipped at the edge of the row
-private val RowEdge = 16.dp
+internal val RowEdge = 16.dp
 
 @Composable
 fun CastRow(

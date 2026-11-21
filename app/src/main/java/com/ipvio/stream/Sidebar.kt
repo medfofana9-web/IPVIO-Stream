@@ -5,6 +5,7 @@ import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.horizontalScroll
@@ -15,6 +16,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -40,6 +42,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -147,7 +150,7 @@ object SidebarPrefs {
     const val RIGHT = 1
     const val TOP = 2
     val POS_NAMES = listOf("Links", "Rechts", "Oben")
-    var pos by mutableIntStateOf(LEFT)
+    var pos by mutableIntStateOf(TOP)
         private set
     /** Always with text (otherwise icons only, texts when entering). */
     var labels by mutableStateOf(false)
@@ -155,7 +158,8 @@ object SidebarPrefs {
 
     fun init(c: android.content.Context) {
         val p = Profiles.sp(c, "ipvio_side")
-        pos = p.getInt("pos", LEFT).coerceIn(LEFT, TOP)
+        // TryBox-style: the menu is a floating pill at the top unless this profile chose left or right
+        pos = p.getInt("pos", TOP).coerceIn(LEFT, TOP)
         labels = p.getBoolean("labels", false)
     }
 
@@ -225,23 +229,29 @@ fun Sidebar(tab: Int, onTab: (Int) -> Unit, modifier: Modifier, activeFocus: Foc
         .onFocusChanged { focusIn = it.hasFocus; onFocusIn(it.hasFocus) }
 
     if (pos == SidebarPrefs.TOP) {
-        // Bar at the top: icons with text side by side
-        Row(
-            modifier.fillMaxWidth().height(TopBarH).background(SidebarBg)
-                .drawBehind { drawLine(Color(0x1AFFFFFF), Offset(0f, size.height - 1f), Offset(size.width, size.height - 1f), 1f) }
-                .then(group)
-                // Many menu entries: the bar can be shifted sideways (the selected entry moves into view)
-                .horizontalScroll(androidx.compose.foundation.rememberScrollState())
-                .padding(horizontal = dpx(28)),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(dpx(8))
-        ) {
-            Box(Modifier.size(dpx(40)), contentAlignment = Alignment.Center) { BrandMark(Modifier.fillMaxSize()) }
-            Spacer(Modifier.width(dpx(18)))
-            visible.forEach { id ->
-                SideItem(id, MENU_LABELS[id], id == tab, true, if (id == tab) Modifier.focusRequester(activeFocus) else Modifier, horizontal = true) { onPick(id) }
+        // TryBox-style: word mark on the left, the menu as one floating glass pill in the middle (text tabs, search
+        // at the end), no bar behind it – the page shows through
+        Box(modifier.fillMaxWidth().height(TopBarH).padding(horizontal = dpx(40))) {
+            Row(Modifier.align(Alignment.CenterStart), verticalAlignment = Alignment.CenterVertically) {
+                BrandMark(Modifier.size(dpx(34)))
+                Spacer(Modifier.width(dpx(10)))
+                Text("FOF TV", color = Accent1, fontSize = spx(26), fontWeight = FontWeight.Black, letterSpacing = (-0.5).sp, maxLines = 1, raw = true)
             }
-            PhoneSearchItem(true, Modifier, horizontal = true)
+            val pill = RoundedCornerShape(50)
+            Row(
+                Modifier.align(Alignment.Center).widthIn(max = dpx(1180)).height(dpx(52)).clip(pill)
+                    .background(Color(0xA61C1C1C)).border(1.dp, Color(0x1AFFFFFF), pill)
+                    .then(group)
+                    .horizontalScroll(androidx.compose.foundation.rememberScrollState())
+                    .padding(horizontal = dpx(5)),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(dpx(2))
+            ) {
+                visible.forEach { id ->
+                    PillTab(MENU_LABELS[id], id == tab, if (id == tab) Modifier.focusRequester(activeFocus) else Modifier) { onPick(id) }
+                }
+                PillIcon(AIcon.Phone) { RemoteUi.show = true }
+            }
         }
         return
     }
@@ -332,4 +342,34 @@ private fun SideItem(id: Int, label: String, active: Boolean, expanded: Boolean,
                 fontWeight = if (active || f) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
         }
     }
+}
+
+
+/** One text tab of the top pill: active = dark grey capsule with bold white text, focus = white capsule. */
+@Composable
+private fun PillTab(label: String, active: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    var fRaw by remember { mutableStateOf(false) }
+    val f = fRaw && !ViewLive.active
+    val shape = RoundedCornerShape(50)
+    Box(
+        modifier.height(dpx(42)).clip(shape)
+            .background(if (f) DS.FocusFill else if (active) Color(0xFF3A3A3C) else Color.Transparent)
+            .onFocusChanged { fRaw = it.isFocused }
+            .clickable(onClick = onClick)
+            .padding(horizontal = dpx(18)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, color = if (f) DS.FocusInk else if (active) Color.White else Color(0xFFB4B4B8), fontSize = spx(17),
+            fontWeight = if (active || f) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
+    }
+}
+
+@Composable
+private fun PillIcon(icon: AIcon, onClick: () -> Unit) {
+    var f by remember { mutableStateOf(false) }
+    Box(
+        Modifier.size(dpx(42)).clip(CircleShape).background(if (f) DS.FocusFill else Color.Transparent)
+            .onFocusChanged { f = it.isFocused }.clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) { AppIcon(icon, if (f) DS.FocusInk else if (RemoteHub.active) Accent1 else Color(0xFFB4B4B8), size = dpx(20)) }
 }

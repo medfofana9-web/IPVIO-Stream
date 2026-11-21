@@ -10,6 +10,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -162,6 +166,18 @@ private fun DetailScreenFull(
         val c = credits ?: return@produceState
         value = withContext(Dispatchers.Default) { LibMatch.matches(all, c.similar, 30).filter { s -> s.id != item.id } }
     }
+    // TryBox-style "You Might Also Like": library matches first, then TMDB recommendations for catalog titles
+    val recs by produceState(TmdbExtra.cached("because:" + item.id.removePrefix("stremio:")), item.id) {
+        value = runCatching { TmdbExtra.because(item) }.getOrDefault(value)
+    }
+    val alsoLike = remember(similar, recs) { (similar + recs).filter { it.id != item.id }.distinctBy { it.id }.take(30) }
+    val reviews by produceState(emptyList<TmdbExtra.Review>(), meta?.tmdbId) {
+        val id = meta?.tmdbId ?: 0
+        if (id > 0) value = TmdbExtra.reviews(id, item.kind == Kind.SERIES)
+    }
+    // The page takes on the artwork's color (TryBox: the panel glows in the title's own tone)
+    val tint by produceState(0, meta?.backdrop) { value = meta?.backdrop?.let { runCatching { ArtColor.of(ctx, it) }.getOrDefault(0) } ?: 0 }
+    val tintCol by androidx.compose.animation.animateColorAsState(if (tint == 0) Color.Transparent else Color(tint), tween(600), label = "tint")
 
     val seasons = remember(item) { item.episodes.map { it.season }.distinct().sorted() }
     // Resume point: the page opens at this season and the section with this episode
@@ -296,11 +312,11 @@ private fun DetailScreenFull(
     val castState = rememberLazyListState()
     val simState = rememberLazyListState()
     LaunchedEffect(autoFocus) { if (autoFocus && memKey == null && retSE == null) runCatching { playFocus.requestFocus() } }
-    LaunchedEffect(memKey, similar, credits) {
+    LaunchedEffect(memKey, alsoLike, credits) {
         if (memKey == null || restored) return@LaunchedEffect
         val isSim = memKey.startsWith("s:")
         val id = memKey.drop(2)
-        val idx = if (isSim) similar.indexOfFirst { it.id == id } else credits?.cast?.indexOfFirst { it.id.toString() == id } ?: -1
+        val idx = if (isSim) alsoLike.indexOfFirst { it.id == id } else credits?.cast?.indexOfFirst { it.id.toString() == id } ?: -1
         if (idx >= 0) {
             listState.scrollToItem((listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0))
             repeat(3) { withFrameNanos { } }
@@ -458,6 +474,7 @@ private fun DetailScreenFull(
             Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Bg, 0.3f to Bg.copy(alpha = .92f), 0.55f to Bg.copy(alpha = .5f), 0.8f to Color.Transparent)))
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Bg.copy(alpha = .5f), 0.2f to Color.Transparent, 0.55f to Bg.copy(alpha = .78f), 0.8f to Bg)))
             MoodGlow(meta?.backdrop)
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.25f to Color.Transparent, 0.7f to tintCol.copy(alpha = tintCol.alpha * .22f), 1f to tintCol.copy(alpha = tintCol.alpha * .42f))))
         }
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(horizontal = 28.dp, vertical = 36.dp)) {
             item {
@@ -808,7 +825,8 @@ private fun DetailScreenFull(
             if (credits == null && (meta?.tmdbId ?: 0) > 0 && CreditsRepo.lastError != null) item(key = "cerr") {
                 Text("Cast unavailable: ${CreditsRepo.lastError}", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 24.dp))
             }
-            if (similar.isNotEmpty()) item(key = "similar") { SimilarRow("Similar titles in your library", similar, simState, if (memKey?.startsWith("s:") == true) memKey.drop(2) else null, restoreReq) { i -> DetailFocus.last[item.id] = "s:" + i.id; onOpenItem(i) } }
+            if (reviews.isNotEmpty()) item(key = "reviews") { ReviewsRow(reviews) }
+            if (alsoLike.isNotEmpty()) item(key = "similar") { SimilarRow("You Might Also Like", alsoLike, simState, if (memKey?.startsWith("s:") == true) memKey.drop(2) else null, restoreReq) { i -> DetailFocus.last[item.id] = "s:" + i.id; onOpenItem(i) } }
             if (MetaRepo.enabled()) item {
                 Text("This product uses the TMDB API but is not endorsed or certified by TMDB.",
                     color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 32.dp))
@@ -915,3 +933,78 @@ private fun SeasonEntry(season: Int, count: Int, selected: Boolean, modifier: Mo
         }
     }
 }
+
+
+/** TryBox-style reviews: glass cards with avatar, name, date, score and three lines; OK opens the whole review. */
+@Composable
+private fun ReviewsRow(list: List<TmdbExtra.Review>) {
+    var open by remember { mutableStateOf<TmdbExtra.Review?>(null) }
+    Column(Modifier.padding(top = 26.dp)) {
+        Text("Reviews", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold, raw = true)
+        LazyRow(
+            Modifier.offset(x = -RowEdge),
+            contentPadding = PaddingValues(horizontal = RowEdge, vertical = 16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            items(list.size) { i -> ReviewCard(list[i]) { open = list[i] } }
+        }
+    }
+    open?.let { r ->
+        androidx.compose.ui.window.Dialog(onDismissRequest = { open = null }) {
+            val f = remember { FocusRequester() }
+            LaunchedEffect(Unit) { delay(60); runCatching { f.requestFocus() } }
+            Column(Modifier.width(760.dp).heightIn(max = 560.dp).clip(RoundedCornerShape(18.dp)).background(Color(0xF2141416))
+                .border(1.dp, Color(0x1FFFFFFF), RoundedCornerShape(18.dp)).padding(28.dp)
+                .focusRequester(f).focusable().verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                ReviewHead(r, big = true)
+                Text(r.text, color = Color(0xE6FFFFFF), fontSize = 18.sp, lineHeight = 27.sp, raw = true)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReviewHead(r: TmdbExtra.Review, big: Boolean = false) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        val sz = if (big) 46.dp else 38.dp
+        Box(Modifier.size(sz).clip(CircleShape).background(Color(0x33FFFFFF)), contentAlignment = Alignment.Center) {
+            Text(r.author.take(1).uppercase(), color = Color.White, fontSize = if (big) 20.sp else 16.sp, fontWeight = FontWeight.Bold, raw = true)
+            r.avatar?.let { AsyncImage(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+        }
+        Column(Modifier.weight(1f)) {
+            Text(r.author, color = Color.White, fontSize = if (big) 19.sp else 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, raw = true)
+            Text(reviewDate(r.date), color = Color(0x99FFFFFF), fontSize = 13.sp, maxLines = 1, raw = true)
+        }
+        r.rating?.let {
+            Row(Modifier.clip(RoundedCornerShape(8.dp)).background(Color(0x26FFFFFF)).padding(horizontal = 9.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                AppIcon(AIcon.Star, Color(0xFF46D369), size = 14.dp)
+                Text(String.format("%.0f", it), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, raw = true)
+                Text("/ 10", color = Color(0x99FFFFFF), fontSize = 12.sp, raw = true)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReviewCard(r: TmdbExtra.Review, onClick: () -> Unit) {
+    var f by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(16.dp)
+    Column(
+        Modifier.width(400.dp).height(200.dp).clip(shape)
+            .background(if (f) Color(0x2EFFFFFF) else Color(0x14FFFFFF))
+            .border(if (f) 2.dp else 1.dp, if (f) Color.White else Color(0x1AFFFFFF), shape)
+            .onFocusChanged { f = it.isFocused }.clickable(onClick = onClick).padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        ReviewHead(r)
+        Text(r.text, color = Color(0xCCFFFFFF), fontSize = 15.sp, lineHeight = 22.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, raw = true)
+        Text("View more", color = Color(0x80FFFFFF), fontSize = 13.sp, raw = true)
+    }
+}
+
+/** "2026-10-10" -> "Oct 10, 2026". */
+private fun reviewDate(d: String): String = runCatching {
+    val p = d.split("-"); val m = listOf("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")[p[1].toInt() - 1]
+    "$m ${p[2].toInt()}, ${p[0]}"
+}.getOrDefault(d)
