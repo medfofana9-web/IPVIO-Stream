@@ -392,7 +392,7 @@ object Library {
         p.edit().putString("watch", watch.joinToString("\n"))
             .putString("watch_edits", SyncLogic.recordEdit(p.getString("watch_edits", null), id, present, System.currentTimeMillis()))
             .apply()
-        CloudSync.kick(c)
+        CloudSync.now(c)
     }
 
     /** Read again after the account brought newer data (CloudSync). */

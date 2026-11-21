@@ -22,6 +22,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -116,7 +117,7 @@ fun SearchScreen(
 
     val q = SearchState.query.trim()
     // The preview should never show a focused title from the previous query.
-    LaunchedEffect(q) { focusItem = null }
+    LaunchedEffect(q, SearchState.filter) { focusItem = null }
     // A new search starts at the top of the results (the list kept the scroll position of the previous one) – only while
     // typing, so returning from a title page keeps its place
     LaunchedEffect(q) { if (fieldFocused && state.firstVisibleItemIndex > 0) runCatching { state.scrollToItem(0) } }
@@ -250,6 +251,25 @@ fun SearchScreen(
         rm.isNotEmpty() -> "rm"; rs.isNotEmpty() -> "rs"; rl.isNotEmpty() -> "rl"; sh.isNotEmpty() -> "shows"; else -> ""
     }
     fun fr(k: String) = if (firstKey == k) firstRes else null
+    val hasResults = firstKey.isNotEmpty() || (q.length < 2 && top.isNotEmpty())
+    var movingToResults by remember { mutableStateOf(false) }
+    fun browseResults(): Boolean {
+        if (!hasResults) return false
+        if (runCatching { firstRes.requestFocus() }.getOrDefault(false)) return true
+        if (!movingToResults) scope.launch {
+            movingToResults = true
+            try {
+                state.scrollToItem(0)
+                repeat(4) {
+                    withFrameNanos { }
+                    if (runCatching { firstRes.requestFocus() }.getOrDefault(false)) return@launch
+                }
+            } finally {
+                movingToResults = false
+            }
+        }
+        return true
+    }
     // Back: in the search field (keyboard already closed) first to the recent searches or hits, otherwise into the sidebar
     BackHandler(enabled = !inSidebar) {
         // Back from the results returns to the keyboard (where the search is typed); from the keyboard to the menu
@@ -287,13 +307,15 @@ fun SearchScreen(
                     onVoice = if (canVoice) ({ runCatching { voice.launch(VoiceSearch.intent()) }.onFailure { canVoice = false } }) else null,
                     firstKey = ContentFocus.req,
                     onFocusChange = { fieldFocused = it },
-                    onRight = {
-                        val target = if (firstKey.isNotEmpty()) firstRes else null
-                        target != null && runCatching { target.requestFocus() }.isSuccess
-                    }
+                    onRight = ::browseResults
                 )
                 }
-                            // Below the keyboard (Netflix style): suggestions while typing, recent searches before
+                if (hasResults) {
+                    MiniChip("Browse results →", false, Modifier.onPreviewKeyEvent { event ->
+                        event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight && browseResults()
+                    }, raw = true) { browseResults() }
+                }
+                // Below the keyboard: suggestions while typing, recent searches before
                 val recent = if (q.isEmpty()) AppSettings.searchHistory.toList().take(6) else emptyList()
                 if (recent.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     recent.forEachIndexed { i, term ->
@@ -315,20 +337,29 @@ fun SearchScreen(
             Column(Modifier.weight(1f).fillMaxHeight()) {
                 if (q.length < 2 && top.isNotEmpty()) Text("Top searches", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(start = 24.dp, top = 22.dp, bottom = 4.dp), raw = true)
-                if (q.length >= 2) Row(Modifier.padding(start = 24.dp, top = 18.dp, bottom = 2.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (q.length >= 2) Row(Modifier.padding(start = 24.dp, top = 18.dp, bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("All", "Movies", "TV Shows", "Live TV").forEachIndexed { i, n -> MiniChip(n, fl == i, raw = true) { SearchState.filter = i } }
                 }
-                // The previously unused title preview is now integrated into the results screen.
-                // Reserve a fixed slot while searching so loading metadata never shifts D-pad focus.
-                if (q.length >= 2) {
+                val preview = focusItem?.takeIf {
+                    when (fl) {
+                        1 -> it.kind == Kind.MOVIE
+                        2 -> it.kind == Kind.SERIES
+                        3, 4 -> it.kind == Kind.LIVE
+                        else -> true
+                    }
+                } ?: topRes.firstOrNull() ?: rm.firstOrNull() ?: rs.firstOrNull() ?: rl.firstOrNull()
+                if (q.length >= 2 && preview != null) {
                     SearchInfoPanel(
-                        focusItem ?: topRes.firstOrNull() ?: rm.firstOrNull() ?: rs.firstOrNull() ?: rl.firstOrNull(),
-                        Modifier.fillMaxWidth().height(190.dp)
-                            .padding(start = 24.dp, end = 24.dp, top = 10.dp, bottom = 3.dp)
+                        preview,
+                        Modifier.fillMaxWidth().padding(start = 24.dp, end = DS.PageX)
+                            .height(142.dp).clipToBounds()
                     )
+                    Spacer(Modifier.height(12.dp))
                 }
                 CompositionLocalProvider(LocalSearchFocus provides { focusItem = it }) {
-                    LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = state, contentPadding = PaddingValues(bottom = 48.dp)) {
+                    LazyColumn(Modifier.weight(1f).fillMaxWidth().clipToBounds(), state = state,
+                        contentPadding = PaddingValues(top = 8.dp, bottom = 48.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (fl == 4) item(key = "hubbtn") {
                     Row(Modifier.padding(horizontal = DS.PageX, vertical = 6.dp)) {
                         PillButton("Sports Hub öffnen", icon = AIcon.Live) { onTab(MenuLogic.SPORT) }
@@ -369,10 +400,6 @@ fun SearchScreen(
                     if (moreM.isNotEmpty()) item(key = "cmm2") { SearchTitleRow("Movies", moreM, cardW, null, report, openS) }
                     if (moreS.isNotEmpty()) item(key = "cms2") { SearchTitleRow("TV Shows", moreS, cardW, null, report, openS) }
                     if (per != null) item(key = "person") { SearchTitleRow(per.first, per.second, cardW, fr("person"), report, openS) }
-                    genreHit?.let { (g, gm, gs) ->
-                        if (gm.isNotEmpty() && (fl == 0 || fl == 1)) item(key = "genre_m") { SearchTitleRow("$g movies", gm, cardW, null, report, openS) }
-                        if (gs.isNotEmpty() && (fl == 0 || fl == 2)) item(key = "genre_s") { SearchTitleRow("$g shows", gs, cardW, null, report, openS) }
-                    }
                     if (sg.isNotEmpty() && sg.none { it.state == 1 }) item(key = "games") { SearchGameRow(sg, fr("games"), onGame) }
                     if (st.isNotEmpty() || sl.isNotEmpty()) item(key = "teams") {
                         SearchTeamRow(st, sl, fr("teams"),
@@ -393,6 +420,10 @@ fun SearchScreen(
                         SearchRow("Live TV", rl, cardW, openS, if (firstKey == "rl") firstRes else null) {
                             AppSettings.addSearch(ctx, q); onBrowse(BrowseReq("Search “$q” · Live TV", rl, S_SORT_AZ))
                         }
+                    }
+                    genreHit?.let { (g, gm, gs) ->
+                        if (gm.isNotEmpty() && (fl == 0 || fl == 1)) item(key = "genre_m") { SearchTitleRow("$g movies", gm, cardW, null, report, openS) }
+                        if (gs.isNotEmpty() && (fl == 0 || fl == 2)) item(key = "genre_s") { SearchTitleRow("$g shows", gs, cardW, null, report, openS) }
                     }
                     if (sh.isNotEmpty()) item(key = "shows") { SearchShowRow(sh, fr("shows")) { ch -> AppSettings.addSearch(ctx, q); onOpen(ch) } }
                 }
@@ -650,9 +681,9 @@ private fun SearchInfoPanel(item: Item?, modifier: Modifier) {
                 Text(raw = true, text = item.title, color = Color.White, fontSize = 24.sp,
                     fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 val parts = ArrayList<String>()
-                parts.add(when (item.kind) { Kind.MOVIE -> "Movie"; Kind.SERIES -> "Serie"; else -> "Live" })
+                parts.add(when (item.kind) { Kind.MOVIE -> "Movie"; Kind.SERIES -> "TV Show"; else -> "Live" })
                 (item.year?.toString() ?: m?.year)?.let { parts.add(it) }
-                m?.runtime?.takeIf { it > 0 }?.let { parts.add("$it Min") }
+                m?.runtime?.takeIf { it > 0 }?.let { parts.add("$it min") }
                 (item.quality)?.let { parts.add(it) }
                 m?.genres?.take(3)?.let { parts.addAll(it) }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -669,7 +700,7 @@ private fun SearchInfoPanel(item: Item?, modifier: Modifier) {
                     item.kind == Kind.LIVE -> item.group
                     else -> m?.overview.orEmpty()
                 }
-                if (body.isNotBlank()) Text(raw = true, text = body, color = Color(0xFFD5D8E2), fontSize = 15.sp, maxLines = 4, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                if (body.isNotBlank()) Text(raw = true, text = body, color = Color(0xFFD5D8E2), fontSize = 15.sp, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             }
         }
     }
@@ -709,7 +740,7 @@ private fun SearchGrid(list: List<Item>, cardW: Int, first: FocusRequester?, onO
     val report = LocalSearchFocus.current
     BoxWithConstraints(Modifier.fillMaxWidth().padding(start = 24.dp, end = DS.PageX)) {
         val gap = 16
-        val cols = ((maxWidth.value + gap) / (cardW + gap)).toInt().coerceIn(3, 7)
+        val cols = ((maxWidth.value + gap) / (cardW + gap)).toInt().coerceIn(1, 7)
         val w = ((maxWidth.value - gap * (cols - 1)) / cols).dp
         Column(Modifier.padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             list.chunked(cols).forEachIndexed { r, row ->
