@@ -937,6 +937,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         val l = object : Player.Listener {
             override fun onPlayerError(e: PlaybackException) {
                 pError = true
+                FrameStats.incident(ctx, FrameStats.Incident.PLAYBACK_ERROR)
                 val status = httpStatusOf(e)
                 Diag.report("Playback: " + e.errorCodeName + (if (status > 0) " (HTTP $status)" else ""))
                 val decoder = e.errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
@@ -955,7 +956,6 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                         return
                     }
                 }
-                if (cur.live && cur.archive == null && !readyOnce && sportFailover()) return
                 val liveNow = cur.live && cur.archive == null
                 // The internet dropped (not the source): wait for it and resume the same stream at the same spot.
                 // Before, a movie gave up after ~9 s (3 quick retries) and then switched source or showed a dead end,
@@ -979,6 +979,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     }, PlayerRecoveryLogic.backoffMs(netTries))
                     return
                 }
+                if (liveNow && !readyOnce && DeviceCaps.online(ctx) && sportFailover()) return
                 if (retries < (if (liveNow) 50 else 3) && !isPermanentHttp(status) && !decoder) {
                     retries++
                     msg = if (liveNow) "Connection interrupted — retrying (attempt $retries)" else "Connection interrupted — retrying ($retries/3)"
@@ -1002,6 +1003,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     msg = null; retries = 0; boomerFail = false; failed = false; netTries = 0; netWaitStart[0] = 0L
                     if (player.duration > 0 && player.currentPosition < player.duration - 3000) endGuard = ""
                     if (!readyOnce) {
+                        if (System.currentTimeMillis() - feedStartT[0] >= 5_000L) FrameStats.incident(ctx, FrameStats.Incident.SLOW_START)
                         readyOnce = true; DeadLinks.ok(ctx, cur.url); SportSession.started(ctx, cur.itemId); revertTo = null
                         if (cur.live && cur.archive == null) { FeedScore.started(ctx, cur.itemId, System.currentTimeMillis() - feedStartT[0]); FeedScore.height(ctx, cur.itemId, player.videoSize.height) }
                         // Remember the source that played this title/episode (preferred next time)
@@ -1016,6 +1018,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     if (cur.live) FeedScore.stalled(ctx, cur.itemId)
                     stalls = StallLogic.add(stalls, now)
                     if (StallLogic.tooMany(stalls, now)) {
+                        FrameStats.incident(ctx, FrameStats.Incident.REBUFFERING)
                         // Automatic: enlarge the buffer for the next playback (slow internet)
                         val before = AppSettings.bufferLearned
                         AppSettings.learnBuffer(ctx)
