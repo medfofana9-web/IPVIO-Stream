@@ -153,7 +153,7 @@ object SportSession {
 
     /** Every stream found for the game that [chId] belongs to (channels that worked before first). */
     fun streams(chId: String?): List<Item> = chId?.let { gameOfCh[it] }?.let { cands[it] }.orEmpty()
-        .filter { it.id == chId || (it.id !in failed && !DeadLinks.isDead(it.url)) }
+        .filter { it.id !in failed && (it.id == chId || !DeadLinks.isDead(it.url)) }
         .distinctBy { it.url }
 
     /** [ch] becomes the game's stream: Up/Down and the ticker come back to it. */
@@ -259,7 +259,7 @@ fun GameStreamPicker(title: String, streams: List<Item>, currentId: String?, onP
                 .border(1.dp, Color(0x33FFFFFF), shape).padding(14.dp)
         ) {
             Text(title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, raw = true, modifier = Modifier.padding(start = 6.dp, bottom = 4.dp))
-            OptionRow("Wrong game? Try another source", false, Modifier, onClick = onWrongGame)
+            OptionRow("Wrong game? Try another source", false, Modifier) { onWrongGame() }
             Text("Matchup sources", color = Color(0x99FFFFFF), fontSize = 14.sp, raw = true, modifier = Modifier.padding(start = 6.dp, bottom = 10.dp))
             androidx.compose.foundation.lazy.LazyColumn(state = androidx.compose.foundation.lazy.rememberLazyListState(maxOf(start - 2, 0))) {
                 items(streams.size) { i ->
