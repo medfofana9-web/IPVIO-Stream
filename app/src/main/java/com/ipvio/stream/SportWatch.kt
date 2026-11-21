@@ -230,21 +230,8 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
     val prepVersion = SportWatch.prepVersion
     val addonVersion = SportAddons.version
     val epgVersion = SportWatch.version
-    var addonPending by remember(g.key) { mutableStateOf(true) }
-    LaunchedEffect(g.key) {
-        try {
-            val found = SportAddons.find(ctx, g)
-            // A transient empty addon response on a cold start should not make
-            // the viewer leave and re-open the match. Retry once with a fresh
-            // catalog lookup before showing the final no-sources state.
-            if (found.isEmpty() && g.state == 1 && Stremio.addons.any { it.cats.isNotEmpty() }) {
-                kotlinx.coroutines.delay(350L)
-                kotlinx.coroutines.withTimeoutOrNull(4_000L) { SportAddons.find(ctx, g, refresh = true) }
-            }
-        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-        catch (_: Exception) { /* fall back to matching existing playlist channels */ }
-        finally { addonPending = false }
-    }
+    var addonPending by remember(g.key) { mutableStateOf(false) }
+    var retry by remember(g.key) { mutableIntStateOf(0) }
     // Matching a game against thousands of channels must never happen in
     // composition. Until the first lookup is complete show an actual
     // searching state, not the misleading "no matching channel" message.
@@ -256,9 +243,23 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
     }
     val hits = hitsLoading.orEmpty()
     val automatic = hits.filter { it.autoEligible }
-    // Showing a definitive "not found" during the first asynchronous pass
-    // causes the incorrect empty -> exit -> success sequence seen on live PSG.
-    val searching = hitsLoading == null || (hits.isEmpty() && addonPending)
+    LaunchedEffect(g.key, g.state, retry, automatic.isNotEmpty()) {
+        if (g.state == 2 || (automatic.isNotEmpty() && retry == 0)) {
+            addonPending = false
+            return@LaunchedEffect
+        }
+        var refresh = retry > 0
+        do {
+            addonPending = true
+            try {
+                withTimeoutOrNull(5_000L) { SportAddons.find(ctx, g, refresh) }
+            } finally { addonPending = false }
+            if (automatic.isNotEmpty() || g.state != 1) break
+            delay(12_000L)
+            refresh = true
+        } while (true)
+    }
+    val searching = hitsLoading == null || (automatic.isEmpty() && addonPending)
     var pick by remember { mutableStateOf(false) }
     val first = remember { FocusRequester() }
     HubPageFrame("Live ansehen", g.groupName, { hub.nav.pop() }, first, rawTitle = false) {
@@ -290,15 +291,26 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
                     val on = GameDay.has(g)
                     FilterPill(if (on) "Auto-tune on" else "Auto-tune at start", on, Modifier.trackFocus(), aicon = AIcon.Bell) { GameDay.toggle(ctx, g) }
                 }
-                FilterPill(if (hits.isEmpty()) "Sender zuordnen" else "Anderen Sender wählen", false, Modifier.focusRequester(first), aicon = AIcon.Edit) { pick = true }
+                FilterPill("Choose an IPTV channel", false, Modifier.focusRequester(first), aicon = AIcon.Edit) { pick = true }
+                if (g.state != 2) FilterPill("Retry sources", false, Modifier.trackFocus(), aicon = AIcon.Refresh) { retry++ }
                 if (SportFix.map.containsKey(SportFix.key(g))) FilterPill("Automatisch zuordnen", false, Modifier.trackFocus(), aicon = AIcon.Refresh) { SportFix.set(ctx, g, null) }
                 FilterPill("Mehr Infos", false, Modifier.trackFocus(), aicon = AIcon.Info) { hub.nav.open(HubPage.Match(g)) }
             }
         }
-        if (searching) HubLoading("Checking live channels and addons…")
+        val reports = SportAddons.report(g)
+        Text(
+            "IPTV: " + when {
+                hub.live.isEmpty() -> "no channels loaded"
+                hitsLoading == null -> "checking guide and channel names"
+                automatic.any { it.show != "Addon" } -> "matched"
+                else -> "no confirmed feed"
+            } + (reports?.let { "\\n" + it } ?: ""),
+            color = Muted, fontSize = spx(14), raw = true, modifier = Modifier.padding(vertical = dpx(8))
+        )
+        if (searching) HubLoading("Still checking sources…")
         else if (hits.isEmpty()) HubEmpty(
-            AIcon.Live, "No matching channel found yet",
-            "This game's sources have not been identified. Your TV guide, channel names, and installed live-sports addons were checked. You can also assign a channel manually."
+            AIcon.Live, "Choose a source",
+            "The guide and add-ons haven’t confirmed a feed for this event. Retry sources or choose an IPTV channel."
         ) else LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(bottom = dpx(30)), verticalArrangement = Arrangement.spacedBy(dpx(4))) {
             itemsIndexed(hits, key = { _, h -> h.ch.id }) { _, h ->
                 FRow({ hub.watchOn(g, h.ch, automatic.map { it.ch }) }) {
