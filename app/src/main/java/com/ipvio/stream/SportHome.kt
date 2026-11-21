@@ -98,7 +98,7 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
     // on each scoreboard update causes visible card jank on memory-limited TVs.
     // Key discovery to game identity (not changing score/clock fields).
     val gameKeys = remember(games) { games.map { it.key } }
-    val lookupVersion = SportWatch.prepVersion * 31 + SportAddons.version
+    val lookupVersion = (SportWatch.prepVersion * 31 + SportWatch.version) * 31 + SportAddons.version
     LaunchedEffect(gameKeys, live, lookupVersion) {
         if (live.isEmpty() || games.isEmpty()) return@LaunchedEffect
         val missing = games.filter { readyVersions[it.key] != lookupVersion }
