@@ -83,11 +83,36 @@ object FrameStats {
             l
         }
         if (lines.isEmpty() || !FofAccount.signedIn) return
+        send(c, lines.map { "perf: " + it })
+    }
+
+    enum class Incident(val label: String) {
+        SLOW_START("slow playback start"),
+        PLAYBACK_ERROR("playback error"),
+        REBUFFERING("repeated buffering"),
+        SPORTS_NO_MATCH("sports: no confirmed channel"),
+        MARATHON_EXHAUSTED("24/7: no playable episode")
+    }
+
+    private val reportedAt = HashMap<Incident, Long>()
+
+    /** Only fixed labels leave the device. Repeated incidents are limited to one per category per minute. */
+    fun incident(c: Context, incident: Incident) {
+        if (!FofAccount.signedIn) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        synchronized(reportedAt) {
+            if (reportedAt[incident]?.let { now - it < 60_000 } == true) return
+            reportedAt[incident] = now
+        }
+        send(c, listOf("reliability: " + incident.label))
+    }
+
+    private fun send(c: Context, summaries: List<String>) {
         val app = c.applicationContext
         scope.launch {
             val t = FofAccount.tokenFor(app) ?: return@launch
-            for (ln in lines) {
-                val body = JSONObject().put("profile", "-").put("kind", ("perf: " + ln).take(400))
+            for (summary in summaries) {
+                val body = JSONObject().put("profile", "-").put("kind", summary.take(400))
                     .put("version", AppUpdate.currentName(app).take(30))
                     .put("device", (Build.MANUFACTURER + " " + Build.MODEL).trim().take(80))
                     .put("happened_at", java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.format(java.util.Date()))
