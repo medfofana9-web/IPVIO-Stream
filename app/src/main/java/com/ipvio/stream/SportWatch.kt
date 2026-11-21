@@ -181,7 +181,7 @@ object SportWatch {
         val sport = sportChannels(live)
         // Event channels that name both teams ("NBA 01: Pacers vs Celtics") are the most exact
         SportData.channelsFor(g, sport).forEach { out.add(Hit(it, 2, "")) }
-        if (out.none { it.why == 2 }) SportData.channelsFor(g, eventChannels(live)).forEach { out.add(Hit(it, 2, "")) }
+        SportData.channelsFor(g, eventChannels(live)).forEach { out.add(Hit(it, 2, "")) }
         val multiDay = g.end > g.start
         for (s in slots) {
             val nearStart = kotlin.math.abs(s.prog.start - g.start) <= 90 * 60 ||
