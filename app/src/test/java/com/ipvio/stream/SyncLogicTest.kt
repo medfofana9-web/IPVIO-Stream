@@ -12,6 +12,17 @@ class SyncLogicTest {
     private fun watch(vararg e: Pair<String, Long>) =
         JSONArray(e.map { JSONObject().put("i", it.first).put("t", it.first).put("ts", it.second).put("p", 1000) }).toString()
 
+    @Test fun introAndRecapMarksFollowProfileBetweenTvs() {
+        assertTrue(SyncLogic.STORES.contains("fof_intro_marks_v1"))
+        val local = JSONObject().put("fof_intro_marks_v1",
+            SyncLogic.encode(mapOf("episode_a_s1_e1_start" to 1000L, "episode_a_s1_e1_end" to 7000L)))
+        val cloud = JSONObject().put("fof_intro_marks_v1",
+            SyncLogic.encode(mapOf("episode_b_s2_e3_recap_start" to 5000L, "episode_b_s2_e3_recap_end" to 28000L)))
+        val result = SyncLogic.merge(local, cloud).getJSONObject("fof_intro_marks_v1")
+        assertEquals(1000L, SyncLogic.decodeValue(result.getJSONArray("episode_a_s1_e1_start")))
+        assertEquals(28000L, SyncLogic.decodeValue(result.getJSONArray("episode_b_s2_e3_recap_end")))
+    }
+
     @Test fun decideCoversAllCases() {
         assertEquals(SyncLogic.Step.UPLOAD, SyncLogic.decide(localChanged = true, cloudChanged = false, cloudExists = false))
         assertEquals(SyncLogic.Step.NOTHING, SyncLogic.decide(false, false, false))
