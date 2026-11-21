@@ -90,9 +90,9 @@ http://h/x
     }
 
     @Test fun farben_firmenfarbenSindStandard() {
-        // Fof premium: neutral platinum on true black is the default (no red); the coral stays available as the last preset
-        assertEquals(0xF2F2F5, Look.ACCENTS[0].fill)
-        assertEquals(ThemeMath.INK, ThemeMath.onAccent(0xF2F2F5))   // platinum buttons get dark text
+        // Fof Red (TryBox-style) on true black is the default; the coral stays available as the last preset
+        assertEquals(0xE60023, Look.ACCENTS[0].fill)
+        assertEquals(0xFFFFFF, ThemeMath.onAccent(0xE60023))   // red buttons get white text
         assertEquals(0x000000, Look.BGS[0].bg)
         assertEquals(Look.BRAND_GREEN, Look.ACCENTS.last().fill)
         // Fof coral gets dark text, dark surfaces still get white
