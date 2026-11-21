@@ -583,10 +583,9 @@ object SportData {
         val full = normCached(team.name)
         val short = normCached(team.short)
         val first = full.substringBefore(' ')
-        val last = full.substringAfterLast(' ')
-        return listOf(full, short.takeUnless { it == first && full != first }.orEmpty(),
-            last.takeIf { it.length >= 5 && it !in GENERIC }.orEmpty())
-            .filter { it.length >= 3 }.distinct()
+        // A city on its own is ambiguous even when it is the last word (Real Madrid vs Atlético Madrid).
+        val ambiguousShort = full != short && (short == first || short == "madrid")
+        return listOf(full, short.takeUnless { ambiguousShort }.orEmpty()).filter { it.length >= 3 }.distinct()
     }
 
     private val chanCache = HashMap<String, Pair<Int, List<Item>>>()
