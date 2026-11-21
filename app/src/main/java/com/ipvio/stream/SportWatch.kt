@@ -21,6 +21,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -157,13 +160,16 @@ object SportWatch {
         val fixed = SportFix.map[SportFix.key(g)]
         val learned = SportLearn.lookup(g)
         val pr = prepFor(live)
-        val sig = ((((((System.identityHashCode(live) * 31 + live.size) * 31 + version) * 31 + SportAddons.cached(g).size) * 31 + SportAddons.version) * 31 + (fixed?.hashCode() ?: 0)) * 31 +
-            learned.hashCode()) * 31 + SportLearn.version) * 31 + (if (pr != null) 1 else 0)
-        // Broadcasters and game state can arrive after the initial schedule.
-        // A negative match for the first snapshot must not hide a newly
-        // published PSG/other-game TV channel on the same event key.
-        val broadcastSig = 31 * (31 * (31 * (31 * g.nets.hashCode() + g.tv.hashCode()) + g.state) + g.start.hashCode()) + g.end.hashCode()
-        val fullSig = 31 * sig + broadcastSig
+        // Recalculate when addon results, TV networks or game state change.
+        // Otherwise an early empty result can remain cached after a match airs.
+        val fullSig = listOf(
+            System.identityHashCode(live), live.size, version,
+            SportAddons.version, SportAddons.cached(g).size,
+            fixed?.hashCode() ?: 0, learned.hashCode(), SportLearn.version,
+            if (pr != null) 1 else 0,
+            g.nets.hashCode(), g.tv.hashCode(), g.state,
+            g.start.hashCode(), g.end.hashCode()
+        ).fold(17) { acc, n -> acc * 31 + n }
         synchronized(cache) { cache[g.key]?.let { if (it.first == fullSig) return it.second } }
         val out = ArrayList<Hit>()
         if (fixed != null) live.firstOrNull { it.id == fixed }?.let { out.add(Hit(it, 0, "")) }
