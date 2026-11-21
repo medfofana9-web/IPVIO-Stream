@@ -110,6 +110,20 @@ object StremioLogic {
         )?.id
     }
 
+    /**
+     * Retry only with another exact title and year. A show with an unknown or
+     * mismatching release year must never silently become another edition.
+     */
+    fun chooseAlternateImdb(title: String, year: Int?, series: Boolean, previousId: String, hits: List<ImdbHit>): String? {
+        val expectedType = if (series) "series" else "movie"
+        val target = normalTitle(title)
+        if (target.isEmpty() || !isImdb(previousId)) return null
+        return hits.filter { isImdb(it.id) && it.id != previousId }
+            .filter { it.type == expectedType && normalTitle(it.name) == target }
+            .filter { year != null && it.year == year }
+            .minByOrNull { it.id }?.id
+    }
+
     /** First release year in a Cinemeta "releaseInfo" ("2008–2013", "2019"). */
     fun year(releaseInfo: String?): Int? = releaseInfo?.let { Regex("\\d{4}").find(it)?.value?.toIntOrNull() }
 
