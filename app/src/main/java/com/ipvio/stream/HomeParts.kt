@@ -486,14 +486,13 @@ fun ChannelNowCard(item: Item, modifier: Modifier, onClick: () -> Unit) {
     val ctx = LocalContext.current
     var f by remember { mutableStateOf(false) }
     val s by animateFloatAsState(if (f) focusScale(1.06f) else 1f, label = "chnow")
-    val border by animateColorAsState(if (f) Color.White else CardLine, label = "chb")
-    val shape = RoundedCornerShape(dpx(10))
+    val shape = RoundedCornerShape(dpx(6))
     val epg by produceState(emptyList<EpgEntry>(), item.id) { value = Epg.now(item) }
     val nowE = Epg.current(epg)
     Column(
-        modifier.height(dpx(110)).graphicsLayer { scaleX = s; scaleY = s }.focusGlow(f, shape).clip(shape)
-            .background(if (f) Color(0xFF1E1E24) else CardBg)
-            .border(if (f) 2.dp else 1.dp, border, shape)
+        modifier.height(dpx(110)).graphicsLayer { scaleX = s; scaleY = s }.clip(shape)
+            .background(Color(0xFF1C1C1C))
+            .border(if (f) 3.dp else 0.dp, if (f) Color.White else Color.Transparent, shape)
             .onFocusChanged { f = it.isFocused }
             .trackFocus()
             .favKeys { Library.toggleFav(ctx, item.id) }
@@ -508,7 +507,10 @@ fun ChannelNowCard(item: Item, modifier: Modifier, onClick: () -> Unit) {
                 if (Library.isFav(item.id)) AppIcon(AIcon.Star, DS.Gold, Modifier.align(Alignment.TopEnd), dpx(14))
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(dpx(2))) {
-                Text(raw = true, text = item.title, color = Color.White, fontSize = spx(15), fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(8))) {
+                    LiveTag()
+                    Text(raw = true, text = item.title, color = Color.White, fontSize = spx(15), fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
                 if (nowE != null) {
                     Text(raw = true, text = nowE.title, color = Color(0xFFD0D0D6), fontSize = spx(13), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(raw = true, text = hhmm(nowE.start) + " – " + hhmm(nowE.end), color = Color(0xFFA0A0A8), fontSize = spx(13), maxLines = 1)
@@ -518,7 +520,7 @@ fun ChannelNowCard(item: Item, modifier: Modifier, onClick: () -> Unit) {
         Spacer(Modifier.height(dpx(8)))
         val frac = if (nowE == null) 0f else ((System.currentTimeMillis() / 1000 - nowE.start).toFloat() / (nowE.end - nowE.start).coerceAtLeast(1)).coerceIn(0f, 1f)
         Box(Modifier.fillMaxWidth().height(dpx(3)).clip(RoundedCornerShape(50)).background(Color(0x26FFFFFF))) {
-            Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(Accent1))
+            Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(Color(0xFFE60023)))
         }
     }
 }

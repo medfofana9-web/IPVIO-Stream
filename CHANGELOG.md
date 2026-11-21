@@ -1,5 +1,11 @@
 # Changelog
 
+## Fof TV – Netflix Search, Live TV and Sports
+
+- Search like Netflix: no headline, the query sits on a plain line with a magnifier, the on-screen keyboard has no key boxes (grey letters, the selected key white).
+- Live TV like Netflix's Live section: flat dark channel tiles with a red LIVE tag (white dot), white frame on focus, red progress of the show on now; rows "Continue Watching Live" and "My Channels".
+- Sports keeps its own layout (scores, channels, Game Day) with Netflix tiles: dark cards, white frame on focus, the same red LIVE tag.
+
 ## Fof TV – Netflix "Who's watching?" and finishing touches
 
 - "Who's watching?" like Netflix: plain dark screen, red FOF TV word mark top left, square avatars with grey names (white frame and white name on focus), grey "+" Add Profile, grey outlined MANAGE PROFILES / SIGN IN buttons. No backdrop, no clock.

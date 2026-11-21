@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -215,27 +216,24 @@ fun LiveCard(item: Item, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
     var f by remember { mutableStateOf(false) }
     val s by animateFloatAsState(if (f) focusScale(1.08f) else 1f, label = "live")
-    val border by animateColorAsState(if (f) Accent2 else Color.Transparent, label = "lborder")
-    val shape = RoundedCornerShape(DS.RadiusM)
+    val shape = RoundedCornerShape(6.dp)
+    // Netflix Live card: flat dark tile, red LIVE tag, white frame on focus (no glow)
     Column(
         modifier.graphicsLayer { scaleX = s; scaleY = s }
-            .focusGlow(f, shape)
-            .clip(shape).background(Surf)
-            .border(1.dp, FofGlass.edge(false), shape)
+            .clip(shape).background(Color(0xFF1C1C1C))
+            .border(if (f) 3.dp else 0.dp, if (f) Color.White else Color.Transparent, shape)
             .onFocusChanged { f = it.isFocused }
             .favKeys { Library.toggleFav(ctx, item.id) }
             .clickable(onClick = onClick)
     ) {
         Box(
             Modifier.fillMaxWidth().height(110.dp)
-                .background(Brush.linearGradient(listOf(colorFor(item).copy(alpha = .8f), Surf2))),
+                .background(Brush.verticalGradient(listOf(colorFor(item).copy(alpha = .45f), Color(0xFF141414)))),
             contentAlignment = Alignment.Center
         ) {
             if (item.logo != null) AsyncImage(item.logo, item.title, Modifier.fillMaxSize().padding(20.dp), contentScale = ContentScale.Fit)
             else Text(raw = true, text = item.title.take(2).uppercase(), color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.ExtraBold)
-            Text("LIVE", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.align(Alignment.TopStart).padding(10.dp).clip(RoundedCornerShape(DS.RadiusXs))
-                    .background(Color(0xFFFF3B5C)).padding(horizontal = 7.dp, vertical = 2.dp))
+            LiveTag(Modifier.align(Alignment.TopStart).padding(10.dp))
             if (Library.isFav(item.id)) AppIcon(AIcon.Star, DS.Gold, Modifier.align(Alignment.TopEnd).padding(10.dp), 20.dp)
             else qualityOf(item)?.let { Box(Modifier.align(Alignment.TopEnd).padding(8.dp)) { QualityBadge(it) } }
             if (DeadLinks.isDead(item.url)) AppIcon(AIcon.Warning, DS.Gold, Modifier.align(Alignment.BottomEnd).padding(8.dp), 20.dp)
@@ -244,5 +242,16 @@ fun LiveCard(item: Item, onClick: () -> Unit, modifier: Modifier = Modifier) {
             Text(raw = true, text = item.title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(raw = true, text = item.group, color = Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
+    }
+}
+
+
+/** Netflix-style red LIVE tag with a white dot. */
+@Composable
+fun LiveTag(modifier: Modifier = Modifier) {
+    Row(modifier.clip(RoundedCornerShape(3.dp)).background(Color(0xFFE60023)).padding(horizontal = 7.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        Box(Modifier.size(6.dp).clip(CircleShape).background(Color.White))
+        Text("LIVE", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp, raw = true)
     }
 }

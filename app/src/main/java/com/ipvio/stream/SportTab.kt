@@ -402,8 +402,8 @@ private fun GameCard(g: SportData.Game, chans: List<Item>, modifier: Modifier, o
     val shape = RoundedCornerShape(DS.RadiusM)
     Column(
         modifier.width(dpx(330)).graphicsLayer { scaleX = sc; scaleY = sc }.clip(shape)
-            .background(if (f) Color(0x33FFFFFF) else Color(0x14FFFFFF))
-            .border(if (f) 3.dp else 1.dp, if (f) Accent1 else Color(0x1AFFFFFF), shape)
+            .background(Color(0xFF1C1C1C))
+            .border(if (f) 3.dp else 0.dp, if (f) Color.White else Color.Transparent, shape)
             .onFocusChanged { f = it.isFocused }
             .trackFocus()
             // Back from the game: focus returns to this card (SportSession.returnKey)
@@ -415,10 +415,8 @@ private fun GameCard(g: SportData.Game, chans: List<Item>, modifier: Modifier, o
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(8))) {
             when (g.state) {
                 1 -> {
-                    Box(Modifier.clip(RoundedCornerShape(DS.RadiusXs)).background(PT.Live).padding(horizontal = 8.dp, vertical = 2.dp)) {
-                        Text("LIVE", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
-                    }
-                    Text(raw = true, text = g.detail, color = Accent2, fontSize = spx(14), fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    LiveTag()
+                    Text(raw = true, text = g.detail, color = Color(0xFFE5E5E5), fontSize = spx(14), fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 2 -> Text("Beendet", color = Muted, fontSize = spx(14), fontWeight = FontWeight.Bold)
                 else -> Text(hhmm(g.start), color = Accent2, fontSize = spx(15), fontWeight = FontWeight.Bold)

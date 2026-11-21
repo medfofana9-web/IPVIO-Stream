@@ -532,7 +532,7 @@ private fun ChannelLine(item: Item, modifier: Modifier, inList: ChList?, onNewLi
                 val frac = ((System.currentTimeMillis() / 1000 - nowE.start).toFloat() / (nowE.end - nowE.start)).coerceIn(0f, 1f)
                 Text(raw = true, text = "${hhmm(nowE.start)}–${hhmm(nowE.end)}  ${nowE.title}", color = Accent2, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Box(Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(50)).background(DS.Overlay3)) {
-                    Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(Accent2))
+                    Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(Color(0xFFE60023)))
                 }
                 if (nextE != null) Text(raw = true, text = "${hhmm(nextE.start)}  ${nextE.title}", color = Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             } else Text(raw = true, text = item.group, color = Muted, fontSize = 13.sp, maxLines = 1)
@@ -608,14 +608,14 @@ private fun LiveHome(live: List<Item>, genres: Map<String, List<Item>>, favs: Li
     val byId = remember(live) { live.associateBy { it.id } }
     val recent = remember(live, History.ids.size) { History.ids.mapNotNull { byId[it] }.take(24) }
     val rows = ArrayList<Pair<String, List<Item>>>()
-    if (recent.isNotEmpty()) rows.add("Zuletzt gesehen" to recent)
-    if (favs.isNotEmpty()) rows.add("Favoriten" to favs.take(40))
+    if (recent.isNotEmpty()) rows.add("Continue Watching Live" to recent)
+    if (favs.isNotEmpty()) rows.add("My Channels" to favs.take(40))
     for ((k, l) in genres) rows.add((LiveGenre.byKey(k)?.label ?: k) to l.take(40))
     if (rows.isEmpty()) rows.add("All Channels" to live.take(40))
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 48.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         itemsIndexed(rows, key = { _, r -> r.first }) { ri, r ->
             Column {
-                Text(r.first, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp, top = 12.dp))
+                Text(r.first, color = Color(0xFFE5E5E5), fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp, top = 12.dp))
                 androidx.compose.foundation.lazy.LazyRow(
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 14.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)

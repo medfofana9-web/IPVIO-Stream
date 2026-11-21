@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.LazyColumn
@@ -265,9 +266,6 @@ fun SearchScreen(
                 Modifier.width(350.dp).fillMaxHeight().padding(start = DS.PageX, top = 16.dp, bottom = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                FofEyebrow("DISCOVER", Modifier.padding(bottom = 6.dp), compact = true)
-                Text("Find something great.", raw = true, color = Color.White, fontSize = 25.sp,
-                    fontWeight = FontWeight.ExtraBold, maxLines = 2)
                 if (AppSettings.systemKeyboard) {
                     // The device's own keyboard (e.g. Gboard) in a normal text field: OK or a tap opens it
                     Field(
@@ -382,7 +380,7 @@ fun SearchScreen(
                             onLeague = { l -> AppSettings.addSearch(ctx, q); openInHub(HubPage.League(l)); onTab(MenuLogic.SPORT) })
                     }
                     if (rm.isNotEmpty()) item(key = "rm") {
-                        SearchRow("Filme", rm, cardW, openS, if (firstKey == "rm") firstRes else null) {
+                        SearchRow("Movies", rm, cardW, openS, if (firstKey == "rm") firstRes else null) {
                             AppSettings.addSearch(ctx, q); onBrowse(BrowseReq("Search “$q” · Movies", rm, S_SORT_AZ))
                         }
                     }
@@ -520,13 +518,14 @@ private fun SearchRow(
 /** Display of the input (read only: typing is done with the on-screen keyboard on the left). */
 @Composable
 private fun QueryBox(text: String, modifier: Modifier) {
-    val shape = RoundedCornerShape(16.dp)
-    Box(
-        modifier.height(50.dp).glass(shape, 2).padding(horizontal = 16.dp),
-        contentAlignment = Alignment.CenterStart
+    // Netflix: magnifier and the typed text on a plain line, no box
+    Row(
+        modifier.height(54.dp).drawBehind { drawLine(Color(0xFF5A5A5A), androidx.compose.ui.geometry.Offset(0f, size.height - 1f), androidx.compose.ui.geometry.Offset(size.width, size.height - 1f), 2f) },
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        if (text.isEmpty()) Text("Search", color = Muted, fontSize = 18.sp, maxLines = 1, raw = true)
-        else Text(text, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, raw = true)
+        MenuIcon(4, Color(0xFF8C8C8C), Modifier.size(24.dp))
+        if (text.isEmpty()) Text("Search", color = Color(0xFF8C8C8C), fontSize = 22.sp, maxLines = 1, raw = true)
+        else Text(text, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, raw = true)
     }
 }
 
@@ -596,9 +595,9 @@ private fun KbKey(label: String, modifier: Modifier, onFocusChange: (Boolean) ->
     val sc by animateFloatAsState(if (f) focusScale(1.08f) else 1f, label = "kbkey")
     val shape = RoundedCornerShape(8.dp)
     Box(
-        modifier.height(34.dp).graphicsLayer { scaleX = sc; scaleY = sc }.clip(shape)
-            .background(if (f) DS.FocusFill else DS.Overlay2)
-            .then(if (f) Modifier else Modifier.background(FofGlass.sheen(0, false)))
+        // Netflix keyboard: no key boxes, grey letters; the selected key is a white square with dark text
+        modifier.height(38.dp).graphicsLayer { scaleX = sc; scaleY = sc }.clip(shape)
+            .background(if (f) DS.FocusFill else Color.Transparent)
             .onPreviewKeyEvent { e ->
                 if (onRight != null && e.type == KeyEventType.KeyDown && e.key == Key.DirectionRight) onRight() else false
             }
@@ -607,8 +606,8 @@ private fun KbKey(label: String, modifier: Modifier, onFocusChange: (Boolean) ->
         contentAlignment = Alignment.Center
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            if (icon != null) AppIcon(icon, if (f) DS.FocusInk else Color.White, size = 18.dp)
-            if (label.isNotEmpty()) Text(label, color = if (f) DS.FocusInk else Color.White, fontSize = if (label.length > 1) 13.sp else 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            if (icon != null) AppIcon(icon, if (f) DS.FocusInk else Color(0xFFB3B3B3), size = 18.dp)
+            if (label.isNotEmpty()) Text(label, color = if (f) DS.FocusInk else Color(0xFFB3B3B3), fontSize = if (label.length > 1) 13.sp else 19.sp, fontWeight = FontWeight.Medium, maxLines = 1)
         }
     }
 }

@@ -180,9 +180,8 @@ private fun LiveGameCard(g: SportData.Game, onClick: () -> Unit) {
     val shape = RoundedCornerShape(DS.RadiusM)
     Column(
         Modifier.width(dpx(320)).graphicsLayer { scaleX = s; scaleY = s }.clip(shape)
-            .background(if (f) DS.FocusFill else Tok.Card)
-            .then(if (f) Modifier else Modifier.background(FofGlass.sheen(0, false)))
-            .border(1.dp, if (f) androidx.compose.ui.graphics.SolidColor(DS.FocusFill) else FofGlass.edge(false), shape)
+            .background(Color(0xFF1C1C1C))
+            .border(if (f) 3.dp else 0.dp, if (f) Color.White else Color.Transparent, shape)
             .onFocusChanged { f = it.isFocused }
             .trackFocus()
             .restoreFocus("game:" + g.key)
@@ -190,13 +189,11 @@ private fun LiveGameCard(g: SportData.Game, onClick: () -> Unit) {
             .padding(dpx(14)),
         verticalArrangement = Arrangement.spacedBy(dpx(8))
     ) {
-        val ink = if (f) DS.FocusInk else Color.White
-        val sub = if (f) DS.FocusInk.copy(alpha = 0.7f) else Muted
+        val ink = Color.White
+        val sub = Color(0xFFA3A3A3)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(raw = true, text = g.league, color = sub, fontSize = spx(13), fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), maxLines = 1)
-            if (g.state == 1) Box(Modifier.clip(RoundedCornerShape(DS.RadiusXs)).background(PT.Live).padding(horizontal = dpx(7), vertical = dpx(1))) {
-                Text("LIVE", color = Color.White, fontSize = spx(12), fontWeight = FontWeight.ExtraBold)
-            }
+            if (g.state == 1) LiveTag()
         }
         for (t in listOf(g.away, g.home)) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
             // Thin bar in the team color (ESPN), then a larger logo

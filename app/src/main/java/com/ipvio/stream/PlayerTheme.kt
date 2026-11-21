@@ -8,7 +8,7 @@ import androidx.compose.ui.unit.dp
 object PT {
     // Colors (base colors Bg/Surf/Accent1/Accent2/Muted come from Ui.kt)
     val T2 = Color(0xFFB8BDCC)          // second text color
-    val Live = Color(0xFFFF3B5C)
+    val Live = Color(0xFFE60023)
     val Gold = DS.Gold
     val Ink = Color(0xFF0B0C12)         // dark text on white focus
     val InkSoft = Color(0xFF3C4256)
