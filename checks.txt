@@ -1,0 +1,10 @@
+CHECK PASS provider movies/series skipped (23773 titles)
+CHECK PASS no frozen screen
+CHECK FAIL app stays open (search, Live TV, every screen)
+CHECK FAIL no crash
+CHECK PASS home posters after restart (5279 ms)
+CHECK PASS Live TV guide shows categories
+CHECK PASS playlist loaded
+CHECK PASS smooth Home scrolling (247 of 563 frames slow in the app)
+CHECK FAIL search finds a person
+CHECK PASS key rotation signing
