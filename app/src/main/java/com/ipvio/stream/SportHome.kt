@@ -74,6 +74,8 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
     // never be indexed synchronously on the click path.
     val readyGames = remember(live) { mutableStateMapOf<String, List<Item>>() }
     val readyVersions = remember(live) { HashMap<String, Int>() }
+    // Ignore repeated OK presses while the same match is resolving.
+    var openingGame by remember { mutableStateOf<String?>(null) }
     var teamGames by remember { mutableStateOf(emptyList<SportData.Game>()) }
     val games by produceState(emptyList<SportData.Game>(), SportPrefs.version) {
         while (true) {
@@ -125,7 +127,10 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
         LazyRow(contentPadding = PaddingValues(horizontal = RowPadX, vertical = dpx(10)), horizontalArrangement = Arrangement.spacedBy(dpx(18))) {
             items(games, key = { it.key }) { g ->
                 GameTileCard(g) {
+                    if (openingGame != null) return@GameTileCard
+                    openingGame = g.key
                     scope.launch {
+                        try {
                         // Prepared games open immediately; uncached games resolve off the UI thread.
                         // Do NOT rebuild the whole sports index while a viewer is waiting.
                         val prepared = readyGames[g.key]?.takeIf { it.isNotEmpty() }
@@ -138,13 +143,19 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
                         // live addon feed. Give it one bounded lookup instead of
                         // sending the viewer through multiple Sports pages.
                         val chans = if (prepared.isNotEmpty()) prepared else {
-                            kotlinx.coroutines.withTimeoutOrNull(5_000L) {
+                            // Retry a transient empty addon catalog once in the
+                            // SAME click. Reopening the page must not be required.
+                            val found = kotlinx.coroutines.withTimeoutOrNull(4_000L) {
                                 SportAddons.find(ctx, g)
-                                withContext(kotlinx.coroutines.Dispatchers.Default) {
-                                    SportWatch.prewarm(live)
-                                    SportWatch.channels(g, live)
-                                }
                             }.orEmpty()
+                            if (found.isEmpty() && g.state == 1)
+                                kotlinx.coroutines.withTimeoutOrNull(2_500L) {
+                                    SportAddons.find(ctx, g, refresh = true)
+                                }
+                            withContext(kotlinx.coroutines.Dispatchers.Default) {
+                                SportWatch.prewarm(live)
+                                SportWatch.channels(g, live)
+                            }
                         }
                         if (chans.isNotEmpty()) {
                             // The score bug of the player shows this game's score (SportSession)
@@ -152,6 +163,9 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
                             val l = SportSession.zapList().ifEmpty { chans }
                             ZapContext.list = l; ZapContext.key = null; onOpen(SportSession.firstChannel() ?: chans[0])
                         } else onSports()
+                        } finally {
+                            openingGame = null
+                        }
                     }
                 }
             }
