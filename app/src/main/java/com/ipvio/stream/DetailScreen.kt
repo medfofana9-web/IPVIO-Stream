@@ -806,8 +806,9 @@ private fun EpisodeRow(ep: Episode, em: EpMeta?, v: Variant, prog: ResumeLogic.E
         modifier.fillMaxWidth().padding(vertical = dpx(6))
             .graphicsLayer { scaleX = sc; scaleY = sc; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f) }
             .then(if (f) Modifier.shadow(dpx(24), shape, ambientColor = Tok.Lift, spotColor = Tok.Lift) else Modifier)
-            .clip(shape).background(if (f) Color(0x1FFFFFFF) else Color(0x08FFFFFF))
-            .border(1.dp, if (f) Color(0x33FFFFFF) else Color.Transparent, shape)
+            .clip(shape).background(FofGlass.body(if (f) 1 else 0, f))
+            .background(FofGlass.sheen(if (f) 1 else 0, f))
+            .border(if (f) 2.dp else 1.dp, if (f) FofGlass.rim() else FofGlass.edge(false), shape)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
             .favKeys(onToggleSeen)
             .clickable(onClick = onClick)
@@ -830,6 +831,13 @@ private fun EpisodeRow(ep: Episode, em: EpMeta?, v: Variant, prog: ResumeLogic.E
                 } else AsyncImage(em.still, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             }
             else Text("E${ep.num}", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
+            // Every episode is immediately identifiable, even with spoilers hidden.
+            Text(raw = true, text = "EP  " + ep.num.toString().padStart(2, '0'),
+                color = Color.White, fontSize = spx(12), fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 1.sp,
+                modifier = Modifier.align(Alignment.TopStart).padding(dpx(10))
+                    .clip(RoundedCornerShape(50)).background(Color(0xC408090D))
+                    .padding(horizontal = dpx(10), vertical = dpx(5)))
             // Selected: round play button in the middle
             if (f) Box(Modifier.align(Alignment.Center).size(dpx(58)).clip(RoundedCornerShape(50)).background(Color(0xEBF4F6FB)), contentAlignment = Alignment.Center) {
                 AppIcon(AIcon.Play, Color(0xFF05070D), size = dpx(26))
@@ -842,7 +850,7 @@ private fun EpisodeRow(ep: Episode, em: EpMeta?, v: Variant, prog: ResumeLogic.E
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(raw = true, text = "${ep.num}. ${em?.name ?: ep.title}", color = if (f) Tok.TextHi else Tok.TextMid, fontSize = spx(if (f) 26 else 24), fontWeight = FontWeight.Bold,
+                Text(raw = true, text = "${ep.num}. ${em?.name ?: ep.title}", color = Tok.TextHi, fontSize = spx(if (f) 26 else 24), fontWeight = if (f) FontWeight.ExtraBold else FontWeight.Bold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 v.quality?.let { QualityBadge(it) }
                 em?.imdb?.let { Badge("IMDb $it", Color(0xFFF5C518), Color.Black) }

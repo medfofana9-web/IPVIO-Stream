@@ -87,10 +87,11 @@ internal fun GameTile(g: SportData.Game, hub: HubCtx, modifier: Modifier = Modif
 @Composable
 internal fun GameTileCard(g: SportData.Game, modifier: Modifier = Modifier, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
-    val sc by animateFloatAsState(if (f) focusScale(1.04f) else 1f, androidx.compose.animation.core.tween(150), label = "gametile")
-    val shape = RoundedCornerShape(dpx(14))
+    val sc by animateFloatAsState(if (f) focusScale(1.055f) else 1f, androidx.compose.animation.core.tween(150), label = "gametile")
+    val shape = RoundedCornerShape(dpx(18))
     val live = g.state == 1
-    val w = dpx(360); val h = dpx(202)
+    // Wider cinematic matchup tile: bigger logos, scoreboard and readable league context.
+    val w = dpx(388); val h = dpx(222)
     Column(modifier.width(w), verticalArrangement = Arrangement.spacedBy(dpx(10))) {
         Box(
             // Flat card (no gradients): cleaner, and cheaper to draw on a TV
@@ -99,7 +100,7 @@ internal fun GameTileCard(g: SportData.Game, modifier: Modifier = Modifier, onCl
                 // Team colors: away on the left, home on the right, fading into the card (one gradient, cheap to draw)
                 .then(teamTint(g)?.let { Modifier.background(it) } ?: Modifier)
                 .background(FofGlass.sheen(1, f))
-                .border(if (f) 1.5.dp else 1.dp, if (f) FofGlass.rim() else FofGlass.edge(false), shape)
+                .border(if (f) 2.dp else 1.dp, if (f) FofGlass.rim() else FofGlass.edge(false), shape)
                 .onFocusChanged { f = it.isFocused }
                 .trackFocus()
                 .restoreFocus("game:" + g.key)
@@ -107,8 +108,16 @@ internal fun GameTileCard(g: SportData.Game, modifier: Modifier = Modifier, onCl
         ) {
             Row(Modifier.fillMaxWidth().padding(horizontal = dpx(16), vertical = dpx(12)), verticalAlignment = Alignment.CenterVertically) {
                 if (live) {
-                    Box(Modifier.size(dpx(8)).clip(RoundedCornerShape(50)).background(Color(0xFFFF3B30)))
-                    Text(raw = true, text = "LIVE", color = Color.White, fontSize = spx(13), fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = dpx(6)))
+                    Row(
+                        Modifier.clip(RoundedCornerShape(50)).background(Color(0xB0E02B39))
+                            .border(1.dp, Color(0x99FF8590), RoundedCornerShape(50))
+                            .padding(horizontal = dpx(10), vertical = dpx(5)),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(dpx(6))
+                    ) {
+                        Box(Modifier.size(dpx(7)).clip(RoundedCornerShape(50)).background(Color.White))
+                        Text(raw = true, text = "LIVE", color = Color.White, fontSize = spx(12), fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
+                    }
                 } else {
                     // One clear label per state: started (no live data), final, postponed/canceled; scheduled games show only their time
                     val k = statusKind(g)
@@ -133,13 +142,13 @@ internal fun GameTileCard(g: SportData.Game, modifier: Modifier = Modifier, onCl
             } else {
                 Row(Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = dpx(14)), verticalAlignment = Alignment.CenterVertically) {
                     TileSide(g.away, Modifier.weight(1f))
-                    Column(Modifier.width(dpx(110)), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(Modifier.width(dpx(118)), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(raw = true, text = SportShowcase.title(SportData.sportOf(g)).uppercase(), color = Color(0xB3FFFFFF), fontSize = spx(10),
                             fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp, maxLines = 1)
                         // A missing score is shown as VS, never as 0 – 0
                         val showScore = g.state != 0 && !SportPrefs.hideScores && !g.away.score.isNullOrBlank() && !g.home.score.isNullOrBlank()
                         Text(raw = true, text = if (showScore) g.away.score + " – " + g.home.score else "VS", color = Color.White,
-                            fontSize = spx(if (showScore) 30 else 32), fontWeight = FontWeight.ExtraBold, letterSpacing = if (showScore) 0.sp else 2.sp, maxLines = 1)
+                            fontSize = spx(if (showScore) 37 else 35), fontWeight = FontWeight.ExtraBold, letterSpacing = if (showScore) 0.sp else 2.sp, maxLines = 1)
                     }
                     TileSide(g.home, Modifier.weight(1f))
                 }
@@ -156,9 +165,9 @@ internal fun GameTileCard(g: SportData.Game, modifier: Modifier = Modifier, onCl
 @Composable
 private fun TileSide(t: SportData.Team, modifier: Modifier) {
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        TeamLogo(t.logo, t.abbr.ifBlank { t.short }, dpx(64))
-        Spacer(Modifier.height(dpx(10)))
-        Text(raw = true, text = t.short.ifBlank { t.name }.uppercase(), color = Color.White, fontSize = spx(15), fontWeight = FontWeight.Bold,
+        TeamLogo(t.logo, t.abbr.ifBlank { t.short }, dpx(74))
+        Spacer(Modifier.height(dpx(12)))
+        Text(raw = true, text = t.short.ifBlank { t.name }.uppercase(), color = Color.White, fontSize = spx(16), fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
     }
 }
