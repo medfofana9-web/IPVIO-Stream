@@ -1,0 +1,29 @@
+name: Auto problem reports
+
+# Every hour: new problem reports from the TVs (Supabase fof_reports) become GitHub issues labeled "auto-report".
+# Needs the repository secret FOF_SUPABASE_SERVICE_KEY (added by the owner in GitHub settings).
+on:
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+    inputs:
+      hours:
+        description: 'How many hours back to read'
+        default: '2'
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  reports:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reports to issues
+        env:
+          FOF_SUPABASE_SERVICE_KEY: ${{ secrets.FOF_SUPABASE_SERVICE_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          LOOKBACK_HOURS: ${{ github.event.inputs.hours || '2' }}
+        run: python3 tools/auto_reports.py
