@@ -542,9 +542,17 @@ private fun DetailScreenFull(
                                         else -> "Fortsetzen · " + (if (oneSeason) "Episode ${resumeSE.second}" else "S${resumeSE.first} · Episode ${resumeSE.second}")
                                     }
                                     HeroButton(label, AIcon.Play, true, Modifier.focusRequester(playFocus), bh) {
-                                        // current address from the playlist (the stored one can be outdated after a refresh)
+                                        // Use the exact currently displayed episode. Never feed
+                                        // a missing or known-dead saved link into the player.
                                         val t = WatchStore.target(ctx, item, resume)
-                                        onPlay(t.second, t.first, resume.pos)
+                                        if (t.second.isBlank() || DeadLinks.isDead(t.second)) {
+                                            val se = resumeSE
+                                            if (se != null) stremioAt = se
+                                            AppNav.autoResume = Triple(resume.season, resume.ep, resume.pos)
+                                            AppNav.autoResumeId = item.id
+                                            stremioAuto = true
+                                            showStremio = true
+                                        } else onPlay(t.second, t.first, resume.pos)
                                     }
                                     HeroButton("Start over", AIcon.Rewind, false, Modifier, bh) { playUrl?.let { onPlay(it, item.title + (if (item.kind == Kind.SERIES) " S" + season + "E" + (eps.firstOrNull()?.num ?: 1) else ""), 0L) } }
                                 } else {
