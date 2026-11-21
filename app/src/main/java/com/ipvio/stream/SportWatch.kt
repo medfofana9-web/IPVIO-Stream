@@ -262,6 +262,11 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
         } while (true)
     }
     val searching = hitsLoading == null || (automatic.isEmpty() && addonPending)
+    LaunchedEffect(g.key, searching, automatic.isEmpty()) {
+        if (g.state == 1 && !searching && automatic.isEmpty() && SportAddons.report(g) != null) {
+            FrameStats.incident(ctx, FrameStats.Incident.SPORTS_NO_MATCH)
+        }
+    }
     var pick by remember { mutableStateOf(false) }
     val first = remember { FocusRequester() }
     HubPageFrame("Live ansehen", g.groupName, { hub.nav.pop() }, first, rawTitle = false) {
