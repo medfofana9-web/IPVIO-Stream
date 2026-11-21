@@ -157,7 +157,7 @@ object SportWatch {
         val fixed = SportFix.map[SportFix.key(g)]
         val learned = SportLearn.lookup(g)
         val pr = prepFor(live)
-        val sig = ((((((System.identityHashCode(live) * 31 + live.size) * 31 + version) * 31 + SportAddons.cached(g).size) * 31 + (fixed?.hashCode() ?: 0)) * 31 +
+        val sig = ((((((System.identityHashCode(live) * 31 + live.size) * 31 + version) * 31 + SportAddons.cached(g).size) * 31 + SportAddons.version) * 31 + (fixed?.hashCode() ?: 0)) * 31 +
             learned.hashCode()) * 31 + SportLearn.version) * 31 + (if (pr != null) 1 else 0)
         synchronized(cache) { cache[g.key]?.let { if (it.first == sig) return it.second } }
         val out = ArrayList<Hit>()
