@@ -465,7 +465,19 @@ private fun AppContent() {
         // Live TV opens like TiviMate: the last channel plays in the corner above the TV guide (categories, channels,
         // program grid). Back closes the guide to the full picture, Back again returns to where you were.
         if (id == 3 && liveAll.isNotEmpty()) { openEpg(); return }
+        // Selecting another area must reveal it even if the current screen
+        // is a detail, Browse overlay, or a failed full-screen Live TV player.
+        // A stale overlay used to cover Search and keep playback errors visible
+        // after tapping Settings or Sports.
+        if (playing != null) {
+            playing = null
+            AppNav.openGuide = false
+        }
         returningFromPlayer = false
+        top = null
+        trail.clear()
+        browse = null
+        cats = null
         tab = id; CatMemory.reset()
         jumpTick++
     }
