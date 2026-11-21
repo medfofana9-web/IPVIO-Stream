@@ -47,7 +47,9 @@ import androidx.compose.ui.window.Dialog
  */
 object SportWatch {
     /** [why]: 0 = chosen by hand, 1 = TV guide, 2 = channel name, 3 = network, 4 = team channel, 5 = learned. [show] = detail text. */
-    class Hit(val ch: Item, val why: Int, val show: String)
+    class Hit(val ch: Item, val why: Int, val show: String) {
+        val autoEligible: Boolean get() = why in 0..2
+    }
 
     /** Sports shows from the TV guide (now and the next 48 h), computed by the hub once a minute. */
     @Volatile var slots: List<SportLogic.Slot> = emptyList()
@@ -180,9 +182,14 @@ object SportWatch {
         if (out.none { it.why == 2 }) SportData.channelsFor(g, eventChannels(live)).forEach { out.add(Hit(it, 2, "")) }
         val multiDay = g.end > g.start
         for (s in slots) {
-            val timeOk = (s.live && g.state == 1) || kotlin.math.abs(s.prog.start - g.start) <= 3 * 3600 ||
+            val nearStart = kotlin.math.abs(s.prog.start - g.start) <= 90 * 60 ||
                 (multiDay && s.prog.start in g.start..g.end && g.state != 2)
-            if (timeOk && showMatches(g, s.prog.title + " " + s.prog.desc)) out.add(Hit(s.ch, 1, s.prog.title))
+            if (!nearStart || (g.state == 1 && !s.live)) continue
+            val exact = if (g.solo) g.title.isNotBlank() &&
+                SportData.has(SportData.normCached(s.prog.title), SportData.normCached(g.title))
+            else SportData.matches(g, s.prog.title)
+            if (exact) out.add(Hit(s.ch, 1, s.prog.title))
+            else if (showMatches(g, s.prog.title)) out.add(Hit(s.ch, 6, s.prog.title))
         }
         // Streams of the game from the addons (Pengu …): exact, so before the network guesses
         SportAddons.cached(g).forEach { out.add(Hit(it, 2, "Addon")) }
@@ -195,20 +202,24 @@ object SportWatch {
             if (out.isEmpty()) for (n in SportRights.fallback(g)) (pr.net[SportNet.key(n)] ?: pr.net["~" + SportNet.looseKey(n)])?.forEach { out.add(Hit(it, 6, "Usually on $n")) }
         }
         // Working channels before ones marked broken; the rest of the list is the backup order for the player
-        val r = out.distinctBy { it.ch.id }.sortedBy { if (DeadLinks.isDead(it.ch.url)) 1 else 0 }
+        val r = out.sortedWith(compareBy<Hit>({ if (it.autoEligible) 0 else 1 }, { it.why }))
+            .distinctBy { it.ch.id }.sortedBy { if (DeadLinks.isDead(it.ch.url)) 1 else 0 }
         synchronized(cache) { if (cache.size > 800) cache.clear(); cache[g.key] = fullSig to r }
         return r
     }
 
     /**
-     * Feeds of the game in play order: by how surely they show this game (fixed, learned, exact event/addon, guide,
-     * team channel, network, usual network), and inside each group the feed that played best on this TV first.
+     * Automatic playback and recovery use event-specific evidence or a channel assigned for this game.
+     * Network, team and learned suggestions remain available on the manual Watch Live page.
      */
     fun channels(g: SportData.Game, live: List<Item>): List<Item> {
-        val hits = resolve(g, live)
-        val c = SportSession.appCtx() ?: return hits.map { it.ch }
-        val tier = mapOf(0 to 0, 5 to 1, 2 to 2, 1 to 3, 4 to 4, 3 to 5, 6 to 6)
-        return hits.withIndex().sortedWith(compareBy({ tier[it.value.why] ?: 7 }, { -FeedScore.score(c, it.value.ch.id) }, { it.index })).map { it.value.ch }
+        val hits = resolve(g, live).filter { it.autoEligible }
+        val c = SportSession.appCtx()
+        return hits.sortedWith(compareBy<Hit>(
+            { if (DeadLinks.isDead(it.ch.url)) 1 else 0 },
+            { if (it.why == 0) 0 else if (it.why == 2) 1 else 2 },
+            { if (c != null) -FeedScore.score(c, it.ch.id) else 0 }
+        )).map { it.ch }
     }
 }
 
@@ -246,6 +257,7 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
         }
     }
     val hits = hitsLoading.orEmpty()
+    val automatic = hits.filter { it.autoEligible }
     // Showing a definitive "not found" during the first asynchronous pass
     // causes the incorrect empty -> exit -> success sequence seen on live PSG.
     val searching = hitsLoading == null || (hits.isEmpty() && addonPending)
@@ -255,13 +267,13 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
         HubPanel(Modifier.fillMaxWidth()) {
             MatchHeader(g, 90)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(12))) {
-                if (hits.isNotEmpty() && g.state != 2) HeroButton("Live ansehen", AIcon.Play, true, Modifier, 46) { hub.watch(g) }
+                if (automatic.isNotEmpty() && g.state != 2) HeroButton("Live ansehen", AIcon.Play, true, Modifier, 46) { hub.watch(g) }
                 // Finished game: play it from the provider's archive (catch-up) on the matched channel, when the provider offers it
                 val replay = remember(g.key, g.state, hits) {
                     if (g.state != 2) null else {
                         val now = System.currentTimeMillis() / 1000
                         val e = EpgEntry(if (g.solo) g.title else g.away.short + " at " + g.home.short, "", g.start - 300, minOf(g.start + 4 * 3600, now - 60))
-                        hits.firstNotNullOfOrNull { h -> Catchup.urlFor(h.ch, e)?.let { u -> h.ch.copy(url = u, title = "Replay: " + e.title) } }
+                        automatic.firstNotNullOfOrNull { h -> Catchup.urlFor(h.ch, e)?.let { u -> h.ch.copy(url = u, title = "Replay: " + e.title) } }
                     }
                 }
                 if (replay != null) HeroButton("Watch replay", AIcon.Catchup, true, Modifier, 46) { hub.play(replay, listOf(replay)) }
@@ -270,7 +282,7 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
                     if (g.state != 1) null else {
                         val now = System.currentTimeMillis() / 1000
                         val e = EpgEntry(if (g.solo) g.title else g.away.short + " at " + g.home.short, "", g.start - 300, now - 60)
-                        hits.firstNotNullOfOrNull { h -> Catchup.urlFor(h.ch, e)?.let { u -> h.ch.copy(url = u, title = "From the start: " + e.title) } }
+                        automatic.firstNotNullOfOrNull { h -> Catchup.urlFor(h.ch, e)?.let { u -> h.ch.copy(url = u, title = "From the start: " + e.title) } }
                     }
                 }
                 if (fromStart != null) FilterPill("Watch from the start", false, Modifier.trackFocus(), aicon = AIcon.Rewind) { hub.play(fromStart, listOf(fromStart)) }
@@ -291,16 +303,17 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
             "This game's sources have not been identified. Your TV guide, channel names, and installed live-sports addons were checked. You can also assign a channel manually."
         ) else LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(bottom = dpx(30)), verticalArrangement = Arrangement.spacedBy(dpx(4))) {
             itemsIndexed(hits, key = { _, h -> h.ch.id }) { _, h ->
-                FRow({ hub.watchOn(g, h.ch, hits.map { it.ch }) }) {
+                FRow({ hub.watchOn(g, h.ch, automatic.map { it.ch }) }) {
                     TeamLogo(h.ch.logo, h.ch.title.take(2), dpx(44))
                     Column(Modifier.weight(1f)) {
                         Text(raw = true, text = h.ch.title, color = Tok.TextHi, fontSize = spx(18), fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         val why = when (h.why) {
                             0 -> Lang.tr("Von dir zugeordnet")
                             1 -> Lang.tr("Laut TV-Guide") + ": " + h.show
-                            3 -> "Network: " + h.show
-                            4 -> "Team channel: " + h.show
-                            5 -> "Your usual channel"
+                            3 -> "Network: " + h.show + " · matchup unconfirmed"
+                            4 -> "Team channel: " + h.show + " · matchup unconfirmed"
+                            5 -> "Your usual channel · matchup unconfirmed"
+                            6 -> h.show + " · matchup unconfirmed"
                             else -> Lang.tr("Sendername passt")
                         }
                         Text(raw = true, text = why, color = Muted, fontSize = spx(14), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -308,7 +321,7 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
                     val dead = DeadLinks.isDead(h.ch.url)
                     val verified = !dead && SportSession.isVerified(ctx, h.ch.id)
                     Box(Modifier.size(dpx(10)).clip(RoundedCornerShape(50)).background(if (dead) DS.Gold else Accent2))
-                    if (verified) Text(raw = true, text = "Verified", color = Accent2, fontSize = spx(15), fontWeight = FontWeight.Bold)
+                    if (verified) Text(raw = true, text = "Played before", color = Accent2, fontSize = spx(15), fontWeight = FontWeight.Bold)
                     else Text(if (dead) "Gestört" else "Verfügbar", color = if (dead) DS.Gold else Accent2, fontSize = spx(15), fontWeight = FontWeight.SemiBold)
                 }
             }
