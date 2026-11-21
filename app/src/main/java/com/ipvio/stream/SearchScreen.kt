@@ -119,10 +119,15 @@ fun SearchScreen(
         val idx = index ?: return@produceState
         if (q.length < 2) { value = q to none; return@produceState }
         delay(250)
-        value = q to safely(none) {
-            val (m, s, l) = idx.find(q)
-            Triple(PlaylistLogic.firstPerKey(m) { it.mk + "|" + it.lang }, s, l)
+        // Playlist-wide indexing/deduplication is CPU-heavy; doing it in
+        // the Compose effect on Main freezes D-pad focus while typing.
+        val results = withContext(Dispatchers.Default) {
+            safely(none) {
+                val (movies, series, channels) = idx.find(q)
+                Triple(PlaylistLogic.firstPerKey(movies) { it.mk + "|" + it.lang }, series, channels)
+            }
         }
+        value = q to results
     }
     val searching = q.length >= 2 && found.first != q
     val (rm0, rs0, rl0) = if (q.length < 2 || searching) none else found.second
@@ -192,7 +197,9 @@ fun SearchScreen(
         value = emptyList()
         if (q.length < 3) return@produceState
         delay(350)
-        value = safely(emptyList()) { SearchGuide.shows(live, q) }
+        value = withContext(Dispatchers.Default) {
+            safely(emptyList()) { SearchGuide.shows(live, q) }
+        }
     }
     val cmReady = q.length >= 2 && cm.first == q
     val cmM = if ((fl == 0 || fl == 1) && cmReady) cm.second.first else emptyList()
