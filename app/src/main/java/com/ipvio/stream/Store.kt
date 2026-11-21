@@ -473,6 +473,13 @@ object ResumeLog {
     }
 }
 
+/** Keep a saved add-on/CDN URL separate from the currently indexed IPTV episode. */
+internal object ResumeFreshLogic {
+    fun fromCurrentPlaylist(savedUrl: String, episode: Episode): Boolean =
+        savedUrl.isNotBlank() &&
+            (episode.url == savedUrl || episode.variants.any { it.url == savedUrl })
+}
+
 object WatchStore {
     val entries = mutableStateListOf<Entry>()
     private fun prefs(c: Context) = Profiles.sp(c, "ipvio_watch")
@@ -558,6 +565,13 @@ object WatchStore {
             ?: return title to ""
         val pref = VariantPref.get(c, item.id)
         val url = pickVariant(ep, pref.first, pref.second, pref.third, PlaybackPrefs.cap(c)).url
+        Stremio.ensure(c)
+        // A saved URL not matching any current playlist variant usually came
+        // from DragonStreams or another addon. Do NOT switch it silently to
+        // the provider's IPTV version; ask the addons for a fresh token for
+        // this exact episode (the popup auto-starts verified sources).
+        if (Stremio.addons.any { it.streams } &&
+            !ResumeFreshLogic.fromCurrentPlaylist(e.url, ep)) return title to ""
         return title to url.takeUnless { it.isBlank() || DeadLinks.isDead(it) }.orEmpty()
     }
 
