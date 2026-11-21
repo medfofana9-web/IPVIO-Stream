@@ -773,18 +773,21 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     }
 
     /** 24/7 show channel: the next episode (in order or shuffled) with a fresh addon link. */
+    var marathonAdvancing by remember { mutableStateOf(false) }
     fun marathonNext() {
+        if (marathonAdvancing) return
+        marathonAdvancing = true
         saveProgress()
         val id = cur.itemId
         scope.launch {
-            val p = Marathon.next()
+            val p = try { Marathon.next() } finally { marathonAdvancing = false }
             if (!Marathon.owns(id)) return@launch
             if (p == null) { msg = "No more episodes would play.  " + Lang.tr("Press Back to return."); buffering = false; return@launch }
             stremioTried = false; triedUrls.clear()
             val q = { n: Int -> when (n) { 3 -> "4K"; 2 -> "FHD"; 1 -> "HD"; else -> null } }
             cur = PlayReq(p.title, p.url, id, false, 0L, cur.tmdbId, p.season, p.ep,
                 alts = p.alts.map { Variant(it.url, it.label, q(it.q), null) })
-            flash = Flash(null, (if (Marathon.shuffle) "24/7 shuffle · " else "24/7 · ") + "S" + p.season + "E" + p.ep)
+            flash = Flash(null, (if (Marathon.shuffle) "24/7 shuffle · " else "24/7 · ") + "S" + p.season + "E" + p.ep + (Marathon.upcoming()?.let { " · Up next $it" } ?: ""))
         }
     }
 
@@ -941,6 +944,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         val l = object : Player.Listener {
             override fun onPlayerError(e: PlaybackException) {
                 pError = true
+                FrameStats.incident(ctx, FrameStats.Incident.PLAYBACK_ERROR)
                 val status = httpStatusOf(e)
                 Diag.report("Playback: " + e.errorCodeName + (if (status > 0) " (HTTP $status)" else ""))
                 val decoder = e.errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
@@ -959,7 +963,6 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                         return
                     }
                 }
-                if (cur.live && cur.archive == null && !readyOnce && sportFailover()) return
                 val liveNow = cur.live && cur.archive == null
                 // The internet dropped (not the source): wait for it and resume the same stream at the same spot.
                 // Before, a movie gave up after ~9 s (3 quick retries) and then switched source or showed a dead end,
@@ -983,6 +986,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     }, PlayerRecoveryLogic.backoffMs(netTries))
                     return
                 }
+                if (liveNow && !readyOnce && DeviceCaps.online(ctx) && sportFailover()) return
                 if (retries < (if (liveNow) 50 else 3) && !isPermanentHttp(status) && !decoder) {
                     retries++
                     msg = if (liveNow) "Connection interrupted — retrying (attempt $retries)" else "Connection interrupted — retrying ($retries/3)"
@@ -1006,6 +1010,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     msg = null; retries = 0; boomerFail = false; failed = false; netTries = 0; netWaitStart[0] = 0L
                     if (player.duration > 0 && player.currentPosition < player.duration - 3000) endGuard = ""
                     if (!readyOnce) {
+                        if (System.currentTimeMillis() - feedStartT[0] >= 5_000L) FrameStats.incident(ctx, FrameStats.Incident.SLOW_START)
                         readyOnce = true; DeadLinks.ok(ctx, cur.url); SportSession.started(ctx, cur.itemId); revertTo = null
                         if (cur.live && cur.archive == null) { FeedScore.started(ctx, cur.itemId, System.currentTimeMillis() - feedStartT[0]); FeedScore.height(ctx, cur.itemId, player.videoSize.height) }
                         // Remember the source that played this title/episode (preferred next time)
@@ -1020,6 +1025,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     if (cur.live) FeedScore.stalled(ctx, cur.itemId)
                     stalls = StallLogic.add(stalls, now)
                     if (StallLogic.tooMany(stalls, now)) {
+                        FrameStats.incident(ctx, FrameStats.Incident.REBUFFERING)
                         // Automatic: enlarge the buffer for the next playback (slow internet)
                         val before = AppSettings.bufferLearned
                         AppSettings.learnBuffer(ctx)
@@ -1601,9 +1607,19 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             if (cur.live && cur.archive == null) LiveTimeshift.reconnect(player) else player.prepare()
                         }
                         // Other sources of exactly this movie/episode (addon streams or the playlist's other qualities)
-                        if (addonContent || currentAlts().size > 1) PillButton("Change source", raw = true) {
-                            failed = false; msg = null
-                            if (addonContent) { controls = false; srcPanel = true } else openPanel(Panel.QUALITY)
+                        val gameSources = SportSession.streams(cur.itemId)
+                        if (gameSources.any { it.id != cur.itemId } || addonContent || currentAlts().size > 1) {
+                            PillButton("Change source", raw = true) {
+                                failed = false; msg = null
+                                when {
+                                    gameSources.any { it.id != cur.itemId } -> {
+                                        controls = false
+                                        streamPick = cur.title to gameSources
+                                    }
+                                    addonContent -> { controls = false; srcPanel = true }
+                                    else -> openPanel(Panel.QUALITY)
+                                }
+                            }
                         }
                     }
                 }
@@ -2052,16 +2068,16 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
 
                 Panel.SUBSTYLE -> PSimplePanel(440.dp, "Subtitle appearance", back, { closePanel() }) {
                     Column(verticalArrangement = Arrangement.spacedBy(PT.RowGap)) {
-                        PPanelRow("Größe", false, Modifier.focusRequester(panelFocus), trailing = SubStyle.SIZES[AppSettings.subSize].first, chevron = true) {
+                        PPanelRow("Size", false, Modifier.focusRequester(panelFocus), trailing = SubStyle.SIZES[AppSettings.subSize].first, chevron = true) {
                             AppSettings.setSub(ctx, (AppSettings.subSize + 1) % SubStyle.SIZES.size, AppSettings.subColor, AppSettings.subBg, AppSettings.subEdge)
                         }
-                        PPanelRow("Farbe", false, trailing = SubStyle.COLORS[AppSettings.subColor].first, chevron = true) {
+                        PPanelRow("Text color", false, trailing = SubStyle.COLORS[AppSettings.subColor].first, chevron = true) {
                             AppSettings.setSub(ctx, AppSettings.subSize, (AppSettings.subColor + 1) % SubStyle.COLORS.size, AppSettings.subBg, AppSettings.subEdge)
                         }
-                        PPanelRow("Hintergrund", false, trailing = SubStyle.BGS[AppSettings.subBg].first, chevron = true) {
+                        PPanelRow("Background", false, trailing = SubStyle.BGS[AppSettings.subBg].first, chevron = true) {
                             AppSettings.setSub(ctx, AppSettings.subSize, AppSettings.subColor, (AppSettings.subBg + 1) % SubStyle.BGS.size, AppSettings.subEdge)
                         }
-                        PPanelRow("Rand", false, trailing = SubStyle.EDGES[AppSettings.subEdge], chevron = true) {
+                        PPanelRow("Text edge", false, trailing = SubStyle.EDGES[AppSettings.subEdge], chevron = true) {
                             AppSettings.setSub(ctx, AppSettings.subSize, AppSettings.subColor, AppSettings.subBg, (AppSettings.subEdge + 1) % SubStyle.EDGES.size)
                         }
                         Text("Press OK to cycle through options. The preview updates immediately.", color = Muted, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
