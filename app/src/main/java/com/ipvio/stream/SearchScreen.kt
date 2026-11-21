@@ -251,6 +251,25 @@ fun SearchScreen(
         rm.isNotEmpty() -> "rm"; rs.isNotEmpty() -> "rs"; rl.isNotEmpty() -> "rl"; sh.isNotEmpty() -> "shows"; else -> ""
     }
     fun fr(k: String) = if (firstKey == k) firstRes else null
+    val hasResults = firstKey.isNotEmpty() || (q.length < 2 && top.isNotEmpty())
+    var movingToResults by remember { mutableStateOf(false) }
+    fun browseResults(): Boolean {
+        if (!hasResults) return false
+        if (runCatching { firstRes.requestFocus() }.getOrDefault(false)) return true
+        if (!movingToResults) scope.launch {
+            movingToResults = true
+            try {
+                state.scrollToItem(0)
+                repeat(4) {
+                    withFrameNanos { }
+                    if (runCatching { firstRes.requestFocus() }.getOrDefault(false)) return@launch
+                }
+            } finally {
+                movingToResults = false
+            }
+        }
+        return true
+    }
     // Back: in the search field (keyboard already closed) first to the recent searches or hits, otherwise into the sidebar
     BackHandler(enabled = !inSidebar) {
         // Back from the results returns to the keyboard (where the search is typed); from the keyboard to the menu
@@ -288,13 +307,15 @@ fun SearchScreen(
                     onVoice = if (canVoice) ({ runCatching { voice.launch(VoiceSearch.intent()) }.onFailure { canVoice = false } }) else null,
                     firstKey = ContentFocus.req,
                     onFocusChange = { fieldFocused = it },
-                    onRight = {
-                        val target = if (firstKey.isNotEmpty()) firstRes else null
-                        target != null && runCatching { target.requestFocus() }.isSuccess
-                    }
+                    onRight = ::browseResults
                 )
                 }
-                            // Below the keyboard (Netflix style): suggestions while typing, recent searches before
+                if (hasResults) {
+                    MiniChip("Browse results →", false, Modifier.onPreviewKeyEvent { event ->
+                        event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight && browseResults()
+                    }, raw = true) { browseResults() }
+                }
+                // Below the keyboard: suggestions while typing, recent searches before
                 val recent = if (q.isEmpty()) AppSettings.searchHistory.toList().take(6) else emptyList()
                 if (recent.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     recent.forEachIndexed { i, term ->
