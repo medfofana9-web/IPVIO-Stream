@@ -393,7 +393,7 @@ private fun DetailScreenFull(
         // Number in the season, in another season or as total number across all seasons (e.g. 100)
         val tgt = EpisodeLogic.locate(item.episodes, season, n0)
         if (tgt == null) {
-            Toast.makeText(ctx, Lang.tr("Es gibt nur ${item.episodes.size} Folgen"), Toast.LENGTH_SHORT).show()
+            Toast.makeText(ctx, Lang.tr("Only ${item.episodes.size} episodes are available"), Toast.LENGTH_SHORT).show()
             return
         }
         val (tSeason, n) = tgt
@@ -537,10 +537,10 @@ private fun DetailScreenFull(
                                 if (resume != null) {
                                     val oneSeason = seasons.size <= 1
                                     val label = when {
-                                        item.kind != Kind.SERIES -> "Fortsetzen · " + (resume.pos / 60000) + " Min"
-                                        resumeSE == null -> "Fortsetzen"
-                                        resume.next -> "Weiter mit " + (if (oneSeason) "Folge ${resumeSE.second}" else "S${resumeSE.first} · Folge ${resumeSE.second}")
-                                        else -> "Fortsetzen · " + (if (oneSeason) "Folge ${resumeSE.second}" else "S${resumeSE.first} · Folge ${resumeSE.second}")
+                                        item.kind != Kind.SERIES -> "Resume · " + (resume.pos / 60000) + " min"
+                                        resumeSE == null -> "Resume"
+                                        resume.next -> "Up next: " + (if (oneSeason) "Episode ${resumeSE.second}" else "S${resumeSE.first} · Episode ${resumeSE.second}")
+                                        else -> "Fortsetzen · " + (if (oneSeason) "Episode ${resumeSE.second}" else "S${resumeSE.first} · Episode ${resumeSE.second}")
                                     }
                                     HeroButton(label, AIcon.Play, true, Modifier.focusRequester(playFocus), bh) {
                                         // current address from the playlist (the stored one can be outdated after a refresh)
@@ -640,7 +640,7 @@ private fun DetailScreenFull(
                                     prefQ = if (it == 0) null else qo[it]; save()
                                 }
                             }
-                            Text("${movieAlts.size} Quellen · bei Störung wird automatisch gewechselt", color = Muted, fontSize = 13.sp)
+                            Text("${movieAlts.size} sources · automatically switches if one fails", color = Muted, fontSize = 13.sp)
                         }
                         if (item.kind != Kind.SERIES && DeadLinks.isDead(item.url)) IconLabel(
                             AIcon.Warning,
@@ -790,7 +790,7 @@ private fun DetailScreenFull(
                 if (c.cast.isNotEmpty()) item(key = "cast") { CastRow(c.cast, castState, if (memKey?.startsWith("c:") == true) memKey.drop(2).toIntOrNull() else null, restoreReq) { p -> DetailFocus.last[item.id] = "c:" + p.id; onPerson(PersonRef(p.id, p.name, p.photo, item.id)) } }
             }
             if (credits == null && (meta?.tmdbId ?: 0) > 0 && CreditsRepo.lastError != null) item(key = "cerr") {
-                Text("Besetzung nicht verfügbar: ${CreditsRepo.lastError}", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 24.dp))
+                Text("Cast unavailable: ${CreditsRepo.lastError}", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 24.dp))
             }
             if (similar.isNotEmpty()) item(key = "similar") { SimilarRow("Ähnliche Titel in deiner Playlist", similar, simState, if (memKey?.startsWith("s:") == true) memKey.drop(2) else null, restoreReq) { i -> DetailFocus.last[item.id] = "s:" + i.id; onOpenItem(i) } }
             if (MetaRepo.enabled()) item {
@@ -896,8 +896,8 @@ private fun SeasonEntry(season: Int, count: Int, selected: Boolean, modifier: Mo
                 .clip(RoundedCornerShape(50)).background(if (selected) Accent1 else Color.Transparent)
         )
         Column {
-            Text("Staffel $season", color = if (selected || f) Tok.TextHi else Tok.TextLow, fontSize = spx(26), fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
-            if (selected) Text(text = if (count == 1) "1 Folge" else "$count Folgen", color = Muted, fontSize = spx(15))
+            Text("Season $season", color = if (selected || f) Tok.TextHi else Tok.TextLow, fontSize = spx(26), fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
+            if (selected) Text(text = if (count == 1) "1 Folge" else "$count episodes", color = Muted, fontSize = spx(15))
         }
     }
 }
