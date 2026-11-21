@@ -94,6 +94,22 @@ input:focus{border-color:var(--ac);box-shadow:0 0 0 3px #7c5cff33}
 .foot{display:flex;gap:10px;justify-content:space-between;margin-top:24px;flex-wrap:wrap}
 .muted{color:var(--mut)}
 @media(max-width:600px){h1{font-size:30px}.wrap{padding:20px 16px 70px}.profiles{grid-template-columns:repeat(2,1fr)}}
+
+:root{--bg:#09090c;--s1:#141419;--s2:#1b1b22;--ac:#c52d45;--ac2:#ff8798}
+body{background:radial-gradient(900px 420px at 88% 0%,#53182744,transparent 65%),var(--bg)}
+.logo i{background:linear-gradient(135deg,#ef4d65,#9e1832);box-shadow:0 6px 24px #ad2d4144}
+#hdr{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+#hdr [aria-current="page"]{border-color:var(--ac2);color:var(--ac2)}
+button:focus-visible,a:focus-visible{outline:2px solid var(--ac2);outline-offset:3px}
+input:focus{box-shadow:0 0 0 3px #c52d4544}
+.settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:24px}
+.settings-grid .card{min-width:0;backdrop-filter:none}
+.settings-wide{grid-column:1/-1}
+.settings-grid form{margin-top:16px}
+.settings-grid .list{margin-top:20px}
+.setting-status{margin-top:10px;color:var(--mut);font-size:14px}
+.settings-link{margin-top:18px;display:inline-block}
+@media(max-width:680px){.settings-grid{grid-template-columns:1fr}header{flex-wrap:wrap}}
 </style>
 </head>
 <body>
@@ -186,8 +202,12 @@ async function saveData(pid, mutate) {
 
 // ---------- screens
 function render() {
-  $("#hdr").innerHTML = S ? `<button class="btn sm" onclick="go('home')">Profiles</button> <button class="btn sm" onclick="go('account')">Account</button>` : "";
+  const nav = [["home", "Profiles"], ["settings", "TV setup"], ["account", "Account"]];
+  const current = state.view === "profile" ? "home" : (state.view || "home");
+  $("#hdr").innerHTML = S ? nav.map(([key, label]) =>
+    `<button class="btn sm" ${current === key ? 'aria-current="page"' : ""} onclick="go('${key}')">${label}</button>`).join("") : "";
   if (!S) return signInView();
+  if (state.view === "settings") return settingsView();
   if (state.view === "account") return accountView();
   if (state.view === "profile" && state.cur) return profileView();
   return homeView();
@@ -542,6 +562,152 @@ function reauth() {
 }
 
 // ---------- Account
+
+function sourceUrl(raw, addon = false) {
+  const input = raw.trim();
+  const url = new URL(addon ? input.replace(/^stremio:\/\//i, "https://") : input);
+  if (!["https:", "http:"].includes(url.protocol) || !url.hostname || url.username || url.password || url.hash) {
+    throw new Error("Use a web address without embedded login details or a fragment.");
+  }
+  if (!addon) return url.href;
+  if (url.protocol !== "https:" || url.search) throw new Error("Use an HTTPS add-on base or manifest address without a query string.");
+  const path = url.pathname.replace(/\/+$/, "").replace(/\/manifest\.json$/i, "");
+  return url.origin + path;
+}
+
+function sourceList(rows) {
+  const raw = rows.find(row => row.name === "addons")?.value;
+  const addons = raw ? JSON.parse(raw) : [];
+  if (!Array.isArray(addons) || addons.some(addon => typeof addon !== "string")) {
+    throw new Error("The account returned an unreadable add-on list.");
+  }
+  return addons;
+}
+
+function sourceLabel(address) {
+  try { return new URL(address).hostname || "Add-on"; } catch { return "Add-on"; }
+}
+
+async function settingsView() {
+  const user = S.uid;
+  const app = $("#app");
+  app.innerHTML = `<h1>TV setup</h1>
+    <p class="lead">Manage the sources used by FOF TV devices signed in to this account.</p>
+    <div class="settings-grid" id="setup">
+      <section class="card settings-wide">
+        <h2>Stremio add-ons</h2>
+        <p class="note">Paste an add-on’s manifest link or base address. Your TV checks compatibility during its next sync.</p>
+        <form id="add-addon"><label class="field"><span>Add-on address</span><input name="address" type="password" required autocomplete="off" placeholder="https://provider.example/manifest.json"></label>
+        <button class="btn pri" disabled>Add add-on</button></form>
+        <div class="list" id="source-list"><p class="muted">Loading add-ons…</p></div>
+      </section>
+      <section class="card">
+        <h2>Playlist</h2>
+        <p class="note">Set an M3U playlist address for your TVs. Saving replaces the synced playlist.</p>
+        <p class="setting-status" id="playlist-status"></p>
+        <form id="set-playlist"><label class="field"><span>M3U URL</span><input name="address" type="password" required autocomplete="off"></label>
+        <button class="btn pri" disabled>Save playlist</button></form>
+      </section>
+      <section class="card">
+        <h2>Real-Debrid</h2>
+        <p class="note">Connect your own account with an API token. FOF TV checks it on your TV.</p>
+        <p class="setting-status" id="debrid-status"></p>
+        <form id="set-debrid"><label class="field"><span>API token</span><input name="token" type="password" required autocomplete="off"></label>
+        <button class="btn pri" disabled>Save token</button> <button class="btn bad" type="button" id="clear-debrid" disabled>Disconnect</button></form>
+      </section>
+    </div>
+    <p class="err" id="setup-error" role="alert"></p>
+    <button class="btn settings-link" type="button" onclick="go('account')">Manage signed-in devices</button>`;
+  const panel = $("#setup");
+  const error = $("#setup-error");
+  const active = () => panel.isConnected && S?.uid === user && state.view === "settings";
+  function show(rows) {
+    const list = panel.querySelector("#source-list");
+    const addons = sourceList(rows);
+    const playlist = rows.some(row => row.name === "playlist" && row.value);
+    const debrid = rows.some(row => row.name === "debrid" && row.value);
+    panel.querySelector("#playlist-status").textContent = playlist ? "Playlist saved" : "No playlist saved";
+    panel.querySelector("#debrid-status").textContent = debrid ? "Token saved" : "No token saved";
+    list.innerHTML = addons.map(address => `<div class="li"><div class="g"><b>${esc(sourceLabel(address))}</b></div><button type="button" class="btn sm bad">Remove</button></div>`).join("") || '<p class="muted">No add-ons saved.</p>';
+    list.querySelectorAll("button").forEach((button, index) => {
+      const address = addons[index];
+      button.onclick = () => {
+        if (!confirm("Remove " + sourceLabel(address) + " from this account?")) return;
+        write(async () => {
+          const fresh = sourceList(await rpc("fof_secrets_get"));
+          return ["addons", JSON.stringify(fresh.filter(value => value !== address))];
+        });
+      };
+    });
+    panel.querySelectorAll("button").forEach(button => button.disabled = false);
+    panel.querySelector("#clear-debrid").disabled = !debrid;
+  }
+
+  let busy = false;
+  async function write(change, form) {
+    if (busy || !active()) return;
+    busy = true;
+    error.textContent = "";
+    const buttons = [...panel.querySelectorAll("button:not(:disabled)")];
+    buttons.forEach(button => button.disabled = true);
+    let saved = false;
+    try {
+      const [name, value] = await change();
+      if (!active()) return;
+      await rpc("fof_secret_put", { p_name: name, p_value: value });
+      saved = true;
+      if (!active()) return;
+      form?.reset();
+      toast("Saved to your FOF TV account.");
+      const rows = await rpc("fof_secrets_get");
+      if (active()) show(rows);
+    } catch (e) {
+      if (active()) error.textContent = saved ? "Saved. Reopen TV setup to refresh the list." : (e.userMessage || "Could not save. Check your address and try again.");
+    } finally {
+      if (active() && !saved) buttons.forEach(button => button.disabled = false);
+      busy = false;
+    }
+  }
+
+  function bind(id, change) {
+    const form = panel.querySelector(id);
+    form.onsubmit = event => {
+      event.preventDefault();
+      const fields = new FormData(form);
+      write(() => change(fields), form);
+    };
+  }
+  bind("#add-addon", async fields => {
+    const value = sourceUrl(fields.get("address"), true);
+    const fresh = sourceList(await rpc("fof_secrets_get"));
+    if (fresh.some(address => address.toLowerCase() === value.toLowerCase())) {
+      const error = new Error();
+      error.userMessage = "This add-on is already saved.";
+      throw error;
+    }
+    return ["addons", JSON.stringify([...fresh, value])];
+  });
+  bind("#set-playlist", fields => ["playlist", sourceUrl(fields.get("address"))]);
+  bind("#set-debrid", fields => {
+    const token = fields.get("token").trim();
+    if (!token || /\s/.test(token)) throw new Error("Invalid token");
+    return ["debrid", token];
+  });
+  panel.querySelector("#clear-debrid").onclick = () => {
+    if (confirm("Disconnect Real-Debrid from this FOF TV account?")) write(() => ["debrid", ""]);
+  };
+
+  try {
+    const rows = await rpc("fof_secrets_get");
+    if (active()) show(rows);
+  } catch {
+    if (active()) {
+      panel.querySelector("#source-list").textContent = "Add-ons unavailable.";
+      error.textContent = "Could not load TV setup. Reopen this page to try again.";
+    }
+  }
+}
+
 async function accountView() {
   $("#app").innerHTML = `<h1>Account</h1><p class="lead">${esc(S.email || "")}</p><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));margin-top:26px">
     <div class="card"><h2>TVs and devices</h2><div class="list" id="dv"><p class="muted">Loading…</p></div></div>
