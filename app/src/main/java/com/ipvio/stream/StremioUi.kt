@@ -141,6 +141,15 @@ fun StremioSourcesPopup(
             if (noVerified) Text("No stream could be confirmed as this " + (if (series) "episode" else "movie") + ". Choose one below.",
                 color = DS.Gold, fontSize = 15.sp, raw = true)
             if (sources == null && partial.isNotEmpty()) Text("More addons are still answering …", color = Muted, fontSize = 13.sp, raw = true)
+            // If other addons answered but DragonStreams did not, show the actual per-addon
+            // status instead of silently making it look like the source was never installed.
+            val dragonInstalled = Stremio.addons.any { it.streams && it.name.contains("dragon", true) }
+            if (sources != null && dragonInstalled && list.orEmpty().none { it.addon.contains("dragon", true) }) {
+                val detail = Stremio.lastReport.firstOrNull { it.substringBefore(':').contains("dragon", true) }
+                    ?: "DragonStreams did not return any playable streams."
+                Text("$detail · Choose Refresh sources to try again.", color = DS.Gold,
+                    fontSize = 13.sp, maxLines = 2, raw = true)
+            }
             when {
                 noId -> Text("Couldn't match this title on IMDb. Adding a free TMDB key (Settings > API keys) makes matching more reliable.", color = Muted, fontSize = 16.sp)
                 list == null -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
