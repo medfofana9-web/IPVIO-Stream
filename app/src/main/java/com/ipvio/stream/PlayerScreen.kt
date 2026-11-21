@@ -256,6 +256,10 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     var turbo by remember { mutableIntStateOf(0) }
     var ctrlLabel by remember { mutableStateOf("") }
     var segs by remember { mutableStateOf<List<Seg>>(emptyList()) }
+    var introMarkVersion by remember { mutableIntStateOf(0) }
+    val savedIntro = remember(cur.itemId, cur.season, cur.episode, introMarkVersion, dur) {
+        IntroMarks.load(ctx, cur.itemId, cur.season, cur.episode, dur)
+    }
     var epg by remember { mutableStateOf<List<EpgEntry>>(emptyList()) }
     var banner by remember { mutableStateOf(false) }
     var bannerTick by remember { mutableIntStateOf(0) }
@@ -314,6 +318,9 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     // the player is only recomposed when the result really changes.
     val hasDur by remember { derivedStateOf { dur > 0 } }
     val activeSeg by remember { derivedStateOf { val p = pos; segs.firstOrNull { p >= it.start && p < it.end - 1000 } } }
+    val manualIntroActive by remember(savedIntro) {
+        derivedStateOf { AppSettings.skipIntro && savedIntro?.contains(pos) == true && activeSeg == null }
+    }
     val showNextCard by remember(hasNext) {
         derivedStateOf { hasNext && !cur.live && dur > 0 && dur - pos < 30_000 && !nextDismissed }
     }
@@ -1166,6 +1173,10 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         val tid = if (cur.tmdbId > 0) cur.tmdbId else if (cur.itemId.startsWith("stremio:")) IntroDb.tmdbForImdb(cur.itemId.removePrefix("stremio:"), cur.season > 0) else 0
         if (!cur.live && tid > 0 && hasDur && AppSettings.skipIntro) segs = IntroDb.get(tid, cur.season, cur.episode, dur)
     }
+    // Only a user-confirmed window for this exact episode may be used as a fallback.
+    LaunchedEffect(manualIntroActive, AppSettings.autoSkipIntro) {
+        if (manualIntroActive && AppSettings.autoSkipIntro) savedIntro?.let { player.seekTo(it.endMs) }
+    }
     // Optional: skip the intro automatically
     LaunchedEffect(activeSeg) {
         val s = activeSeg
@@ -1408,6 +1419,9 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             val seg = activeSeg
                             if (showNextCard) { playEpisode(epList[epIdx + 1]); true }
                             else if (seg != null && segVisible) { skipSeg(seg); true }
+                            else if (manualIntroActive && savedIntro != null) {
+                                player.seekTo(savedIntro.endMs); player.playWhenReady = true; player.play(); true
+                            }
                             else if (cur.live) { controls = true; true }
                             // Like YouTube, Netflix & co.: during/shortly after seeking, OK confirms the target position and keeps playing
                             // instead of pausing (that happened because one wants to "confirm" the seek).
@@ -1637,7 +1651,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
 
         // ---------------------------------------------------------------- Skip & next episode
         val seg0 = activeSeg?.takeIf { segVisible || controls }
-        if ((seg0 != null || showNextCard) && panel == Panel.NONE && !showChannels && !showGuide) {
+        if ((seg0 != null || manualIntroActive || showNextCard) && panel == Panel.NONE && !showChannels && !showGuide) {
             Column(
                 Modifier.align(Alignment.BottomEnd).padding(end = PT.MarginX, bottom = if (controls) 236.dp else 84.dp),
                 horizontalAlignment = Alignment.End,
@@ -1646,6 +1660,9 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 // Only ONE button: credits marker and "Next episode" show the same thing and are merged
                 val outro = seg0 != null && seg0.label.startsWith("Abspann") && hasNext
                 if (seg0 != null && !outro) PSkipPill(Lang.tr(seg0.label) + (if (!controls) "  (OK)" else "")) { skipSeg(seg0) }
+                else if (manualIntroActive && savedIntro != null) PSkipPill("Skip Intro" + (if (!controls) "  (OK)" else "")) {
+                    player.seekTo(savedIntro.endMs); player.playWhenReady = true; player.play()
+                }
                 if (outro || (showNextCard && hasNext && !controls)) {
                     NextPill({ (dur - pos).coerceAtLeast(0L) }, AppSettings.autoNext, !controls) { playEpisode(epList[epIdx + 1]) }
                 }
@@ -2134,6 +2151,12 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                         add(MenuEntry(4, "Aspect ratio", ASPECTS[aspect].substringBefore(" ("), true))
                         if (epList.size > 1) add(MenuEntry(5, "Auto-play next episode", if (AppSettings.autoNext) "An" else "Aus", false))
                         if (epList.size > 1) add(MenuEntry(13, "Abspann überspringen", if (AppSettings.autoSkipOutro) "An" else "Aus", false))
+                        if (!cur.live && cur.season > 0 && cur.episode > 0) {
+                            add(MenuEntry(31, "Mark Intro Start", null, false))
+                            add(MenuEntry(32, "Mark Intro End", null, false))
+                            if (savedIntro != null || IntroMarks.hasStart(ctx, cur.itemId, cur.season, cur.episode))
+                                add(MenuEntry(33, "Clear Intro Markers", null, false))
+                        }
                         add(MenuEntry(6, "Show end time", if (AppSettings.showEndTime) "An" else "Aus", false))
                         add(MenuEntry(10, "On-screen clock", if (AppSettings.clockOn) "An" else "Aus", true))
                         add(MenuEntry(11, "Technik-Info", if (techOn) "An" else "Aus", false))
@@ -2161,6 +2184,22 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                                     10 -> openPanel(Panel.CLOCK, Panel.MENU)
                                     11 -> techOn = !techOn
                                     13 -> AppSettings.setAutoOutro(ctx, !AppSettings.autoSkipOutro)
+                                    31 -> {
+                                        IntroMarks.markStart(ctx, cur.itemId, cur.season, cur.episode, player.currentPosition)
+                                        introMarkVersion++; notice = "Intro start marked. Mark the end when it finishes."
+                                        closePanel()
+                                    }
+                                    32 -> {
+                                        val ok = IntroMarks.finish(ctx, cur.itemId, cur.season, cur.episode, player.currentPosition, player.duration)
+                                        introMarkVersion++
+                                        notice = if (ok) "Skip Intro saved for this episode." else "Mark the intro start first, then its end."
+                                        closePanel()
+                                    }
+                                    33 -> {
+                                        IntroMarks.clear(ctx, cur.itemId, cur.season, cur.episode)
+                                        introMarkVersion++; notice = "Intro markers cleared."
+                                        closePanel()
+                                    }
                                     9 -> { panel = Panel.NONE; panelParent = Panel.NONE; lastChannel() }
                                     20 -> {
                                         if (second != null) second = null

@@ -690,17 +690,17 @@ private fun PlayerPage(ctx: Context) {
     SportPrefs.init(ctx)
     var hs by remember { mutableStateOf(SportPrefs.hideScores) }
     ToggleRow("Hide sports scores", "Scores stay hidden on game cards, in the player and in alerts.", hs) { hs = it; SportPrefs.setHideScores(ctx, it) }
-    SectionTitle("Intro und nächste Folge")
-    ToggleRow("Intro überspringen anbieten", "Zeigt bei Serien einen Knopf „Intro überspringen“, wenn Intro-Zeiten bekannt sind.", AppSettings.skipIntro) {
+    SectionTitle("Intro and Next Episode")
+    ToggleRow("Show Skip Intro", "Show Skip Intro for series with confirmed or manually marked intro times.", AppSettings.skipIntro) {
         AppSettings.setPlayer(ctx, it, AppSettings.showInfo, AppSettings.seekStep)
     }
-    ToggleRow("Intro automatisch überspringen", "Überspringt bekannte Intros ohne Rückfrage.", AppSettings.autoSkipIntro) {
+    ToggleRow("Automatically Skip Intros", "Automatically skip intros with confirmed timing. Never guess unknown intro positions.", AppSettings.autoSkipIntro) {
         AppSettings.setPlayerExtra(ctx, AppSettings.autoNext, AppSettings.hideSec, AppSettings.showEndTime, it)
     }
-    ToggleRow("Nächste Folge automatisch", "Startet die nächste Folge nach dem Abspann von selbst.", AppSettings.autoNext) {
+    ToggleRow("Automatically Play Next Episode", "Start the next episode when the current one finishes.", AppSettings.autoNext) {
         AppSettings.setPlayerExtra(ctx, it, AppSettings.hideSec, AppSettings.showEndTime, AppSettings.autoSkipIntro)
     }
-    ToggleRow("Abspann automatisch überspringen", "Startet die nächste Folge, sobald der Abspann beginnt. Geht nur, wenn für die Serie Abspann-Zeiten bekannt sind (TheIntroDB); sonst bleibt es beim Hinweis in den letzten 30 Sekunden.", AppSettings.autoSkipOutro) {
+    ToggleRow("Automatically Skip Credits", "Start the next episode when credits begin, when reliable credit timestamps are available.", AppSettings.autoSkipOutro) {
         AppSettings.setAutoOutro(ctx, it)
     }
     SectionTitle("Uhr im Bild")
@@ -739,7 +739,7 @@ private fun PlayerPage(ctx: Context) {
     ToggleRow("Bildrate anpassen", "Passt die Bildwiederholrate des Fernsehers an den Film an (z. B. 24 Bilder), wenn der Fernseher das ohne Bildaussetzer kann. Bei Fire TV zusätzlich in den Geräteeinstellungen „Originale Bildrate anpassen“ prüfen.", AppSettings.autoFps) {
         AppSettings.setAutoFps(ctx, it)
     }
-    Hint("Intro-Zeiten stammen aus der Community-Datenbank TheIntroDB und gibt es nicht für jede Serie. Die Stream-Info erscheint nur bei Filmen und Serien.")
+    Hint("Intro times may come from TheIntroDB. If a show is missing timestamps, use the player menu to mark Intro Start and Intro End for that episode. Markers stay with the active profile and that episode only.")
     SectionTitle("Zusatzbild")
     DualPrefs.init(ctx)
     SelectRow("Anordnung", DualPrefs.ARRANGE_NAMES[DualPrefs.split], DualPrefs.ARRANGE_NAMES, DualPrefs.split) { DualPrefs.set(ctx, split = it) }
