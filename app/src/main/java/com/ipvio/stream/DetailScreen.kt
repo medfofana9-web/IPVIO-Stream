@@ -688,7 +688,10 @@ private fun DetailScreenFull(
                 // Right in the episode list = next season, Left = to the season selection.
                 Row(
                     Modifier.fillMaxWidth().height(paneH).padding(top = dpx(16))
-                        .onFocusChanged { if (it.hasFocus && listState.firstVisibleItemIndex != EP_PANE) scope.launch { listState.scrollToItem(EP_PANE) } }
+                        .onFocusChanged {
+                            if (it.hasFocus && listState.firstVisibleItemIndex < EP_PANE)
+                                scope.launch { listState.animateScrollToItem(EP_PANE) }
+                        }
                         .focusProperties { enterTo { seasonReq } }
                         .focusGroup(),
                     horizontalArrangement = Arrangement.spacedBy(dpx(14))
