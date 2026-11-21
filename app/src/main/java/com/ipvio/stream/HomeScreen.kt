@@ -1057,6 +1057,11 @@ private fun Hero(
         while (featured.size > 1 && General.heroSec > 0) { delay(General.heroSec * 1000L); if (!Billboard.active) idx = (idx + 1) % featured.size }
     }
     val item = featured[idx.coerceIn(0, featured.lastIndex)]
+    // Very long crossfades render two large backdrops at once. On a Fire
+    // Stick-class GPU that can produce dropped frames during D-pad movement.
+    val heroFadeMs = remember(ctx, Look.motion) {
+        if (Look.motion == 0) 0 else if (Mem.tier(ctx) == 0) 160 else 320
+    }
 
     // Picture across the full width (also behind the header), faded into the background at the left and bottom.
     // Round 14: without arrows; the description has more width (up to about the middle of the picture) and is no longer cut off (max. 250 characters).
@@ -1068,7 +1073,7 @@ private fun Hero(
             translationY = if (Look.motion == 0) 0f else scrollY() * 0.4f
             compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
         }) {
-            Crossfade(item, animationSpec = tween(1100), label = "heroBg") { c ->
+            Crossfade(item, animationSpec = tween(heroFadeMs), label = "heroBg") { c ->
                 val m = rememberMeta(c)
                 m?.backdrop?.let { AsyncImage(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopEnd) }
             }
@@ -1082,7 +1087,7 @@ private fun Hero(
             Modifier.align(Alignment.BottomStart).padding(start = dpx(39), bottom = dpx(if (home) 34 else 26)).widthIn(max = dpx(780)),
             verticalArrangement = Arrangement.spacedBy(dpx(10))
         ) {
-            Crossfade(item, animationSpec = tween(500), label = "heroText") { c ->
+            Crossfade(item, animationSpec = tween(if (heroFadeMs == 0) 0 else 180), label = "heroText") { c ->
                 // with IMDb and Rotten Tomatoes rating (fetched the first time, then remembered on the device)
                 val m = rememberFullMeta(c, rememberMeta(c))
                 Column(verticalArrangement = Arrangement.spacedBy(dpx(if (home) 10 else 8))) {
