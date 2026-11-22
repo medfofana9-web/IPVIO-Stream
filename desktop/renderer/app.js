@@ -318,7 +318,8 @@ function heroHtml(m, type, idx, total) {
 // Netflix: after a few seconds on the big picture the trailer fades in over it, muted, and loops
 function trailerIn(hero, type, id, onPlay) {
   clearTimeout(trailerIn.t); trailerIn.on = false;
-  if (store.get('trailers', true) === false || !hero) return;
+  // Only on the new app shell (0.3+): it sends the referrer YouTube needs; the old shell would show YouTube's error page
+  if (!DL || store.get('trailers', true) === false || !hero) return;
   trailerIn.t = setTimeout(async () => {
     const m = await metaOf(type, id);
     const k = m && m.trailers && m.trailers[0] && String(m.trailers[0].source || '').replace(/[^\w-]/g, '');
