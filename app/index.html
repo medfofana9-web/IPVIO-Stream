@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Fof TV">
+<title>Fof TV</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="https://cdn.jsdelivr.net/gh/medfofana9-web/IPVIO-Stream@main/desktop/renderer/mark.png">
+<style>html,body{margin:0;height:100%;background:#000}</style>
+<script>
+// Fof TV on the phone: the same screens as the Mac app, loaded from the newest commit on GitHub (through the jsDelivr
+// CDN, pinned to that commit so a new release shows up at once). Add it to the Home Screen to open it like an app.
+(function () {
+  var CDN = 'https://cdn.jsdelivr.net/gh/medfofana9-web/IPVIO-Stream@';
+  var DIR = '/desktop/renderer/';
+  function load(ref) {
+    var base = CDN + ref + DIR;
+    ['styles.css', 'mobile.css'].forEach(function (f) { var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = base + f; document.head.appendChild(l); });
+    var s = ['vendor/hls.min.js', 'vendor/mpegts.js', 'app.js'];
+    (function next() { var f = s.shift(); if (!f) return; var e = document.createElement('script'); e.src = base + f; e.onload = next; e.onerror = next; document.body.appendChild(e); })();
+  }
+  function go() {
+    var last = null; try { last = JSON.parse(localStorage.getItem('fofWebRef') || 'null'); } catch (e) {}
+    if (last && Date.now() - last.t < 10 * 60 * 1000) return load(last.sha);
+    fetch('https://api.github.com/repos/medfofana9-web/IPVIO-Stream/commits?sha=main&path=desktop/renderer&per_page=1')
+      .then(function (r) { return r.json(); })
+      .then(function (j) { var sha = j && j[0] && j[0].sha; if (!sha) throw 0; try { localStorage.setItem('fofWebRef', JSON.stringify({ sha: sha, t: Date.now() })); } catch (e) {} load(sha); })
+      .catch(function () { load(last ? last.sha : 'main'); });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
+})();
+</script>
+</head>
+<body>
+<div id="drag"></div>
+<div id="app"></div>
+<div id="player" class="hidden">
+  <video id="video" playsinline></video>
+  <div id="pl-ui">
+    <div class="pl-top"><button id="pl-back" class="pl-icon" title="Back (Esc)">&#x2190;</button><div><div id="pl-title"></div><div id="pl-sub"></div></div></div>
+    <div id="pl-msg" class="hidden"></div>
+    <div class="pl-bottom">
+      <div id="pl-seek"><div id="pl-buf"></div><div id="pl-pos"></div><div id="pl-knob"></div></div>
+      <div class="pl-row">
+        <button id="pl-play" class="pl-icon" title="Play / Pause (Space)">&#10074;&#10074;</button>
+        <button id="pl-rw" class="pl-icon" title="Back 10 s (&#x2190;)">&#x21BA;</button>
+        <button id="pl-ff" class="pl-icon" title="Forward 10 s (&#x2192;)">&#x21BB;</button>
+        <input id="pl-vol" type="range" min="0" max="1" step="0.05" value="1" title="Volume">
+        <span id="pl-time"></span>
+        <span class="grow"></span>
+        <button id="pl-next" class="pl-pill hidden">Next Episode &#x25B6;</button>
+        <button id="pl-src" class="pl-pill">Sources</button>
+        <button id="pl-mini" class="pl-icon" title="Mini player (keeps playing while you browse)">&#x29C9;</button>
+        <button id="pl-full" class="pl-icon" title="Full screen (F)">&#x26F6;</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="toast" class="hidden"></div>
+</body>
+</html>
