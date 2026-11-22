@@ -305,7 +305,14 @@ function wireRows(root) {
     $('.arrow.l', s).onclick = () => t.scrollBy({ left: -t.clientWidth * 0.85 });
     $('.arrow.r', s).onclick = () => t.scrollBy({ left: t.clientWidth * 0.85 });
   });
-  root.querySelectorAll('[data-id]').forEach(c => { if (!c.onclick) c.onclick = () => openTitle(c.dataset.type, c.dataset.id); });
+  root.querySelectorAll('[data-id]').forEach(c => {
+    if (!c.onclick) c.onclick = () => openTitle(c.dataset.type, c.dataset.id);
+    // A movie you rest on for a moment: its sources are looked up already, so Play starts at once
+    if (c.dataset.type === 'movie' && /^tt\d+$/.test(c.dataset.id || '') && acct.addons.length && !WEB) {
+      c.addEventListener('mouseenter', () => { clearTimeout(c.pf); c.pf = setTimeout(() => streamsFor({ type: 'movie', id: c.dataset.id }).catch(() => {}), 700); });
+      c.addEventListener('mouseleave', () => clearTimeout(c.pf));
+    }
+  });
 }
 
 function heroHtml(m, type, idx, total) {
@@ -366,7 +373,7 @@ function handoff(pg) {
   setTimeout(() => b.classList.add('on'), 50);
   const close = () => { b.classList.remove('on'); setTimeout(() => b.remove(), 300); };
   $('.x', b).onclick = close; setTimeout(close, 20000);
-  $('.btn', b).onclick = () => { close(); const series = w.s || w.e; sources({ type: series ? 'series' : 'movie', id: tt, name: w.title.replace(/\s*S\d+\s*E\d+\s*$/i, ''), season: w.s, episode: w.e, start: w.pos, auto: true }); };
+  $('.btn', b).onclick = () => { close(); const series = w.s || w.e; watch({ type: series ? 'series' : 'movie', id: tt, name: w.title.replace(/\s*S\d+\s*E\d+\s*$/i, ''), season: w.s, episode: w.e, start: w.pos }); };
 }
 
 // Shows you are watching that got an episode in the last 7 days you have not seen yet (newest first). Each new episode
@@ -522,12 +529,12 @@ async function renderDetail(pg, { type, id, play }) {
         <div style="flex:1"><div class="t">${esc(v.name || v.title || 'Episode ' + v.episode)}<span>${v.released ? esc(v.released.slice(0, 10)) : ''}</span></div><p>${esc(v.overview || v.description || '')}</p></div></div>`;
     }).join('');
     document.querySelectorAll('#seasons button').forEach(b => b.onclick = () => { season = +b.dataset.s; drawSeason(); });
-    document.querySelectorAll('#eplist .ep').forEach(e => e.onclick = () => sources({ type, id, name: m.name, season, episode: +e.dataset.e, start: resume && resume.s === season && resume.e === +e.dataset.e ? resume.pos : 0 }));
+    document.querySelectorAll('#eplist .ep').forEach(e => e.onclick = () => watch({ type, id, name: m.name, season, episode: +e.dataset.e, start: resume && resume.s === season && resume.e === +e.dataset.e ? resume.pos : 0 }));
   };
   if (type === 'series' && seasons.length) drawSeason();
   $('#dplay').onclick = () => {
-    if (type === 'series') { const s = resume && resume.s ? resume.s : season; const e = resume && resume.e ? resume.e : (epsOf(s)[0] || {}).episode || 1; sources({ type, id, name: m.name, season: s, episode: e, start: resume && !resume.next ? resume.pos : 0 }); }
-    else sources({ type, id, name: m.name, start: resume ? resume.pos : 0 });
+    if (type === 'series') { const s = resume && resume.s ? resume.s : season; const e = resume && resume.e ? resume.e : (epsOf(s)[0] || {}).episode || 1; watch({ type, id, name: m.name, season: s, episode: e, start: resume && !resume.next ? resume.pos : 0 }); }
+    else watch({ type, id, name: m.name, start: resume ? resume.pos : 0 });
   };
   if (play) $('#dplay').click();
   // You Might Also Like: same first genre
@@ -546,28 +553,27 @@ function streamsFor(req) {
   const k = [req.type, req.id, req.season || 0, req.episode || 0, acct.addons.join(';')].join('|');
   const c = streamCache.get(k);
   if (c && Date.now() - c.t < 10 * 60 * 1000) return c.p;
-  const p = streamsNow(req).then(l => { if (!l.length) streamCache.delete(k); return l; });
+  const q = streamsNow(req);
+  const p = q.then(l => { if (!l.length && !q.full.done) q.full.then(f => { if (!f.length) streamCache.delete(k); }); return l; });
   streamCache.set(k, { t: Date.now(), p });
+  // When every addon has answered, later requests (the Sources panel) get the complete list
+  q.full.then(f => { q.full.done = true; const e = streamCache.get(k); if (e && e.p === p && f.length) e.p = Promise.resolve(f); else if (!f.length) streamCache.delete(k); });
   return p;
 }
 // The source that played last time for a title or episode goes first (same addon and file)
 const cidOf = r => r.type === 'series' ? `${r.id}:${r.season}:${r.episode}` : r.id;
 const srcKey = s => (s.addonName || '') + '|' + (s.file || s.title || '').slice(0, 80);
 function rememberSource(req, s) { if (!req || !s) return; const m = store.get('goodSrc', {}); m[cidOf(req)] = srcKey(s); const ks = Object.keys(m); if (ks.length > 300) delete m[ks[0]]; store.set('goodSrc', m); }
-async function streamsNow({ type, id, season, episode }) {
+// Quick answer: the source that worked last time at once, a source the Mac plays well after 1.5 s, or anything at 6 s; the list is used;
+// slower addons keep coming in the background and complete the cached list for "Sources"
+function streamsNow(req) {
+  const { type, id, season, episode } = req;
   const sid = type === 'series' ? `${id}:${season}:${episode}` : id;
-  const all = [];
-  await Promise.all(acct.addons.map(async base => {
-    try {
-      const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 15000);
-      const r = await fetch(`${base.replace(/\/manifest\.json$/, '').replace(/\/$/, '')}/stream/${type}/${encodeURIComponent(sid)}.json`, { signal: ctl.signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
-      clearTimeout(t);
-      const j = await r.json();
-      let addon = base.replace(/^https?:\/\//, '').split('/')[0];
-      (j.streams || []).forEach(s => { if (s.url && /^https?:/.test(s.url)) all.push({ url: s.url, name: (s.name || addon).replace(/\n/g, ' '), title: s.title || s.description || '', addon, headers: s.behaviorHints && s.behaviorHints.proxyHeaders && s.behaviorHints.proxyHeaders.request }); });
-    } catch (e) {}
-  }));
-  all.forEach(s => {
+  const all = [], t0 = Date.now();
+  const good = store.get('goodSrc', {})[cidOf(req)];
+  const rank = s => (good && srcKey(s) === good ? 100 : 0) + (s.risky ? 0 : 10) + ({ '4K': 3, '1080p': 4, '720p': 2, 'SD': 1 }[s.quality] || 0) + (/\.mp4\b|mp4\)/i.test(s.name + s.title) ? 1 : 0);
+  const sorted = () => all.slice().sort((a, b) => rank(b) - rank(a));
+  const tidy = s => {
     const t = (s.name + ' ' + s.title);
     s.quality = /2160|\b4k\b|uhd/i.test(t) ? '4K' : /1080/.test(t) ? '1080p' : /720/.test(t) ? '720p' : /480|sd\b/i.test(t) ? 'SD' : '';
     s.size = (t.match(/(\d+(?:[.,]\d+)?)\s?(GB|MB)/i) || [''])[0].replace(',', '.');
@@ -575,33 +581,82 @@ async function streamsNow({ type, id, season, episode }) {
     // The Mac plays H.264 MP4/MKV well; HEVC/x265, AV1 and some MKV audio often not
     s.risky = /hevc|x265|h\.?265|\bav1\b|dolby ?vision|\bdv\b|truehd|atmos|dts/i.test(t);
     s.addonName = s.name.split(/\s{2,}|\|/)[0].trim().slice(0, 40);
-  });
-  const good = store.get('goodSrc', {})[cidOf({ type, id, season, episode })];
-  const rank = s => (good && srcKey(s) === good ? 100 : 0) + (s.risky ? 0 : 10) + ({ '4K': 3, '1080p': 4, '720p': 2, 'SD': 1 }[s.quality] || 0) + (/\.mp4\b|mp4\)/i.test(s.name + s.title) ? 1 : 0);
-  return all.sort((a, b) => rank(b) - rank(a));
+    return s;
+  };
+  let done = false, resolve;
+  const quick = new Promise(r => resolve = r);
+  const finish = () => { if (!done) { done = true; resolve(sorted()); } };
+  const known = () => good && all.some(s => srcKey(s) === good);
+  const ready = () => all.some(s => !s.risky && s.quality && s.quality !== 'SD');
+  const tick = setInterval(() => { const el = Date.now() - t0; if (known() || (el > 1500 && ready()) || (el > 6000 && all.length)) finish(); }, 200);
+  const full = Promise.all(acct.addons.map(async base => {
+    try {
+      const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 15000);
+      const r = await fetch(`${base.replace(/\/manifest\.json$/, '').replace(/\/$/, '')}/stream/${type}/${encodeURIComponent(sid)}.json`, { signal: ctl.signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
+      clearTimeout(t);
+      const j = await r.json();
+      const addon = base.replace(/^https?:\/\//, '').split('/')[0];
+      (j.streams || []).forEach(s => { if (s.url && /^https?:/.test(s.url)) all.push(tidy({ url: s.url, name: (s.name || addon).replace(/\n/g, ' '), title: s.title || s.description || '', addon, headers: s.behaviorHints && s.behaviorHints.proxyHeaders && s.behaviorHints.proxyHeaders.request })); });
+    } catch (e) {}
+  })).then(() => { clearInterval(tick); finish(); return sorted(); });
+  quick.full = full;
+  return quick;
 }
 
 async function sources(req) {
   const bg = document.createElement('div'); bg.className = 'sheet-bg';
   const label = req.type === 'series' ? `${req.name} · S${req.season} E${req.episode}` : req.name;
-  bg.innerHTML = `<div class="sheet"><h2>${esc(label)}</h2><div class="sub">Looking in your addons…</div><div class="spin"></div></div>`;
+  const skel = '<div class="skel"></div>'.repeat(6);
+  bg.innerHTML = `<div class="sheet"><button class="sx" title="Close">&#x2715;</button><small class="kick">Sources</small><h2>${esc(label)}</h2><div class="sub">Looking…</div>${skel}</div>`;
   document.body.appendChild(bg);
-  bg.onclick = e => { if (e.target === bg) bg.remove(); };
-  const close = e => { if (e.key === 'Escape') { bg.remove(); document.removeEventListener('keydown', close); } };
+  requestAnimationFrame(() => bg.classList.add('on'));
+  const shut = () => { bg.remove(); document.removeEventListener('keydown', close); };
+  bg.onclick = e => { if (e.target === bg || e.target.closest('.sx')) shut(); };
+  const close = e => { if (e.key === 'Escape') shut(); };
   document.addEventListener('keydown', close);
-  if (!acct.addons.length) { $('.sheet', bg).innerHTML = `<h2>No addons yet</h2><div class="sub">Add Stremio addons on the TV (Settings → Stremio addons). They sync to this Mac through your account.</div>`; return; }
+  if (!acct.addons.length) { $('.sheet', bg).innerHTML = `<button class="sx" title="Close">&#x2715;</button><small class="kick">Sources</small><h2>No addons yet</h2><div class="sub">Add Stremio addons on the TV (Settings › Stremio addons). They come to this ${WEB ? 'phone' : 'Mac'} through your account.</div>`; return; }
   const list = await streamsFor(req);
   if (!document.body.contains(bg)) return;
-  if (!list.length) { $('.sheet', bg).innerHTML = `<h2>${esc(label)}</h2><div class="sub">None of your addons has a playable link for this right now.</div>`; return; }
-  $('.sheet', bg).innerHTML = `<h2>${esc(label)}</h2><div class="sub">${list.length} sources · the ones most likely to play on a Mac first. If one does not start, the next one starts by itself.</div>${list.map((s, i) => `<div class="src" data-i="${i}"><span class="q ${s.quality === '4K' ? 'k4' : s.quality === '1080p' ? 'fhd' : ''}">${esc(s.quality || 'HD?')}</span><div class="nm2"><b>${esc(s.addonName)}</b><small>${esc(s.file)}</small></div>${s.risky ? '<span class="warn" title="Uses a format the Mac player often cannot play">may not play</span>' : ''}<span class="sz">${esc(s.size)}</span>${DL && canDownload(s.url) ? `<button class="dl" data-d="${i}" title="Download to watch offline">&#x2B73;</button>` : ''}</div>`).join('')}`;
+  if (!list.length) { $('.sheet', bg).innerHTML = `<button class="sx" title="Close">&#x2715;</button><small class="kick">Sources</small><h2>${esc(label)}</h2><div class="sub">Nothing playable for this right now.</div>`; return; }
+  $('.sheet', bg).innerHTML = `<button class="sx" title="Close">&#x2715;</button><small class="kick">Sources</small><h2>${esc(label)}</h2><div class="sub">${list.length} available · best first</div>${list.map((s, i) => `<div class="src" data-i="${i}"><span class="q">${esc(s.quality || '—')}</span><div class="nm2"><b>${esc(s.addonName)}</b><small>${esc(s.file)}</small></div>${s.risky ? '<span class="warn" title="Uses a format this player often cannot play">may not play</span>' : ''}<span class="sz">${esc(s.size)}</span>${DL && canDownload(s.url) ? `<button class="dl" data-d="${i}" title="Download to watch offline">&#x2B73;</button>` : ''}</div>`).join('')}`;
   bg.querySelectorAll('.dl').forEach(b => b.onclick = e => {
     e.stopPropagation(); const s = list[+b.dataset.d];
     DL.start(s.url, label, req.id); b.disabled = true; b.innerHTML = '&#x2713;';
     toast('Downloading “' + label + '” – see Downloads', 2600);
   });
-  bg.querySelectorAll('.src').forEach(el => el.onclick = () => { bg.remove(); document.removeEventListener('keydown', close); play({ url: list[+el.dataset.i].url, title: req.name, sub: req.type === 'series' ? `S${req.season} E${req.episode}` : '', start: req.start || 0, list, idx: +el.dataset.i, req }); });
-  // One click play: with "auto" the best source starts at once (like the TV's one-click setting)
-  if (req.auto) bg.querySelector('.src').click();
+  bg.querySelectorAll('.src').forEach(el => el.onclick = () => { shut(); play({ url: list[+el.dataset.i].url, title: req.name, sub: req.type === 'series' ? `S${req.season} E${req.episode}` : '', start: req.start || 0, list, idx: +el.dataset.i, req }); });
+}
+
+// Play: straight into the player – the title's picture while the best source is found and started (no list)
+let startTok = 0;
+async function watch(req) {
+  if (!acct.addons.length) return sources(req);
+  const tok = ++startTok;
+  const tt = String(req.id).split(':')[0];
+  const sub = req.type === 'series' ? `Season ${req.season} · Episode ${req.episode}` : '';
+  if (cur && !cur.live) saveResume(true);
+  stopEngines(); cur = null; msg('');
+  clearTimeout(trailerIn.t); document.querySelectorAll('iframe.trailer').forEach(f => f.remove()); trailerIn.on = false;
+  clearInterval(endOfTitle.t); const pe = $('#pl-end'); if (pe) pe.remove();
+  $('#player').classList.remove('mini', 'hidden');
+  $('#pl-title').textContent = req.name || ''; $('#pl-sub').textContent = sub;
+  $('#pl-src').classList.add('hidden');
+  starting(true, { bg: /^tt\d+$/.test(tt) ? bgOf(tt) : '', title: req.name, sub, note: 'Getting it ready' });
+  const list = await streamsFor(req);
+  if (tok !== startTok || $('#player').classList.contains('hidden')) return;
+  if (!list.length) { starting(true, { note: 'Nothing playable for this right now', stop: true }); return; }
+  starting(true, { note: 'Starting' + (list[0].quality ? ' · ' + list[0].quality : '') });
+  play({ url: list[0].url, title: req.name, sub, start: req.start || 0, list, idx: 0, req, keepStart: true });
+}
+function starting(on, o = {}) {
+  const el = $('#pl-start');
+  if (!on) { el.classList.add('hidden'); return; }
+  if (o.bg !== undefined) { const im = $('img', el); im.classList.remove('in'); if (o.bg) { im.onload = () => im.classList.add('in'); im.src = o.bg; } else im.removeAttribute('src'); }
+  if (o.title !== undefined) $('h1', el).textContent = o.title || '';
+  if (o.sub !== undefined) $('.ps-sub', el).textContent = o.sub || '';
+  if (o.note !== undefined) $('.ps-note', el).textContent = o.note;
+  el.classList.toggle('stopped', !!o.stop);
+  el.classList.remove('hidden');
 }
 
 const canDownload = u => /^https?:/.test(u) && !/\.m3u8(\?|$)|\/live\//i.test(u);
@@ -844,15 +899,16 @@ function gameChannels(g) {
 }
 async function watchGame(g) {
   const bg = document.createElement('div'); bg.className = 'sheet-bg';
-  bg.innerHTML = `<div class="sheet"><h2>${esc(g.away.short)} at ${esc(g.home.short)}</h2><div class="sub">Finding the channels in your playlist…</div><div class="spin"></div></div>`;
+  const head = `<button class="sx" title="Close">&#x2715;</button><small class="kick">${esc(g.league || 'Watch')}</small><h2>${esc(g.away.short)} at ${esc(g.home.short)}</h2>`;
+  bg.innerHTML = `<div class="sheet">${head}<div class="sub">Finding channels…</div>${'<div class="skel"></div>'.repeat(5)}</div>`;
   document.body.appendChild(bg);
   const close = () => { bg.remove(); document.removeEventListener('keydown', esck); };
   const esck = e => { if (e.key === 'Escape') close(); };
-  document.addEventListener('keydown', esck); bg.onclick = e => { if (e.target === bg) close(); };
+  document.addEventListener('keydown', esck); bg.onclick = e => { if (e.target === bg || e.target.closest('.sx')) close(); };
   try { await loadLive(); } catch (e) {}
   const list = gameChannels(g);
   if (!document.body.contains(bg)) return;
-  $('.sheet', bg).innerHTML = `<h2>${esc(g.away.short)} at ${esc(g.home.short)}</h2><div class="sub">${esc(g.league)} · ${esc(g.detail)}${g.nets.length ? ' · On ' + esc(g.nets.join(', ')) : ''}</div>` +
+  $('.sheet', bg).innerHTML = head + `<div class="sub">${esc(g.detail)}${g.nets.length ? ' · On ' + esc(g.nets.join(', ')) : ''}</div>` +
     (list.length ? `<div class="chlist">${list.map((c, i) => `<div class="src" data-i="${i}">${c.logo ? `<img src="${esc(c.logo)}" onerror="this.style.visibility='hidden'">` : ''}<div class="nm2"><b>${esc(c.name)}</b><small>${c.sc >= 12 ? 'This game' : c.sc >= 9 ? 'Team channel' : 'National broadcast'}</small></div></div>`).join('')}</div>`
       : '<div class="sub">No channel in your playlist matches this game. Try the league\'s category in Live TV.</div>');
   bg.querySelectorAll('.src').forEach(el => el.onclick = () => { close(); const i = +el.dataset.i; play({ url: list[i].url, title: list[i].name, sub: `${g.away.short} at ${g.home.short}`, live: true, zap: list, zi: i }); });
@@ -962,6 +1018,7 @@ function play(item) {
   clearInterval(endOfTitle.t); const pe = $('#pl-end'); if (pe) pe.remove();
   clearTimeout(trailerIn.t); document.querySelectorAll('iframe.trailer').forEach(f => f.remove()); trailerIn.on = false;
   cur = item; stopEngines(); msg('');
+  if (!item.keepStart) starting(false);
   $('#player').classList.remove('mini');
   $('#player').classList.remove('hidden');
   $('#pl-title').textContent = item.title || ''; $('#pl-sub').textContent = item.sub || '';
@@ -1010,7 +1067,7 @@ setInterval(() => {
   if (cur.list && !cur.remembered && V.currentTime > 60) { cur.remembered = true; rememberSource(cur.req, cur.list[cur.idx]); }
   if (V.currentTime > 1 || V.paused && V.readyState >= 2) { vodWait = 0; return; }
   vodWait += 2;
-  if (vodWait >= 20) { vodWait = 0; fail('This source does not start.'); }
+  if (vodWait >= 14) { vodWait = 0; fail('This source does not start.'); }
 }, 2000);
 
 // Live watchdog: a channel frozen for 12 s reconnects by itself (up to 3 times in a row)
@@ -1024,10 +1081,11 @@ setInterval(() => {
 
 function fail(t) {
   // Next source automatically, like the TV's failover
-  if (cur && cur.list && cur.idx + 1 < cur.list.length && !cur.noFallback) { toast('Source did not start – trying the next one'); const n = cur.idx + 1; return play(Object.assign({}, cur, { url: cur.list[n].url, idx: n })); }
+  if (cur && cur.list && cur.idx + 1 < cur.list.length && !cur.noFallback) { const n = cur.idx + 1; const starting_ = !$('#pl-start').classList.contains('hidden'); if (starting_) starting(true, { note: 'Trying another copy' }); else toast('Source did not start – trying the next one'); return play(Object.assign({}, cur, { url: cur.list[n].url, idx: n, keepStart: starting_ })); }
+  if (!$('#pl-start').classList.contains('hidden')) return starting(true, { note: 'This one will not start right now. Try Sources on the title page.', stop: true });
   msg(t);
 }
-function closePlayer() { stopCorner(); const sb = $('#scorebar'); if (sb) sb.remove(); saveResume(true); if (document.pictureInPictureElement) document.exitPictureInPicture().catch(() => {}); stopEngines(); cur = null; $('#player').classList.add('hidden'); if (document.fullscreenElement) document.exitFullscreen(); }
+function closePlayer() { startTok++; starting(false); stopCorner(); const sb = $('#scorebar'); if (sb) sb.remove(); saveResume(true); if (document.pictureInPictureElement) document.exitPictureInPicture().catch(() => {}); stopEngines(); cur = null; $('#player').classList.add('hidden'); if (document.fullscreenElement) document.exitFullscreen(); }
 function fmt(s) { if (!isFinite(s)) return 'LIVE'; s = Math.floor(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); }
 function poke() { $('#player').classList.remove('idle'); clearTimeout(idleT); idleT = setTimeout(() => { if (!V.paused) $('#player').classList.add('idle'); }, 3000); }
 V.ontimeupdate = () => {
@@ -1044,7 +1102,7 @@ V.ontimeupdate = () => {
 V.onplay = () => { $('#pl-play').innerHTML = '&#10074;&#10074;'; msg(''); };
 V.onpause = () => { $('#pl-play').innerHTML = '&#x25B6;'; poke(); };
 V.onwaiting = () => { clearTimeout(V.wt); V.wt = setTimeout(() => { if (V.readyState < 3 && cur) msg('Loading…'); }, 1500); };
-V.onplaying = () => { clearTimeout(V.wt); msg(''); };
+V.onplaying = () => { clearTimeout(V.wt); msg(''); starting(false); };
 $('#pl-play').onclick = () => V.paused ? V.play() : V.pause();
 $('#pl-rw').onclick = () => { V.currentTime = Math.max(0, V.currentTime - 10); };
 $('#pl-ff').onclick = () => { V.currentTime = V.currentTime + 10; };
@@ -1073,7 +1131,7 @@ async function endOfTitle() {
     if (nx) {
       let n = 8;
       box.innerHTML = `<div class="nextcard">${nx.thumbnail ? `<img src="${esc(nx.thumbnail)}" onerror="this.remove()">` : ''}<div><small>NEXT EPISODE</small><b>S${nx.season} E${nx.episode} · ${esc(nx.name || nx.title || '')}</b></div><button class="btn primary" id="nxgo">&#x25B6;&nbsp; Play in <span id="nxn">${n}</span></button><button class="btn" id="nxno">Cancel</button></div>`;
-      const goNext = () => { clear(); closePlayer(); sources({ type: 'series', id: req.id, name: req.name, season: nx.season, episode: nx.episode, auto: true }); };
+      const goNext = () => { clear(); watch({ type: 'series', id: req.id, name: req.name, season: nx.season, episode: nx.episode }); };
       $('#nxgo', box).onclick = goNext;
       $('#nxno', box).onclick = clear;
       endOfTitle.t = setInterval(() => { n--; const s = $('#nxn', box); if (s) s.textContent = n; if (n <= 0) goNext(); }, 1000);
@@ -1089,6 +1147,7 @@ async function endOfTitle() {
 }
 $('#pl-seek').onclick = e => { const r = e.currentTarget.getBoundingClientRect(); if (isFinite(V.duration)) V.currentTime = (e.clientX - r.left) / r.width * V.duration; };
 $('#pl-src').onclick = () => {
+  if (!cur) return;
   if (cur.zap) { const z = cur.zap; closePlayer(); return; }
   const c = cur; closePlayer(); sources(Object.assign({}, c.req, { start: Math.round(V.currentTime * 1000) }));
 };
@@ -1099,8 +1158,8 @@ document.addEventListener('keydown', e => {
   if ($('#player').classList.contains('hidden') || $('#player').classList.contains('mini') || e.target.tagName === 'INPUT') return;
   poke();
   if (e.key === ' ') { e.preventDefault(); V.paused ? V.play() : V.pause(); }
-  else if (e.key === 'ArrowRight' && !cur.zap) V.currentTime += 10;
-  else if (e.key === 'ArrowLeft' && !cur.zap) V.currentTime = Math.max(0, V.currentTime - 10);
+  else if (e.key === 'ArrowRight' && cur && !cur.zap) V.currentTime += 10;
+  else if (e.key === 'ArrowLeft' && cur && !cur.zap) V.currentTime = Math.max(0, V.currentTime - 10);
   else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && cur && cur.zap) {
     const n = (cur.zi + (e.key === 'ArrowUp' ? -1 : 1) + cur.zap.length) % cur.zap.length; const c = cur.zap[n];
     play({ url: c.url, title: c.name, sub: 'Live TV', live: true, zap: cur.zap, zi: n }); e.preventDefault();

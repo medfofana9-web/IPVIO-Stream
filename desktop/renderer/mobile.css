@@ -97,3 +97,14 @@
   #scorebar { top: 60px; right: 10px; }
   #corner { width: 46vw; bottom: 90px; right: 10px; }
 }
+
+/* Play picture and side panel on a phone */
+@media (max-width: 820px) {
+  .ps-x { left: 22px; right: 22px; bottom: calc(64px + env(safe-area-inset-bottom)); }
+  .ps-x h1 { font-size: 30px; }
+  .ps-sub { font-size: 15px; }
+  .sheet-bg { align-items: flex-end; }
+  .sheet { width: 100%; max-width: none; height: auto; max-height: 88vh; border-left: 0; border-radius: 14px 14px 0 0; padding: 26px 18px calc(24px + env(safe-area-inset-bottom)); animation-name: sheetUp; }
+  .sheet .src { margin: 0 -8px; padding: 14px 8px; }
+  @keyframes sheetUp { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+}

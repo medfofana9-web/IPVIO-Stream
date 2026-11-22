@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased – Mac/phone: Play starts at once
+
+- Play goes straight into the player: the title's picture while the best source starts, no source list. Another copy is tried by itself if one does not start (after 14 s instead of 20 s).
+- Faster: the source that worked last time starts at once; otherwise a good copy after about 1.5 s instead of waiting for the slowest addon (up to 15 s). Hovering a movie looks its sources up ahead.
+- Sources (from the player) and a game's channels open as a side panel; loading shows a thin red line instead of a spinner.
+
 ## Unreleased – Mac hero Play
 
 - Fof TV for Mac: Play on the Home, Movies and TV Shows banner starts playback (it only opened the title page).
