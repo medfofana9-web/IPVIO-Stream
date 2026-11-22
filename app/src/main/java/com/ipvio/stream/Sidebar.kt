@@ -33,7 +33,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
@@ -141,7 +140,7 @@ fun MenuIcon(id: Int, color: Color, modifier: Modifier = Modifier) {
 }
 
 // Sidebar (round 14): collapsed only icons (always visible), with focus it expands over the content and shows the texts
-private val SidebarBg: Color get() = lerp(Look.bg, Color.Black, 0.25f)
+private val SidebarBg: Color get() = Color.Black
 private val SidebarInk = Color(0xFFCFCFD6)
 
 /** Position and style of the sidebar (round 20): left, right or top; icons only or always with text. */
@@ -159,6 +158,8 @@ object SidebarPrefs {
     fun init(c: android.content.Context) {
         val p = Profiles.sp(c, "ipvio_side")
         // Netflix on TV: a slim icon rail on the left that opens with labels; the top pill stays as an option
+        // One-time (Mac look): the slim icon rail on the left, like the Mac app
+        if (!p.getBoolean("mac_v1", false)) p.edit().putInt("pos", LEFT).putBoolean("labels", false).putBoolean("mac_v1", true).apply()
         pos = p.getInt("pos", LEFT).coerceIn(LEFT, TOP)
         labels = p.getBoolean("labels", false)
     }
@@ -269,26 +270,28 @@ fun Sidebar(tab: Int, onTab: (Int) -> Unit, modifier: Modifier, activeFocus: Foc
         )
         Column(
             Modifier.width(w).fillMaxHeight().align(if (right) Alignment.CenterEnd else Alignment.CenterStart)
+                // Same as the Mac app: a plain black rail with a thin dark edge line
                 .background(SidebarBg)
-                // FOF Glass: the rail is a tall pane over the content (body and sheen, edge line below)
-                .background(FofGlass.sheen(2, false))
                 .drawBehind {
                     val x = if (right) 0f else size.width - 1f
-                    drawLine(Color(0x1AFFFFFF), Offset(x, 0f), Offset(x, size.height), 1f)
+                    drawLine(Color(0xFF111111), Offset(x, 0f), Offset(x, size.height), 1f)
                 }
                 .then(group)
-                .padding(start = dpx(16), end = dpx(16), top = dpx(22))
+                .padding(start = dpx(10), end = dpx(10), top = dpx(40))
         ) {
-            Box(Modifier.padding(start = dpx(6)).size(dpx(48)), contentAlignment = Alignment.Center) { BrandMark(Modifier.fillMaxSize()) }
-            Spacer(Modifier.height(dpx(34)))
-            Column(verticalArrangement = Arrangement.spacedBy(dpx(10))) {
-                visible.forEach { id ->
+            Box(Modifier.padding(start = dpx(12)).size(dpx(40)), contentAlignment = Alignment.Center) { BrandMark(Modifier.fillMaxSize()) }
+            Spacer(Modifier.height(dpx(30)))
+            Column(verticalArrangement = Arrangement.spacedBy(dpx(6))) {
+                visible.filter { it != MenuLogic.SETTINGS }.forEach { id ->
                     SideItem(id, MENU_LABELS[id], id == tab, expanded, if (id == tab) Modifier.focusRequester(activeFocus) else Modifier) { onPick(id) }
                 }
             }
-            // At the very bottom: phone search (QR code), so you can type on the phone instead of with the remote
+            // At the bottom (where the Mac app has the profile): Settings, then phone search (QR code)
             Spacer(Modifier.weight(1f))
-            PhoneSearchItem(expanded, Modifier.padding(bottom = dpx(22)))
+            if (MenuLogic.SETTINGS in visible) SideItem(MenuLogic.SETTINGS, MENU_LABELS[MenuLogic.SETTINGS], tab == MenuLogic.SETTINGS, expanded,
+                if (tab == MenuLogic.SETTINGS) Modifier.focusRequester(activeFocus) else Modifier) { onPick(MenuLogic.SETTINGS) }
+            Spacer(Modifier.height(dpx(6)))
+            PhoneSearchItem(expanded, Modifier.padding(bottom = dpx(20)))
         }
     }
 }
@@ -297,20 +300,20 @@ fun Sidebar(tab: Int, onTab: (Int) -> Unit, modifier: Modifier, activeFocus: Foc
 @Composable
 private fun PhoneSearchItem(expanded: Boolean, modifier: Modifier, horizontal: Boolean = false) {
     var f by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(dpx(12))
-    val ink = if (f) DS.FocusInk else if (RemoteHub.active) Accent1 else SidebarInk
+    val shape = RoundedCornerShape(dpx(10))
+    val ink = if (f) Color(0xFF0B0F19) else if (RemoteHub.active) Accent1 else SidebarInk
     Row(
-        (if (horizontal) modifier.height(dpx(48)) else modifier.fillMaxWidth().height(dpx(56))).clip(shape)
-            .background(if (f) SolidColor(DS.FocusFill) else SolidColor(Color.Transparent))
+        (if (horizontal) modifier.height(dpx(48)) else modifier.fillMaxWidth().height(dpx(48))).clip(shape)
+            .background(if (f) SolidColor(Color.White) else SolidColor(Color.Transparent))
             .onFocusChanged { f = it.isFocused }
             .clickable { RemoteUi.show = true }
-            .padding(start = dpx(17), end = if (horizontal) dpx(17) else 0.dp),
+            .padding(start = dpx(20), end = if (horizontal) dpx(20) else 0.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AppIcon(AIcon.Phone, ink, size = dpx(26))
+        AppIcon(AIcon.Phone, ink, size = dpx(24))
         if (expanded) {
             Spacer(Modifier.width(dpx(18)))
-            Text("Handy-Suche", color = if (f) DS.FocusInk else Color.White, fontSize = spx(19),
+            Text("Handy-Suche", color = if (f) Color(0xFF0B0F19) else Color(0xFFCFCFD6), fontSize = spx(17),
                 fontWeight = if (f) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
         }
     }
@@ -320,25 +323,25 @@ private fun PhoneSearchItem(expanded: Boolean, modifier: Modifier, horizontal: B
 private fun SideItem(id: Int, label: String, active: Boolean, expanded: Boolean, modifier: Modifier, horizontal: Boolean = false, onClick: () -> Unit) {
     var fRaw by remember { mutableStateOf(false) }
     val f = fRaw && !ViewLive.active
-    val shape = RoundedCornerShape(dpx(12))
-    // Active: icon in the design color on a tinted surface. Focus: white surface, dark text (clearly "selected").
-    val ink = if (f) DS.FocusInk else if (active) Accent1 else SidebarInk
+    val shape = RoundedCornerShape(dpx(10))
+    // Same as the Mac app: active = Fof red icon on a red tint, focus = white surface with dark ink
+    val ink = if (f) Color(0xFF0B0F19) else if (active) Color(0xFFE60023) else SidebarInk
     Row(
-        (if (horizontal) modifier.height(dpx(48)) else modifier.fillMaxWidth().height(dpx(56))).clip(shape)
+        (if (horizontal) modifier.height(dpx(48)) else modifier.fillMaxWidth().height(dpx(48))).clip(shape)
             .background(
-                if (f) SolidColor(DS.FocusFill)
-                else if (active) SolidColor(Accent1.copy(alpha = .16f))
+                if (f) SolidColor(Color.White)
+                else if (active) SolidColor(Color(0x24E60023))
                 else SolidColor(Color.Transparent)
             )
             .onFocusChanged { fRaw = it.isFocused }
             .clickable(onClick = onClick)
-            .padding(start = dpx(17), end = if (horizontal) dpx(17) else 0.dp),
+            .padding(start = dpx(20), end = if (horizontal) dpx(20) else 0.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        MenuIcon(id, ink, Modifier.size(dpx(26)))
+        MenuIcon(id, ink, Modifier.size(dpx(24)))
         if (expanded) {
             Spacer(Modifier.width(dpx(18)))
-            Text(label, color = if (f) DS.FocusInk else Color.White, fontSize = spx(19),
+            Text(label, color = if (f) Color(0xFF0B0F19) else Color(0xFFCFCFD6), fontSize = spx(17),
                 fontWeight = if (active || f) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
         }
     }

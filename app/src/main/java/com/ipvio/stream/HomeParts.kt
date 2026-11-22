@@ -287,11 +287,9 @@ fun RowTitle(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(dpx(12))
     ) {
-        // Editorial section marker shared by Home, Movies and TV. A cheap solid surface,
-        // not a live blur or a per-frame gradient.
-        Box(Modifier.width(dpx(4)).height(dpx(23)).clip(RoundedCornerShape(50)).background(Color(0xFFE60023)))
-        Text(title, color = Color.White, fontSize = spx(DS.SectionTitleSp + 2), fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f), raw = raw)
+        // Same as the Mac app: plain light-grey title, the "Show all" link right after it (no side marker)
+        Text(title, color = Color(0xFFE5E5E5), fontSize = spx(DS.SectionTitleSp + 2), fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false), raw = raw)
         if (onAll != null) {
             var f by remember { mutableStateOf(false) }
             val shape = RoundedCornerShape(50)
@@ -352,10 +350,11 @@ fun RowTitle(
                     .padding(horizontal = dpx(10), vertical = dpx(4)),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))
             ) {
-                Text("Alle anzeigen", color = if (f) DS.FocusInk else SoftInk, fontSize = spx(16))
-                AppIcon(AIcon.Right, if (f) DS.FocusInk else SoftInk, size = dpx(15))
+                Text("Alle anzeigen", color = if (f) DS.FocusInk else Color(0xFF808080), fontSize = spx(15), fontWeight = FontWeight.Medium)
+                AppIcon(AIcon.Right, if (f) DS.FocusInk else Color(0xFF808080), size = dpx(13))
             }
         }
+        Spacer(Modifier.weight(1f))
     }
 }
 

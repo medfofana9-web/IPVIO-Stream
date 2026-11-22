@@ -1,5 +1,15 @@
 # Changelog
 
+## Fof TV – same look as the Mac app
+
+- Side rail like the Mac app: plain black, 84 wide, red active item, white focus. Menu order Search, Home, TV Shows, Movies, Sports, Live TV, My List; Settings and phone search sit at the bottom. TV guide, Favorites and History are hidden once (Settings > Menu shows them again). The rail is put back on the left once on every profile.
+- Colors set once to Fof red on black.
+- No search field or clock at the top; only the bell and the profile stay. The big picture starts right at the top as a rounded card (no glow behind it, no "05 / 06" counter, Mac-size dots).
+- Movies / TV Shows: Categories, Top rated, Recently added and All sit as outlined buttons next to Genres in the big picture.
+- Row titles: light grey, "Show all" right after the title, no red marker. "Continue Watching for <profile>" in English.
+- Home order (once): Continue Watching, Top 10, My List, then the addon and genre rows. Live sports moved off Home (it stays in Sports; Customize home screen can show it again).
+- Live TV: categories on the left with a thin edge line, channels as cards (LIVE tag, logo, name, now playing with a red progress line, next show). No picture behind the page. Channel search keeps the keyboard and the now-playing panel.
+
 ## Fof TV – daily game plan
 
 - New `SportPlan`: while the app is on (any screen), today's and tomorrow's games of the switched-on leagues are matched to channels ahead of time, right when the channels are loaded, again each time the app comes back in front (from another app or sleep), and every 15 minutes. Watch Live is ready before the game starts, and the Sports hub shows "Today: N of M games ready to watch".

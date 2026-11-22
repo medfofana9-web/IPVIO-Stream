@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import kotlinx.coroutines.flow.collectLatest
@@ -32,6 +33,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 
@@ -149,7 +154,7 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
     val variantsOf = bundled?.variants.orEmpty()
     val firstChan = remember { FocusRequester() }
     // Back from the player: the last watched channel gets the focus (not the sidebar)
-    val chanState = remember { LazyListState() }
+    val chanState = remember { androidx.compose.foundation.lazy.grid.LazyGridState() }
     val restoreReq = remember { FocusRequester() }
     val restoreId = remember { LastFocus.pending }
     LaunchedEffect(Unit) {
@@ -193,9 +198,15 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
         snapshotFlow { focusTarget }.collectLatest { t -> if (focusedState.value != null) kotlinx.coroutines.delay(300); focusedState.value = t }
     }
     Box(Modifier.fillMaxSize()) {
-        FocusedBackdrop(focusedState, Modifier.fillMaxSize())
-        Row(Modifier.fillMaxSize().padding(top = 20.dp)) {
-            LazyColumn(Modifier.width(270.dp).fillMaxHeight().padding(start = 24.dp, end = 8.dp), state = catState, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        // Same as the Mac app: no picture behind the page, a category column with a thin edge line, channel cards on the right
+        if (sel == "SEARCH") FocusedBackdrop(focusedState, Modifier.fillMaxSize())
+        Row(Modifier.fillMaxSize()) {
+            LazyColumn(
+                Modifier.width(dpx(280)).fillMaxHeight()
+                    .drawBehind { drawLine(Color(0xFF111111), androidx.compose.ui.geometry.Offset(size.width - 1f, 0f), androidx.compose.ui.geometry.Offset(size.width - 1f, size.height), 1f) }
+                    .padding(start = dpx(12), end = dpx(12)),
+                state = catState, verticalArrangement = Arrangement.spacedBy(2.dp), contentPadding = PaddingValues(top = dpx(40), bottom = dpx(24))
+            ) {
                 itemsIndexed(names) { _, n ->
                     val ml = ChannelLists.byKey(n)
                     if (n == "GUIDE") {
@@ -334,7 +345,7 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
             if (sel == "HOME") Box(Modifier.weight(2f).fillMaxHeight().padding(end = 24.dp)) {
                 LiveHome(live, genres, favs, firstChan, onOpen = { ch, l -> ZapContext.list = l; ZapContext.key = "ALL"; onOpen(ch) })
             } else {
-            Column(Modifier.weight(0.9f).fillMaxHeight().padding(end = 24.dp)) {
+            Column(Modifier.weight(if (sel == "SEARCH") 0.9f else 2f).fillMaxHeight().padding(start = dpx(if (sel == "SEARCH") 24 else 36), end = dpx(if (sel == "SEARCH") 24 else 36), top = dpx(40))) {
                 // Own list: rename and delete clearly visible above the channels (before only via long OK on the list)
                 if (curList != null) Row(
                     Modifier.fillMaxWidth().padding(bottom = 12.dp),
@@ -372,7 +383,8 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
                         curList != null -> "In All Channels or a category, hold OK on a channel and choose Add to list."
                         else -> "No channels in this category. Select another category on the left."
                     }
-                ) else LazyColumn(
+                ) else androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                    columns = androidx.compose.foundation.lazy.grid.GridCells.Adaptive(dpx(if (sel == "SEARCH") 400 else 230)),
                     state = chanState,
                     // Held Down/Up key: at most ~9 steps per second, so a weak box is not flooded with scroll animations and rebinds
                     modifier = Modifier.onPreviewKeyEvent { e ->
@@ -382,11 +394,12 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
                             if (now - lastRepeat < 110) true else { lastRepeat = now; false }
                         } else false
                     },
-                    verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(bottom = 40.dp)
+                    verticalArrangement = Arrangement.spacedBy(dpx(14)), horizontalArrangement = Arrangement.spacedBy(dpx(14)),
+                    contentPadding = PaddingValues(top = dpx(6), bottom = dpx(40))
                 ) {
                     // In own lists the focus moves along with the channel when moving it (key = channel)
-                    itemsIndexed(list, key = if (curList != null) { ix, ch -> ch.id + "#" + ix } else null, contentType = { _, _ -> "ch" }) { i, ch ->
-                        ChannelLine(
+                    gridItemsIndexed(list, key = if (curList != null) { ix, ch -> ch.id + "#" + ix } else null, contentType = { _, _ -> "ch" }) { i, ch ->
+                        ChannelCard(
                             ch, (if (i == 0) Modifier.focusRequester(firstChan) else Modifier)
                                 .then(if (ch.id == restoreId) Modifier.focusRequester(restoreReq) else Modifier), curList,
                             onNewList = { newList(ch.id) },
@@ -404,9 +417,9 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
                     }
                 }
             }
-            // Right: what is on the selected channel
-            Box(Modifier.weight(1.1f).fillMaxHeight().padding(start = dpx(30), end = dpx(60), top = dpx(150))) {
-                if (sel == "SEARCH") Column(Modifier.fillMaxSize()) {
+            // Right (channel search only): what is on the selected channel, and the keyboard
+            if (sel == "SEARCH") Box(Modifier.weight(1.1f).fillMaxHeight().padding(start = dpx(30), end = dpx(60), top = dpx(150))) {
+                Column(Modifier.fillMaxSize()) {
                     Box(Modifier.weight(1f).fillMaxWidth()) { FocusedNowPanel(focusedState, list.firstOrNull()) }
                     Spacer(Modifier.height(10.dp))
                     SearchKeyboard(
@@ -418,7 +431,7 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
                         onPhone = null, onVoice = null,
                         firstKey = kbFirst, onFocusChange = {}, onRight = { true }
                     )
-                } else FocusedNowPanel(focusedState, list.firstOrNull())
+                }
             }
                     }
 }
@@ -540,6 +553,70 @@ private fun ChannelLine(item: Item, modifier: Modifier, inList: ChList?, onNewLi
         if (Catchup.version >= 0 && Catchup.has(item)) AppIcon(AIcon.Catchup, Accent2, size = 20.dp)
         if (DeadLinks.isDead(item.url)) AppIcon(AIcon.Warning, DS.Gold, size = 20.dp)
         if (Library.isFav(item.id)) AppIcon(AIcon.Star, DS.Gold, size = 20.dp)
+    }
+    }
+}
+
+/**
+ * Channel card (same as the Mac app's Live TV): LIVE tag, logo on a faint red wash, the name, what is on now with a
+ * red progress line and what comes next. Same keys as [ChannelLine]: OK plays, menu key / hold OK opens the channel menu.
+ */
+@Composable
+private fun ChannelCard(item: Item, modifier: Modifier, inList: ChList?, onNewList: () -> Unit, onFocus: () -> Unit = {}, variants: List<Item> = emptyList(), onVariant: (Item) -> Unit = {}, onClick: () -> Unit) {
+    var f by remember { mutableStateOf(false) }
+    var menu by remember { mutableStateOf(false) }
+    Box {
+    if (menu) ChannelMenu(item, inList, onNewList, variants, onVariant) { menu = false }
+    val shape = RoundedCornerShape(dpx(6))
+    val epg by produceState(emptyList<EpgEntry>(), item.id) {
+        kotlinx.coroutines.delay(150)
+        while (LiveHold.active()) kotlinx.coroutines.delay(120)
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { Epg.now(item) }
+    }
+    val nowE = Epg.current(epg)
+    val nextE = epg.firstOrNull { nowE != null && it.start >= nowE.end }
+    val sc by androidx.compose.animation.core.animateFloatAsState(if (f) focusScale(1.04f) else 1f, tween(150), label = "chc")
+    Column(
+        modifier.fillMaxWidth().height(dpx(190))   // fixed height: cards never grow when guide data arrives
+            .graphicsLayer { scaleX = sc; scaleY = sc }
+            .clip(shape).background(Color(0xFF1C1C1C))
+            .border(if (f) 3.dp else 0.dp, if (f) Color.White else Color.Transparent, shape)
+            .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
+            .menuKeys(onMenu = { menu = true }, onLong = { menu = true })
+            .clickable(onClick = onClick)
+    ) {
+        Box(
+            Modifier.fillMaxWidth().height(dpx(106))
+                .background(Brush.verticalGradient(listOf(Color(0x1FE60023), Color.Transparent)))
+                .padding(start = dpx(30), end = dpx(30), top = dpx(28), bottom = dpx(6)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (item.logo != null) AsyncImage(item.logo, null, Modifier.fillMaxWidth().height(dpx(64)), contentScale = ContentScale.Fit)
+            else Text(raw = true, text = item.title.take(2).uppercase(), color = Color(0xFFCCCCCC), fontSize = spx(30), fontWeight = FontWeight.Bold)
+        }
+        Text(raw = true, text = item.title, color = Color.White, fontSize = spx(15), fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = dpx(12), end = dpx(12), top = dpx(6)))
+        if (nowE != null) Column(Modifier.padding(start = dpx(12), end = dpx(12), top = dpx(2))) {
+            val frac = ((System.currentTimeMillis() / 1000 - nowE.start).toFloat() / (nowE.end - nowE.start)).coerceIn(0f, 1f)
+            Text(raw = true, text = nowE.title, color = Color(0xFFEEEEEE), fontSize = spx(13), fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Box(Modifier.padding(vertical = dpx(5)).fillMaxWidth().height(dpx(3)).clip(RoundedCornerShape(50)).background(Color(0x33FFFFFF))) {
+                Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(Color(0xFFE60023)))
+            }
+            if (nextE != null) Text(raw = true, text = "${hhmm(nextE.start)}  ${nextE.title}", color = Color(0xFF808080), fontSize = spx(12), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        } else Text(raw = true, text = item.group, color = Color(0xFF808080), fontSize = spx(12), maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = dpx(12)))
+    }
+    // LIVE tag top left; favorite / catch-up / variants top right
+    Row(Modifier.padding(dpx(10)).clip(RoundedCornerShape(dpx(3))).background(Color(0xFFE60023)).padding(horizontal = dpx(7), vertical = dpx(3)),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(5))) {
+        Box(Modifier.size(dpx(6)).clip(CircleShape).background(Color.White))
+        Text(raw = true, text = "LIVE", color = Color.White, fontSize = spx(11), fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
+    }
+    Row(Modifier.align(Alignment.TopEnd).padding(dpx(10)), horizontalArrangement = Arrangement.spacedBy(dpx(6)), verticalAlignment = Alignment.CenterVertically) {
+        if (variants.size > 1) Text(raw = true, text = "+" + (variants.size - 1), color = Color(0xFF808080), fontSize = spx(11), fontWeight = FontWeight.Bold)
+        if (Catchup.version >= 0 && Catchup.has(item)) AppIcon(AIcon.Catchup, Accent2, size = dpx(16))
+        if (DeadLinks.isDead(item.url)) AppIcon(AIcon.Warning, DS.Gold, size = dpx(16))
+        if (Library.isFav(item.id)) AppIcon(AIcon.Star, DS.Gold, size = dpx(16))
     }
     }
 }

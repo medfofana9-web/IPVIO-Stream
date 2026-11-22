@@ -70,9 +70,8 @@ fun HeaderBar(
         modifier.fillMaxWidth().padding(start = dpx(38), end = dpx(36), top = dpx(14)).height(dpx(52)),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        SearchPill(if (tabs.isEmpty()) 467 else 330, onSearch)
+        // Mac look: no search field and no clock at the top (Search is in the side rail), only bell and profile
         if (tabs.isNotEmpty()) {
-            Spacer(Modifier.width(dpx(22)))
             Row(horizontalArrangement = Arrangement.spacedBy(dpx(8)), verticalAlignment = Alignment.CenterVertically) {
                 tabs.forEachIndexed { i, t ->
                     NavTab(t, if (i == 0) (if (firstIsContent) ContentFocus.req else HeaderFocus.firstTab) else null)
@@ -89,10 +88,6 @@ fun HeaderBar(
             Spacer(Modifier.width(dpx(14)))
         }
         // Time and date right next to the notification bell (the only clock on screen)
-        if (General.showClock) {
-            ClockPill()
-            Spacer(Modifier.width(dpx(14)))
-        }
         BellButton(onReminder, onNewEpisode)
         Spacer(Modifier.width(dpx(14)))
         ProfileCircle(onProfile)

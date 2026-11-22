@@ -25,6 +25,9 @@ object MenuLogic {
      * Both can be shown again under Settings > Menu.
      */
     const val DEFAULT_HIDDEN = "6"
+    /** Mac look (one-time switch): the Mac app's menu order; TV guide, Favorites and History hidden. */
+    val MAC_ORDER = listOf(SEARCH, HOME, 2, 1, SPORT, 3, MYLIST, FAVS, VERLAUF, EPG, SETTINGS)
+    const val MAC_HIDDEN = "6,7,9"
 
     fun parseOrder(raw: String?): List<Int> {
         val order = (raw ?: DEFAULT_ORDER.joinToString(",")).split(",").mapNotNull { it.trim().toIntOrNull() }

@@ -334,7 +334,8 @@ fun HomeScreen(
         HeaderTab("All $vodNoun", AIcon.Grid, "tb:all$tab") { openList(Catalog.popular(vodK), "All $vodNoun", 6) }
     ) + importedTabs.map { (src, l, id) -> HeaderTab(src, AIcon.Download, id) { onBrowse(BrowseReq("$src · $vodNoun", l, SORT_NEW)) } }
     var inHeader by remember { mutableStateOf(false) }
-    val header: @Composable (Modifier) -> Unit = { m ->
+    // Mac look: the big picture carries the area's links itself (next to Genres), so the header over it has no tabs
+    val headerFor: @Composable (Modifier, List<HeaderTab>) -> Unit = { m, hTabs ->
         HeaderBar(
             m.onFocusChanged { inHeader = it.hasFocus },
             onSearch = { onTab(4) },
@@ -342,7 +343,7 @@ fun HomeScreen(
             onNewEpisode = { id -> byId[id]?.let(onOpen) },
             // Only one profile: go directly to the profile page of settings (before: general settings)
             onProfile = { profileMenu = true },
-            tabs = navTabs,
+            tabs = hTabs,
             areaTab = tab,
             // Round 20: the View button is gone (now in Settings > View), only bell and profile at the top right
             showView = false,
@@ -350,6 +351,8 @@ fun HomeScreen(
             firstIsContent = isVod && ready.isEmpty()
         )
     }
+    val header: @Composable (Modifier) -> Unit = { m -> headerFor(m, emptyList()) }
+    val headerTabs: @Composable (Modifier) -> Unit = { m -> headerFor(m, navTabs) }
     // Tiles with real images from the own library (round 15): scene image of a top title per area,
     // for favorites and My list a title from it, for Live TV the logos of favorite channels.
     val nowChannels = remember(favLive, hist, live) {
@@ -702,8 +705,8 @@ fun HomeScreen(
                             val catName = if (isM) "Movies" else "TV Shows"
                             val pickGenre: (Int) -> Unit = { i -> gSpecs.getOrNull(i)?.let { sp -> scope.launch { onBrowse(BrowseReq(catName + " · " + sp.title, Catalog.items(sp, 4), SORT_PLAYLIST)) } } }
                             if (ready.isNotEmpty()) item(key = "hero$tab") { Hero(ready.toList(), heroH, false, onOpen, heroPlay, header, { heroScroll(states[tab]) },
-                                category = catName, genres = gSpecs.map { it.title }, onGenre = pickGenre) { scope.launch { states[tab].animateScrollToItem(0) } } }
-                            else item(key = "top$tab") { header(Modifier) }
+                                category = catName, genres = gSpecs.map { it.title }, onGenre = pickGenre, links = navTabs) { scope.launch { states[tab].animateScrollToItem(0) } } }
+                            else item(key = "top$tab") { headerTabs(Modifier) }
                             // Netflix category order: Continue Watching, Top 10 of this kind, My List, a spotlight row, then genres
                             val rl = resumeK
                             if (rl.isNotEmpty()) item(key = "res$tab") { ResumeRow(rl, cardW, onResume, onOpen) }
@@ -944,7 +947,10 @@ private fun ResumeRow(list: List<Pair<Entry, Item>>, cardW: Int, onResume: (Entr
     Column {
         val g = LocalCardGrid.current
         Row(Modifier.padding(start = dpx(29), top = dpx(26), end = dpx(28)), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(dpx(16))) {
-            Text("Weiterschauen", color = Color.White, fontSize = spx(23), fontWeight = FontWeight.Bold)
+            // Same as the Mac app: "Continue Watching for <profile>" in English, the plain title in other languages
+            val who = Profiles.activeName()
+            Text(raw = true, text = Lang.tr("Weiterschauen") + if (Lang.code() == "en" && who.isNotBlank()) " for $who" else "",
+                color = Color(0xFFE5E5E5), fontSize = spx(23), fontWeight = FontWeight.Bold)
         }
         LazyRow(
             state = RowStates.get("${NavState.tab}|resume"),
@@ -1072,6 +1078,21 @@ private fun WideCard(item: Item, sub: String?, progress: Float, modifier: Modifi
     }
 }
 
+/** One of the area's lists as an outlined button next to "Genres" in the big picture (Mac look). */
+@Composable
+private fun HeroLink(t: HeaderTab) {
+    var f by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(dpx(4))
+    Box(
+        Modifier.height(dpx(40)).clip(shape)
+            .background(if (f) Color.White else Color(0x99000000))
+            .border(1.dp, if (f) Color.White else Color(0x66FFFFFF), shape)
+            .onFocusChanged { f = it.isFocused }.clickable(onClick = t.onClick)
+            .padding(horizontal = dpx(16)),
+        contentAlignment = Alignment.Center
+    ) { Text(t.label, color = if (f) Color.Black else Color.White, fontSize = spx(17), fontWeight = FontWeight.SemiBold, maxLines = 1) }
+}
+
 /** Second button in the big picture ("More info" / "To list"): target for Left from "Show all" of the first row. */
 object HeroFocus { val second = FocusRequester() }
 
@@ -1082,7 +1103,8 @@ private fun heroScroll(st: LazyListState): Int = if (st.firstVisibleItemIndex ==
 private fun Hero(
     featured: List<Item>, heroH: Dp, home: Boolean, onOpen: (Item) -> Unit, onPlay: (Item) -> Unit,
     header: @Composable (Modifier) -> Unit, scrollY: () -> Int = { 0 },
-    category: String? = null, genres: List<String> = emptyList(), onGenre: (Int) -> Unit = {}, onFocusTop: () -> Unit
+    category: String? = null, genres: List<String> = emptyList(), onGenre: (Int) -> Unit = {},
+    links: List<HeaderTab> = emptyList(), onFocusTop: () -> Unit
 ) {
     val ctx = LocalContext.current
     var idx by remember { mutableIntStateOf(0) }
@@ -1101,23 +1123,22 @@ private fun Hero(
     // Round 17c: parallax while scrolling (the constant zoom was removed for performance)
     // TryBox-style: the header sits above, the picture is a rounded card inset from the edges with the artwork's
     // color glowing softly behind it (one ambient light, no full-bleed picture under the header).
-    val cardShape = RoundedCornerShape(dpx(26))
-    val cardTop = dpx(78)
+    // Same as the Mac app: a rounded card 18 from the top and 28 from the sides, no glow behind it
+    val cardShape = RoundedCornerShape(dpx(22))
+    val cardTop = dpx(18)
     Box(Modifier.fillMaxWidth().height(heroH + dpx(40)).background(Bg).clipToBounds().onFocusChanged { if (it.hasFocus) Billboard.cardFocus = false }) {
         // Performance (Fire TV / onn): glow, halo, picture and gradients are ONE cached layer – painted once per title,
         // then only composited. No shadow and no inner parallax (both forced a full repaint on every scroll frame).
         Box(Modifier.fillMaxSize().graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }) {
-            MoodGlow(rememberMeta(item)?.backdrop)
-            Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x24FFFFFF), Color.Transparent), radius = 1500f)))
-            Box(Modifier.fillMaxSize().padding(start = dpx(32), end = dpx(32), top = cardTop, bottom = dpx(10))
-                .clip(cardShape).background(Color.Black)) {
+            Box(Modifier.fillMaxSize().padding(start = dpx(28), end = dpx(28), top = cardTop, bottom = dpx(10))
+                .clip(cardShape).background(Color(0xFF111111))) {
                 Crossfade(item, animationSpec = tween(heroFadeMs), label = "heroBg") { c ->
                     val m = rememberMeta(c)
                     m?.backdrop?.let { AsyncImage(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopEnd) }
                 }
                 // Light shading only where the text sits (bottom left), the picture stays bright
-                Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Color(0xB3000000), 0.35f to Color(0x59000000), 0.6f to Color.Transparent)))
-                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xCC000000))))
+                Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Color(0xBF000000), 0.35f to Color(0x59000000), 0.6f to Color.Transparent)))
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to Color(0xD9000000))))
             }
         }
         header(Modifier.align(Alignment.TopStart))
@@ -1145,6 +1166,8 @@ private fun Hero(
                     if (open) OptionPopup(genres, -1, { open = false }) { i -> open = false; onGenre(i) }
                 }
             }
+            // The area's other lists (Categories, Top rated, Recently added, All …) as the same outlined buttons
+            links.forEach { t -> HeroLink(t) }
         }
         Column(
             Modifier.align(Alignment.BottomStart).padding(start = dpx(80), bottom = dpx(if (home) 52 else 42)).widthIn(max = dpx(760)),
@@ -1188,13 +1211,6 @@ private fun Hero(
             Modifier.align(Alignment.BottomEnd).padding(end = dpx(76), bottom = dpx(if (home) 56 else 46)),
             horizontalArrangement = Arrangement.spacedBy(dpx(12)), verticalAlignment = Alignment.CenterVertically
         ) {
-            // High-contrast editorial numbering makes the cinematic reel feel intentional.
-            Text(
-                raw = true,
-                text = (idx + 1).toString().padStart(2, '0') + "  /  " + featured.size.toString().padStart(2, '0'),
-                color = Color(0xDDECEAF7), fontSize = spx(14), fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp
-            )
             // Active dot fills up until the next change (shows when the picture changes)
             val prog = remember(idx) { androidx.compose.animation.core.Animatable(0f) }
             LaunchedEffect(idx, General.heroSec) {
@@ -1202,13 +1218,13 @@ private fun Hero(
             }
             featured.indices.forEach { i ->
                 // 17c: progress only drawn (no rebuild on every frame)
-                if (i == idx) Box(Modifier.width(dpx(40)).height(dpx(7)).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = .3f))) {
+                if (i == idx) Box(Modifier.width(dpx(40)).height(dpx(8)).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = .3f))) {
                     Box(Modifier.fillMaxSize().graphicsLayer {
                         scaleX = if (General.heroSec > 0) prog.value.coerceIn(0.08f, 1f) else 1f
                         transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)
                     }.background(Accent1))
                 }
-                else Box(Modifier.width(dpx(7)).height(dpx(7)).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = .45f)))
+                else Box(Modifier.width(dpx(8)).height(dpx(8)).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = .45f)))
             }
         }
     }

@@ -145,6 +145,13 @@ object AppSettings {
             menuOrder.remove(MenuLogic.SEARCH); menuOrder.add((menuOrder.indexOf(MenuLogic.HOME) + 1).coerceIn(0, menuOrder.size), MenuLogic.SEARCH)
             p.edit().putInt("menu_ver", 3).putString("menu_order", menuOrder.joinToString(",")).putString("menu_hidden", menuHidden.joinToString(",")).apply()
         }
+        // One-time (Mac look): the same menu as the Mac app – Search, Home, TV Shows, Movies, Sports, Live TV, My List
+        // (Settings sits at the bottom of the rail). TV guide, Favorites and History are hidden; Settings > Menu brings them back.
+        if (p.getInt("menu_ver", 1) < 4) {
+            menuOrder.clear(); menuOrder.addAll(MenuLogic.parseOrder(MenuLogic.MAC_ORDER.joinToString(",")))
+            menuHidden.clear(); menuHidden.addAll(MenuLogic.parseHidden(MenuLogic.MAC_HIDDEN))
+            p.edit().putInt("menu_ver", 4).putString("menu_order", menuOrder.joinToString(",")).putString("menu_hidden", menuHidden.joinToString(",")).apply()
+        }
         searchHistory.clear()
         searchHistory.addAll((p.getString("search_hist", "") ?: "").split("\n").filter { it.isNotBlank() })
         if (p.getInt("look_ver", 1) < 2) {
@@ -185,6 +192,10 @@ object AppSettings {
             val e = p.edit().putInt("look_ver", 7)
             if (p.getInt("look_accent", 0) == 12) e.putInt("look_accent", 13)
             e.commit()
+        }
+        if (p.getInt("look_ver", 1) < 8) {
+            // One-time (Mac look): Fof red on black, the same colors as the Mac app
+            p.edit().putInt("look_ver", 8).putInt("look_accent", Look.DEFAULT_ACCENT).putInt("look_bg", Look.DEFAULT_BG).commit()
         }
         Look.accentIdx = p.getInt("look_accent", Look.DEFAULT_ACCENT).coerceIn(0, Look.ACCENTS.size)
         Look.custom = p.getInt("look_custom", Look.BRAND_GREEN) and 0xFFFFFF

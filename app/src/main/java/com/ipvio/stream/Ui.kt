@@ -109,9 +109,9 @@ object DS {
     /** Space of the collapsed sidebar (round 14: icons only, expands over the content when entered). */
     val SidebarW: Dp get() = if (SidebarPrefs.labels) SidebarOpenW else SidebarCollapsedW
     /** Collapsed sidebar (icons only). */
-    val SidebarCollapsedW: Dp get() = dpx(92)
+    val SidebarCollapsedW: Dp get() = dpx(84)
     /** Width of the expanded sidebar. */
-    val SidebarOpenW: Dp get() = dpx(250)
+    val SidebarOpenW: Dp get() = dpx(220)
 
     // Corners
     val RadiusXs = 8.dp
