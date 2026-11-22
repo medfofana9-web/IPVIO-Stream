@@ -195,9 +195,10 @@ const ICONS = {
   home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11 12 4l9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>',
   shows: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="m8 2 4 4 4-4"/></svg>',
   movies: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 3v18M17 3v18M3 8h4M3 16h4M17 8h4M17 16h4"/></svg>',
+  sports: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>',
   live: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19 5a10 10 0 0 1 0 14M5 19A10 10 0 0 1 5 5"/></svg>'
 };
-const NAV = [['search', 'Search'], ['home', 'Home'], ['shows', 'TV Shows'], ['movies', 'Movies'], ['live', 'Live TV']];
+const NAV = [['search', 'Search'], ['home', 'Home'], ['shows', 'TV Shows'], ['movies', 'Movies'], ['sports', 'Sports'], ['live', 'Live TV']];
 let current = 'home';
 const navStack = [];
 
@@ -219,6 +220,7 @@ function go(tab, arg) {
   else if (tab === 'movies') renderCategory(pg, 'movie');
   else if (tab === 'shows') renderCategory(pg, 'series');
   else if (tab === 'live') renderLive(pg);
+  else if (tab === 'sports') renderSports(pg);
   else if (tab === 'search') renderSearch(pg);
   else if (tab === 'detail') renderDetail(pg, arg);
 }
@@ -260,7 +262,7 @@ function continueRow() {
   return rowHtml('Continue Watching for ' + acct.profile.name, acct.watch.slice(0, 20).map((w, i) => {
     const tt = ttOf(w.id); const pr = w.dur > 0 && !w.next ? Math.min(100, Math.round(w.pos * 100 / w.dur)) : 0;
     const sub = w.s || w.e ? `S${w.s} E${w.e}${w.next ? ' · Up next' : ''}` : (w.dur ? Math.max(1, Math.round((w.dur - w.pos) / 60000)) + ' min left' : '');
-    return `<div class="card wide" data-w="${i}"><div class="ph">${esc(w.title)}</div>${tt ? `<img loading="lazy" src="${esc(bgOf(tt).replace('/large/', '/medium/'))}" onerror="this.src='${esc(posterOfId(tt))}';this.onerror=()=>this.remove()">` : ''}
+    return `<div class="card wide" data-w="${i}"><div class="ph">${esc(w.title)}</div>${tt ? `<img loading="lazy" src="${esc(bgOf(tt))}" onerror="if(!this.dataset.p){this.dataset.p=1;this.src='${esc(posterOfId(tt))}'}else this.remove()">` : ''}
       <div class="cap">${esc(w.title.replace(/\s*S\d+\s*E\d+\s*$/i, ''))}<div>${esc(sub)}</div></div>${pr ? `<div class="prog"><i style="width:${pr}%"></i></div>` : ''}</div>`;
   }).join(''));
 }
@@ -395,8 +397,17 @@ async function streamsFor({ type, id, season, episode }) {
       (j.streams || []).forEach(s => { if (s.url && /^https?:/.test(s.url)) all.push({ url: s.url, name: (s.name || addon).replace(/\n/g, ' '), title: s.title || s.description || '', addon, headers: s.behaviorHints && s.behaviorHints.proxyHeaders && s.behaviorHints.proxyHeaders.request }); });
     } catch (e) {}
   }));
-  const q = s => /2160|4k/i.test(s.name + s.title) ? 3 : /1080/i.test(s.name + s.title) ? 2 : /720/i.test(s.name + s.title) ? 1 : 0;
-  return all.sort((a, b) => q(b) - q(a));
+  all.forEach(s => {
+    const t = (s.name + ' ' + s.title);
+    s.quality = /2160|\b4k\b|uhd/i.test(t) ? '4K' : /1080/.test(t) ? '1080p' : /720/.test(t) ? '720p' : /480|sd\b/i.test(t) ? 'SD' : '';
+    s.size = (t.match(/(\d+(?:[.,]\d+)?)\s?(GB|MB)/i) || [''])[0].replace(',', '.');
+    s.file = (s.title.split('\n').map(x => x.trim()).find(x => /\.(mkv|mp4|avi|ts|m4v|webm)\b/i.test(x)) || s.title.split('\n')[0] || '').replace(/^[^\w\[]+/, '').slice(0, 140);
+    // The Mac plays H.264 MP4/MKV well; HEVC/x265, AV1 and some MKV audio often not
+    s.risky = /hevc|x265|h\.?265|\bav1\b|dolby ?vision|\bdv\b|truehd|atmos|dts/i.test(t);
+    s.addonName = s.name.split(/\s{2,}|\|/)[0].trim().slice(0, 40);
+  });
+  const rank = s => (s.risky ? 0 : 10) + ({ '4K': 3, '1080p': 4, '720p': 2, 'SD': 1 }[s.quality] || 0) + (/\.mp4\b|mp4\)/i.test(s.name + s.title) ? 1 : 0);
+  return all.sort((a, b) => rank(b) - rank(a));
 }
 
 async function sources(req) {
@@ -411,7 +422,7 @@ async function sources(req) {
   const list = await streamsFor(req);
   if (!document.body.contains(bg)) return;
   if (!list.length) { $('.sheet', bg).innerHTML = `<h2>${esc(label)}</h2><div class="sub">None of your addons has a playable link for this right now.</div>`; return; }
-  $('.sheet', bg).innerHTML = `<h2>${esc(label)}</h2><div class="sub">${list.length} sources · best first. Click one to play.</div>${list.map((s, i) => `<div class="src" data-i="${i}"><b>${esc(s.name)}</b><small>${esc(s.title)}</small></div>`).join('')}`;
+  $('.sheet', bg).innerHTML = `<h2>${esc(label)}</h2><div class="sub">${list.length} sources · the ones most likely to play on a Mac first. If one does not start, the next one starts by itself.</div>${list.map((s, i) => `<div class="src" data-i="${i}"><span class="q ${s.quality === '4K' ? 'k4' : s.quality === '1080p' ? 'fhd' : ''}">${esc(s.quality || 'HD?')}</span><div class="nm2"><b>${esc(s.addonName)}</b><small>${esc(s.file)}</small></div>${s.risky ? '<span class="warn" title="Uses a format the Mac player often cannot play">may not play</span>' : ''}<span class="sz">${esc(s.size)}</span></div>`).join('')}`;
   bg.querySelectorAll('.src').forEach(el => el.onclick = () => { bg.remove(); document.removeEventListener('keydown', close); play({ url: list[+el.dataset.i].url, title: req.name, sub: req.type === 'series' ? `S${req.season} E${req.episode}` : '', start: req.start || 0, list, idx: +el.dataset.i, req }); });
   // One click play: with "auto" the best source starts at once (like the TV's one-click setting)
   if (req.auto) bg.querySelector('.src').click();
@@ -472,6 +483,88 @@ async function renderLive(pg) {
   drawCats(''); drawChans();
 }
 
+// ------------------------------------------------------------------ sports (ESPN scoreboards, like the TV's Sports)
+const LEAGUES = [
+  ['nba', 'NBA', 'basketball/nba'], ['nfl', 'NFL', 'football/nfl'], ['ncaaf', 'College Football', 'football/college-football'],
+  ['ncaab', 'College Basketball', 'basketball/mens-college-basketball'], ['nhl', 'NHL', 'hockey/nhl'], ['mlb', 'MLB', 'baseball/mlb'],
+  ['wnba', 'WNBA', 'basketball/wnba'], ['epl', 'Premier League', 'soccer/eng.1'], ['ucl', 'Champions League', 'soccer/uefa.champions'],
+  ['mls', 'MLS', 'soccer/usa.1'], ['laliga', 'La Liga', 'soccer/esp.1']
+];
+let sportPick = store.get('sport', 'all');
+
+async function scoreboard(path) {
+  const j = await getJson(`https://site.api.espn.com/apis/site/v2/sports/${path}/scoreboard`, 45 * 1000).catch(() => null);
+  return ((j && j.events) || []).map(e => {
+    const c = (e.competitions || [])[0] || {};
+    const t = side => { const x = (c.competitors || []).find(k => k.homeAway === side) || {}; const tm = x.team || {};
+      return { name: tm.displayName || '', short: tm.shortDisplayName || tm.name || '', nick: tm.name || '', city: tm.location || '', abbr: tm.abbreviation || '', logo: tm.logo || '', score: x.score, win: x.winner }; };
+    const st = (e.status && e.status.type) || {};
+    const nets = [...new Set([...(c.broadcasts || []).flatMap(b => b.names || []), ...((c.geoBroadcasts || []).map(g => g.media && g.media.shortName).filter(Boolean))])];
+    return { id: e.id, name: e.name, date: e.date, state: st.state, detail: st.shortDetail || st.detail || '', home: t('home'), away: t('away'), nets, path };
+  });
+}
+
+function gameHtml(g, i) {
+  const live = g.state === 'in', post = g.state === 'post';
+  const when = live ? g.detail : post ? 'Final' : new Date(g.date).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+  const row = (t, other) => `<div class="team ${post && t.win === false ? 'lose' : ''}">${t.logo ? `<img src="${esc(t.logo)}" onerror="this.style.visibility='hidden'">` : '<span style="width:30px"></span>'}<span class="tn">${esc(t.short || t.name)}</span>${g.state !== 'pre' ? `<span class="sc">${esc(t.score || '0')}</span>` : ''}</div>`;
+  return `<div class="game" data-g="${i}"><div class="top">${live ? '<span class="live">LIVE</span>' : ''}<span>${esc(when)}</span><span class="net">${esc(g.nets.join(' · '))}</span></div>${row(g.away)}${row(g.home)}</div>`;
+}
+
+async function renderSports(pg) {
+  pg.innerHTML = `<div class="sports"><h1>Sports</h1><div class="chips">${[['all', 'All']].concat(LEAGUES.map(l => [l[0], l[1]])).map(([k, l]) => `<button data-k="${k}" class="${k === sportPick ? 'on' : ''}">${l}</button>`).join('')}</div><div id="sg"><div class="spin"></div></div></div>`;
+  pg.querySelectorAll('.chips button').forEach(b => b.onclick = () => { sportPick = b.dataset.k; store.set('sport', sportPick); renderSports(pg); });
+  const ls = sportPick === 'all' ? LEAGUES : LEAGUES.filter(l => l[0] === sportPick);
+  const lists = await Promise.all(ls.map(l => scoreboard(l[2]).then(gs => gs.map(g => Object.assign(g, { league: l[1], lk: l[0] })))));
+  if (current !== 'sports' || !$('#sg')) return;
+  const seen = new Set(); const all = lists.flat().filter(g => !seen.has(g.id) && seen.add(g.id));
+  const groups = [['Live Now', all.filter(g => g.state === 'in')], ['Coming Up', all.filter(g => g.state === 'pre').sort((a, b) => new Date(a.date) - new Date(b.date))], ['Final', all.filter(g => g.state === 'post')]];
+  let n = 0; const idx = [];
+  $('#sg').innerHTML = groups.filter(([, l]) => l.length).map(([h, l]) => `<h2>${h}</h2><div class="games">${l.map(g => { idx.push(g); return gameHtml(g, n++); }).join('')}</div>`).join('')
+    || '<div class="empty" style="padding:30px 0">No games today in this league.</div>';
+  $('#sg').querySelectorAll('[data-g]').forEach(el => el.onclick = () => watchGame(idx[+el.dataset.g]));
+  clearTimeout(renderSports.t); renderSports.t = setTimeout(() => { if (current === 'sports') renderSports(pg); }, 60000);
+}
+
+// Channels in the playlist that carry a game: the teams' own channels first, then the national network
+const NET_ALIASES = { 'ESPN': ['espn'], 'ESPN2': ['espn2', 'espn 2'], 'ABC': ['abc'], 'TNT': ['tnt'], 'TBS': ['tbs'], 'NBA TV': ['nba tv', 'nbatv'], 'FOX': ['fox'], 'FS1': ['fs1', 'fox sports 1'], 'CBS': ['cbs'], 'NBC': ['nbc'], 'Peacock': ['peacock'], 'Prime Video': ['prime', 'amazon'], 'NFL Network': ['nfl network'], 'NHL Network': ['nhl network'], 'MLB Network': ['mlb network'], 'truTV': ['trutv', 'tru tv'], 'USA Net': ['usa network'], 'SEC Network': ['sec network'], 'ACC Network': ['acc network'], 'Big Ten Network': ['big ten', 'btn'] };
+function gameChannels(g) {
+  const norm = s => ' ' + String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ') + ' ';
+  const has = (n, w) => w && w.length > 2 && n.includes(' ' + w.toLowerCase() + ' ');
+  const league = { nba: 'nba', wnba: 'wnba', nfl: 'nfl', nhl: 'nhl', mlb: 'mlb', ncaaf: 'ncaa', ncaab: 'ncaa' }[g.lk] || '';
+  const nets = g.nets.flatMap(n => NET_ALIASES[n] || [n.toLowerCase()]);
+  const out = [];
+  live.chans.forEach(c => {
+    const n = norm(c.name); let sc = 0;
+    for (const t of [g.home, g.away]) {
+      if (has(n, t.nick) && (!league || n.includes(' ' + league + ' ') || t.nick.split(' ').length > 1)) sc = Math.max(sc, 10);
+      else if (has(n, t.name)) sc = Math.max(sc, 9);
+    }
+    if (!sc && nets.some(w => n.includes(' ' + w + ' ')) && /\b(us|usa)\b/.test(n)) sc = 5;
+    if (!sc) return;
+    if (/\b(fhd|hd|1080)\b/.test(n)) sc += 0.5;
+    if (/\b(4k|uhd)\b/.test(n)) sc += 0.3;
+    if (/\b(backup|raw|plus)\b/.test(n)) sc -= 0.4;
+    out.push(Object.assign({ sc }, c));
+  });
+  return out.sort((a, b) => b.sc - a.sc).slice(0, 30);
+}
+async function watchGame(g) {
+  const bg = document.createElement('div'); bg.className = 'sheet-bg';
+  bg.innerHTML = `<div class="sheet"><h2>${esc(g.away.short)} at ${esc(g.home.short)}</h2><div class="sub">Finding the channels in your playlist…</div><div class="spin"></div></div>`;
+  document.body.appendChild(bg);
+  const close = () => { bg.remove(); document.removeEventListener('keydown', esck); };
+  const esck = e => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', esck); bg.onclick = e => { if (e.target === bg) close(); };
+  try { await loadLive(); } catch (e) {}
+  const list = gameChannels(g);
+  if (!document.body.contains(bg)) return;
+  $('.sheet', bg).innerHTML = `<h2>${esc(g.away.short)} at ${esc(g.home.short)}</h2><div class="sub">${esc(g.league)} · ${esc(g.detail)}${g.nets.length ? ' · On ' + esc(g.nets.join(', ')) : ''}</div>` +
+    (list.length ? `<div class="chlist">${list.map((c, i) => `<div class="src" data-i="${i}">${c.logo ? `<img src="${esc(c.logo)}" onerror="this.style.visibility='hidden'">` : ''}<div class="nm2"><b>${esc(c.name)}</b><small>${c.sc >= 9 ? 'Team channel' : 'National broadcast'}</small></div></div>`).join('')}</div>`
+      : '<div class="sub">No channel in your playlist matches this game. Try the league\'s category in Live TV.</div>');
+  bg.querySelectorAll('.src').forEach(el => el.onclick = () => { close(); const i = +el.dataset.i; play({ url: list[i].url, title: list[i].name, sub: `${g.away.short} at ${g.home.short}`, live: true, zap: list, zi: i }); });
+}
+
 // ------------------------------------------------------------------ search
 function renderSearch(pg) {
   pg.innerHTML = `<div class="search"><div class="q">${ICONS.search.replace('<svg', '<svg width="30" height="30"')}<input id="sq" placeholder="Search movies, TV shows, channels"></div><div class="grid" id="sr"></div></div>`;
@@ -482,6 +575,7 @@ function renderSearch(pg) {
 }
 async function runSearch(q) {
   const box = $('#sr'); if (!box) return;
+  if (!live.loaded && acct.playlist) loadLive().catch(() => {});
   if (q.length < 2) {
     const l = await catalog('movie');
     box.innerHTML = `<h4>Top Searches</h4>` + l.slice(0, 18).map(m => cardHtml(m, 'movie')).join(''); wireRows(box); return;
@@ -489,12 +583,12 @@ async function runSearch(q) {
   const [mv, sr] = await Promise.all([catalog('movie', 'search=' + encodeURIComponent(q)), catalog('series', 'search=' + encodeURIComponent(q))]);
   if (($('#sq') || {}).value?.trim() !== q) return;
   const ch = live.loaded ? live.chans.filter(c => c.name.toLowerCase().includes(q.toLowerCase())).slice(0, 24) : [];
-  box.innerHTML = (mv.length ? '<h4>Movies</h4>' + mv.slice(0, 24).map(m => cardHtml(m, 'movie')).join('') : '') +
-    (sr.length ? '<h4>TV Shows</h4>' + sr.slice(0, 24).map(m => cardHtml(m, 'series')).join('') : '') +
-    (ch.length ? '<h4>Live TV</h4>' + ch.map((c, i) => `<div class="ch" data-ci="${i}"><div class="live">LIVE</div><div class="lg">${c.logo ? `<img src="${esc(c.logo)}" onerror="this.remove()">` : `<b>${esc(c.name.slice(0, 2))}</b>`}</div><div class="nm">${esc(c.name)}</div></div>`).join('') : '') ||
+  box.innerHTML = (ch.length ? '<h4>Live TV</h4>' + ch.map((c, i) => `<div class="ch" data-ci="${i}"><div class="live">LIVE</div><div class="lg">${c.logo ? `<img src="${esc(c.logo)}" onerror="this.remove()">` : `<b>${esc(c.name.slice(0, 2))}</b>`}</div><div class="nm">${esc(c.name)}</div></div>`).join('') : '') +
+    (mv.length ? '<h4>Movies</h4>' + mv.slice(0, 24).map(m => cardHtml(m, 'movie')).join('') : '') +
+    (sr.length ? '<h4>TV Shows</h4>' + sr.slice(0, 24).map(m => cardHtml(m, 'series')).join('') : '') ||
     `<div class="empty" style="grid-column:1/-1;padding:20px 0">No results for "${esc(q)}".</div>`;
   wireRows(box);
-  box.querySelectorAll('[data-ci]').forEach(el => el.onclick = () => { const c = ch[+el.dataset.ci]; play({ url: c.url, title: c.name, sub: 'Live TV', live: true }); });
+  box.querySelectorAll('[data-ci]').forEach(el => el.onclick = () => { const c = ch[+el.dataset.ci]; play({ url: c.url, title: c.name, sub: 'Live TV', live: true, zap: ch, zi: +el.dataset.ci }); });
 }
 
 // ------------------------------------------------------------------ player (hls.js for HLS, mpegts.js for live .ts, native for mp4/webm/mkv)
@@ -507,23 +601,49 @@ function play(item) {
   $('#pl-title').textContent = item.title || ''; $('#pl-sub').textContent = item.sub || '';
   $('#pl-src').classList.toggle('hidden', !(item.list && item.list.length > 1) && !item.zap);
   $('#pl-src').textContent = item.zap ? 'Channels' : 'Sources';
-  const url = item.url;
-  const isHls = /\.m3u8(\?|$)/i.test(url) || /m3u8/i.test(url);
+  startEngine(item, item.url, 0);
+  V.onloadedmetadata = () => { if (item.start > 30000 && isFinite(V.duration)) V.currentTime = Math.max(0, item.start / 1000 - 5); };
+  V.onerror = () => { if (!hls && !mts) fail('This source does not play on the Mac (format). Trying the next one.'); };
+  poke();
+}
+// Live: HLS (.m3u8) through hls.js first – it keeps a buffer and recovers from network hiccups far better than raw
+// .ts – then raw .ts through mpegts.js with a 1 MB cushion. Never chase the live edge (that caused the stalls).
+function startEngine(item, url, attempt) {
+  const xtLive = item.live && /\/live\/[^/]+\/[^/]+\/\d+\.ts(\?|$)/.test(url);
+  const isHls = /\.m3u8(\?|$)/i.test(url) || /m3u8/i.test(url) || (xtLive && attempt === 0);
+  const hlsUrl = xtLive && attempt === 0 ? url.replace(/\.ts(\?|$)/, '.m3u8$1') : url;
   const isTs = /\.ts(\?|$)/i.test(url) || (item.live && !isHls);
   if (isHls && window.Hls && Hls.isSupported()) {
-    hls = new Hls({ enableWorker: true, lowLatencyMode: !!item.live });
-    hls.loadSource(url); hls.attachMedia(V);
-    hls.on(Hls.Events.ERROR, (e, d) => { if (d.fatal) fail('This stream does not start.'); });
+    hls = new Hls({ enableWorker: true, lowLatencyMode: false, liveSyncDurationCount: 4, maxBufferLength: 40, maxMaxBufferLength: 90, backBufferLength: 30,
+      manifestLoadingMaxRetry: 4, levelLoadingMaxRetry: 6, fragLoadingMaxRetry: 8, fragLoadingRetryDelay: 600 });
+    let netRetries = 0;
+    hls.loadSource(hlsUrl); hls.attachMedia(V);
+    hls.on(Hls.Events.ERROR, (e, d) => {
+      if (!d.fatal) return;
+      if (d.type === Hls.ErrorTypes.NETWORK_ERROR && netRetries++ < 2) return hls.startLoad();
+      if (d.type === Hls.ErrorTypes.MEDIA_ERROR && netRetries++ < 2) return hls.recoverMediaError();
+      if (xtLive && attempt === 0) { stopEngines(); return startEngine(item, url, 1); }   // provider has no HLS: plain .ts
+      fail('This stream does not start.');
+    });
   } else if (isTs && window.mpegts && mpegts.isSupported()) {
-    mts = mpegts.createPlayer({ type: 'mpegts', isLive: !!item.live, url }, { enableWorker: true, liveBufferLatencyChasing: true, lazyLoad: false });
+    mts = mpegts.createPlayer({ type: 'mpegts', isLive: !!item.live, url }, {
+      enableWorker: true, enableStashBuffer: true, stashInitialSize: 1024 * 1024, liveBufferLatencyChasing: false,
+      autoCleanupSourceBuffer: true, autoCleanupMaxBackwardDuration: 60, autoCleanupMinBackwardDuration: 30, lazyLoad: false });
     mts.attachMediaElement(V); mts.load();
     mts.on(mpegts.Events.ERROR, () => fail('This channel does not start right now.'));
   } else V.src = url;
-  V.onloadedmetadata = () => { if (item.start > 30000 && isFinite(V.duration)) V.currentTime = Math.max(0, item.start / 1000 - 5); };
-  V.onerror = () => fail('This source does not play on the Mac (format). Try another source.');
   V.play().catch(() => {});
-  poke();
 }
+
+// Live watchdog: a channel frozen for 12 s reconnects by itself (up to 3 times in a row)
+let lastT = -1, frozenFor = 0, reconnects = 0;
+setInterval(() => {
+  if (!cur || !cur.live || V.paused || $('#player').classList.contains('hidden')) { frozenFor = 0; return; }
+  if (Math.abs(V.currentTime - lastT) < 0.05) frozenFor += 2; else { frozenFor = 0; if (V.currentTime > 30) reconnects = 0; }
+  lastT = V.currentTime;
+  if (frozenFor >= 12 && reconnects < 3) { reconnects++; frozenFor = 0; toast('Reconnecting the channel…'); const it = cur; stopEngines(); startEngine(it, it.url, 0); }
+}, 2000);
+
 function fail(t) {
   // Next source automatically, like the TV's failover
   if (cur && cur.list && cur.idx + 1 < cur.list.length && !cur.noFallback) { toast('Source did not start – trying the next one'); const n = cur.idx + 1; return play(Object.assign({}, cur, { url: cur.list[n].url, idx: n })); }
