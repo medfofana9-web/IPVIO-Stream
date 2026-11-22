@@ -1,6 +1,7 @@
 package com.ipvio.stream
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -413,7 +414,7 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
     LaunchedEffect(liveKeys, games.size, ahead.soccer.size, ahead.nba.size, ahead.football.size) {
         if (!inList && (listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0)) runCatching { listState.scrollToItem(0) }
     }
-    LazyColumn(state = listState, modifier = Modifier.onFocusChanged { inList = it.hasFocus }, contentPadding = PaddingValues(horizontal = DS.PageX, vertical = dpx(8)), verticalArrangement = Arrangement.spacedBy(dpx(26))) {
+    LazyColumn(state = listState, modifier = Modifier.onFocusChanged { inList = it.hasFocus }, contentPadding = PaddingValues(horizontal = DS.PageX, vertical = dpx(8)), verticalArrangement = Arrangement.spacedBy(dpx(14))) {
         when {
             // feed.games too: the page model can lag a moment behind the feed, and must never show "no games" meanwhile
             games.isNotEmpty() || feed.games.isNotEmpty() || ahead.soccer.isNotEmpty() || ahead.nba.isNotEmpty() || ahead.football.isNotEmpty() -> {}
@@ -424,67 +425,36 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
             }
             else -> item(key = "empty") { HubEmpty(AIcon.Info, "Heute keine Spiele gefunden.", "In deinen Ligen ist heute nichts angesetzt. Im Spielplan siehst du die nächsten Tage.", "Spielplan öffnen") { hub.goTab(2, null) } }
         }
-        // Cinematic game-day masthead: a recognizable Sports identity without another network request.
+        // Same as the Mac app: a plain "Sports" title, then Live Now, Coming Up and Final as grids of game cards
         item(key = "gameday-masthead") {
-            Column(Modifier.fillMaxWidth().padding(top = dpx(14), bottom = dpx(2)),
-                verticalArrangement = Arrangement.spacedBy(dpx(12))) {
-                FofEyebrow("GAME DAY")
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(dpx(5))) {
-                        Text("Every game. One place.", raw = true, color = Tok.TextHi,
-                            fontSize = spx(38), fontWeight = FontWeight.ExtraBold, maxLines = 1)
-                        Text("Your live matchups, upcoming games and favorite teams.", raw = true,
-                            color = Tok.TextMid, fontSize = spx(17), maxLines = 1)
-                    }
-                    if (games.any { it.state == 1 }) {
-                        Text(raw = true, text = games.count { it.state == 1 }.toString() + " LIVE",
-                            color = FofVisual.Violet, fontSize = spx(19), fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
+            Text("Sports", raw = true, color = Color.White, fontSize = spx(40), fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = dpx(14)))
         }
-        // Clean overview, live first: Live now, Starting soon, My teams, then one section each for soccer, basketball and
-        // football, and the two sports channels at the end. Leagues, teams and news live in their own tabs.
         val nowS = System.currentTimeMillis() / 1000
         val liveAll = games.filter { it.state == 1 }.sortedWith(compareBy({ if (it.solo) 1 else 0 }, { if (it.key in m.withCh) 0 else 1 }, { if (SportHubFavs.isFavGame(it)) 0 else 1 }, { popularity(it) }))
-        // The featured match is a real playable/contextual game, selected by the existing ranking,
-        // not a fabricated event. Other games remain accessible in the live and upcoming rails.
-        if (top != null) item(key = "featured-match") { FeaturedPanel(top, hub) }
-        if (liveAll.isNotEmpty()) item(key = "live") {
-            LaunchedEffect(Unit) { MainSampler.mark("sports: live row shown") }
-            GameTileRow("Live now", liveAll, hub) { hub.goTab(1, null) }
-        }
-        val soon = games.filter { it.state == 0 && statusKind(it) == 0 && it.start in nowS..(nowS + 3 * 3600) }
-            .sortedWith(compareBy({ if (SportHubFavs.isFavGame(it)) 0 else 1 }, { it.start }))
-        if (soon.isNotEmpty()) item(key = "soon") { GameTileRow("Starting soon", soon, hub) { hub.goTab(2, null) } }
+        val comingUp = upcoming.filter { it.start >= nowS - 3 * 3600 }.sortedWith(compareBy({ it.start }, { if (SportHubFavs.isFavGame(it)) 0 else 1 })).take(40)
         val mine = (games + ahead.soccer + ahead.nba + ahead.football).distinctBy { it.key }
             .filter { SportFavs.isFavGame(it) && it.state != 2 }.sortedBy { if (it.state == 1) 0L else it.start }
-        if (mine.isNotEmpty()) item(key = "myteams") { GameTileRow("My teams", mine.take(12), hub, null) }
-        // Each sport: today's open games plus the coming week, live first, then by start time
-        val todayOpen = games.filter { it.state != 2 && statusKind(it) != 6 }
-        fun section(sp: String, week: List<SportData.Game>) = fresh(todayOpen.filter { SportData.sportOf(it) == sp } + week)
-            .distinctBy { it.key }.sortedWith(compareBy({ if (it.state == 1) 0 else 1 }, { if (SportHubFavs.isFavGame(it)) 0 else 1 },
-                // Same day: the big leagues first (a Premier League game before a small cup tie), then by start time
-                { localDay(it.start) }, { SportData.POPULAR.indexOf(it.league).let { i -> if (i < 0) 99 else i } }, { it.start })).take(30)
-        val socc = section("soccer", ahead.soccer)
-        val bask = section("basketball", ahead.nba)
-        val foot = section("nfl", ahead.football)
-        if (socc.isNotEmpty()) item(key = "s_soccer") { GameTileRow("Soccer", socc, hub) { hub.goTab(2, "soccer") } }
-        if (bask.isNotEmpty()) item(key = "s_basketball") { GameTileRow("Basketball", bask, hub) { hub.goTab(2, "basketball") } }
-        if (foot.isNotEmpty()) item(key = "s_football") { GameTileRow("Football", foot, hub) { hub.goTab(2, "nfl") } }
-        // Sports channels: ESPN and NBA TV only
-        item(key = "sportch") {
-            val chs by produceState(emptyList<Item>(), hub.live) {
-                value = withContext(Dispatchers.Default) { hub.live.filter { SportChannels.wanted(it) }.sortedWith(compareBy({ if (Library.isFav(it.id)) 0 else 1 }, { SportChannels.rank(it) })).take(20) }
+        fun grid(key: String, title: String, l: List<SportData.Game>) {
+            if (l.isEmpty()) return
+            item(key = key + "_h") {
+                if (key == "live") LaunchedEffect(Unit) { MainSampler.mark("sports: live row shown") }
+                Box(Modifier.padding(top = dpx(16))) { HubSectionTitle(title, raw = true) }
             }
-            if (chs.isNotEmpty()) Column {
-                HubSectionTitle("Channels", raw = true)
-                Spacer(Modifier.height(dpx(10)))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(18)), contentPadding = PaddingValues(vertical = dpx(10))) {
-                    items(chs, key = { "ch" + it.id }) { ch -> ChannelNowCard(ch, Modifier.width(dpx(300)).trackFocus()) { hub.play(ch, chs) } }
+            // One row of cards per list item, so long lists stay lazy
+            l.chunked(4).forEachIndexed { r, row ->
+                item(key = key + "_" + r) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(dpx(14))) {
+                        row.forEach { g -> MacGameCard(g, hub, Modifier.weight(1f)) }
+                        repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                    }
                 }
             }
         }
+        grid("live", "Live Now", liveAll)
+        if (mine.isNotEmpty()) item(key = "myteams") { GameTileRow("My teams", mine.take(12), hub, null) }
+        grid("soon", "Coming Up", comingUp)
+        grid("final", "Final", finals.take(24))
         if (!SportData.lastOk && games.isNotEmpty()) item(key = "stale") {
             Text("Hinweis: Die letzte Aktualisierung hat nicht geklappt. Angezeigt wird der letzte Stand.", color = Muted, fontSize = spx(14))
         }

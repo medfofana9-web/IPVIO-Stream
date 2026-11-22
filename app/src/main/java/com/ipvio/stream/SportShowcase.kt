@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -169,6 +170,75 @@ private fun TileSide(t: SportData.Team, modifier: Modifier) {
         Spacer(Modifier.height(dpx(12)))
         Text(raw = true, text = t.short.ifBlank { t.name }.uppercase(), color = Color.White, fontSize = spx(16), fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+    }
+}
+
+/**
+ * Game card of the Mac app's Sports page: LIVE tag with the clock (or Final / the start time) and the network on top,
+ * then one line per team – logo, name, score; the losing side in grey. OK watches a live game with a channel, otherwise
+ * opens the Match Center (same as [GameTile]).
+ */
+@Composable
+internal fun MacGameCard(g: SportData.Game, hub: HubCtx, modifier: Modifier = Modifier) {
+    var f by remember { mutableStateOf(false) }
+    val sc by animateFloatAsState(if (f) focusScale(1.02f) else 1f, androidx.compose.animation.core.tween(150), label = "macgame")
+    val shape = RoundedCornerShape(dpx(8))
+    val live = g.state == 1
+    Column(
+        modifier.graphicsLayer { scaleX = sc; scaleY = sc }.clip(shape).background(Color(0xFF1C1C1C))
+            .border(if (f) 3.dp else 0.dp, if (f) Color.White else Color.Transparent, shape)
+            .onFocusChanged { f = it.isFocused }
+            .trackFocus()
+            .restoreFocus("game:" + g.key)
+            .clickable { SportSession.lastTile = "game:" + g.key; if (live && hub.chans(g).isNotEmpty()) hub.watch(g) else hub.open(g) }
+            .padding(horizontal = dpx(18), vertical = dpx(16))
+    ) {
+        Row(Modifier.fillMaxWidth().height(dpx(24)), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
+            if (live) Row(
+                Modifier.clip(RoundedCornerShape(dpx(3))).background(Color(0xFFE60023)).padding(horizontal = dpx(7), vertical = dpx(3)),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(5))
+            ) {
+                Box(Modifier.size(dpx(6)).clip(RoundedCornerShape(50)).background(Color.White))
+                Text(raw = true, text = "LIVE", color = Color.White, fontSize = spx(11), fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
+            }
+            val k = statusKind(g)
+            val whenText = when {
+                live -> g.detail.ifBlank { "Live" }
+                g.state == 2 -> "Final"
+                k == 3 || k == 4 -> statusText(g)
+                else -> SportShowcase.time(g.start)
+            }
+            Text(raw = true, text = whenText, color = Color(0xFFB3B3B3), fontSize = spx(13), maxLines = 1)
+            Spacer(Modifier.weight(1f))
+            if (SportHubFavs.isFavGame(g) || SportFavs.isFavGame(g)) AppIcon(AIcon.Star, DS.Gold, size = dpx(14))
+            val net = g.tv.ifBlank { g.nets.joinToString(" · ") }.ifBlank { g.league }
+            Text(raw = true, text = net, color = Color(0xFF808080), fontSize = spx(13), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = dpx(170)))
+        }
+        Spacer(Modifier.height(dpx(10)))
+        if (g.solo) {
+            Row(Modifier.height(dpx(76)), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(12))) {
+                TeamLogo(SportData.leagueOf(g)?.let { SportData.leagueLogos[it.path] }, g.league, dpx(30))
+                Text(raw = true, text = g.title.ifBlank { g.league }, color = Color.White, fontSize = spx(17), fontWeight = FontWeight.SemiBold,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+        } else {
+            val showScore = g.state != 0 && !SportPrefs.hideScores
+            val a = g.away.score?.toIntOrNull(); val h = g.home.score?.toIntOrNull()
+            MacTeamLine(g.away, showScore, g.state == 2 && a != null && h != null && a < h)
+            MacTeamLine(g.home, showScore, g.state == 2 && a != null && h != null && h < a)
+        }
+    }
+}
+
+@Composable
+private fun MacTeamLine(t: SportData.Team, showScore: Boolean, lost: Boolean) {
+    val ink = if (lost) Color(0xFF8C8C8C) else Color.White
+    Row(Modifier.fillMaxWidth().height(dpx(38)), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(12))) {
+        TeamLogo(t.logo, t.abbr.ifBlank { t.short }, dpx(30))
+        Text(raw = true, text = t.short.ifBlank { t.name }, color = ink, fontSize = spx(17), fontWeight = FontWeight.SemiBold,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        if (showScore && !t.score.isNullOrBlank()) Text(raw = true, text = t.score, color = ink, fontSize = spx(22), fontWeight = FontWeight.ExtraBold)
     }
 }
 

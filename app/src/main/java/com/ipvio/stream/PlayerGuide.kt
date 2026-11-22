@@ -199,7 +199,7 @@ fun Guide(
                     addRect(androidx.compose.ui.geometry.Rect(0f, 0f, size.width, size.height))
                     addRoundRect(hole)
                 }
-                drawPath(path, Color(0xFC1E2930))
+                drawPath(path, Color(0xFC000000))
             }
             .padding(start = 24.dp, top = 14.dp, bottom = 10.dp, end = 24.dp)
     ) {
@@ -263,7 +263,7 @@ fun Guide(
         Row(Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp)) {
             // Categories
             LazyColumn(
-                Modifier.width(206.dp).fillMaxHeight().background(Color(0xFF243139)),
+                Modifier.width(206.dp).fillMaxHeight().background(Color(0xFF000000)),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(8.dp),
                 verticalArrangement = Arrangement.spacedBy(3.dp)
             ) {
@@ -273,7 +273,7 @@ fun Guide(
                 }
             }
             Spacer(Modifier.width(12.dp))
-            BoxWithConstraints(Modifier.weight(1f).fillMaxHeight().background(Color(0xFF1E2930)).padding(horizontal = 0.dp, vertical = 4.dp)) {
+            BoxWithConstraints(Modifier.weight(1f).fillMaxHeight().background(Color(0xFF000000)).padding(horizontal = 0.dp, vertical = 4.dp)) {
                 val vm = ((maxWidth - 208.dp).value / dpm).toInt().coerceAtLeast(40)
                 SideEffect { if (viewMin != vm) viewMin = vm }
                 Column(Modifier.fillMaxSize()) {
@@ -335,11 +335,12 @@ fun Guide(
 
 /** Opaque colors of the show fields (no transparency, see GuideRow). */
 // TiviMate-style guide cells: slate blocks, darker past, thin dark gaps, light focus
-private val BlockBase = Color(0xFF2C3A42)
-private val BlockPast = Color(0xFF25323A)
-private val BlockLine = Color(0xFF1E2930)
-private val BlockFocus = Color(0xFFDDE4E8)
-private val BlockNow = Color(0xFF34444D)
+// Same palette as the Mac app: black page, #1C1C1C cards, white focus, Fof red for "now"
+private val BlockBase = Color(0xFF1C1C1C)
+private val BlockPast = Color(0xFF141414)
+private val BlockLine = Color(0xFF000000)
+private val BlockFocus = Color(0xFFFFFFFF)
+private val BlockNow = Color(0xFF2A2A2A)
 
 /** A category on the left in the TV guide. */
 class GuideCat(val name: String, val items: List<Item>, val icon: AIcon?)
@@ -366,11 +367,12 @@ fun guideCategories(list: List<Item>, all: List<Item>): List<GuideCat> {
 @Composable
 private fun GuideCatRow(c: GuideCat, selected: Boolean, modifier: Modifier, onFocus: () -> Unit, onLeft: () -> Unit, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
-    // TiviMate: the chosen group is a light bar, focus a lighter slate
-    val shape = RoundedCornerShape(2.dp)
+    // Mac look: focus = white bar, the chosen group = red tint
+    val shape = RoundedCornerShape(6.dp)
+    val light = f
     Row(
         modifier.fillMaxWidth().clip(shape)
-            .background(if (selected) BlockFocus else if (f) Color(0xFF34444D) else Color.Transparent)
+            .background(if (f) BlockFocus else if (selected) Color(0x29E60023) else Color.Transparent)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
             // Left in the categories: close the guide (like Back)
             .onPreviewKeyEvent { ev -> if (ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionLeft) { onLeft(); true } else false }
@@ -378,11 +380,11 @@ private fun GuideCatRow(c: GuideCat, selected: Boolean, modifier: Modifier, onFo
             .padding(horizontal = 10.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        if (c.icon != null) AppIcon(c.icon, if (c.icon == AIcon.Star) DS.Gold else if (selected) Color(0xFF263238) else Muted, size = 15.dp)
+        if (c.icon != null) AppIcon(c.icon, if (c.icon == AIcon.Star) DS.Gold else if (light) Color(0xFF263238) else Muted, size = 15.dp)
         // Provider names stay as they are; the app's own labels are translated
-        Text(c.name, color = if (selected) Color(0xFF111619) else Color.White, fontSize = 16.sp, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+        Text(c.name, color = if (light) Color(0xFF111619) else Color.White, fontSize = 16.sp, fontWeight = if (selected || light) FontWeight.SemiBold else FontWeight.Normal,
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f), raw = c.icon == null || c.icon == AIcon.Lists)
-        Text(raw = true, text = c.items.size.toString(), color = if (selected) Color(0x99111619) else Muted, fontSize = 13.sp)
+        Text(raw = true, text = c.items.size.toString(), color = if (light) Color(0x99111619) else Muted, fontSize = 13.sp)
     }
 }
 
@@ -489,7 +491,7 @@ private fun GuideRow(
         val shape = RoundedCornerShape(2.dp)
         Row(
             Modifier.focusRequester(cellReq).width(230.dp).fillMaxHeight().padding(end = 2.dp).clip(shape)
-                .background(if (f) BlockFocus else if (current) BlockNow else Color(0xFF26343C))
+                .background(if (f) BlockFocus else if (current) BlockNow else Color(0xFF1C1C1C))
                 .onFocusChanged {
                     f = it.isFocused
                     if (it.isFocused) {
@@ -604,20 +606,20 @@ private fun GuideRow(
                         // Design: title on top, time below
                         if (dw >= 44f) Column {
                             if (dw >= 72f) Text(
-                                e.title, color = if (bf) Color(0xFF111619) else if (past && !inArchive) Color(0xFF8A99A1) else Color.White,
+                                e.title, color = if (bf) Color(0xFF111619) else if (past && !inArchive) Color(0xFF808080) else Color.White,
                                 fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, raw = true
                             )
                             Text(
-                                raw = true, text = hhmm(e.start) + " – " + hhmm(e.end), color = if (bf) Color(0xB3111619) else Color(0xFF8FA1AA),
+                                raw = true, text = hhmm(e.start) + " – " + hhmm(e.end), color = if (bf) Color(0xB3111619) else Color(0xFF8C8C8C),
                                 fontSize = 13.sp, style = TNUM, maxLines = 1
                             )
                         }
-                        if (isNow) Box(Modifier.align(Alignment.BottomStart).height(2.dp).width((dw * frac).dp).background(if (bf) Color(0xFF263238) else Color(0xFF8FB3C4)))
+                        if (isNow) Box(Modifier.align(Alignment.BottomStart).height(2.dp).width((dw * frac).dp).background(if (bf) Color(0xFF263238) else Color(0xFFE60023)))
                     }
                 }
             }
             val nx = (nowSec - winStart) / 60f * dpm
-            if (nx > 0f && nx < viewMin * dpm) Box(Modifier.offset(x = nx.dp).width(1.dp).fillMaxHeight().background(Color(0xCCB0C4CE)))
+            if (nx > 0f && nx < viewMin * dpm) Box(Modifier.offset(x = nx.dp).width(1.dp).fillMaxHeight().background(Color(0xCCE60023)))
         }
     }
 }

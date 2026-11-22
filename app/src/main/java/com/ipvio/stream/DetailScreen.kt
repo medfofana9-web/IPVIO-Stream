@@ -471,17 +471,11 @@ private fun DetailScreenFull(
     Box(Modifier.fillMaxSize().background(Bg)) {
         // Round 15: layout like the big picture of the home screen (image on the right, faded into the background at the left and bottom)
         // Picture, gradients and mood glow in one cached layer: painted once, not on every frame while the page scrolls
-        Box(Modifier.fillMaxSize().graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }) {
-            meta?.backdrop?.let { AsyncImage(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopEnd) }
-            Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Bg, 0.3f to Bg.copy(alpha = .92f), 0.55f to Bg.copy(alpha = .5f), 0.8f to Color.Transparent)))
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Bg.copy(alpha = .5f), 0.2f to Color.Transparent, 0.55f to Bg.copy(alpha = .78f), 0.8f to Bg)))
-            MoodGlow(meta?.backdrop)
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.25f to Color.Transparent, 0.7f to tintCol.copy(alpha = tintCol.alpha * .22f), 1f to tintCol.copy(alpha = tintCol.alpha * .42f))))
-        }
-        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(horizontal = 28.dp, vertical = 36.dp)) {
+        // Same as the Mac app: the picture is a rounded card at the top of the page (it scrolls with the page), no glow
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = dpx(28), end = dpx(28), top = dpx(18), bottom = 36.dp)) {
             item {
                 Box(
-                    Modifier.fillMaxWidth().heightIn(min = dpx(if (embedded) 400 else 560))
+                    Modifier.fillMaxWidth().heightIn(min = dpx(if (embedded) 420 else 640))
                         .onPreviewKeyEvent { ev ->
                             if (ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionUp) {
                                 if (onTopUp != null) {
@@ -498,7 +492,14 @@ private fun DetailScreenFull(
                         }
                         .onFocusChanged { heroFocused = it.hasFocus }
                 ) {
-                    Column(Modifier.align(if (embedded && !showActions) Alignment.TopStart else Alignment.BottomStart).widthIn(max = dpx(980)).padding(bottom = dpx(18)), verticalArrangement = Arrangement.spacedBy(dpx(12))) {
+                    Box(Modifier.matchParentSize().clip(RoundedCornerShape(dpx(22))).background(Color(0xFF111111))
+                        .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }) {
+                        meta?.backdrop?.let { AsyncImage(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter) }
+                        Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Color(0xD9000000), 0.4f to Color(0x66000000), 0.65f to Color.Transparent)))
+                        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xD9000000))))
+                    }
+                    Column(Modifier.align(if (embedded && !showActions) Alignment.TopStart else Alignment.BottomStart).widthIn(max = dpx(1030))
+                        .padding(start = dpx(52), top = dpx(40), bottom = dpx(46)), verticalArrangement = Arrangement.spacedBy(dpx(12))) {
                         // Cinematic detail identity stays consistent with Home, Player and Sports.
                         // Netflix-style: the official title logo when there is one, otherwise the title in large type
                         HeroTitle(item, meta, 84, dpx(620), dpx(170))

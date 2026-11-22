@@ -9,6 +9,9 @@
 - Row titles: light grey, "Show all" right after the title, no red marker. "Continue Watching for <profile>" in English.
 - Home order (once): Continue Watching, Top 10, My List, then the addon and genre rows. Live sports moved off Home (it stays in Sports; Customize home screen can show it again).
 - Live TV: categories on the left with a thin edge line, channels as cards (LIVE tag, logo, name, now playing with a red progress line, next show). No picture behind the page. Channel search keeps the keyboard and the now-playing panel.
+- Sports: a plain "Sports" title, then Live Now, Coming Up and Final as grids of Mac game cards (LIVE tag and clock, network, one line per team with logo, name and score; the losing side in grey). My teams stays under Live Now. The big featured game and the per-sport rows moved off the overview (Schedule and Live still have every game). Section titles without the side marker.
+- TV guide: black page, #1C1C1C program blocks, white focus, red "now" line and time marker (was grey-blue).
+- Title page: the picture is a rounded card at the top that scrolls with the page, like the Mac app (no full-screen picture or glow behind the page).
 
 ## Fof TV – daily game plan
 
