@@ -119,28 +119,53 @@ async function pickProfile(p) {
   await openProfile(p);
 }
 
-function askPin(p, err) {
+function askPin(p, err, len = 4) {
+  // Same PIN as on the TV (checked by the account). 4 boxes like the TV; checked as soon as the 4th digit is in.
+  // A longer PIN (5 or 6 digits, possible on the TV) gets its boxes with "My PIN is longer".
   $('#app').innerHTML = `<div class="center"><div class="wordmark">FOF TV</div>
-    <div style="text-align:center"><div style="color:var(--grey);font-size:18px">Profile lock is on.</div>
-    <h1 style="font-weight:500;font-size:40px;margin:10px 0 26px">Enter the PIN for ${esc(p.name)}</h1>
-    <div class="pin">${[0, 1, 2, 3, 4, 5].map(i => `<input maxlength="1" inputmode="numeric" data-i="${i}">`).join('')}</div>
-    <div class="err">${esc(err || '')}</div><button class="btn-outline" id="bk">Back</button></div></div>`;
+    <div style="text-align:center;display:flex;flex-direction:column;align-items:center"><div style="color:var(--grey);font-size:18px">Profile lock is on.</div>
+    <h1 style="font-weight:500;font-size:40px;margin:10px 0 26px">Enter your PIN to watch as ${esc(p.name)}</h1>
+    <div class="pin">${Array.from({ length: len }, (_, i) => `<input type="password" maxlength="1" inputmode="numeric" data-i="${i}">`).join('')}</div>
+    <div class="err">${esc(err || '')}</div>
+    ${len < 6 ? '<button id="longer" style="color:var(--grey);font-size:14px;margin-top:6px">My PIN is longer</button>' : ''}
+    <button class="btn-outline" id="bk">Back</button></div></div>`;
   const ins = [...document.querySelectorAll('.pin input')];
   ins[0].focus();
+  let busy = false;
   const submit = async () => {
     const pin = ins.map(i => i.value).join('');
-    if (pin.length < 4) return;
+    if (pin.length < len || busy) return;
+    busy = true;
     try {
-      const r = await rpc('fof_verify_pin', { p_profile: p.id, p_pin: pin });
-      if (r && r.ok) { acct.pins[p.id].unlocked = true; await openProfile(p); }
-      else askPin(p, r && r.wait_s ? `Too many tries. Wait ${r.wait_s} s.` : 'Wrong PIN.');
-    } catch (e) { askPin(p, 'No connection to the account.'); }
+      let r = await rpc('fof_verify_pin', { p_profile: p.id, p_pin: pin });
+      if (r && r.err === 'signed_out') {
+        // This Mac was not registered with the account yet: register, then try once more
+        await rpc('fof_register_device', { p_id: deviceId(), p_name: 'Mac', p_kind: 'Mac app', p_version: VERSION }).catch(() => {});
+        r = await rpc('fof_verify_pin', { p_profile: p.id, p_pin: pin });
+      }
+      if (r && r.ok) { (acct.pins[p.id] = acct.pins[p.id] || {}).unlocked = true; return openProfile(p); }
+      const e = !r ? 'The account did not answer.'
+        : r.err === 'wrong' ? `Wrong PIN. ${r.left != null ? r.left + ' tries left.' : ''}`
+        : r.err === 'locked' ? `Too many tries. Wait ${Math.ceil((r.wait_s || 60) / 60)} min.`
+        : r.err === 'no_pin' ? 'This profile has no PIN.'
+        : r.err === 'signed_out' ? 'This Mac is not allowed on the account yet. Sign out and sign in again.'
+        : 'This profile could not be opened.';
+      if (r && r.err === 'no_pin') return openProfile(p);
+      askPin(p, e, len);
+    } catch (x) { askPin(p, 'No connection to the account.', len); }
   };
-  ins.forEach((inp, i) => inp.addEventListener('keydown', e => {
-    if (e.key === 'Enter') return submit();
-    if (e.key === 'Backspace' && !inp.value && i > 0) { ins[i - 1].focus(); ins[i - 1].value = ''; e.preventDefault(); }
-  }));
-  ins.forEach((inp, i) => inp.addEventListener('input', () => { inp.value = inp.value.replace(/\D/g, ''); if (inp.value && i < 5) ins[i + 1].focus(); if (i >= 3 && ins.slice(0, 4).every(x => x.value) && !ins[i + 1]?.value) clearTimeout(askPin.t), askPin.t = setTimeout(submit, 700); }));
+  ins.forEach((inp, i) => {
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter') return submit();
+      if (e.key === 'Backspace' && !inp.value && i > 0) { ins[i - 1].focus(); ins[i - 1].value = ''; e.preventDefault(); }
+    });
+    inp.addEventListener('input', () => {
+      inp.value = inp.value.replace(/\D/g, '').slice(-1);
+      if (inp.value && i < len - 1) ins[i + 1].focus();
+      if (ins.every(x => x.value)) submit();
+    });
+  });
+  const lg = $('#longer'); if (lg) lg.onclick = () => askPin(p, '', len + 1);
   $('#bk').onclick = showWho;
 }
 
