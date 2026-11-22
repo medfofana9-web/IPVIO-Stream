@@ -451,6 +451,10 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
                 }
             }
         }
+        // The day's biggest games in team colors (live first, then by how popular the league is)
+        val top10 = games.filter { it.state != 2 && !it.solo && statusKind(it) != 6 }
+            .sortedWith(compareBy({ if (it.state == 1) 0 else 1 }, { if (SportHubFavs.isFavGame(it)) 0 else 1 }, { popularity(it) })).take(10)
+        if (top10.size >= 3) item(key = "top10") { Box(Modifier.padding(top = dpx(8))) { GameTileRow("Top 10 Games Today", top10, hub, null) } }
         grid("live", "Live Now", liveAll)
         if (mine.isNotEmpty()) item(key = "myteams") { GameTileRow("My teams", mine.take(12), hub, null) }
         grid("soon", "Coming Up", comingUp)

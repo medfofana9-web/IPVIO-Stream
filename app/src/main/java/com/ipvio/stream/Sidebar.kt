@@ -140,7 +140,7 @@ fun MenuIcon(id: Int, color: Color, modifier: Modifier = Modifier) {
 }
 
 // Sidebar (round 14): collapsed only icons (always visible), with focus it expands over the content and shows the texts
-private val SidebarBg: Color get() = Color.Black
+private val SidebarBg: Color get() = if (KidsMode.on) Look.bg else Color.Black
 private val SidebarInk = Color(0xFFCFCFD6)
 
 /** Position and style of the sidebar (round 20): left, right or top; icons only or always with text. */
@@ -328,12 +328,12 @@ private fun SideItem(id: Int, label: String, active: Boolean, expanded: Boolean,
     val f = fRaw && !ViewLive.active
     val shape = RoundedCornerShape(dpx(10))
     // Same as the Mac app: active = Fof red icon on a red tint, focus = white surface with dark ink
-    val ink = if (f) Color(0xFF0B0F19) else if (active) Color(0xFFE60023) else SidebarInk
+    val ink = if (f) Color(0xFF0B0F19) else if (active) (if (KidsMode.on) Look.accent1 else Color(0xFFE60023)) else SidebarInk
     Row(
         (if (horizontal) modifier.height(dpx(48)) else modifier.fillMaxWidth().height(dpx(48))).clip(shape)
             .background(
                 if (f) SolidColor(Color.White)
-                else if (active) SolidColor(Color(0x24E60023))
+                else if (active) SolidColor(if (KidsMode.on) Look.accent1.copy(alpha = .2f) else Color(0x24E60023))
                 else SolidColor(Color.Transparent)
             )
             .onFocusChanged { fRaw = it.isFocused }

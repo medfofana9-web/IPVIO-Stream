@@ -85,6 +85,8 @@ object AppNav {
     /** The title [autoResume] belongs to: it is only used on that title's page (a leftover must never pick the episode of another show). */
     var autoResumeId: String? = null
     var homeSignal by androidx.compose.runtime.mutableIntStateOf(0)
+    /** Guide / Live TV key on the remote: show what is on now (Sports, Live Now). */
+    var onNowSignal by androidx.compose.runtime.mutableIntStateOf(0)
     /** The View settings ask the movie area to open its categories screen (counts up). */
     var openCatsSignal by androidx.compose.runtime.mutableIntStateOf(0)
     /** Same for the "All movies" grid (consumed by the movie area). */

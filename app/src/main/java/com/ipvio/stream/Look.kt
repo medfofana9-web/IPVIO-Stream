@@ -111,13 +111,14 @@ object Look {
 
     private fun c(rgb: Int) = Color(0xFF000000.toInt() or rgb)
 
-    val bg: Color get() = c(BGS[bgIdx.coerceIn(0, BGS.lastIndex)].bg)
-    val surf: Color get() = c(BGS[bgIdx.coerceIn(0, BGS.lastIndex)].surf)
-    val surf2: Color get() = c(BGS[bgIdx.coerceIn(0, BGS.lastIndex)].surf2)
-    val accent1: Color get() = c(fillRgb())
-    val accent2: Color get() = c(highRgb())
+    // Kids profile: its own brighter look – deep blue background, sunny yellow and sky blue instead of red
+    val bg: Color get() = if (KidsMode.on) Color(0xFF0B1A3A) else c(BGS[bgIdx.coerceIn(0, BGS.lastIndex)].bg)
+    val surf: Color get() = if (KidsMode.on) Color(0xFF14285A) else c(BGS[bgIdx.coerceIn(0, BGS.lastIndex)].surf)
+    val surf2: Color get() = if (KidsMode.on) Color(0xFF1D3775) else c(BGS[bgIdx.coerceIn(0, BGS.lastIndex)].surf2)
+    val accent1: Color get() = if (KidsMode.on) Color(0xFFFFC21A) else c(fillRgb())
+    val accent2: Color get() = if (KidsMode.on) Color(0xFF5CC8FF) else c(highRgb())
     /** Text on color-1 surfaces (white or navy, whichever is readable). */
-    val onAccent: Color get() = c(ThemeMath.onAccent(fillRgb()))
+    val onAccent: Color get() = if (KidsMode.on) Color(0xFF0B1A3A) else c(ThemeMath.onAccent(fillRgb()))
 
     /** Colors of a design (even one only chosen tentatively) – for the preview in the settings, changes nothing in the app. */
     fun palette(accent: Int = accentIdx, cust: Int = custom, cust2: Int = custom2, bgI: Int = bgIdx): LookPalette {
@@ -136,3 +137,8 @@ object Look {
 
 /** Focus enlargement, depending on the chosen animation level. */
 fun focusScale(target: Float): Float = ThemeMath.focusScale(target, Look.motion)
+
+/** The active profile is a kids profile (adult titles hidden by its lock): the app uses the kids look and menu. */
+object KidsMode {
+    var on by androidx.compose.runtime.mutableStateOf(false)
+}

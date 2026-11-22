@@ -52,6 +52,11 @@ class MainActivity : ComponentActivity() {
         // Ambient screen: a key wakes it and is used up (up and down of that key)
         if (event.action == android.view.KeyEvent.ACTION_DOWN && Ambient.key()) { ambientSwallow = event.keyCode; return true }
         if (event.action == android.view.KeyEvent.ACTION_UP && ambientSwallow == event.keyCode) { ambientSwallow = -1; return true }
+        // "What's on now": the remote's Guide / Live TV key opens Sports with the games on now (outside the player)
+        if ((event.keyCode == android.view.KeyEvent.KEYCODE_GUIDE || event.keyCode == android.view.KeyEvent.KEYCODE_TV) && !AppNav.playing) {
+            if (event.action == android.view.KeyEvent.ACTION_UP) AppNav.onNowSignal++
+            return true
+        }
         if (event.keyCode == android.view.KeyEvent.KEYCODE_ESCAPE) {
             if (event.action == android.view.KeyEvent.ACTION_UP) onBackPressedDispatcher.onBackPressed()
             return true
@@ -474,9 +479,7 @@ private fun AppContent() {
     }
     fun goTab(id: Int) {
         if (id == MenuLogic.EPG) { openEpg(); return }
-        // Live TV opens like TiviMate: the last channel plays in the corner above the TV guide (categories, channels,
-        // program grid). Back closes the guide to the full picture, Back again returns to where you were.
-        if (id == 3 && liveAll.isNotEmpty()) { openEpg(); return }
+        // Live TV opens the channel cards like the Mac app; the TV guide is one entry away ("TV-Guide" in the categories)
         // Selecting another area must reveal it even if the current screen
         // is a detail, Browse overlay, or a failed full-screen Live TV player.
         // A stale overlay used to cover Search and keep playback errors visible
@@ -546,6 +549,7 @@ private fun AppContent() {
         adding = false
         start(Item("fof-test", Kind.LIVE, "Test stream", null, u, null, "Test"), "Test stream", u)
     }
+    LaunchedEffect(AppNav.onNowSignal) { if (AppNav.onNowSignal > 0) goTab(MenuLogic.SPORT) }
     // "More Like This" at the end of a movie: the player closes itself, then the chosen title's page opens
     LaunchedEffect(OpenTitle.req, playing) {
         val it = OpenTitle.req ?: return@LaunchedEffect

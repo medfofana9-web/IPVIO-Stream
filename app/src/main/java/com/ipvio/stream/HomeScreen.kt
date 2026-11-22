@@ -22,6 +22,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
@@ -543,6 +544,13 @@ fun HomeScreen(
     val pivotSpec = remember(tab, FofPrefs.cleanLook) { PivotSpec(if (FofPrefs.cleanLook) 0.3f else 0.5f) { states[tab.coerceIn(0, states.lastIndex)] } }
     Box(Modifier.fillMaxSize()) {
         if (bbTab && !FofPrefs.cleanLook) BillboardLayer(bbA, bbItemState, Modifier.padding(start = SideStart + dpx(56), top = dpx(64) + (if (SidebarPrefs.pos == SidebarPrefs.TOP) TopBarH else 0.dp)))
+        // Keep watching: something played in the last hour (here, on the Mac or another TV) – one press resumes it
+        if (tab == 0) {
+            val kw = remember(resumeList) {
+                resumeList.firstOrNull()?.takeIf { (e, _) -> !e.next && e.pos > 60_000 && e.dur > e.pos + 120_000 && System.currentTimeMillis() - e.ts < 60 * 60_000L }
+            }
+            if (kw != null && !KeepWatching.shown) KeepWatchingCard(kw.first, kw.second, Modifier.zIndex(2f).align(Alignment.BottomEnd)) { onResume(kw.first, kw.second) }
+        }
         BoxWithConstraints(Modifier.fillMaxSize().sidebarPad()) {
             // Card widths and height of the big picture from the available space (as in the design: everything at a glance)
             val grid = remember(maxWidth, Design.k, General.cardSize) { cardGrid(maxWidth - RowPadX * 2) }

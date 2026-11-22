@@ -1,5 +1,13 @@
 # Changelog
 
+## Fof TV – kids look, Top 10 games, keep watching, Live TV like the Mac
+
+- Live TV opens the channel cards (like the Mac app) instead of the full TV guide; the guide is the "TV-Guide" entry at the top of the categories.
+- Guide / Live TV key on the remote (where the remote has one): opens Sports with the games on now.
+- Kids profiles: their own brighter look – deep blue background, yellow and sky-blue highlights – plus the kids menu (no Live TV or Sports).
+- Sports: "Top 10 Games Today" in team colors above Live Now (live games first).
+- Home: a "Keep watching" card in the corner when something played in the last hour (on this TV, the Mac or another TV); Resume continues at the saved spot, Back closes it. Once per start.
+
 ## Fof TV – trailers, More Like This, score alerts, new episodes
 
 - Trailers: after 4 seconds on the big picture (Home, Movies, TV Shows, title page) the trailer fades in over it, muted, and loops; the slideshow waits while it runs. It never takes the remote focus. On by default except on low-memory sticks; Settings > View > "Trailers in the banner" switches it.
