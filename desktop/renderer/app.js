@@ -808,9 +808,26 @@ function gameChannels(g) {
   const league = { nba: 'nba', wnba: 'wnba', nfl: 'nfl', nhl: 'nhl', mlb: 'mlb', ncaaf: 'ncaa', ncaab: 'ncaa' }[g.lk] || '';
   const nets = g.nets.flatMap(n => NET_ALIASES[n] || [n.toLowerCase()]);
   const out = [];
+  // Event channels ("DAZN 59: Tenerife vs. Barcelona @ 22 Nov") must name both teams and, when dated, the game's day –
+  // otherwise old or unrelated events ("Sunderland vs Hull City @ 8 Sep", "Barcelona: Coppa Shell") showed up and never started
+  const MON = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+  const gd = new Date(g.date), gDay = gd.getDate(), gMon = gd.getMonth();
+  const teamHit = (n, t) => has(n, t.nick) || has(n, t.short) || has(n, t.name) || (t.city && t.nick && has(n, t.city + ' ' + t.nick));
   live.chans.forEach(c => {
     const n = norm(c.name); let sc = 0;
-    for (const t of [g.home, g.away]) {
+    const lower = String(c.name || '').toLowerCase();
+    const dm = lower.match(/\b(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/) || lower.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2})\b/);
+    const isEvent = !!dm || / vs?\.? | v | @ |: .+ - /i.test(' ' + c.name + ' ');
+    if (isEvent) {
+      if (dm) {
+        const day = +(/\d/.test(dm[1]) ? dm[1] : dm[2]), mon = MON.indexOf((/\d/.test(dm[1]) ? dm[2] : dm[1]).slice(0, 3));
+        if (day !== gDay || mon !== gMon) return;
+      }
+      if (!(teamHit(n, g.home) && teamHit(n, g.away))) return;
+      sc = 12;
+    } else for (const t of [g.home, g.away]) {
+      // Without a league tag (soccer): only a channel that is just the team ("Hull City", "Barça TV"), not a long show title
+      if (!league && chMark(c.name).length > (t.name || t.short).length + 10) continue;
       if (has(n, t.nick) && (!league || n.includes(' ' + league + ' ') || t.nick.split(' ').length > 1)) sc = Math.max(sc, 10);
       else if (has(n, t.name)) sc = Math.max(sc, 9);
     }
@@ -835,7 +852,7 @@ async function watchGame(g) {
   const list = gameChannels(g);
   if (!document.body.contains(bg)) return;
   $('.sheet', bg).innerHTML = `<h2>${esc(g.away.short)} at ${esc(g.home.short)}</h2><div class="sub">${esc(g.league)} · ${esc(g.detail)}${g.nets.length ? ' · On ' + esc(g.nets.join(', ')) : ''}</div>` +
-    (list.length ? `<div class="chlist">${list.map((c, i) => `<div class="src" data-i="${i}">${c.logo ? `<img src="${esc(c.logo)}" onerror="this.style.visibility='hidden'">` : ''}<div class="nm2"><b>${esc(c.name)}</b><small>${c.sc >= 9 ? 'Team channel' : 'National broadcast'}</small></div></div>`).join('')}</div>`
+    (list.length ? `<div class="chlist">${list.map((c, i) => `<div class="src" data-i="${i}">${c.logo ? `<img src="${esc(c.logo)}" onerror="this.style.visibility='hidden'">` : ''}<div class="nm2"><b>${esc(c.name)}</b><small>${c.sc >= 12 ? 'This game' : c.sc >= 9 ? 'Team channel' : 'National broadcast'}</small></div></div>`).join('')}</div>`
       : '<div class="sub">No channel in your playlist matches this game. Try the league\'s category in Live TV.</div>');
   bg.querySelectorAll('.src').forEach(el => el.onclick = () => { close(); const i = +el.dataset.i; play({ url: list[i].url, title: list[i].name, sub: `${g.away.short} at ${g.home.short}`, live: true, zap: list, zi: i }); });
   // Follow a team (its games first, a score bar while you watch something else, a notification when they start),

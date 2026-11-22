@@ -1,5 +1,10 @@
 # Changelog
 
+## Game channels – the TV lists them all, the Mac only real ones
+
+- TV: "Other streams" in the player now lists every channel carrying the game – the sure matches first, then team channels and the networks (it only listed the sure matches and was often empty).
+- Mac: a game's channel list no longer shows old or unrelated events – an event channel must name both teams and, when it has a date, the game's day; soccer team channels must be just the team. Event channels for this game are marked "This game".
+
 ## Fof TV – smaller picture cache
 
 - Saved pictures are capped at 60 MB on budget boxes (150 MB on others) instead of growing to 250 MB. The playlist copy that makes Live TV open instantly stays.

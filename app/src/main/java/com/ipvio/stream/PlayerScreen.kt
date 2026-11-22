@@ -1903,6 +1903,12 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                                             SportSession.start(found.first, list, liveAll)
                                         }
                                     }
+                                    // Every channel carrying the game, like the Mac app: the sure matches first, then team channels
+                                    // and the networks (the sure-only list was often empty)
+                                    g?.let { gg ->
+                                        val all = withContext(Dispatchers.Default) { runCatching { SportWatch.prewarm(liveAll); SportWatch.resolve(gg, liveAll).map { it.ch } }.getOrDefault(emptyList()) }
+                                        list = (list + all).distinctBy { it.id }
+                                    }
                                     if (list.isEmpty()) notice = "No matched streams found for this game"
                                     else { controls = false; streamPick = ((g?.let { x -> if (x.solo || x.away.name.isBlank()) x.title else x.away.name + " vs " + x.home.name } ?: here?.title ?: "This game") to list) }
                                 }
