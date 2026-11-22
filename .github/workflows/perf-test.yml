@@ -139,14 +139,7 @@ jobs:
             adb shell input keyevent 20; sleep 1; adb shell input keyevent 23; sleep 3
             # Who's watching screen and the avatar gallery (hold OK)
             adb exec-out screencap -p > p_profiles.png
-            adb shell input keyevent --longpress 23
-            sleep 5
-            adb exec-out screencap -p > p_avatars.png
-            adb shell input keyevent 22; sleep 1; adb shell input keyevent 23; sleep 3
-            adb exec-out screencap -p > p_avatar_preview.png
-            adb shell input keyevent 4; sleep 1
-            adb shell input keyevent 4
-            sleep 2
+            # Profile tiles no longer open the avatar gallery on a long press (Mac look): just pick the first profile
             adb shell input keyevent 23
             sleep 40
             adb exec-out screencap -p > p0_start.png
