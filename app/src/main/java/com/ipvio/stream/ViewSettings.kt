@@ -351,6 +351,8 @@ private fun HomeTab(ctx: Context) {
     }) {
         Text("Featured banner changes", color = Muted, fontSize = 15.sp)
         Chips(heroOpts.map { if (it == 0) "Never" else "every $it sec" }, heroOpts.indexOf(General.heroSec).coerceAtLeast(0), hHero) { General.setHeroSec(ctx, heroOpts[it]) }
+        Text("Light mode (smoother on budget boxes)", color = Muted, fontSize = 15.sp)
+        Chips(listOf("Auto", "On", "Off"), when (Lite.pref) { 1 -> 1; 0 -> 2; else -> 0 }, remember { mutableStateOf<Int?>(null) }) { Lite.set(ctx, when (it) { 1 -> 1; 2 -> 0; else -> -1 }) }
         Text("Trailers in the banner", color = Muted, fontSize = 15.sp)
         Chips(listOf("On", "Off"), if (General.trailersOn(ctx)) 0 else 1, remember { mutableStateOf<Int?>(null) }) { General.setHeroTrailer(ctx, it == 0) }
         StepRow("Card size (rows)", AppSettings.cardW.toString(),

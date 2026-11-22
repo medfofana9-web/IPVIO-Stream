@@ -1146,8 +1146,9 @@ private fun Hero(
     val trailerKey = rememberFullMeta(item, rememberMeta(item))?.trailerKey
     // Very long crossfades render two large backdrops at once. On a Fire
     // Stick-class GPU that can produce dropped frames during D-pad movement.
-    val heroFadeMs = remember(ctx, Look.motion) {
-        if (Look.motion == 0) 0 else if (Mem.tier(ctx) == 0) 160 else 320
+    val heroFadeMs = remember(ctx, Look.motion, Lite.on) {
+        // Light mode: the picture changes at once (a crossfade draws two full-size pictures for a third of a second)
+        if (Look.motion == 0 || Lite.on) 0 else if (Mem.tier(ctx) == 0) 160 else 320
     }
 
     // Picture across the full width (also behind the header), faded into the background at the left and bottom.
@@ -1247,14 +1248,16 @@ private fun Hero(
         ) {
             // Active dot fills up until the next change (shows when the picture changes)
             val prog = remember(idx) { androidx.compose.animation.core.Animatable(0f) }
-            LaunchedEffect(idx, General.heroSec) {
-                if (General.heroSec > 0) prog.animateTo(1f, tween(General.heroSec * 1000, easing = androidx.compose.animation.core.LinearEasing))
+            // The fill redraws the screen on every frame for the whole interval: not in light mode, and only while the big
+            // picture is in view (it kept a budget box's graphics chip busy all the time, even while scrolling the rows)
+            LaunchedEffect(idx, General.heroSec, Lite.on, atTop) {
+                if (General.heroSec > 0 && !Lite.on && atTop) prog.animateTo(1f, tween(((1f - prog.value) * General.heroSec * 1000).toInt().coerceAtLeast(1), easing = androidx.compose.animation.core.LinearEasing))
             }
             featured.indices.forEach { i ->
                 // 17c: progress only drawn (no rebuild on every frame)
                 if (i == idx) Box(Modifier.width(dpx(40)).height(dpx(8)).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = .3f))) {
                     Box(Modifier.fillMaxSize().graphicsLayer {
-                        scaleX = if (General.heroSec > 0) prog.value.coerceIn(0.08f, 1f) else 1f
+                        scaleX = if (General.heroSec > 0 && !Lite.on) prog.value.coerceIn(0.08f, 1f) else 1f
                         transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)
                     }.background(Accent1))
                 }

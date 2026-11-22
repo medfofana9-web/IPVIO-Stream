@@ -1,5 +1,10 @@
 # Changelog
 
+## Fof TV – light mode for budget boxes
+
+- Light mode (automatic on boxes with up to 3 GB, like the onn 4K and Fire TV sticks; Settings > View > Light mode switches it): the big picture changes without a crossfade, the slideshow dot does not animate, focus grows less, Live TV cards skip the logo color.
+- Everywhere: the slideshow dot's fill no longer redraws the screen while the big picture is out of view (it kept the graphics chip busy all the time while scrolling the rows).
+
 ## Fof TV – scrolling fix, score window on, fewer noisy reports; Mac – Instant Play, new episodes, game day; phone web app
 
 - TV: scrolling down no longer stops on a row's "Show all" (a focus request that went nowhere was taken as done – newer Compose returns false instead of throwing). The same check fixed in the TV guide, Live TV, Search and Home.

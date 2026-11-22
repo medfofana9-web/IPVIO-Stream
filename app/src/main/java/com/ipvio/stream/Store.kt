@@ -203,6 +203,7 @@ object AppSettings {
         Look.bgIdx = p.getInt("look_bg", Look.DEFAULT_BG).coerceIn(0, Look.BGS.lastIndex)
         Look.motion = p.getInt("look_motion", 2).coerceIn(0, 2)
         Look.uiScale = p.getInt("look_scale", Look.DEFAULT_SCALE).coerceIn(0, Look.SCALES.lastIndex)
+        Lite.init(c)
         KidsMode.on = runCatching { Parental.isKids(c, Profiles.active) }.getOrDefault(false)
     }
 

@@ -580,6 +580,7 @@ private fun ChannelCard(item: Item, modifier: Modifier, inList: ChList?, onNewLi
     // The channel's own color (from its logo) washes the top of the card; Fof red until it is known
     val tint by produceState(0, item.logo) {
         val u = item.logo ?: return@produceState
+        if (Lite.on) return@produceState   // light mode: no picture decoding just for the card color
         kotlinx.coroutines.delay(250)
         while (LiveHold.active()) kotlinx.coroutines.delay(120)
         value = ArtColor.of(ctx, u)

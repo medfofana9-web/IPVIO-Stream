@@ -136,7 +136,8 @@ object Look {
 }
 
 /** Focus enlargement, depending on the chosen animation level. */
-fun focusScale(target: Float): Float = ThemeMath.focusScale(target, Look.motion)
+// Light mode: focus grows less (fewer pixels to redraw while the highlight moves)
+fun focusScale(target: Float): Float = ThemeMath.focusScale(target, if (Lite.on) minOf(Look.motion, 1) else Look.motion)
 
 /** The active profile is a kids profile (adult titles hidden by its lock): the app uses the kids look and menu. */
 object KidsMode {
@@ -151,5 +152,23 @@ object KidsMode {
         val g = Catalog.meta(i)?.genres?.takeIf { it.isNotEmpty() } ?: MetaRepo.cached(i)?.genres.orEmpty()
         if (g.isNotEmpty()) return g.any { it.lowercase() in KID_GENRES }
         return KID_WORDS.containsMatchIn(i.group) || KID_WORDS.containsMatchIn(i.title)
+    }
+}
+
+/**
+ * Light mode for budget boxes (2–3 GB like the onn 4K, Fire TV sticks): the same look with less drawn per frame – the
+ * big picture changes without a crossfade, the slideshow dot does not animate, focus grows less and faster, Live TV
+ * cards skip the logo color. Auto on boxes with up to 3 GB; Settings > View can switch it on or off.
+ */
+object Lite {
+    var on by androidx.compose.runtime.mutableStateOf(false)
+    /** -1 = automatic, 0 = off, 1 = on */
+    var pref by androidx.compose.runtime.mutableIntStateOf(-1)
+    fun apply(c: android.content.Context) { on = if (pref < 0) Mem.tier(c) <= 1 else pref == 1 }
+    fun set(c: android.content.Context, v: Int) {
+        pref = v; c.applicationContext.getSharedPreferences("fof_lite", android.content.Context.MODE_PRIVATE).edit().putInt("lite", v).apply(); apply(c)
+    }
+    fun init(c: android.content.Context) {
+        pref = c.applicationContext.getSharedPreferences("fof_lite", android.content.Context.MODE_PRIVATE).getInt("lite", -1); apply(c)
     }
 }
