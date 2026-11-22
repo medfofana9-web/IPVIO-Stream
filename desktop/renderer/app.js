@@ -545,6 +545,7 @@ function gameChannels(g) {
     if (/\b(fhd|hd|1080)\b/.test(n)) sc += 0.5;
     if (/\b(4k|uhd)\b/.test(n)) sc += 0.3;
     if (/\b(backup|raw|plus)\b/.test(n)) sc -= 0.4;
+    if (/\bradio\b/.test(n)) sc -= 6;   // audio only: after every TV channel
     out.push(Object.assign({ sc }, c));
   });
   return out.sort((a, b) => b.sc - a.sc).slice(0, 30);
