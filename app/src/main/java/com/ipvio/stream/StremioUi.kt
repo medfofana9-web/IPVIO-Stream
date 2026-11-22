@@ -111,20 +111,24 @@ fun StremioSourcesPopup(
     LaunchedEffect(iptv) { if (iptv != null && sources.isNullOrEmpty()) { kotlinx.coroutines.delay(80); runCatching { iptvFocus.requestFocus() } } }
     var autoDone by remember { mutableStateOf(false) }
     var noVerified by remember { mutableStateOf(false) }
-    // One-click play waiting on a slow addon: after 8 s with answers but none confirmed, the list opens to choose
-    LaunchedEffect(imdb, refreshToken) {
-        if (!auto || imdb == null) return@LaunchedEffect
-        kotlinx.coroutines.delay(8_000)
-        if (!autoDone && partial.isNotEmpty() && Stremio.bestVerified(partial, want, cid) == null) { autoDone = true; noVerified = true }
-    }
-    LaunchedEffect(sources, partial) {
+    // One-click play, fast: a source that played this title before or one whose file name confirms it starts at once;
+    // otherwise 1.5 s after the first addon answered the best source that is not another title starts (slow addons
+    // are not waited for). Only when every source looks like another title does the list open.
+    var firstAt by remember(imdb, season, ep, refreshToken) { mutableLongStateOf(0L) }
+    var tick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(firstAt) { if (firstAt > 0L) { kotlinx.coroutines.delay(1_600); tick++ } }
+    LaunchedEffect(sources, partial, tick) {
         val l = sources ?: partial
-        // Automatic play only with a verified match for exactly this title/episode (starts with the first addon that has
-        // one); when all addons answered without one, the list stays open to choose
         if (auto && !autoDone && FofPrefs.oneClick && l.isNotEmpty()) {
-            val v = Stremio.bestVerified(l, want, cid)
+            if (firstAt == 0L) firstAt = System.currentTimeMillis()
+            val known = SourceMemory.lastGood(cid)?.let { k -> l.firstOrNull { it.key == k && !SourceMemory.isWrong(cid, it.key) } }
+            val v = known ?: Stremio.bestVerified(l, want, cid)
             if (v != null) { autoDone = true; choose(v); return@LaunchedEffect }
-            if (sources != null) { autoDone = true; noVerified = true }
+            if (sources != null || System.currentTimeMillis() - firstAt >= 1_500) {
+                autoDone = true
+                val p = Stremio.bestPlayable(l, want, cid)
+                if (p != null) { choose(p); return@LaunchedEffect } else noVerified = true
+            }
         }
         if (sources == null) return@LaunchedEffect
         if (sources?.isNotEmpty() == true) runCatching { first.requestFocus() }

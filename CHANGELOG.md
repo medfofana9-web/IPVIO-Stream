@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased – TV: Play starts sooner
+
+- Fof TV: Play no longer waits for a file name that confirms the title. The source that played before or a confirmed one starts at once; otherwise the best source that is not another title starts 1.5 s after the first addon answers (slow addons are not waited for). The list opens only when every source looks like another title.
+
 ## Unreleased – TV: Play starts at once
 
 - Fof TV: Play and episodes start the best confirmed source by themselves (turned on once per profile; Settings › Stremio addons › "Ask me every time" still exists). While it starts: the title's picture with a thin red line instead of the source popup. The list opens only when no source confirms the title (after 8 s at most), Real-Debrid fails or nothing was found.

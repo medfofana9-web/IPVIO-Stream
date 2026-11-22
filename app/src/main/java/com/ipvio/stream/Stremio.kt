@@ -306,6 +306,10 @@ object Stremio {
         return ok.firstOrNull { it.addon == likeAddon && it.q == likeQ } ?: ok.firstOrNull { it.addon == likeAddon } ?: ok.firstOrNull()
     }
 
+    /** Quick one-click choice when no file name confirms the title yet: the best source that is not another title/episode. */
+    fun bestPlayable(l: List<Source>, w: Want, contentId: String): Source? =
+        rank(l, w, contentId).firstOrNull { match(it, w) != StremioLogic.MISMATCH && !SourceMemory.isWrong(contentId, it.key) && !it.label.startsWith(StremioLogic.LAST_RESORT) }
+
     fun bestVerified(l: List<Source>, w: Want, contentId: String): Source? =
         rank(l, w, contentId).firstOrNull { match(it, w) == StremioLogic.VERIFIED && !SourceMemory.isWrong(contentId, it.key) && !it.label.startsWith(StremioLogic.LAST_RESORT) }
 
