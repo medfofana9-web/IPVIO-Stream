@@ -287,7 +287,7 @@ function go(tab, arg) {
   else if (tab === 'downloads') renderDownloads(pg);
   else if (tab === 'detail') renderDetail(pg, arg);
 }
-function openTitle(type, id) { navStack.push(current); go('detail', { type, id }); }
+function openTitle(type, id, play) { navStack.push(current); go('detail', { type, id, play: !!play }); }
 
 // ------------------------------------------------------------------ home / Movies / TV Shows
 function cardHtml(m, type, opts = {}) {
@@ -467,7 +467,7 @@ async function renderCategory(pg, type) {
       <select id="gsel" style="background:rgba(0,0,0,.6);color:#fff;border:1px solid #fff;padding:8px 14px;font-size:16px;border-radius:4px"><option value="">Genres</option>${genres.map(g => `<option>${g}</option>`).join('')}</select></div></div>
     ${rowHtml(`Top 10 ${name} Today`, top.slice(0, 10).map((x, i) => `<div class="top10" data-type="${type}" data-id="${x.id}"><div class="num">${i + 1}</div>${cardHtml(x, type)}</div>`).join(''))}
     ${rowHtml('Popular ' + name, top.slice(10, 40).map(x => cardHtml(x, type)).join(''))}<div id="genres"></div><div style="height:60px"></div>`;
-  if (m) { $('#hplay').onclick = () => openTitle(type, m.id); $('#hinfo').onclick = () => openTitle(type, m.id); }
+  if (m) { $('#hplay').onclick = () => openTitle(type, m.id, true); $('#hinfo').onclick = () => openTitle(type, m.id); }
   wireRows(pg);
   $('#gsel').onchange = async e => {
     const g = e.target.value; if (!g) return;
@@ -483,7 +483,7 @@ async function renderCategory(pg, type) {
 }
 
 // ------------------------------------------------------------------ title page
-async function renderDetail(pg, { type, id }) {
+async function renderDetail(pg, { type, id, play }) {
   pg.innerHTML = '<div class="spin"></div>';
   const m = await metaOf(type, id);
   if (!m) { pg.innerHTML = '<div class="empty">This title could not be loaded.</div>'; return; }
@@ -529,6 +529,7 @@ async function renderDetail(pg, { type, id }) {
     if (type === 'series') { const s = resume && resume.s ? resume.s : season; const e = resume && resume.e ? resume.e : (epsOf(s)[0] || {}).episode || 1; sources({ type, id, name: m.name, season: s, episode: e, start: resume && !resume.next ? resume.pos : 0 }); }
     else sources({ type, id, name: m.name, start: resume ? resume.pos : 0 });
   };
+  if (play) $('#dplay').click();
   // You Might Also Like: same first genre
   const g = (m.genres || [])[0];
   if (g) catalog(type, 'genre=' + encodeURIComponent(g)).then(l => {

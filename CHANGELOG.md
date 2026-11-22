@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased – Mac hero Play
+
+- Fof TV for Mac: Play on the Home, Movies and TV Shows banner starts playback (it only opened the title page).
+
 ## Game channels – the TV lists them all, the Mac only real ones
 
 - TV: "Other streams" in the player now lists every channel carrying the game – the sure matches first, then team channels and the networks (it only listed the sure matches and was often empty).
