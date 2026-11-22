@@ -600,7 +600,9 @@ private fun ChannelCard(item: Item, modifier: Modifier, inList: ChList?, onNewLi
             contentAlignment = Alignment.Center
         ) {
             if (item.logo != null) AsyncImage(item.logo, null, Modifier.fillMaxWidth().height(dpx(64)), contentScale = ContentScale.Fit)
-            else Text(raw = true, text = item.title.take(2).uppercase(), color = Color(0xFFCCCCCC), fontSize = spx(30), fontWeight = FontWeight.Bold)
+            // No logo: the channel's own name as a wordmark (without the country prefix), not two letters
+            else Text(raw = true, text = channelMark(item.title), color = Color(0xFFDDDDDD), fontSize = spx(22), fontWeight = FontWeight.ExtraBold,
+                maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center, lineHeight = spx(25))
         }
         Text(raw = true, text = item.title, color = Color.White, fontSize = spx(15), fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(start = dpx(12), end = dpx(12), top = dpx(6)))
@@ -712,4 +714,11 @@ private fun LiveHome(live: List<Item>, genres: Map<String, List<Item>>, favs: Li
             }
         }
     }
+}
+
+/** "US: TNT East HD" → "TNT East": the name of a channel without country prefix and quality tags, for cards without a logo. */
+internal fun channelMark(title: String): String {
+    val t = title.replace(Regex("^\\s*(\\[[^\\]]{1,6}\\]|\\|?[A-Z]{2,3}\\s*[:|\\-]\\|?)\\s*"), "")
+        .replace(Regex("(?i)\\s*\\b(FHD|UHD|HD|SD|4K|HEVC|H265|RAW|\\(.*?\\))\\s*$"), "").trim()
+    return t.ifBlank { title }.take(28)
 }

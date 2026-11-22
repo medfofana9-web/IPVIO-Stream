@@ -141,4 +141,15 @@ fun focusScale(target: Float): Float = ThemeMath.focusScale(target, Look.motion)
 /** The active profile is a kids profile (adult titles hidden by its lock): the app uses the kids look and menu. */
 object KidsMode {
     var on by androidx.compose.runtime.mutableStateOf(false)
+
+    private val KID_GENRES = setOf("animation", "family", "kids", "children", "anime & animation")
+    private val KID_WORDS = Regex("(?i)\\b(kids?|family|cartoons?|children|junior|disney|pixar|nickelodeon|animation|animated)\\b")
+
+    /** Kids profile: only family and animation titles (by the catalog's genres, else by the provider's group or title). */
+    fun ok(i: Item): Boolean {
+        if (i.kind == Kind.LIVE) return KID_WORDS.containsMatchIn(i.group) || KID_WORDS.containsMatchIn(i.title)
+        val g = Catalog.meta(i)?.genres?.takeIf { it.isNotEmpty() } ?: MetaRepo.cached(i)?.genres.orEmpty()
+        if (g.isNotEmpty()) return g.any { it.lowercase() in KID_GENRES }
+        return KID_WORDS.containsMatchIn(i.group) || KID_WORDS.containsMatchIn(i.title)
+    }
 }

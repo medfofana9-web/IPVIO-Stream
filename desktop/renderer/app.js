@@ -633,6 +633,8 @@ async function fillGuide(list, root) {
   await Promise.all(Array.from({ length: 6 }, worker));
 }
 
+// "US: TNT East HD" → "TNT East": a channel's name as a wordmark when it has no logo (same as the TV)
+const chMark = n => (String(n || '').replace(/^\s*(\[[^\]]{1,6}\]|\|?[A-Z]{2,3}\s*[:|\-]\|?)\s*/, '').replace(/\s*\b(FHD|UHD|HD|SD|4K|HEVC|H265|RAW|\(.*?\))\s*$/i, '').trim() || String(n || '')).slice(0, 28);
 async function renderLive(pg) {
   if (!acct.playlist) { pg.innerHTML = '<div class="empty"><h2 style="color:#fff">Live TV</h2>No playlist in your account yet. Sign in to the same account on the TV with your IPTV playlist set; it syncs here automatically.</div>'; return; }
   pg.innerHTML = '<div class="spin"></div>';
@@ -648,7 +650,7 @@ async function renderLive(pg) {
   };
   const drawChans = () => {
     const l = live.chans.filter(c => c.cat === live.cat).slice(0, 600);
-    $('#cg').innerHTML = l.map((c, i) => `<div class="ch" data-i="${i}"><div class="live">LIVE</div><div class="lg">${c.logo ? `<img loading="lazy" src="${esc(c.logo)}" onerror="this.outerHTML='<b>${esc(c.name.slice(0, 2).toUpperCase())}</b>'">` : `<b>${esc(c.name.slice(0, 2).toUpperCase())}</b>`}</div><div class="nm">${esc(c.name)}</div><div class="epg"></div></div>`).join('');
+    $('#cg').innerHTML = l.map((c, i) => `<div class="ch" data-i="${i}"><div class="live">LIVE</div><div class="lg">${c.logo ? `<img loading="lazy" src="${esc(c.logo)}" onerror="this.outerHTML='<b>${esc(chMark(c.name)).replace(/'/g, '&#39;')}</b>'">` : `<b>${esc(chMark(c.name))}</b>`}</div><div class="nm">${esc(c.name)}</div><div class="epg"></div></div>`).join('');
     fillGuide(l, $('#cg'));
     document.querySelectorAll('#cg .ch').forEach(el => el.onclick = () => { stopPreview(); const c = l[+el.dataset.i]; play({ url: c.url, title: c.name, sub: 'Live TV', live: true, zap: l, zi: +el.dataset.i }); });
     // The channel's own color from its logo, and a muted preview after resting on a card for a moment

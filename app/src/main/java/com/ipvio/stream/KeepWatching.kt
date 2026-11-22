@@ -31,6 +31,11 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,10 +55,13 @@ object KeepWatching { var shown = false }
 fun KeepWatchingCard(e: Entry, item: Item, modifier: Modifier, onResume: () -> Unit) {
     var visible by remember { mutableStateOf(false) }
     val req = remember { FocusRequester() }
-    fun close() { visible = false; KeepWatching.shown = true; runCatching { ContentFocus.req.requestFocus() } }
+    var focused by remember { mutableStateOf(false) }
+    // Gives the focus back to the big picture only if the card had it (a card that closes by itself never moves the focus)
+    fun close() { val back = focused; visible = false; KeepWatching.shown = true; if (back) runCatching { ContentFocus.req.requestFocus() } }
     LaunchedEffect(Unit) {
         delay(1_500); visible = true
-        delay(400); runCatching { req.requestFocus() }
+        // Only takes the focus while it rests on the big picture (never in the middle of moving through the rows)
+        delay(400); if (HeroFocus.has) runCatching { req.requestFocus() }
         delay(15_000); if (visible) close()
     }
     BackHandler(enabled = visible) { close() }
@@ -76,7 +84,11 @@ fun KeepWatchingCard(e: Entry, item: Item, modifier: Modifier, onResume: () -> U
             var f by remember { mutableStateOf(false) }
             Row(
                 Modifier.focusRequester(req).clip(RoundedCornerShape(dpx(6))).background(if (f) Color.White else Color(0xB36D6D6E))
-                    .onFocusChanged { f = it.isFocused }
+                    .onFocusChanged { f = it.isFocused; focused = it.isFocused }
+                    // Up / Down / Left: away from the card – it closes and the focus goes back to the big picture
+                    .onPreviewKeyEvent { ev ->
+                        if (ev.type == KeyEventType.KeyDown && (ev.key == Key.DirectionUp || ev.key == Key.DirectionDown || ev.key == Key.DirectionLeft)) { close(); true } else false
+                    }
                     .clickable { close(); onResume() }
                     .padding(horizontal = dpx(18), vertical = dpx(10)),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(8))

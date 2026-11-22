@@ -275,11 +275,13 @@ fun HomeScreen(
     // Also use the sizes of movies/series as a key: if the computed home screen arrives only after the list (and without trend titles,
     // i.e. the same empty trend list), the selection stayed empty and the big picture was missing.
     // Big picture: the most popular titles of the catalog right now
-    val candidates = remember(cmPopM, cmPopS, trendItems, tab) {
+    val candidates = remember(cmPopM, cmPopS, trendItems, tab, KidsMode.on) {
+        // Kids profile: the big picture only shows family and animation titles
+        fun k(l: List<Item>) = if (KidsMode.on) l.filter { KidsMode.ok(it) } else l
         when (tab) {
-            1 -> cmPopM.take(15)
-            2 -> cmPopS.take(15)
-            else -> trendItems.take(16)
+            1 -> k(cmPopM).take(15)
+            2 -> k(cmPopS).take(15)
+            else -> k(trendItems).take(16)
         }
     }
     // Movies/series: tabs at the top next to the search (instead of the big buttons under the picture)
@@ -624,6 +626,11 @@ fun HomeScreen(
                                 when (blockId) {
                                     "tiles" -> { item(key = "tiles") { QuickTiles(tiles) } }
                                     "stremio" -> {
+                                        // Kids profile: rows made for kids first (the other rows keep only their family titles)
+                                        if (KidsMode.on) listOf(
+                                            Catalog.Spec("Animated Movies", "movie", "top", "Animation"), Catalog.Spec("Cartoons & Animated Shows", "series", "top", "Animation"),
+                                            Catalog.Spec("Family Movie Night", "movie", "top", "Family"), Catalog.Spec("Family Shows", "series", "top", "Family")
+                                        ).forEach { ks -> item(key = "kids" + ks.type + ks.genre) { CatalogRow(ks, cardW, onOpen, onBrowse) } }
                                         val topIds = trendTop.mapTo(HashSet()) { it.id }
                                         // "Because you watched …": the last catalog title you watched
                                         val seed = History.ids.firstNotNullOfOrNull { id -> CatalogItems.get(id) }
@@ -1107,7 +1114,11 @@ private fun HeroLink(t: HeaderTab) {
 }
 
 /** Second button in the big picture ("More info" / "To list"): target for Left from "Show all" of the first row. */
-object HeroFocus { val second = FocusRequester() }
+object HeroFocus {
+    val second = FocusRequester()
+    /** The big picture's buttons have the focus (the Keep watching card only takes the focus from there). */
+    @Volatile var has = false
+}
 
 /** How far the big picture is pushed up (for the parallax effect); 0 when it is no longer at the top. */
 private fun heroScroll(st: LazyListState): Int = if (st.firstVisibleItemIndex == 0) st.firstVisibleItemScrollOffset else 0
@@ -1145,7 +1156,7 @@ private fun Hero(
     // Same as the Mac app: a rounded card 18 from the top and 28 from the sides, no glow behind it
     val cardShape = RoundedCornerShape(dpx(22))
     val cardTop = dpx(18)
-    Box(Modifier.fillMaxWidth().height(heroH + dpx(40)).background(Bg).clipToBounds().onFocusChanged { heroHasFocus = it.hasFocus; if (it.hasFocus) Billboard.cardFocus = false }) {
+    Box(Modifier.fillMaxWidth().height(heroH + dpx(40)).background(Bg).clipToBounds().onFocusChanged { heroHasFocus = it.hasFocus; HeroFocus.has = it.hasFocus; if (it.hasFocus) Billboard.cardFocus = false }) {
         // Performance (Fire TV / onn): glow, halo, picture and gradients are ONE cached layer – painted once per title,
         // then only composited. No shadow and no inner parallax (both forced a full repaint on every scroll frame).
         Box(Modifier.fillMaxSize().graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }) {

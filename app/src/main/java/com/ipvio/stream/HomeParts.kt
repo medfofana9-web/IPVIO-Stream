@@ -637,6 +637,14 @@ fun CardRow(
     state: LazyListState, linkReq: FocusRequester = remember { FocusRequester() }, firstCard: FocusRequester = remember { FocusRequester() },
     raw: Boolean = false, upReq: FocusRequester? = null, leftReq: FocusRequester? = null
 ) {
+    // Kids profile: every row shows only family and animation titles (a row with none is left out)
+    if (KidsMode.on) {
+        val kids = remember(list) { list.filter { KidsMode.ok(it) } }
+        if (kids.size < list.size) {
+            if (kids.isNotEmpty()) CardRow(title, kids, style, onOpen, onAll, state, linkReq, firstCard, raw, upReq, leftReq)
+            return
+        }
+    }
     val g = LocalCardGrid.current
     val live = list.firstOrNull()?.kind == Kind.LIVE
     val visibleCards = remember(list) { list.take(60) }

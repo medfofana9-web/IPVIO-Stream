@@ -1,5 +1,11 @@
 # Changelog
 
+## Fof TV – kids content, calmer Keep watching card, channel names without logos
+
+- Kids profiles show only family and animation titles: every row keeps just those titles (a row with none is left out), the big picture picks from them, and Home starts with Animated Movies, Cartoons & Animated Shows, Family Movie Night and Family Shows.
+- Keep watching card: only takes the focus when it rests on the big picture; Up, Down or Left closes it, and a card that closes by itself never moves the focus.
+- Channels without a logo show their name ("TNT East") instead of two letters ("US"), on the TV and the Mac.
+
 ## Fof TV – kids look, Top 10 games, keep watching, Live TV like the Mac
 
 - Live TV opens the channel cards (like the Mac app) instead of the full TV guide; the guide is the "TV-Guide" entry at the top of the categories.
