@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import kotlinx.coroutines.launch
+import androidx.compose.animation.core.animateFloat
 
 /**
  * List of Stremio streams for a movie or one episode. For a series the episode can be changed with − / +.
