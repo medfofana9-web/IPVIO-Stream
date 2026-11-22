@@ -244,7 +244,7 @@ private fun Ticker(games: List<SportData.Game>, current: String) {
 
 /** Other streams of the game being watched; OK switches, Back closes. */
 @Composable
-fun GameStreamPicker(title: String, streams: List<Item>, currentId: String?, onPick: (Item) -> Unit, onWrongGame: () -> Unit, onClose: () -> Unit) {
+fun GameStreamPicker(title: String, streams: List<Item>, currentId: String?, onPick: (Item) -> Unit, onWrongGame: () -> Unit, onClose: () -> Unit, loading: Boolean = false) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     androidx.compose.ui.window.Popup(
         alignment = Alignment.Center, onDismissRequest = onClose,
@@ -260,7 +260,7 @@ fun GameStreamPicker(title: String, streams: List<Item>, currentId: String?, onP
         ) {
             Text(title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, raw = true, modifier = Modifier.padding(start = 6.dp, bottom = 4.dp))
             OptionRow("Wrong game? Try another source", false, Modifier) { onWrongGame() }
-            Text("Matchup sources", color = Color(0x99FFFFFF), fontSize = 14.sp, raw = true, modifier = Modifier.padding(start = 6.dp, bottom = 10.dp))
+            Text(if (loading) "Matchup sources  ·  finding more…" else "Matchup sources", color = Color(0x99FFFFFF), fontSize = 14.sp, raw = true, modifier = Modifier.padding(start = 6.dp, bottom = 10.dp))
             androidx.compose.foundation.lazy.LazyColumn(state = androidx.compose.foundation.lazy.rememberLazyListState(maxOf(start - 2, 0))) {
                 items(streams.size) { i ->
                     val ch = streams[i]

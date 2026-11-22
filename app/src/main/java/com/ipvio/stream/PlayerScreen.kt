@@ -216,6 +216,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     var multiStart by remember { mutableStateOf<List<Item>?>(null) }
     // Other streams of the same game (sports): the game and its channels while the picker is open
     var streamPick by remember { mutableStateOf<Pair<String, List<Item>>?>(null) }
+    // The full channel search for a game runs after the picker is open (it took minutes on budget boxes)
+    var streamLoading by remember { mutableStateOf(false) }
     var pickSecond by remember { mutableStateOf(false) }
     // Quick access to the score overlay (switch off, corner, arrangement) without leaving the stream
     var scoreDlg by remember { mutableStateOf(false) }
@@ -1370,7 +1372,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 controls = true
                 notice = "No other matched streams for this game."
             }
-        }, onClose = { streamPick = null })
+        }, onClose = { streamPick = null }, loading = streamLoading)
     }
     multiStart?.let { ms ->
         MultiViewScreen(liveAll, start = ms, onExit = { sel ->
@@ -1884,33 +1886,41 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             // Same game on another channel: every stream found for the game being watched (only while games are live)
                             if (cur.live && cur.archive == null && (SportSession.owns(cur.itemId) || SportFeed.latest.values.any { it.state == 1 })) PRoundButton(label = "Other streams", onLabel = setLabel, onClick = {
                                 val here = curItem
+                                fun nameOf(x: SportData.Game?) = x?.let { if (it.solo || it.away.name.isBlank()) it.title else it.away.name + " vs " + it.home.name } ?: here?.title ?: "This game"
+                                // Open at once with what is known for the game (found when it started); the rest comes in below
+                                var list = SportSession.streams(cur.itemId).ifEmpty { listOfNotNull(here) }
+                                var g = SportSession.game(cur.itemId)
+                                if (list.isEmpty()) { notice = "No matched streams found for this game"; return@PRoundButton }
+                                controls = false
+                                streamPick = nameOf(g) to list
+                                streamLoading = true
                                 scope.launch {
-                                    var list = SportSession.streams(cur.itemId)
-                                    var g = SportSession.game(cur.itemId)
-                                    if (g == null && !SportSession.owns(cur.itemId) && here != null) {
-                                        // Not started from a game: find the live game this channel is showing
-                                        val found = withContext(Dispatchers.Default) {
-                                            runCatching {
-                                                SportWatch.prewarm(liveAll)
-                                                SportFeed.latest.values.asSequence().filter { it.state == 1 }.mapNotNull { lg ->
-                                                    SportWatch.channels(lg, liveAll).takeIf { cs -> cs.any { it.id == here.id } }?.let { lg to it }
-                                                }.take(2).toList().singleOrNull()
-                                            }.getOrNull()
+                                    kotlinx.coroutines.withTimeoutOrNull(20_000) {
+                                        if (g == null && !SportSession.owns(cur.itemId) && here != null) {
+                                            // Not started from a game: find the live game this channel is showing
+                                            val found = withContext(Dispatchers.Default) {
+                                                runCatching {
+                                                    SportWatch.prewarm(liveAll)
+                                                    SportFeed.latest.values.asSequence().filter { it.state == 1 }.mapNotNull { lg ->
+                                                        SportWatch.channels(lg, liveAll).takeIf { cs -> cs.any { it.id == here.id } }?.let { lg to it }
+                                                    }.take(2).toList().singleOrNull()
+                                                }.getOrNull()
+                                            }
+                                            if (found != null) {
+                                                g = found.first
+                                                list = (listOf(here) + found.second).distinctBy { it.id }
+                                                SportSession.start(found.first, list, liveAll)
+                                                if (streamPick != null) streamPick = nameOf(g) to list
+                                            }
                                         }
-                                        if (found != null) {
-                                            g = found.first
-                                            list = (listOf(here) + found.second).distinctBy { it.id }
-                                            SportSession.start(found.first, list, liveAll)
+                                        // Every channel carrying the game, like the Mac app: the sure matches first, then team channels and networks
+                                        g?.let { gg ->
+                                            val all = withContext(Dispatchers.Default) { runCatching { SportWatch.prewarm(liveAll); SportWatch.resolve(gg, liveAll).map { it.ch } }.getOrDefault(emptyList()) }
+                                            val merged = (list + all).distinctBy { it.id }
+                                            if (streamPick != null && merged.size > list.size) streamPick = nameOf(gg) to merged
                                         }
                                     }
-                                    // Every channel carrying the game, like the Mac app: the sure matches first, then team channels
-                                    // and the networks (the sure-only list was often empty)
-                                    g?.let { gg ->
-                                        val all = withContext(Dispatchers.Default) { runCatching { SportWatch.prewarm(liveAll); SportWatch.resolve(gg, liveAll).map { it.ch } }.getOrDefault(emptyList()) }
-                                        list = (list + all).distinctBy { it.id }
-                                    }
-                                    if (list.isEmpty()) notice = "No matched streams found for this game"
-                                    else { controls = false; streamPick = ((g?.let { x -> if (x.solo || x.away.name.isBlank()) x.title else x.away.name + " vs " + x.home.name } ?: here?.title ?: "This game") to list) }
+                                    streamLoading = false
                                 }
                             }) {
                                 AppIcon(AIcon.Lists, it, size = 26.dp)

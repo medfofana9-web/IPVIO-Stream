@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased – TV: Other streams opens at once
+
+- Fof TV: "Other streams" in the player opens immediately with the channels already known for the game; the full search over the playlist runs behind it ("finding more…") and adds the rest. It used to wait for that search first, which took minutes on budget boxes.
+
 ## Unreleased – Mac/phone: Play starts at once
 
 - Play goes straight into the player: the title's picture while the best source starts, no source list. Another copy is tried by itself if one does not start (after 14 s instead of 20 s).
