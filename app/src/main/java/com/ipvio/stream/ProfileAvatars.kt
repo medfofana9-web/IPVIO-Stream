@@ -73,6 +73,9 @@ object AvatarValue {
  * Picture of each profile (device-wide prefs "fof_avatars": "a<id>" = [AvatarValue] text). Also travels with the
  * account to other TVs (CloudSync).
  */
+/** The Mac app's profile colors, in the same order. */
+private val MAC_COLORS = listOf(0xFFE60023L, 0xFF2563EBL, 0xFF16A34AL, 0xFFD97706L, 0xFF7C3AEDL, 0xFFDB2777L, 0xFF0891B2L, 0xFF65A30DL)
+
 object ProfileAvatars {
     /** What to draw: [model] for the image loader (address or file), or null for the letter tile. */
     class Preset(val model: Any?, val name: String, val letter: String, val color: Long)
@@ -88,12 +91,10 @@ object ProfileAvatars {
     fun presetFor(c: Context, id: Int): Preset {
         val name = Profiles.list.firstOrNull { it.id == id }?.let { Profiles.displayName(it) } ?: ""
         val letter = name.trim().take(1).uppercase().ifBlank { "?" }
-        val color = AvatarValue.TILE[id.mod(AvatarValue.TILE.size)]
-        return when (val v = AvatarValue.parse(keyOf(c, id))) {
-            is AvatarValue.V.Art -> Preset(v.url, v.name, letter, color)
-            is AvatarValue.V.Photo -> photoFile(c, id).takeIf { it.isFile }?.let { Preset(it, "Your photo", letter, color) } ?: Preset(null, "", letter, color)
-            null -> Preset(null, "", letter, color)
-        }
+        // Same as the Mac app: a flat color tile with the profile's letter, colors in profile order (1st red, 2nd blue …)
+        val pos = Profiles.list.indexOfFirst { it.id == id }.let { if (it < 0) id else it }
+        val color = MAC_COLORS[pos.mod(MAC_COLORS.size)]
+        return Preset(null, "", letter, color)
     }
 
     /** Raw stored value (for the account sync). */
@@ -130,10 +131,8 @@ object ProfileAvatars {
 /** The avatar: picture filling the tile, or the profile's letter on its color. */
 @Composable
 fun FofAvatar(p: ProfileAvatars.Preset, modifier: Modifier = Modifier, letterSize: androidx.compose.ui.unit.TextUnit = 64.sp) {
-    val base = Color(p.color)
-    Box(modifier.background(Brush.verticalGradient(listOf(base, base.copy(red = base.red * 0.45f, green = base.green * 0.45f, blue = base.blue * 0.45f)))),
-        contentAlignment = Alignment.Center) {
-        if (p.model == null) Text(p.letter, color = Color.White, fontSize = letterSize, fontWeight = FontWeight.Bold, raw = true)
+    Box(modifier.background(Color(p.color)), contentAlignment = Alignment.Center) {
+        if (p.model == null) Text(p.letter, color = Color.White, fontSize = letterSize, fontWeight = FontWeight.ExtraBold, raw = true)
         else coil.compose.AsyncImage(p.model, p.name, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop,
             alignment = BiasAlignment(0f, -0.35f))
     }

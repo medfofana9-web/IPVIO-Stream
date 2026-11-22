@@ -1,5 +1,12 @@
 # Changelog
 
+## Fof TV – profile tiles like the Mac, snappier on Fire TV
+
+- Who's watching: the same tiles as the Mac app – a flat color square with the profile's big white letter (1st profile red, 2nd blue …), the name below, and "PIN" with a lock under locked profiles. The same letter avatar shows everywhere in the app.
+- Faster response to the remote: lists, rows and pages settle about twice as fast after each press (stiffer scroll spring).
+- The Home slideshow pauses while you are in the rows below it (swapping a full-size picture mid-scroll made it stutter).
+- Trailers in the banner are now off by default on Fire TV and boxes under 4 GB (Settings > View turns them on).
+
 ## Fof TV – kids content, calmer Keep watching card, channel names without logos
 
 - Kids profiles show only family and animation titles: every row keeps just those titles (a row with none is left out), the big picture picks from them, and Home starts with Animated Movies, Cartoons & Animated Shows, Family Movie Night and Family Shows.

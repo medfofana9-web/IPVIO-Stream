@@ -103,8 +103,7 @@ fun FofWelcome(onPick: (Int) -> Unit) {
                                     nm, av, Parental.profileLocked(ctx, p.id) || pinned, manage, big,
                                     if (i == focusIdx) Modifier.focusRequester(first) else Modifier,
                                     kids = Parental.isKids(ctx, p.id),
-                                    // Hold OK on a profile: choose its picture right here (a locked profile asks in Manage)
-                                    onLong = { if (!Parental.profileLocked(ctx, p.id)) picking = p.id }
+                                    onLong = {}
                                 ) { if (manage) options = p.id else onPick(p.id) }
                             }
                         }
@@ -243,13 +242,13 @@ private fun ProfileTile(name: String, avatar: ProfileAvatars.Preset, locked: Boo
         Box(Modifier.size(if (small) 136.dp else 180.dp)) {
             Box(Modifier.fillMaxSize().clip(shape)
                 .border(if (f) 4.dp else 0.dp, if (f) Color.White else Color.Transparent, shape)) {
-                FofAvatar(avatar, Modifier.fillMaxSize())
+                FofAvatar(avatar, Modifier.fillMaxSize(), letterSize = if (small) 56.sp else 76.sp)
 
             }
-            if (locked || manage) Box(
+            if (manage) Box(
                 Modifier.align(Alignment.BottomEnd).padding(8.dp).size(38.dp).clip(CircleShape).background(Color(0xE61C1C20)),
                 contentAlignment = Alignment.Center
-            ) { AppIcon(if (manage) AIcon.Edit else AIcon.Lock, Color.White, size = 18.dp) }
+            ) { AppIcon(AIcon.Edit, Color.White, size = 18.dp) }
         }
         Spacer(Modifier.height(18.dp))
         if (kids) Text("KIDS", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp, raw = true,
@@ -257,6 +256,11 @@ private fun ProfileTile(name: String, avatar: ProfileAvatars.Preset, locked: Boo
         Text(name, color = if (f) Color.White else Color(0xFF808080),
             fontSize = if (small) 21.sp else 25.sp,
             fontWeight = FontWeight.Normal, maxLines = 1, raw = true)
+        // Same as the Mac app: "🔒 PIN" under the name of a locked profile
+        if (locked && !manage) Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            AppIcon(AIcon.Lock, Color(0xFFD4A017), size = 15.dp)
+            Text("PIN", color = Color(0xFF808080), fontSize = 16.sp, raw = true)
+        }
     }
 }
 

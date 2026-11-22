@@ -199,7 +199,9 @@ object General {
         prefs(c).edit().putInt("fit_x", fitX).putInt("fit_y", fitY).apply()
     }
     fun setHeroTrailer(c: Context, on: Boolean) { heroTrailer = if (on) 1 else 0; prefs(c).edit().putInt("hero_trailer", heroTrailer).apply() }
-    fun trailersOn(c: Context): Boolean = if (heroTrailer < 0) Mem.tier(c) > 0 else heroTrailer == 1
+    // Default: only on strong boxes (4 GB+, not a Fire TV) – a video web view in the big picture costs a stick smoothness
+    fun trailersOn(c: Context): Boolean =
+        if (heroTrailer < 0) Mem.tier(c) >= 2 && !android.os.Build.MANUFACTURER.equals("Amazon", true) else heroTrailer == 1
     fun setHeroSec(c: Context, v: Int) { heroSec = v.coerceIn(0, 60); prefs(c).edit().putInt("hero_sec", heroSec).apply() }
     fun markRefreshed(c: Context) { lastRefresh = System.currentTimeMillis(); prefs(c).edit().putLong("last_refresh", lastRefresh).apply() }
 

@@ -1135,13 +1135,15 @@ private fun Hero(
     // Trailer running in the card: the slideshow waits until it stops
     var trailerOn by remember { mutableStateOf(false) }
     var heroHasFocus by remember { mutableStateOf(false) }
+    // Read through derivedStateOf: reading the scroll offset directly would recompose the hero on every scroll frame
+    val atTop by remember { derivedStateOf { scrollY() == 0 } }
     LaunchedEffect(featured.size, General.heroSec) {
-        while (featured.size > 1 && General.heroSec > 0) { delay(General.heroSec * 1000L); if (!Billboard.active && !trailerOn) idx = (idx + 1) % featured.size }
+        // Changes only while the big picture is fully in view: swapping a full-size picture while you move through the
+        // rows below made scrolling stutter on Fire TV
+        while (featured.size > 1 && General.heroSec > 0) { delay(General.heroSec * 1000L); if (!Billboard.active && !trailerOn && atTop) idx = (idx + 1) % featured.size }
     }
     val item = featured[idx.coerceIn(0, featured.lastIndex)]
     val trailerKey = rememberFullMeta(item, rememberMeta(item))?.trailerKey
-    // Read through derivedStateOf: reading the scroll offset directly would recompose the hero on every scroll frame
-    val atTop by remember { derivedStateOf { scrollY() == 0 } }
     // Very long crossfades render two large backdrops at once. On a Fire
     // Stick-class GPU that can produce dropped frames during D-pad movement.
     val heroFadeMs = remember(ctx, Look.motion) {
