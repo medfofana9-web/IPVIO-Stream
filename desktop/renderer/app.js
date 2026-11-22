@@ -234,7 +234,8 @@ async function openProfile(p) {
 const cache = new Map();
 async function getJson(url, ttl = 30 * 60 * 1000) {
   const c = cache.get(url); if (c && Date.now() - c.t < ttl) return c.v;
-  const r = await fetch(url); if (!r.ok) throw new Error('HTTP ' + r.status);
+  // No referrer and no cookies: ESPN refuses requests that name the app's local page (403)
+  const r = await fetch(url, { credentials: 'omit', referrerPolicy: 'no-referrer' }); if (!r.ok) throw new Error('HTTP ' + r.status);
   const v = await r.json(); cache.set(url, { t: Date.now(), v }); return v;
 }
 const catalog = (type, extra) => getJson(`${CM}/catalog/${type}/top${extra ? '/' + extra : ''}.json`).then(j => j.metas || []).catch(() => []);
@@ -504,7 +505,7 @@ async function streamsFor({ type, id, season, episode }) {
   await Promise.all(acct.addons.map(async base => {
     try {
       const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 15000);
-      const r = await fetch(`${base.replace(/\/manifest\.json$/, '').replace(/\/$/, '')}/stream/${type}/${encodeURIComponent(sid)}.json`, { signal: ctl.signal });
+      const r = await fetch(`${base.replace(/\/manifest\.json$/, '').replace(/\/$/, '')}/stream/${type}/${encodeURIComponent(sid)}.json`, { signal: ctl.signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
       clearTimeout(t);
       const j = await r.json();
       let addon = base.replace(/^https?:\/\//, '').split('/')[0];
@@ -589,7 +590,7 @@ async function loadLive() {
     live.cats = (cats || []).map(c => ({ id: String(c.category_id), name: c.category_name }));
     live.chans = (chans || []).map(c => ({ name: c.name, logo: c.stream_icon, cat: String(c.category_id), sid: c.stream_id, url: `${xt.base}/live/${xt.user}/${xt.pass}/${c.stream_id}.ts` }));
   } else {
-    const txt = await fetch(acct.playlist).then(r => r.text());
+    const txt = await fetch(acct.playlist, { referrerPolicy: 'no-referrer' }).then(r => r.text());
     const lines = txt.split(/\r?\n/); const cats = new Map();
     for (let i = 0; i < lines.length; i++) {
       const l = lines[i]; if (!l.startsWith('#EXTINF')) continue;
@@ -616,7 +617,7 @@ async function epgOf(c) {
   const api = `${live.xt.base}/player_api.php?username=${encodeURIComponent(live.xt.user)}&password=${encodeURIComponent(live.xt.pass)}`;
   let v = null;
   try {
-    const j = await fetch(`${api}&action=get_short_epg&stream_id=${c.sid}&limit=3`).then(r => r.json());
+    const j = await fetch(`${api}&action=get_short_epg&stream_id=${c.sid}&limit=3`, { referrerPolicy: 'no-referrer' }).then(r => r.json());
     const now = Date.now() / 1000;
     const l = (j.epg_listings || []).map(e => ({ title: b64(e.title), start: +e.start_timestamp, end: +e.stop_timestamp })).filter(e => e.end > now).sort((a, b) => a.start - b.start);
     if (l.length) v = { now: l[0], next: l[1] || null };
