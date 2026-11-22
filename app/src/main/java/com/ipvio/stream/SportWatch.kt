@@ -54,6 +54,13 @@ object SportWatch {
         val autoEligible: Boolean get() = why in 0..5
     }
 
+    /**
+     * Play order: a hand pick, then the network ESPN lists for the game (the actual broadcaster – the card shows it),
+     * then event channels naming both teams, then TV guide matches (a guide entry can be wrong: a channel listed the
+     * game but showed another match), learned picks, team channels, guesses.
+     */
+    private fun prio(why: Int) = when (why) { 0 -> 0; 3 -> 1; 2 -> 2; 1 -> 3; 5 -> 4; 4 -> 5; else -> 6 }
+
     /** Sports shows from the TV guide (now and the next 48 h), computed by the hub once a minute. */
     @Volatile var slots: List<SportLogic.Slot> = emptyList()
         private set
@@ -215,7 +222,7 @@ object SportWatch {
             if (out.none { it.autoEligible }) for (n in SportRights.fallback(g)) (pr.net[SportNet.key(n)] ?: pr.net["~" + SportNet.looseKey(n)])?.forEach { out.add(Hit(it, 6, "Usually on $n")) }
         }
         // Working channels before ones marked broken; the rest of the list is the backup order for the player
-        val r = out.sortedWith(compareBy<Hit>({ if (it.autoEligible) 0 else 1 }, { it.why }))
+        val r = out.sortedWith(compareBy<Hit>({ if (it.autoEligible) 0 else 1 }, { prio(it.why) }))
             .distinctBy { it.ch.id }.sortedBy { if (DeadLinks.isDead(it.ch.url)) 1 else 0 }
         synchronized(cache) { if (cache.size > 800) cache.clear(); cache[g.key] = fullSig to r }
         return r
@@ -230,7 +237,7 @@ object SportWatch {
         val c = SportSession.appCtx()
         return hits.sortedWith(compareBy<Hit>(
             { if (DeadLinks.isDead(it.ch.url)) 1 else 0 },
-            { it.why },
+            { prio(it.why) },
             { if (c != null) -FeedScore.score(c, it.ch.id) else 0 }
         )).map { it.ch }
     }

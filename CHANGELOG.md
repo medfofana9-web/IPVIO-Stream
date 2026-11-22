@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased – TV: games start on the listed broadcaster
+
+- Fof TV: a game starts on the network ESPN lists for it (the one on the card, e.g. USA Network) before channels whose TV guide merely names the game. beIN Sports EN 1 listed Liverpool vs Man Utd but showed another match.
+
 ## Unreleased – TV: dead sources skipped fast, smoother transitions
 
 - Fof TV: an addon source that shows no picture is replaced after about 6–8 s (was up to 15 s), quietly ("Trying another copy" instead of the addon's web address).
