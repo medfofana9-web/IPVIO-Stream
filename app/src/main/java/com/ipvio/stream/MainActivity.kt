@@ -141,6 +141,12 @@ class MainActivity : ComponentActivity() {
         Coil.setImageLoader(
             ImageLoader.Builder(this)
                 .memoryCache { MemoryCache.Builder(this).maxSizePercent(Mem.imageCachePercent(Mem.tier(this))).build() }
+                // Saved pictures: a fixed cap (Coil's default grows to 250 MB) – 60 MB on budget boxes, 150 MB otherwise.
+                // Same folder as before, so Settings > Storage still shows and clears it.
+                .diskCache {
+                    coil.disk.DiskCache.Builder().directory(cacheDir.resolve("image_cache"))
+                        .maxSizeBytes(if (Mem.tier(this) <= 1) 60L * 1024 * 1024 else 150L * 1024 * 1024).build()
+                }
                 .allowRgb565(true)
                 .crossfade(false)
                 .build()

@@ -1,5 +1,9 @@
 # Changelog
 
+## Fof TV – smaller picture cache
+
+- Saved pictures are capped at 60 MB on budget boxes (150 MB on others) instead of growing to 250 MB. The playlist copy that makes Live TV open instantly stays.
+
 ## Fof TV – light mode for budget boxes
 
 - Light mode (automatic on boxes with up to 3 GB, like the onn 4K and Fire TV sticks; Settings > View > Light mode switches it): the big picture changes without a crossfade, the slideshow dot does not animate, focus grows less, Live TV cards skip the logo color.
