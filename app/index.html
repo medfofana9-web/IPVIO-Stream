@@ -11,7 +11,7 @@
 <title>Fof TV</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="https://cdn.jsdelivr.net/gh/medfofana9-web/IPVIO-Stream@main/desktop/renderer/mark.png">
-<style>html,body{margin:0;height:100%;background:#000}</style>
+<style>html,body{margin:0;height:100%;background:#000}body{visibility:hidden}</style>
 <script>
 // Fof TV on the phone: the same screens as the Mac app, loaded from the newest commit on GitHub (through the jsDelivr
 // CDN, pinned to that commit so a new release shows up at once). Add it to the Home Screen to open it like an app.
@@ -22,7 +22,7 @@
     var base = CDN + ref + DIR;
     ['styles.css', 'mobile.css'].forEach(function (f) { var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = base + f; document.head.appendChild(l); });
     var s = ['vendor/hls.min.js', 'vendor/mpegts.js', 'app.js'];
-    (function next() { var f = s.shift(); if (!f) return; var e = document.createElement('script'); e.src = base + f; e.onload = next; e.onerror = next; document.body.appendChild(e); })();
+    (function next() { var f = s.shift(); if (!f) { document.body.style.visibility = 'visible'; return; } var e = document.createElement('script'); e.src = base + f; e.onload = next; e.onerror = next; document.body.appendChild(e); })();
   }
   function go() {
     var last = null; try { last = JSON.parse(localStorage.getItem('fofWebRef') || 'null'); } catch (e) {}
@@ -32,6 +32,7 @@
       .then(function (j) { var sha = j && j[0] && j[0].sha; if (!sha) throw 0; try { localStorage.setItem('fofWebRef', JSON.stringify({ sha: sha, t: Date.now() })); } catch (e) {} load(sha); })
       .catch(function () { load(last ? last.sha : 'main'); });
   }
+  setTimeout(function () { document.body.style.visibility = 'visible'; }, 8000);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
 })();
 </script>
