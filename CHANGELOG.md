@@ -1,5 +1,9 @@
 # Changelog
 
+## Fof TV – sports games find their channels again
+
+- "No matching channel found" no longer shows for games on your channels: team channels (e.g. "NBA INDIANA PACERS"), the networks ESPN lists for the game (ESPN, NBA TV …) and your own earlier picks count as a match again and play with one click. Only guesses from the usual rights holders stay on the manual Watch Live list.
+
 ## Fof TV – automatic problem reports, smoother title page
 
 - New `AutoReport`: a live game with no matching channel, a stream that finally does not play, and a Continue Watching card with no picture are sent to the account's problem list (`fof_reports`) next to the existing crash, freeze and slow-screen (FrameStats) reports. Short text only (title, league, reason), never links; the same problem once a day, at most 30 a day per TV.

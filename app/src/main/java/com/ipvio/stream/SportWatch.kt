@@ -50,7 +50,8 @@ import androidx.compose.ui.window.Dialog
 object SportWatch {
     /** [why]: 0 = chosen by hand, 1 = TV guide, 2 = channel name, 3 = network, 4 = team channel, 5 = learned. [show] = detail text. */
     class Hit(val ch: Item, val why: Int, val show: String) {
-        val autoEligible: Boolean get() = why in 0..2
+        /** Hand pick, guide, channel name, ESPN-listed network, team channel and learned pick play automatically; 6 (rights guesses) stays manual. */
+        val autoEligible: Boolean get() = why in 0..5
     }
 
     /** Sports shows from the TV guide (now and the next 48 h), computed by the hub once a minute. */
@@ -197,9 +198,11 @@ object SportWatch {
             teamChannels(g, pr).forEach { (c, t) -> out.add(Hit(c, 4, if (t == 1) g.home.name else g.away.name)) }
             // ESPN often lists no TV for games it does not carry itself (e.g. USA vs Haiti on TBS/truTV): then the usual US
             // networks of that competition are tried, so the game is never "no channel found" while it is on TV
-            for (n in (g.nets + SportRights.usual(g)).distinct()) (pr.net[SportNet.key(n)] ?: pr.net["~" + SportNet.looseKey(n)])?.forEach { out.add(Hit(it, 3, n)) }
+            // Networks ESPN lists for this game count as a match; the usual rights holders are only a guess (manual)
+            for (n in g.nets.distinct()) (pr.net[SportNet.key(n)] ?: pr.net["~" + SportNet.looseKey(n)])?.forEach { out.add(Hit(it, 3, n)) }
+            for (n in SportRights.usual(g).filter { it !in g.nets }.distinct()) (pr.net[SportNet.key(n)] ?: pr.net["~" + SportNet.looseKey(n)])?.forEach { out.add(Hit(it, 6, "Usually on $n")) }
             // Still nothing: the networks that carry this sport in the US (tried in order by the player)
-            if (out.isEmpty()) for (n in SportRights.fallback(g)) (pr.net[SportNet.key(n)] ?: pr.net["~" + SportNet.looseKey(n)])?.forEach { out.add(Hit(it, 6, "Usually on $n")) }
+            if (out.none { it.autoEligible }) for (n in SportRights.fallback(g)) (pr.net[SportNet.key(n)] ?: pr.net["~" + SportNet.looseKey(n)])?.forEach { out.add(Hit(it, 6, "Usually on $n")) }
         }
         // Working channels before ones marked broken; the rest of the list is the backup order for the player
         val r = out.sortedWith(compareBy<Hit>({ if (it.autoEligible) 0 else 1 }, { it.why }))
@@ -327,9 +330,9 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
                         val why = when (h.why) {
                             0 -> Lang.tr("Von dir zugeordnet")
                             1 -> Lang.tr("Laut TV-Guide") + ": " + h.show
-                            3 -> "Network: " + h.show + " · matchup unconfirmed"
-                            4 -> "Team channel: " + h.show + " · matchup unconfirmed"
-                            5 -> "Your usual channel · matchup unconfirmed"
+                            3 -> "On " + h.show
+                            4 -> "Team channel: " + h.show
+                            5 -> "Your usual channel"
                             6 -> h.show + " · matchup unconfirmed"
                             else -> Lang.tr("Sendername passt")
                         }
