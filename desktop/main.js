@@ -69,19 +69,81 @@ async function updateRenderer() {
   return true;
 }
 
-// A new outer shell (rare): tell once per shell number, with the download page
-async function checkShell() {
-  const pkg = await fetch(`https://raw.githubusercontent.com/${REPO}/main/desktop/package.json`).then(r => r.json());
-  const remote = pkg.shell || 1;
-  const told = path.join(app.getPath('userData'), 'shell-told');
-  const last = fs.existsSync(told) ? +fs.readFileSync(told, 'utf8') : 0;
-  if (remote > SHELL && remote !== last) {
-    fs.writeFileSync(told, String(remote));
-    const r = await dialog.showMessageBox(win, { type: 'info', buttons: ['Download', 'Later'], defaultId: 0, message: 'A new Fof TV for Mac is ready',
-      detail: 'This update changes the app itself, so it needs a new download (one time). Everything else updates on its own.' });
-    if (r.response === 0) shell.openExternal(`https://github.com/${REPO}/releases`);
-  }
+// A new outer shell (rare): the app replaces itself. It downloads the new app from the GitHub release of that version,
+// unpacks it next to itself, and after it quits a small script swaps the app in /Applications, signs it for this Mac
+// (ad hoc, the same as the install command) and opens it again. A file the app downloads itself is not quarantined, so
+// macOS does not ask again. Falls back to the download page only when the app cannot write to its own folder.
+const { spawn, execFileSync } = require('child_process');
+const os = require('os');
+let shellReady = null;   // { app: path of the unpacked new app, version }
+function appBundle() {
+  const exe = app.getPath('exe');                       // …/Fof TV.app/Contents/MacOS/Fof TV
+  const i = exe.indexOf('.app/Contents/MacOS/');
+  return i > 0 ? exe.slice(0, i + 4) : null;
 }
+async function downloadShell(version) {
+  const rels = await getJson(`https://api.github.com/repos/${REPO}/releases?per_page=30`);
+  const rel = (rels || []).find(r => String(r.tag_name || '').startsWith('mac-' + version + '-'));
+  const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
+  const asset = rel && (rel.assets || []).find(a => a.name.endsWith('-' + arch + '.zip'));
+  if (!asset) return null;                              // not built yet: tried again at the next check
+  const dir = path.join(app.getPath('userData'), 'shell-update', version);
+  const done = path.join(dir, '.ready');
+  const unpacked = () => (fs.readdirSync(dir).find(n => n.endsWith('.app')));
+  if (fs.existsSync(done) && unpacked()) return path.join(dir, unpacked());
+  fs.rmSync(path.join(app.getPath('userData'), 'shell-update'), { recursive: true, force: true });
+  fs.mkdirSync(dir, { recursive: true });
+  const r = await fetch(asset.browser_download_url);
+  if (!r.ok) throw new Error('download ' + r.status);
+  const zip = path.join(dir, 'app.zip');
+  fs.writeFileSync(zip, Buffer.from(await r.arrayBuffer()));
+  execFileSync('/usr/bin/ditto', ['-x', '-k', zip, dir]);
+  fs.unlinkSync(zip);
+  const a = unpacked(); if (!a) throw new Error('no app in the download');
+  fs.writeFileSync(done, version);
+  return path.join(dir, a);
+}
+function installShell(newApp) {
+  const target = appBundle();
+  if (!target) return false;
+  try { fs.accessSync(path.dirname(target), fs.constants.W_OK); } catch (e) { return false; }
+  const script = path.join(os.tmpdir(), 'foftv-update.sh');
+  const q = s => "'" + String(s).replace(/'/g, "'\\''") + "'";
+  fs.writeFileSync(script, `#!/bin/sh
+while kill -0 ${process.pid} 2>/dev/null; do sleep 0.3; done
+rm -rf ${q(target)}.old
+mv ${q(target)} ${q(target)}.old && mv ${q(newApp)} ${q(target)} || { mv ${q(target)}.old ${q(target)}; open ${q(target)}; exit 1; }
+xattr -cr ${q(target)}
+codesign --force --deep --sign - ${q(target)} >/dev/null 2>&1
+rm -rf ${q(target)}.old
+open ${q(target)}
+`);
+  fs.chmodSync(script, 0o755);
+  spawn('/bin/sh', [script], { detached: true, stdio: 'ignore' }).unref();
+  app.quit();
+  return true;
+}
+async function checkShell(manual) {
+  const pkg = await fetch(`https://raw.githubusercontent.com/${REPO}/main/desktop/package.json`).then(r => r.json());
+  if ((pkg.shell || 1) <= SHELL) return false;
+  const newApp = await downloadShell(pkg.version);
+  if (!newApp) return false;
+  shellReady = { app: newApp, version: pkg.version };
+  const playing = win ? await win.webContents.executeJavaScript("!document.getElementById('player').classList.contains('hidden')").catch(() => true) : false;
+  // Nothing playing: restart into the new app at once (a few seconds); while something plays: when the app quits
+  if (!playing || manual) {
+    const r = playing ? await dialog.showMessageBox(win, { type: 'info', buttons: ['Restart Now', 'Later'], defaultId: 0, message: 'Fof TV ' + pkg.version + ' is ready', detail: 'It restarts in a few seconds and picks up where you are.' }) : { response: 0 };
+    if (r.response === 0 && !installShell(newApp)) shell.openExternal(`https://github.com/${REPO}/releases`);
+  }
+  return true;
+}
+// Quitting with a new app waiting: install it on the way out
+app.on('before-quit', e => {
+  if (!shellReady || shellReady.installing) return;
+  shellReady.installing = true;
+  const target = appBundle();
+  if (target) { e.preventDefault(); if (!installShell(shellReady.app)) app.exit(0); }
+});
 
 async function checkUpdates(manual) {
   try {
@@ -92,7 +154,7 @@ async function checkUpdates(manual) {
       if (!playing) loadScreens();
       else if (manual) dialog.showMessageBox(win, { message: 'An update is ready', detail: 'It starts as soon as you close the player.' });
     } else if (manual && win) dialog.showMessageBox(win, { message: 'Fof TV is up to date.' });
-    await checkShell();
+    await checkShell(manual);
   } catch (e) {
     if (manual && win) dialog.showMessageBox(win, { type: 'warning', message: 'Could not check for updates', detail: String(e.message || e) });
   }

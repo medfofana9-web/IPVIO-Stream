@@ -1,5 +1,10 @@
 # Changelog
 
+## Fof TV for Mac 0.4 – updates itself completely
+
+- The app now replaces itself when the app shell changes: it downloads the new version from GitHub, unpacks it, and restarts into it (signed for this Mac like the install command, never quarantined). If something is playing it waits until you quit. Screens and features already updated on their own; with this, no update needs a new download again.
+- Falls back to the download page only when the app cannot write to its own folder.
+
 ## Fof TV – profile tiles like the Mac, snappier on Fire TV
 
 - Who's watching: the same tiles as the Mac app – a flat color square with the profile's big white letter (1st profile red, 2nd blue …), the name below, and "PIN" with a lock under locked profiles. The same letter avatar shows everywhere in the app.
