@@ -315,10 +315,17 @@ fun RowTitle(
                         else if (firstCard != null && ev.key == Key.DirectionDown) {
                             // The row is shifted under the highlight while paging: then the first card is not composed and the
                             // focus request fails. This used to leave you stuck on "Show all" ("Down" had no effect).
-                            if (runCatching { firstCard.requestFocus() }.isFailure) scope.launch {
+                            if (!firstCard.tryFocus()) scope.launch {
                                 rowState?.scrollToItem(0)
                                 repeat(3) { withFrameNanos { } }
-                                runCatching { firstCard.requestFocus() }
+                                // Still no first card (an empty or still loading row): move on down like any other key
+                                // press, instead of keeping the focus on "Show all" (you could not scroll further down)
+                                if (!firstCard.tryFocus() && !fm.moveFocus(FocusDirection.Down)) {
+                                    val px = with(dens) { dpx(60).toPx() }
+                                    bring.bringIntoView(androidx.compose.ui.geometry.Rect(0f, 0f, px * 3f, px * 8f))
+                                    repeat(2) { withFrameNanos { } }
+                                    fm.moveFocus(FocusDirection.Down)
+                                }
                             }
                             true
                         }
@@ -1171,3 +1178,9 @@ fun matchPercent(c: android.content.Context, m: Meta): Int? {
     val miss = m.genres.count { g -> no.any { it.equals(g, true) } }
     return (r * 9.0 + 12 + hit * 6 - miss * 12).toInt().coerceIn(40, 99)
 }
+
+/**
+ * Focus request that reports whether it landed. Newer Compose versions no longer throw when nothing can take the focus –
+ * they return false – so `runCatching { requestFocus() }.isFailure` missed failed requests (a "Down" that went nowhere).
+ */
+internal fun FocusRequester.tryFocus(): Boolean = runCatching { val r: Any? = requestFocus(); r != false }.getOrDefault(false)

@@ -419,7 +419,7 @@ fun HomeScreen(
             AppNav.focusTab = -1
             repeat(10) {
                 delay(150)
-                if (runCatching { ContentFocus.req.requestFocus() }.isSuccess) return@LaunchedEffect
+                if (ContentFocus.req.tryFocus()) return@LaunchedEffect
             }
         }
     }

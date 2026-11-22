@@ -170,9 +170,9 @@ fun Guide(
         if (System.currentTimeMillis() >= GuideBack.mutedUntil) when {
             inBlock -> {
                 val r = rowReq
-                if (r == null || !runCatching { r.requestFocus() }.isSuccess) { if (!runCatching { catReq.requestFocus() }.isSuccess) onClose() }
+                if (r == null || !r.tryFocus()) { if (!catReq.tryFocus()) onClose() }
             }
-            !inCats -> if (!runCatching { catReq.requestFocus() }.isSuccess) onClose()
+            !inCats -> if (!catReq.tryFocus()) onClose()
             else -> onClose()
         }
     }
@@ -311,7 +311,7 @@ fun Guide(
                                 onShift = { e -> shiftFor(e) },
                                 onBlock = { inB, r -> inBlock = inB; inCats = false; rowReq = r },
                                 // Left from the channel column: to the categories (before: close)
-                                onClose = { if (!runCatching { catReq.requestFocus() }.isSuccess) onClose() },
+                                onClose = { if (!catReq.tryFocus()) onClose() },
                                 onArchive = { e -> onArchive(ch, e) },
                                 onPick = { val p = onPickIn; if (p != null) p(ch, shown) else onPick(ch) }
                             )

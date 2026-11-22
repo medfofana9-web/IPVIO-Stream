@@ -79,7 +79,11 @@ object SportPlan {
         val todayEnd = SportData.dayRange(days[0], zone).second
         val today = upcoming.filter { it.start <= todayEnd }
         val readyNow = today.count { SportWatch.channels(it, chans).isNotEmpty() }
-        for (g in missing) if (g.state == 0 && g.start - now in 0..2 * 3600 && SportWatch.channels(g, chans).isEmpty()) {
+        // Reported only where a channel is expected: your teams' games and the big US leagues (not every European match
+        // the playlist does not carry – those filled the reports with noise)
+        val major = setOf("NBA", "NFL", "NHL", "MLB", "WNBA", "NCAAF", "NCAAM", "College Football", "College Basketball")
+        for (g in missing) if (g.state == 0 && g.start - now in 0..2 * 3600 && SportWatch.channels(g, chans).isEmpty() &&
+            (SportFavs.isFavGame(g) || g.league in major)) {
             AutoReport.issue(c, "sports", "no channel ahead: " + g.league + " – " + (if (g.solo) g.title else g.away.name + " at " + g.home.name))
         }
         withContext(Dispatchers.Main) { total = today.size; ready = readyNow }

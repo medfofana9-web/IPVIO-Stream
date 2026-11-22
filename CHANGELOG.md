@@ -1,5 +1,15 @@
 # Changelog
 
+## Fof TV – scrolling fix, score window on, fewer noisy reports; Mac – Instant Play, new episodes, game day; phone web app
+
+- TV: scrolling down no longer stops on a row's "Show all" (a focus request that went nowhere was taken as done – newer Compose returns false instead of throwing). The same check fixed in the TV guide, Live TV, Search and Home.
+- TV: the live score window for your teams is on by default (it shows only while one of your teams is playing).
+- TV: "no channel ahead" reports only for your teams' games and the big US leagues.
+- Mac: Instant Play – a title page looks up the sources of what Play starts (10-minute cache); the source that played for a minute goes first next time; a source that has not started after 20 s moves on to the next one.
+- Mac: New Episodes This Week on Home and a Mac notification for each new episode of a show you watch.
+- Mac: follow teams from a game (Your Teams first in Sports), a live score bar in the player, a notification when their game starts, Add to Calendar for later games, and a second game in the corner of the player (click to swap).
+- Phone: the Mac app's screens run as a web app at medfofana9-web.github.io/IPVIO-Stream/app (Add to Home Screen); a phone layout (mobile.css) with a bottom tab bar. Live TV only where the provider allows https.
+
 ## Fof TV for Mac 0.4 – updates itself completely
 
 - The app now replaces itself when the app shell changes: it downloads the new version from GitHub, unpacks it, and restarts into it (signed for this Mac like the install command, never quarantined). If something is playing it waits until you quit. Screens and features already updated on their own; with this, no update needs a new download again.

@@ -56,7 +56,7 @@ function deviceId() {
 const acct = { profiles: [], pins: {}, addons: [], playlist: '', profile: null, watch: [] };
 
 async function loadAccount() {
-  await rpc('fof_register_device', { p_id: deviceId(), p_name: 'Mac', p_kind: 'Mac app', p_version: VERSION }).catch(() => {});
+  await rpc('fof_register_device', { p_id: deviceId(), p_name: WEB ? 'Phone' : 'Mac', p_kind: WEB ? 'Web app' : 'Mac app', p_version: VERSION }).catch(() => {});
   acct.profiles = await sb('/rest/v1/fof_profiles?select=id,slot,name,avatar,photo&deleted=eq.false&order=slot');
   const ps = await rpc('fof_pin_status').catch(() => []);
   acct.pins = {}; (ps || []).forEach(p => acct.pins[p.profile_id] = p);
@@ -195,7 +195,7 @@ function askPin(p, err, len = 4) {
       let r = await rpc('fof_verify_pin', { p_profile: p.id, p_pin: pin });
       if (r && r.err === 'signed_out') {
         // This Mac was not registered with the account yet: register, then try once more
-        await rpc('fof_register_device', { p_id: deviceId(), p_name: 'Mac', p_kind: 'Mac app', p_version: VERSION }).catch(() => {});
+        await rpc('fof_register_device', { p_id: deviceId(), p_name: WEB ? 'Phone' : 'Mac', p_kind: WEB ? 'Web app' : 'Mac app', p_version: VERSION }).catch(() => {});
         r = await rpc('fof_verify_pin', { p_profile: p.id, p_pin: pin });
       }
       if (r && r.ok) { (acct.pins[p.id] = acct.pins[p.id] || {}).unlocked = true; return openProfile(p); }
@@ -256,6 +256,8 @@ const ICONS = {
   live: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19 5a10 10 0 0 1 0 14M5 19A10 10 0 0 1 5 5"/></svg>',
   downloads: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>'
 };
+// The same screens run as the phone web app (no Mac shell there)
+const WEB = !window.fof;
 const DL = window.fof && window.fof.downloads;
 const NAV = [['search', 'Search'], ['home', 'Home'], ['shows', 'TV Shows'], ['movies', 'Movies'], ['sports', 'Sports'], ['live', 'Live TV'], ['mylist', 'My List'], ...(DL ? [['downloads', 'Downloads']] : [])];
 let current = 'home';
@@ -359,13 +361,45 @@ function handoff(pg) {
   if (!w || !tt || w.next || !w.ts || Date.now() - w.ts > 60 * 60 * 1000 || (w.dur && w.pos > w.dur * 0.93)) return;
   const b = document.createElement('div'); b.className = 'handoff';
   const left = w.dur ? Math.max(1, Math.round((w.dur - w.pos) / 60000)) + ' min left' : '';
-  b.innerHTML = `<img src="${esc(bgOf(tt))}" onerror="this.remove()"><div class="hx"><small>KEEP WATCHING ON THIS MAC</small><b>${esc(w.title)}</b><span>${esc(left)}</span></div><button class="btn primary">&#x25B6;&nbsp; Resume</button><button class="x" title="Close">&#x2715;</button>`;
+  b.innerHTML = `<img src="${esc(bgOf(tt))}" onerror="this.remove()"><div class="hx"><small>KEEP WATCHING ON THIS ${WEB ? 'PHONE' : 'MAC'}</small><b>${esc(w.title)}</b><span>${esc(left)}</span></div><button class="btn primary">&#x25B6;&nbsp; Resume</button><button class="x" title="Close">&#x2715;</button>`;
   document.body.appendChild(b);
   setTimeout(() => b.classList.add('on'), 50);
   const close = () => { b.classList.remove('on'); setTimeout(() => b.remove(), 300); };
   $('.x', b).onclick = close; setTimeout(close, 20000);
   $('.btn', b).onclick = () => { close(); const series = w.s || w.e; sources({ type: series ? 'series' : 'movie', id: tt, name: w.title.replace(/\s*S\d+\s*E\d+\s*$/i, ''), season: w.s, episode: w.e, start: w.pos, auto: true }); };
 }
+
+// Shows you are watching that got an episode in the last 7 days you have not seen yet (newest first). Each new episode
+// is announced once as a Mac notification.
+async function newEpisodes() {
+  if (newEpisodes.p && Date.now() - newEpisodes.t < 30 * 60 * 1000) return newEpisodes.p;
+  newEpisodes.t = Date.now();
+  newEpisodes.p = (async () => {
+    const seen = new Map();
+    acct.watch.forEach(w => { const tt = ttOf(w.id); if (tt && (w.s || w.e) && !seen.has(tt)) seen.set(tt, w); });
+    const week = Date.now() - 7 * 864e5;
+    const out = (await Promise.all([...seen].slice(0, 15).map(async ([tt, w]) => {
+      const m = await metaOf('series', tt); if (!m) return null;
+      const fresh = (m.videos || []).filter(v => v.season > 0 && v.released && Date.parse(v.released) > week && Date.parse(v.released) <= Date.now()
+        && (v.season > (w.s || 0) || (v.season === (w.s || 0) && v.episode > (w.e || 0))));
+      if (!fresh.length) return null;
+      const v = fresh.sort((a, b) => Date.parse(b.released) - Date.parse(a.released))[0];
+      return { meta: Object.assign({}, m, { type: 'series', id: tt }), ep: v, at: Date.parse(v.released) };
+    }))).filter(Boolean).sort((a, b) => b.at - a.at);
+    const told = store.get('newEpTold', []);
+    out.forEach(x => {
+      const k = `${x.meta.id}:${x.ep.season}:${x.ep.episode}`;
+      if (told.includes(k) || !('Notification' in window)) return;
+      told.push(k);
+      try { const n = new Notification(`New episode: ${x.meta.name}`, { body: `S${x.ep.season} E${x.ep.episode}${x.ep.name ? ' · ' + x.ep.name : ''}`, silent: false }); n.onclick = () => openTitle('series', x.meta.id); } catch (e) {}
+    });
+    store.set('newEpTold', told.slice(-300));
+    return out;
+  })().catch(() => []);
+  return newEpisodes.p;
+}
+// Checked every hour too, so the notification comes while the app is open
+setInterval(() => { if (acct.watch.length) newEpisodes(); }, 60 * 60 * 1000);
 
 async function renderHome(pg) {
   pg.innerHTML = '<div class="spin"></div>';
@@ -379,7 +413,8 @@ async function renderHome(pg) {
     ${rowHtml('Top 10 Movies & Shows Today', top.map((m, i) => `<div class="top10" data-type="${m.type}" data-id="${m.id}"><div class="num">${i + 1}</div>${cardHtml(m, m.type)}</div>`).join(''))}
     ${rowHtml('Popular Movies', mv.slice(0, 30).map(m => cardHtml(m, 'movie')).join(''), 'movie')}
     ${rowHtml('Popular TV Shows', sr.slice(0, 30).map(m => cardHtml(m, 'series')).join(''), 'series')}
-    <div id="mylistrow"></div><div id="genres"></div><div style="height:60px"></div>`;
+    <div id="mylistrow"></div><div id="newrow"></div><div id="genres"></div><div style="height:60px"></div>`;
+  newEpisodes().then(l => { if (l.length && $('#newrow')) { $('#newrow').innerHTML = rowHtml('New Episodes This Week', l.map(x => cardHtml(x.meta, 'series')).join('')); wireRows($('#newrow')); } });
   if (acct.mylist.length) myListItems(30).then(l => { if (l.length && $('#mylistrow')) { $('#mylistrow').innerHTML = rowHtml('My List', l.map(m => cardHtml(m, m.type)).join('')); wireRows($('#mylistrow')); } });
   const drawHero = () => {
     const m = featured[idx]; if (!m) return;
@@ -469,6 +504,11 @@ async function renderDetail(pg, { type, id }) {
     <div id="more"></div><div style="height:60px"></div></div>`;
   $('#back').onclick = () => go(navStack.pop() || 'home');
   trailerIn($('.detail .hero', pg), type, id);
+  // Instant Play: look up the sources of what Play would start (the movie, or the episode to resume / the first one)
+  if (acct.addons.length) {
+    const ep = type === 'series' ? (resume && resume.s ? { season: resume.s, episode: resume.e } : (m.videos || []).filter(v => v.season === season).sort((a, b) => a.episode - b.episode)[0]) : null;
+    if (type !== 'series' || ep) setTimeout(() => streamsFor({ type, id, season: ep && ep.season, episode: ep && ep.episode }).catch(() => {}), 300);
+  }
   $('#mlb').onclick = async () => { const on = await toggleMyList('stremio:' + id); $('#mlb').innerHTML = on ? '&#x2713;&nbsp; My List' : '+&nbsp; My List'; toast(on ? 'Added to My List' : 'Removed from My List', 1800); };
   if (m.trailers && m.trailers.length) $('#trl').onclick = () => window.open('https://www.youtube.com/watch?v=' + m.trailers[0].source);
   const epsOf = s => (m.videos || []).filter(v => v.season === s).sort((a, b) => a.episode - b.episode);
@@ -499,7 +539,21 @@ async function renderDetail(pg, { type, id }) {
 }
 
 // ------------------------------------------------------------------ addon streams (account addons, like the TV's Sources)
-async function streamsFor({ type, id, season, episode }) {
+// Asked ahead when a title page opens, so Play has its sources at once (kept 10 minutes, one lookup at a time)
+const streamCache = new Map();
+function streamsFor(req) {
+  const k = [req.type, req.id, req.season || 0, req.episode || 0, acct.addons.join(';')].join('|');
+  const c = streamCache.get(k);
+  if (c && Date.now() - c.t < 10 * 60 * 1000) return c.p;
+  const p = streamsNow(req).then(l => { if (!l.length) streamCache.delete(k); return l; });
+  streamCache.set(k, { t: Date.now(), p });
+  return p;
+}
+// The source that played last time for a title or episode goes first (same addon and file)
+const cidOf = r => r.type === 'series' ? `${r.id}:${r.season}:${r.episode}` : r.id;
+const srcKey = s => (s.addonName || '') + '|' + (s.file || s.title || '').slice(0, 80);
+function rememberSource(req, s) { if (!req || !s) return; const m = store.get('goodSrc', {}); m[cidOf(req)] = srcKey(s); const ks = Object.keys(m); if (ks.length > 300) delete m[ks[0]]; store.set('goodSrc', m); }
+async function streamsNow({ type, id, season, episode }) {
   const sid = type === 'series' ? `${id}:${season}:${episode}` : id;
   const all = [];
   await Promise.all(acct.addons.map(async base => {
@@ -521,7 +575,8 @@ async function streamsFor({ type, id, season, episode }) {
     s.risky = /hevc|x265|h\.?265|\bav1\b|dolby ?vision|\bdv\b|truehd|atmos|dts/i.test(t);
     s.addonName = s.name.split(/\s{2,}|\|/)[0].trim().slice(0, 40);
   });
-  const rank = s => (s.risky ? 0 : 10) + ({ '4K': 3, '1080p': 4, '720p': 2, 'SD': 1 }[s.quality] || 0) + (/\.mp4\b|mp4\)/i.test(s.name + s.title) ? 1 : 0);
+  const good = store.get('goodSrc', {})[cidOf({ type, id, season, episode })];
+  const rank = s => (good && srcKey(s) === good ? 100 : 0) + (s.risky ? 0 : 10) + ({ '4K': 3, '1080p': 4, '720p': 2, 'SD': 1 }[s.quality] || 0) + (/\.mp4\b|mp4\)/i.test(s.name + s.title) ? 1 : 0);
   return all.sort((a, b) => rank(b) - rank(a));
 }
 
@@ -639,7 +694,11 @@ const chMark = n => (String(n || '').replace(/^\s*(\[[^\]]{1,6}\]|\|?[A-Z]{2,3}\
 async function renderLive(pg) {
   if (!acct.playlist) { pg.innerHTML = '<div class="empty"><h2 style="color:#fff">Live TV</h2>No playlist in your account yet. Sign in to the same account on the TV with your IPTV playlist set; it syncs here automatically.</div>'; return; }
   pg.innerHTML = '<div class="spin"></div>';
-  try { await loadLive(); } catch (e) { pg.innerHTML = `<div class="empty">Your playlist could not be loaded (${esc(e.message)}).</div>`; return; }
+  try { await loadLive(); } catch (e) {
+    // Phone web app: most IPTV providers only answer plain http and do not allow web pages to read them
+    const why = WEB && /^http:/.test(acct.playlist) ? 'Your IPTV provider only works over plain http, which phone browsers do not allow in a web app. Live TV works on the TV and the Mac; movies, shows and sports scores work here.' : `Your playlist could not be loaded (${esc(e.message)}).`;
+    pg.innerHTML = `<div class="empty">${why}</div>`; return;
+  }
   if (current !== 'live') return;
   if (!live.cat) live.cat = (live.cats.find(c => /sport/i.test(c.name)) || live.cats[0] || {}).id;
   pg.innerHTML = `<div class="livepage"><div class="cats"><input id="lf" placeholder="Find a category"><div class="viewsw"><button id="vg" class="${store.get('liveView', 'grid') === 'grid' ? 'on' : ''}">Channels</button><button id="vl" class="${store.get('liveView', 'grid') === 'guide' ? 'on' : ''}">Guide</button></div><div id="cl"></div></div><div class="chgrid ${store.get('liveView', 'grid') === 'guide' ? 'guide' : ''}" id="cg"></div></div>`;
@@ -732,7 +791,8 @@ async function renderSports(pg) {
   const lists = await Promise.all(ls.map(l => scoreboard(l[2]).then(gs => gs.map(g => Object.assign(g, { league: l[1], lk: l[0] })))));
   if (current !== 'sports' || !$('#sg')) return;
   const seen = new Set(); const all = lists.flat().filter(g => !seen.has(g.id) && seen.add(g.id));
-  const groups = [['Live Now', all.filter(g => g.state === 'in')], ['Coming Up', all.filter(g => g.state === 'pre').sort((a, b) => new Date(a.date) - new Date(b.date))], ['Final', all.filter(g => g.state === 'post')]];
+  const mine = all.filter(g => g.state !== 'post' && (followed(teamKey(g, g.home)) || followed(teamKey(g, g.away))));
+  const groups = [['Your Teams', mine], ['Live Now', all.filter(g => g.state === 'in' && !mine.includes(g))], ['Coming Up', all.filter(g => g.state === 'pre' && !mine.includes(g)).sort((a, b) => new Date(a.date) - new Date(b.date))], ['Final', all.filter(g => g.state === 'post')]];
   let n = 0; const idx = [];
   $('#sg').innerHTML = groups.filter(([, l]) => l.length).map(([h, l]) => `<h2>${h}</h2><div class="games">${l.map(g => { idx.push(g); return gameHtml(g, n++); }).join('')}</div>`).join('')
     || '<div class="empty" style="padding:30px 0">No games today in this league.</div>';
@@ -778,7 +838,76 @@ async function watchGame(g) {
     (list.length ? `<div class="chlist">${list.map((c, i) => `<div class="src" data-i="${i}">${c.logo ? `<img src="${esc(c.logo)}" onerror="this.style.visibility='hidden'">` : ''}<div class="nm2"><b>${esc(c.name)}</b><small>${c.sc >= 9 ? 'Team channel' : 'National broadcast'}</small></div></div>`).join('')}</div>`
       : '<div class="sub">No channel in your playlist matches this game. Try the league\'s category in Live TV.</div>');
   bg.querySelectorAll('.src').forEach(el => el.onclick = () => { close(); const i = +el.dataset.i; play({ url: list[i].url, title: list[i].name, sub: `${g.away.short} at ${g.home.short}`, live: true, zap: list, zi: i }); });
+  // Follow a team (its games first, a score bar while you watch something else, a notification when they start),
+  // Add to Calendar for later games, and a second game in the corner of the player
+  const tools = document.createElement('div'); tools.className = 'gtools';
+  const teamBtn = t => `<button class="btn" data-team="${esc(teamKey(g, t))}">${followed(teamKey(g, t)) ? '&#x2605; Following ' : '&#x2606; Follow '}${esc(t.short)}</button>`;
+  tools.innerHTML = teamBtn(g.away) + teamBtn(g.home) + (g.state === 'pre' ? '<button class="btn" data-cal="1">&#x1F4C5; Add to Calendar</button>' : '');
+  $('.sheet', bg).appendChild(tools);
+  tools.querySelectorAll('[data-team]').forEach(b => b.onclick = () => { toggleFollow(b.dataset.team); close(); watchGame(g); });
+  const cal = tools.querySelector('[data-cal]');
+  if (cal) cal.onclick = () => {
+    const t = new Date(g.date), e = new Date(t.getTime() + 3 * 3600 * 1000), f = d => d.toISOString().replace(/[-:]|\.\d{3}/g, '');
+    window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(g.away.short + ' at ' + g.home.short)}&dates=${f(t)}/${f(e)}&details=${encodeURIComponent(g.league + (g.nets.length ? ' · On ' + g.nets.join(', ') : '') + ' · Watch in Fof TV')}`);
+  };
+  if (cur && cur.live && !$('#player').classList.contains('hidden') && list.length) {
+    bg.querySelectorAll('.src').forEach(el => {
+      const b = document.createElement('button'); b.className = 'corner'; b.textContent = 'In the corner'; b.title = 'Play this game small in the corner of what you are watching';
+      b.onclick = ev => { ev.stopPropagation(); close(); const c = list[+el.dataset.i]; startCorner(c.url, `${g.away.short} at ${g.home.short}`); };
+      el.appendChild(b);
+    });
+  }
 }
+
+// ------------------------------------------------------------------ game day: followed teams, score bar, notifications
+const teamKey = (g, t) => g.lk + ':' + (t.abbr || t.short);
+const followed = k => store.get('teams', []).includes(k);
+function toggleFollow(k) { const l = store.get('teams', []); store.set('teams', l.includes(k) ? l.filter(x => x !== k) : l.concat(k)); toast(l.includes(k) ? 'Unfollowed' : 'Following – you get a notification when their games start', 2400); pollTeams(); }
+let teamGames = [];
+async function pollTeams() {
+  const ts = store.get('teams', []); if (!ts.length) { teamGames = []; drawScoreBar(); return; }
+  const lks = [...new Set(ts.map(k => k.split(':')[0]))];
+  const lists = await Promise.all(LEAGUES.filter(l => lks.includes(l[0])).map(l => scoreboard(l[2]).then(gs => gs.map(g => Object.assign(g, { league: l[1], lk: l[0] })))));
+  const mine = lists.flat().filter(g => followed(teamKey(g, g.home)) || followed(teamKey(g, g.away)));
+  const prev = new Map(teamGames.map(g => [g.id, g.state]));
+  const told = store.get('startTold', []);
+  mine.forEach(g => {
+    if (g.state === 'in' && prev.get(g.id) !== 'in' && !told.includes(g.id)) {
+      told.push(g.id);
+      try { const n = new Notification(`${g.away.short} at ${g.home.short} is on`, { body: `${g.league}${g.nets.length ? ' · ' + g.nets.join(', ') : ''} · ${g.detail}` }); n.onclick = () => watchGame(g); } catch (e) {}
+    }
+  });
+  store.set('startTold', told.slice(-100));
+  teamGames = mine; drawScoreBar();
+}
+setInterval(pollTeams, 90 * 1000); setTimeout(pollTeams, 5000);
+// Score bar: while something plays, the live games of the teams you follow (not the one on screen), top right
+function drawScoreBar() {
+  let bar = $('#scorebar');
+  const live = teamGames.filter(g => g.state === 'in' && !(cur && cur.sub === `${g.away.short} at ${g.home.short}`));
+  if (!live.length) { if (bar) bar.remove(); return; }
+  if (!bar) { bar = document.createElement('div'); bar.id = 'scorebar'; $('#player').appendChild(bar); }
+  bar.innerHTML = live.slice(0, 3).map((g, i) => `<div class="sb" data-i="${i}"><span class="live">LIVE</span><img src="${esc(g.away.logo)}" onerror="this.remove()"><b>${esc(g.away.score || '0')}</b><span>–</span><b>${esc(g.home.score || '0')}</b><img src="${esc(g.home.logo)}" onerror="this.remove()"><small>${esc(g.detail)}</small></div>`).join('');
+  bar.querySelectorAll('.sb').forEach(el => el.onclick = () => watchGame(live[+el.dataset.i]));
+}
+
+// Second game in the corner (muted); click it to swap it with the big picture
+let corner = null;
+function startCorner(url, title) {
+  stopCorner();
+  const xt = /\/live\/[^/]+\/[^/]+\/\d+\.ts(\?|$)/.test(url);
+  const u = xt ? url.replace(/\.ts(\?|$)/, '.m3u8$1') : url;
+  const box = document.createElement('div'); box.id = 'corner';
+  box.innerHTML = `<video muted playsinline></video><div class="ct">${esc(title)}<button title="Close">&#x2715;</button></div>`;
+  $('#player').appendChild(box);
+  const v = $('video', box);
+  if (window.Hls && Hls.isSupported() && /m3u8/i.test(u)) { const h = new Hls({ maxBufferLength: 20, enableWorker: true }); h.loadSource(u); h.attachMedia(v); corner = { h, url, title }; }
+  else { v.src = url; corner = { url, title }; }
+  v.play().catch(() => {});
+  $('button', box).onclick = e => { e.stopPropagation(); stopCorner(); };
+  box.onclick = () => { const c = corner, main = cur; stopCorner(); if (main && main.live) startCorner(main.url, main.title); play({ url: c.url, title: c.title, sub: c.title, live: true }); };
+}
+function stopCorner() { if (!corner) return; try { corner.h && corner.h.destroy(); } catch (e) {} const b = $('#corner'); if (b) b.remove(); corner = null; }
 
 // ------------------------------------------------------------------ search
 function renderSearch(pg) {
@@ -821,6 +950,7 @@ function play(item) {
   $('#pl-src').classList.toggle('hidden', !(item.list && item.list.length > 1) && !item.zap);
   $('#pl-src').textContent = item.zap ? 'Channels' : 'Sources';
   startEngine(item, item.url, 0);
+  setTimeout(drawScoreBar, 500);
   V.onloadedmetadata = () => { if (item.start > 30000 && isFinite(V.duration)) V.currentTime = Math.max(0, item.start / 1000 - 5); };
   V.onerror = () => { if (!hls && !mts) fail('This source does not play on the Mac (format). Trying the next one.'); };
   poke();
@@ -854,6 +984,17 @@ function startEngine(item, url, attempt) {
   V.play().catch(() => {});
 }
 
+// Movies and episodes: a source that has not started after 20 s goes to the next one; one that played for a minute is
+// remembered for that title (it goes first next time)
+let vodWait = 0;
+setInterval(() => {
+  if (!cur || cur.live || $('#player').classList.contains('hidden')) { vodWait = 0; return; }
+  if (cur.list && !cur.remembered && V.currentTime > 60) { cur.remembered = true; rememberSource(cur.req, cur.list[cur.idx]); }
+  if (V.currentTime > 1 || V.paused && V.readyState >= 2) { vodWait = 0; return; }
+  vodWait += 2;
+  if (vodWait >= 20) { vodWait = 0; fail('This source does not start.'); }
+}, 2000);
+
 // Live watchdog: a channel frozen for 12 s reconnects by itself (up to 3 times in a row)
 let lastT = -1, frozenFor = 0, reconnects = 0;
 setInterval(() => {
@@ -868,7 +1009,7 @@ function fail(t) {
   if (cur && cur.list && cur.idx + 1 < cur.list.length && !cur.noFallback) { toast('Source did not start – trying the next one'); const n = cur.idx + 1; return play(Object.assign({}, cur, { url: cur.list[n].url, idx: n })); }
   msg(t);
 }
-function closePlayer() { saveResume(true); if (document.pictureInPictureElement) document.exitPictureInPicture().catch(() => {}); stopEngines(); cur = null; $('#player').classList.add('hidden'); if (document.fullscreenElement) document.exitFullscreen(); }
+function closePlayer() { stopCorner(); const sb = $('#scorebar'); if (sb) sb.remove(); saveResume(true); if (document.pictureInPictureElement) document.exitPictureInPicture().catch(() => {}); stopEngines(); cur = null; $('#player').classList.add('hidden'); if (document.fullscreenElement) document.exitFullscreen(); }
 function fmt(s) { if (!isFinite(s)) return 'LIVE'; s = Math.floor(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); }
 function poke() { $('#player').classList.remove('idle'); clearTimeout(idleT); idleT = setTimeout(() => { if (!V.paused) $('#player').classList.add('idle'); }, 3000); }
 V.ontimeupdate = () => {

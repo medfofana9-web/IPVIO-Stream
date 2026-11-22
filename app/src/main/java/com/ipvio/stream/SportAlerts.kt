@@ -85,7 +85,8 @@ object SportAlerts {
         inited = true
         enabled = prefs(c).getBoolean("on", true)
         delaySec = prefs(c).getInt("delay", 30).takeIf { it in DELAYS } ?: 30
-        miniOn = prefs(c).getBoolean("mini", false)
+        // On by default: the score window only appears while one of your teams (or a picked game) is live
+        miniOn = prefs(c).getBoolean("mini", true)
         miniPos = prefs(c).getInt("mpos", 3).coerceIn(0, 3)
         miniSize = prefs(c).getInt("msize", 1).coerceIn(0, 2)
         miniNames = prefs(c).getBoolean("mnames", true)

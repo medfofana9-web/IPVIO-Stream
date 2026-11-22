@@ -455,7 +455,7 @@ private fun SearchRowHeader(title: String, count: Int, headerReq: FocusRequester
             if (ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionDown) {
                 // First card not in view (row shifted sideways) or not yet composed: first to the start, then highlight.
                 // Before, the focus got stuck here because the failure was swallowed.
-                if (runCatching { firstCard.requestFocus() }.isFailure) sc.launch {
+                if (!firstCard.tryFocus()) sc.launch {
                     rowState.scrollToItem(0)
                     repeat(3) { withFrameNanos { } }
                     runCatching { firstCard.requestFocus() }
@@ -525,7 +525,7 @@ private fun SearchRow(
         Box(
             Modifier.onPreviewKeyEvent { e ->
                 if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionUp && e.nativeKeyEvent.repeatCount == 0) {
-                    runCatching { headerReq.requestFocus() }.isSuccess
+                    headerReq.tryFocus()
                 } else false
             }
         ) {
