@@ -67,15 +67,70 @@ async function loadAccount() {
   });
 }
 
-// The TV saves Continue Watching as an Android preference file inside the profile's data ({"e": ["s", "<json>"]})
+// The TV keeps each profile's data as Android preference files inside fof_profile_data ({files: {store: {key: ["s", "<json>"]}}}).
+// The Mac reads Continue Watching and My List from it and writes back the same way the TV does: a change is saved only
+// if nobody saved in between (otherwise it reads again and retries), and every add/remove carries an edit marker so the
+// TV's merge keeps it.
+const strOf = (files, store, key) => { const v = files && files[store] && files[store][key]; return v && v[0] === 's' ? v[1] : null; };
+const setStr = (files, store, key, val) => { (files[store] = files[store] || {})[key] = ['s', val]; };
+function readProfile(files) {
+  acct.watch = []; acct.mylist = [];
+  try { const w = strOf(files, 'ipvio_watch', 'e'); if (w) acct.watch = JSON.parse(w).map(o => ({ id: o.i, title: o.t, url: o.u, pos: o.p, dur: o.d, ts: o.ts, s: o.s || 0, e: o.e || 0, next: !!o.n })); } catch (e) {}
+  acct.watch.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  try { acct.mylist = (strOf(files, 'ipvio_lib', 'watch') || '').split('\n').filter(Boolean); } catch (e) {}
+}
 async function loadWatch(pid) {
-  acct.watch = [];
   try {
     const rows = await sb('/rest/v1/fof_profile_data?select=data&profile_id=eq.' + pid);
-    const files = rows && rows[0] && rows[0].data && rows[0].data.files;
-    const w = files && files.ipvio_watch && files.ipvio_watch.e;
-    if (w && w[0] === 's') acct.watch = JSON.parse(w[1]).map(o => ({ id: o.i, title: o.t, url: o.u, pos: o.p, dur: o.d, ts: o.ts, s: o.s || 0, e: o.e || 0, next: !!o.n }));
-  } catch (e) { console.warn('watch', e); }
+    readProfile(rows && rows[0] && rows[0].data && rows[0].data.files);
+  } catch (e) { console.warn('profile data', e); }
+}
+async function saveProfile(mutate) {
+  const pid = acct.profile && acct.profile.id; if (!pid) return false;
+  for (let tries = 0; tries < 4; tries++) {
+    const rows = await sb('/rest/v1/fof_profile_data?select=data,updated_at&profile_id=eq.' + pid);
+    if (!rows || !rows[0]) return false;                       // the TV has not saved this profile yet
+    const data = rows[0].data || {}; data.files = data.files || {};
+    mutate(data.files);
+    const out = await sb('/rest/v1/fof_profile_data?profile_id=eq.' + pid + '&updated_at=eq.' + encodeURIComponent(rows[0].updated_at),
+      { method: 'PATCH', body: { data }, headers: { Prefer: 'return=representation' } });
+    if (out && out.length) { readProfile(data.files); return true; }
+    await new Promise(r => setTimeout(r, 400 + tries * 300));  // someone saved first: read again
+  }
+  return false;
+}
+const editMark = (files, store, key, id, present) => {
+  let e = {}; try { e = JSON.parse(strOf(files, store, key) || '{}'); } catch (x) {}
+  e[id] = { p: present, t: Date.now() };
+  const keys = Object.keys(e); if (keys.length > 2000) keys.sort((a, b) => e[a].t - e[b].t).slice(0, keys.length - 2000).forEach(k => delete e[k]);
+  setStr(files, store, key, JSON.stringify(e));
+};
+function toggleMyList(id) {
+  const on = !acct.mylist.includes(id);
+  acct.mylist = on ? [id, ...acct.mylist] : acct.mylist.filter(x => x !== id);
+  return saveProfile(files => {
+    const l = (strOf(files, 'ipvio_lib', 'watch') || '').split('\n').filter(x => x && x !== id);
+    if (on) l.unshift(id);
+    setStr(files, 'ipvio_lib', 'watch', l.slice(0, 2000).join('\n'));
+    editMark(files, 'ipvio_lib', 'watch_edits', id, on);
+  }).then(ok => { if (!ok) toast('My List could not be saved to your account.'); return on; });
+}
+// Resume point of what is playing (same entry the TV writes); a finished movie leaves Continue Watching
+let lastSave = 0;
+function saveResume(force) {
+  const it = cur; if (!it || it.live || !it.req || !isFinite(V.duration) || V.duration < 60) return;
+  const now = Date.now(); if (!force && now - lastSave < 30000) return; lastSave = now;
+  const pos = Math.round(V.currentTime * 1000), dur = Math.round(V.duration * 1000);
+  if (pos < 20000) return;
+  const id = 'stremio:' + it.req.id, done = pos > dur * 0.93;
+  const title = it.req.name + (it.req.type === 'series' ? ` S${it.req.season}E${it.req.episode}` : '');
+  saveProfile(files => {
+    let list = []; try { list = JSON.parse(strOf(files, 'ipvio_watch', 'e') || '[]'); } catch (e) {}
+    list = list.filter(o => o.i !== id);
+    if (!(done && it.req.type !== 'series')) list.unshift({ i: id, t: title, u: it.url, p: done ? 0 : pos, d: dur, ts: now, s: it.req.season || 0, e: done ? (it.req.episode || 0) + 1 : (it.req.episode || 0), n: done });
+    setStr(files, 'ipvio_watch', 'e', JSON.stringify(list.slice(0, 60)));
+    editMark(files, 'ipvio_watch', 'edits', id, !(done && it.req.type !== 'series'));
+  }).catch(() => {});
 }
 
 const AV_COLORS = ['#E60023', '#2563EB', '#16A34A', '#D97706', '#7C3AED', '#DB2777', '#0891B2', '#65A30D'];
@@ -196,9 +251,10 @@ const ICONS = {
   shows: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="m8 2 4 4 4-4"/></svg>',
   movies: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 3v18M17 3v18M3 8h4M3 16h4M17 8h4M17 16h4"/></svg>',
   sports: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>',
+  mylist: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>',
   live: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19 5a10 10 0 0 1 0 14M5 19A10 10 0 0 1 5 5"/></svg>'
 };
-const NAV = [['search', 'Search'], ['home', 'Home'], ['shows', 'TV Shows'], ['movies', 'Movies'], ['sports', 'Sports'], ['live', 'Live TV']];
+const NAV = [['search', 'Search'], ['home', 'Home'], ['shows', 'TV Shows'], ['movies', 'Movies'], ['sports', 'Sports'], ['live', 'Live TV'], ['mylist', 'My List']];
 let current = 'home';
 const navStack = [];
 
@@ -221,6 +277,7 @@ function go(tab, arg) {
   else if (tab === 'shows') renderCategory(pg, 'series');
   else if (tab === 'live') renderLive(pg);
   else if (tab === 'sports') renderSports(pg);
+  else if (tab === 'mylist') renderMyList(pg);
   else if (tab === 'search') renderSearch(pg);
   else if (tab === 'detail') renderDetail(pg, arg);
 }
@@ -287,7 +344,8 @@ async function renderHome(pg) {
     ${rowHtml('Top 10 Movies & Shows Today', top.map((m, i) => `<div class="top10" data-type="${m.type}" data-id="${m.id}"><div class="num">${i + 1}</div>${cardHtml(m, m.type)}</div>`).join(''))}
     ${rowHtml('Popular Movies', mv.slice(0, 30).map(m => cardHtml(m, 'movie')).join(''), 'movie')}
     ${rowHtml('Popular TV Shows', sr.slice(0, 30).map(m => cardHtml(m, 'series')).join(''), 'series')}
-    <div id="genres"></div><div style="height:60px"></div>`;
+    <div id="mylistrow"></div><div id="genres"></div><div style="height:60px"></div>`;
+  if (acct.mylist.length) myListItems(30).then(l => { if (l.length && $('#mylistrow')) { $('#mylistrow').innerHTML = rowHtml('My List', l.map(m => cardHtml(m, m.type)).join('')); wireRows($('#mylistrow')); } });
   const drawHero = () => {
     const m = featured[idx]; if (!m) return;
     $('#herobox').innerHTML = heroHtml(m, m.type, idx, featured.length);
@@ -304,6 +362,19 @@ async function renderHome(pg) {
     if (current !== 'home' || !$('#genres')) return;
     if (l.length) { $('#genres').insertAdjacentHTML('beforeend', rowHtml(title, l.slice(0, 30).map(m => cardHtml(m, type)).join(''))); wireRows($('#genres')); }
   }
+}
+
+async function myListItems(max) {
+  const ids = acct.mylist.map(ttOf).filter(Boolean).slice(0, max);
+  const metas = await Promise.all(ids.map(async tt => (await metaOf('series', tt)) || (await metaOf('movie', tt))));
+  return metas.filter(Boolean);
+}
+async function renderMyList(pg) {
+  pg.innerHTML = '<div class="search"><h1 style="font-size:40px;margin:0 0 24px">My List</h1><div class="grid" id="ml"><div class="spin" style="grid-column:1/-1"></div></div></div>';
+  const l = await myListItems(120);
+  if (current !== 'mylist' || !$('#ml')) return;
+  $('#ml').innerHTML = l.length ? l.map(m => cardHtml(m, m.type)).join('') : '<div class="empty" style="grid-column:1/-1;padding:20px 0">Nothing in My List yet. Add titles with the + My List button on a title page (here or on the TV).</div>';
+  wireRows($('#ml'));
 }
 
 async function renderCategory(pg, type) {
@@ -349,12 +420,13 @@ async function renderDetail(pg, { type, id }) {
       <img class="logo" src="${esc(m.logo || logoOf(id))}" onerror="this.outerHTML='<h1 class=htitle>${esc(m.name).replace(/'/g, '&#39;')}</h1>'">
       <div class="meta">${m.imdbRating ? `<span class="match">${matchPct(m)}% Match</span>` : ''}<span>${esc(m.releaseInfo || m.year || '')}</span>${runtime ? `<span>${runtime}</span>` : ''}${seasons.length ? `<span>${seasons.length} Season${seasons.length > 1 ? 's' : ''}</span>` : ''}${m.imdbRating ? `<span>IMDb ${esc(m.imdbRating)}</span>` : ''}<span class="q">HD</span></div>
       <p class="desc">${esc(m.description || '')}</p>
-      <div class="btns"><button class="btn primary" id="dplay">&#x25B6;&nbsp; ${resume ? (resume.s ? `Resume S${resume.s} E${resume.e}` : 'Resume') : 'Play'}</button>${m.trailers && m.trailers.length ? '<button class="btn" id="trl">Trailer</button>' : ''}</div>
+      <div class="btns"><button class="btn primary" id="dplay">&#x25B6;&nbsp; ${resume ? (resume.s ? `Resume S${resume.s} E${resume.e}` : 'Resume') : 'Play'}</button><button class="btn" id="mlb">${acct.mylist.includes('stremio:' + id) ? '&#x2713;&nbsp; My List' : '+&nbsp; My List'}</button>${m.trailers && m.trailers.length ? '<button class="btn" id="trl">Trailer</button>' : ''}</div>
       <div class="cast">${(m.genres || []).length ? `<b>Genres:</b> ${esc(m.genres.join(', '))}<br>` : ''}${(m.cast || []).length ? `<b>Cast:</b> ${esc(m.cast.slice(0, 6).join(', '))}` : ''}</div>
     </div></div>
     ${type === 'series' ? `<div class="section"><h3>Episodes <span id="sn"></span></h3><div class="eps"><div class="seasons" id="seasons"></div><div class="eplist" id="eplist"></div></div></div>` : ''}
     <div id="more"></div><div style="height:60px"></div></div>`;
   $('#back').onclick = () => go(navStack.pop() || 'home');
+  $('#mlb').onclick = async () => { const on = await toggleMyList('stremio:' + id); $('#mlb').innerHTML = on ? '&#x2713;&nbsp; My List' : '+&nbsp; My List'; toast(on ? 'Added to My List' : 'Removed from My List', 1800); };
   if (m.trailers && m.trailers.length) $('#trl').onclick = () => window.open('https://www.youtube.com/watch?v=' + m.trailers[0].source);
   const epsOf = s => (m.videos || []).filter(v => v.season === s).sort((a, b) => a.episode - b.episode);
   const drawSeason = () => {
@@ -442,7 +514,7 @@ async function loadLive() {
     const api = `${xt.base}/player_api.php?username=${encodeURIComponent(xt.user)}&password=${encodeURIComponent(xt.pass)}`;
     const [cats, chans] = await Promise.all([fetch(api + '&action=get_live_categories').then(r => r.json()), fetch(api + '&action=get_live_streams').then(r => r.json())]);
     live.cats = (cats || []).map(c => ({ id: String(c.category_id), name: c.category_name }));
-    live.chans = (chans || []).map(c => ({ name: c.name, logo: c.stream_icon, cat: String(c.category_id), url: `${xt.base}/live/${xt.user}/${xt.pass}/${c.stream_id}.ts` }));
+    live.chans = (chans || []).map(c => ({ name: c.name, logo: c.stream_icon, cat: String(c.category_id), sid: c.stream_id, url: `${xt.base}/live/${xt.user}/${xt.pass}/${c.stream_id}.ts` }));
   } else {
     const txt = await fetch(acct.playlist).then(r => r.text());
     const lines = txt.split(/\r?\n/); const cats = new Map();
@@ -462,20 +534,49 @@ async function loadLive() {
   live.cats = live.cats.filter(c => counts[c.id]).map(c => Object.assign(c, { n: counts[c.id] }));
   live.loaded = true;
 }
+// Guide: what is on now and next for each channel (Xtream short EPG, titles are base64), cached 10 minutes
+const epg = new Map();
+const b64 = t => { try { return decodeURIComponent(escape(atob(t || ''))); } catch (e) { return t || ''; } };
+async function epgOf(c) {
+  if (!live.xt || !c.sid) return null;
+  const hit = epg.get(c.sid); if (hit && Date.now() - hit.t < 600000) return hit.v;
+  const api = `${live.xt.base}/player_api.php?username=${encodeURIComponent(live.xt.user)}&password=${encodeURIComponent(live.xt.pass)}`;
+  let v = null;
+  try {
+    const j = await fetch(`${api}&action=get_short_epg&stream_id=${c.sid}&limit=3`).then(r => r.json());
+    const now = Date.now() / 1000;
+    const l = (j.epg_listings || []).map(e => ({ title: b64(e.title), start: +e.start_timestamp, end: +e.stop_timestamp })).filter(e => e.end > now).sort((a, b) => a.start - b.start);
+    if (l.length) v = { now: l[0], next: l[1] || null };
+  } catch (e) {}
+  epg.set(c.sid, { t: Date.now(), v });
+  return v;
+}
+const hm = ts => new Date(ts * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+async function fillGuide(list, root) {
+  const queue = list.slice(0, 120).map((c, i) => [c, i]);
+  const worker = async () => { while (queue.length) { const [c, i] = queue.shift(); const v = await epgOf(c); const el = root.querySelector(`[data-i="${i}"] .epg`); if (!el || !v) continue;
+    const pct = Math.max(0, Math.min(100, (Date.now() / 1000 - v.now.start) * 100 / (v.now.end - v.now.start)));
+    el.innerHTML = `<div class="nowt">${esc(v.now.title)}</div><div class="bar"><i style="width:${pct}%"></i></div>${v.next ? `<div class="nextt">Next ${hm(v.next.start)} · ${esc(v.next.title)}</div>` : ''}`; } };
+  await Promise.all(Array.from({ length: 6 }, worker));
+}
+
 async function renderLive(pg) {
   if (!acct.playlist) { pg.innerHTML = '<div class="empty"><h2 style="color:#fff">Live TV</h2>No playlist in your account yet. Sign in to the same account on the TV with your IPTV playlist set; it syncs here automatically.</div>'; return; }
   pg.innerHTML = '<div class="spin"></div>';
   try { await loadLive(); } catch (e) { pg.innerHTML = `<div class="empty">Your playlist could not be loaded (${esc(e.message)}).</div>`; return; }
   if (current !== 'live') return;
   if (!live.cat) live.cat = (live.cats.find(c => /sport/i.test(c.name)) || live.cats[0] || {}).id;
-  pg.innerHTML = `<div class="livepage"><div class="cats"><input id="lf" placeholder="Find a category"><div id="cl"></div></div><div class="chgrid" id="cg"></div></div>`;
+  pg.innerHTML = `<div class="livepage"><div class="cats"><input id="lf" placeholder="Find a category"><div class="viewsw"><button id="vg" class="${store.get('liveView', 'grid') === 'grid' ? 'on' : ''}">Channels</button><button id="vl" class="${store.get('liveView', 'grid') === 'guide' ? 'on' : ''}">Guide</button></div><div id="cl"></div></div><div class="chgrid ${store.get('liveView', 'grid') === 'guide' ? 'guide' : ''}" id="cg"></div></div>`;
+  $('#vg').onclick = () => { store.set('liveView', 'grid'); renderLive(pg); };
+  $('#vl').onclick = () => { store.set('liveView', 'guide'); renderLive(pg); };
   const drawCats = f => {
     $('#cl').innerHTML = live.cats.filter(c => !f || c.name.toLowerCase().includes(f)).map(c => `<button data-c="${esc(c.id)}" class="${c.id === live.cat ? 'on' : ''}">${esc(c.name)}<span>${c.n}</span></button>`).join('');
     document.querySelectorAll('#cl button').forEach(b => b.onclick = () => { live.cat = b.dataset.c; drawCats(f); drawChans(); });
   };
   const drawChans = () => {
     const l = live.chans.filter(c => c.cat === live.cat).slice(0, 600);
-    $('#cg').innerHTML = l.map((c, i) => `<div class="ch" data-i="${i}"><div class="live">LIVE</div><div class="lg">${c.logo ? `<img loading="lazy" src="${esc(c.logo)}" onerror="this.outerHTML='<b>${esc(c.name.slice(0, 2).toUpperCase())}</b>'">` : `<b>${esc(c.name.slice(0, 2).toUpperCase())}</b>`}</div><div class="nm">${esc(c.name)}</div></div>`).join('');
+    $('#cg').innerHTML = l.map((c, i) => `<div class="ch" data-i="${i}"><div class="live">LIVE</div><div class="lg">${c.logo ? `<img loading="lazy" src="${esc(c.logo)}" onerror="this.outerHTML='<b>${esc(c.name.slice(0, 2).toUpperCase())}</b>'">` : `<b>${esc(c.name.slice(0, 2).toUpperCase())}</b>`}</div><div class="nm">${esc(c.name)}</div><div class="epg"></div></div>`).join('');
+    fillGuide(l, $('#cg'));
     document.querySelectorAll('#cg .ch').forEach(el => el.onclick = () => { const c = l[+el.dataset.i]; play({ url: c.url, title: c.name, sub: 'Live TV', live: true, zap: l, zi: +el.dataset.i }); });
     $('#cg').scrollTop = 0;
   };
@@ -597,7 +698,9 @@ const V = $('#video'); let hls = null, mts = null, cur = null, idleT = null;
 function stopEngines() { if (hls) { hls.destroy(); hls = null; } if (mts) { try { mts.destroy(); } catch (e) {} mts = null; } V.removeAttribute('src'); V.load(); }
 function msg(t) { const m = $('#pl-msg'); if (!t) return m.classList.add('hidden'); m.textContent = t; m.classList.remove('hidden'); }
 function play(item) {
+  if (cur && !cur.live) saveResume(true);
   cur = item; stopEngines(); msg('');
+  $('#player').classList.remove('mini');
   $('#player').classList.remove('hidden');
   $('#pl-title').textContent = item.title || ''; $('#pl-sub').textContent = item.sub || '';
   $('#pl-src').classList.toggle('hidden', !(item.list && item.list.length > 1) && !item.zap);
@@ -650,10 +753,11 @@ function fail(t) {
   if (cur && cur.list && cur.idx + 1 < cur.list.length && !cur.noFallback) { toast('Source did not start – trying the next one'); const n = cur.idx + 1; return play(Object.assign({}, cur, { url: cur.list[n].url, idx: n })); }
   msg(t);
 }
-function closePlayer() { stopEngines(); cur = null; $('#player').classList.add('hidden'); if (document.fullscreenElement) document.exitFullscreen(); }
+function closePlayer() { saveResume(true); if (document.pictureInPictureElement) document.exitPictureInPicture().catch(() => {}); stopEngines(); cur = null; $('#player').classList.add('hidden'); if (document.fullscreenElement) document.exitFullscreen(); }
 function fmt(s) { if (!isFinite(s)) return 'LIVE'; s = Math.floor(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); }
 function poke() { $('#player').classList.remove('idle'); clearTimeout(idleT); idleT = setTimeout(() => { if (!V.paused) $('#player').classList.add('idle'); }, 3000); }
 V.ontimeupdate = () => {
+  saveResume(false);
   const d = V.duration, p = V.currentTime;
   const live = !isFinite(d) || (cur && cur.live);
   $('#pl-seek').style.visibility = live ? 'hidden' : 'visible';
@@ -673,6 +777,14 @@ $('#pl-ff').onclick = () => { V.currentTime = V.currentTime + 10; };
 $('#pl-vol').oninput = e => { V.volume = +e.target.value; };
 $('#pl-full').onclick = () => document.fullscreenElement ? document.exitFullscreen() : $('#player').requestFullscreen();
 $('#pl-back').onclick = closePlayer;
+// Mini player: the video floats in a small macOS window above everything while you keep browsing
+$('#pl-mini').onclick = async () => {
+  try { await V.requestPictureInPicture(); $('#player').classList.add('mini'); } catch (e) { toast('The mini player is not available for this video.'); }
+};
+V.addEventListener('leavepictureinpicture', () => {
+  if ($('#player').classList.contains('mini')) { $('#player').classList.remove('mini'); if (!V.paused && cur) poke(); else closePlayer(); }
+});
+V.onended = () => saveResume(true);
 $('#pl-seek').onclick = e => { const r = e.currentTarget.getBoundingClientRect(); if (isFinite(V.duration)) V.currentTime = (e.clientX - r.left) / r.width * V.duration; };
 $('#pl-src').onclick = () => {
   if (cur.zap) { const z = cur.zap; closePlayer(); return; }
@@ -682,7 +794,7 @@ $('#player').addEventListener('mousemove', poke);
 V.addEventListener('click', () => V.paused ? V.play() : V.pause());
 V.addEventListener('dblclick', () => $('#pl-full').click());
 document.addEventListener('keydown', e => {
-  if ($('#player').classList.contains('hidden') || e.target.tagName === 'INPUT') return;
+  if ($('#player').classList.contains('hidden') || $('#player').classList.contains('mini') || e.target.tagName === 'INPUT') return;
   poke();
   if (e.key === ' ') { e.preventDefault(); V.paused ? V.play() : V.pause(); }
   else if (e.key === 'ArrowRight' && !cur.zap) V.currentTime += 10;

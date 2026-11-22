@@ -226,3 +226,25 @@ input { font: inherit; }
 .team .sc { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .team.lose .tn, .team.lose .sc { color: #8C8C8C; }
 .chlist .src img { width: 46px; height: 30px; object-fit: contain; flex: none; }
+
+/* ---------- guide */
+.viewsw { display: flex; gap: 6px; margin-bottom: 12px; }
+.viewsw button { flex: 1; padding: 8px; border-radius: 6px; background: #1a1a1a; color: #bbb; font-weight: 600; font-size: 14px; }
+.viewsw button.on { background: #fff; color: #000; }
+.ch { height: auto; min-height: 150px; }
+.ch .lg { min-height: 96px; }
+.ch .epg { padding: 0 12px 12px; font-size: 12px; color: var(--soft); }
+.ch .epg .nowt { color: #eee; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ch .epg .bar { height: 3px; background: rgba(255,255,255,.2); border-radius: 2px; margin: 6px 0; overflow: hidden; }
+.ch .epg .bar i { display: block; height: 100%; background: var(--red); }
+.ch .epg .nextt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--grey); }
+.chgrid.guide { display: flex; flex-direction: column; gap: 6px; }
+.chgrid.guide .ch { flex-direction: row; align-items: center; min-height: 76px; border-radius: 6px; }
+.chgrid.guide .ch:hover { transform: none; }
+.chgrid.guide .ch .live { display: none; }
+.chgrid.guide .ch .lg { flex: none; width: 120px; min-height: 76px; padding: 10px 16px; }
+.chgrid.guide .ch .lg img { max-height: 46px; }
+.chgrid.guide .ch .nm { width: 260px; flex: none; padding: 0 12px; font-size: 15px; }
+.chgrid.guide .ch .epg { flex: 1; padding: 0 18px 0 0; font-size: 14px; }
+/* mini player: the page stays usable while the video floats */
+#player.mini { visibility: hidden; pointer-events: none; }
