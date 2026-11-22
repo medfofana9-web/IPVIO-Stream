@@ -75,6 +75,8 @@ fun epgSane(start: Long, end: Long): Boolean {
 object Xmltv {
     var status by mutableStateOf("Noch nicht geladen")
     var channelCount by mutableStateOf(0)
+    /** When the guide was last loaded (ms, 0 = never); the daily game plan reloads it when it gets old. */
+    @Volatile var loadedAt = 0L
     private val progs = ConcurrentHashMap<String, List<EpgEntry>>()
     private val client = Net.withTimeouts(20, 180)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -119,6 +121,7 @@ object Xmltv {
             progs.clear()
             for ((k, v) in map) progs[k] = v.sortedBy { it.start }
             channelCount = progs.size
+            loadedAt = System.currentTimeMillis()
             status = if (progs.isEmpty()) "Keine Programmdaten erhalten (${err ?: "leer"})"
             else if (truncated) "Geladen: ${progs.size} Sender mit Programm (gekürzt, Speicher knapp)"
             else "Geladen: ${progs.size} Sender mit Programm"

@@ -179,6 +179,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStart() {
+        SportPlan.kick()   // back in front: bring the game plan up to date at once
         super.onStart()
         Reminders.foreground = true
     }
@@ -284,6 +285,7 @@ fun App(pick: Boolean = false) {
         else {
             LaunchedEffect(Unit) { delay(10_000); runCatching { SportAlerts.run(c.applicationContext) } }   // after the start: the playlist and the home screen come first
             LaunchedEffect(Unit) { delay(15_000); runCatching { GameDay.run(c.applicationContext) } }   // Fof Game Day: reminders and close-game alerts
+            LaunchedEffect(Unit) { runCatching { SportPlan.run(c.applicationContext) } }   // daily game plan: games matched to channels ahead of time
             Box(Modifier.fillMaxSize()) { AppContent(); SportPlayerOverlay(); SportAlertHost(); QuickMenuHost(); AmbientHost() }
         }
         // New version available: dialog with one button (above every screen)

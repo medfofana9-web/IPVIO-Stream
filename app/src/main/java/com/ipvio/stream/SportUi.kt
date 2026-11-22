@@ -345,11 +345,13 @@ internal fun MatchCard(g: SportData.Game, hasChan: Boolean, modifier: Modifier =
  * row has the same columns. Field events show title and leader.
  */
 @Composable
-internal fun MatchRow(g: SportData.Game, hasChan: Boolean, timeFirst: Boolean = false, onClick: () -> Unit) {
+internal fun MatchRow(g: SportData.Game, hasChan: Boolean, timeFirst: Boolean = false, chanName: String? = null, onClick: () -> Unit) {
     FRow(onClick) {
-        Box(Modifier.width(dpx(150))) {
+        Column(Modifier.width(dpx(150))) {
             if (timeFirst && g.state == 0 && statusKind(g) == 0) Text(raw = true, text = hhmm(g.start), color = Accent2, fontSize = spx(17), fontWeight = FontWeight.Bold)
             else MatchStatus(g)
+            // Where the game is on (from the daily game plan)
+            if (chanName != null) Text(raw = true, text = chanName, color = Muted, fontSize = spx(13), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (g.solo) {
             Column(Modifier.weight(1f)) {

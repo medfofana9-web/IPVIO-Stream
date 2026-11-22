@@ -259,7 +259,7 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     LaunchedEffect(live, Xmltv.channelCount) {
         while (true) {
             val s = withContext(Dispatchers.Default) {
-                SportLogic.matchSlots(live, { Xmltv.forChannel(it.tvgId) }, System.currentTimeMillis() / 1000)
+                SportLogic.matchSlots(live, { Xmltv.forChannel(it.tvgId) }, System.currentTimeMillis() / 1000, SportPlan.HORIZON_SEC)
             }
             SportWatch.setSlots(s)
             delay(60_000)
@@ -283,6 +283,11 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
             }
             // Score box setting at the end of the bar (not first)
             item(key = "scoreov") { FilterPill("Score box", SportAlerts.miniOn, aicon = AIcon.Live, raw = true) { scoreDlg = true } }
+            // Daily game plan: how many of today's games already have a channel
+            if (SportPlan.total > 0) item(key = "plan") {
+                Text(raw = true, text = "Today: " + SportPlan.ready + " of " + SportPlan.total + " games ready to watch", color = Muted, fontSize = spx(14),
+                    modifier = Modifier.padding(start = dpx(8), top = dpx(10)))
+            }
         }
         // Content ends at the tab bar: rows and enlarged tiles never slide over the tabs
         Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
@@ -534,7 +539,7 @@ private fun LazyListScope.groupedGames(games: List<SportData.Game>, hub: HubCtx,
     games.groupBy { it.groupName }.forEach { (name, list) ->
         val l = SportData.leagueOf(list.first())
         item(key = "h$name") { CompetitionHeader(name, l?.let { SportData.leagueLogos[it.path] }, list.count { it.state == 1 }, list.size) }
-        items(list, key = { "g" + it.key }) { g -> MatchRow(g, hub.chans(g).isNotEmpty(), timeFirst) { hub.open(g) } }
+        items(list, key = { "g" + it.key }) { g -> val ch = hub.chans(g).firstOrNull(); MatchRow(g, ch != null, timeFirst, ch?.let { SportNet.stripPrefix(it.title) }) { hub.open(g) } }
     }
 }
 
@@ -578,7 +583,7 @@ private fun HubLive(feed: SportFeed.State, hub: HubCtx, sport: String?, sportReq
                     val next = games.filter { it.state == 0 && statusKind(it) == 0 && sportMatch(it, sport) }.sortedBy { it.start }.take(10)
                     if (next.isNotEmpty()) {
                         item(key = "nt") { HubSectionTitle("Als Nächstes") }
-                        items(next, key = { "n" + it.key }) { g -> MatchRow(g, hub.chans(g).isNotEmpty(), timeFirst = true) { hub.open(g) } }
+                        items(next, key = { "n" + it.key }) { g -> val ch = hub.chans(g).firstOrNull(); MatchRow(g, ch != null, timeFirst = true, chanName = ch?.let { SportNet.stripPrefix(it.title) }) { hub.open(g) } }
                     }
                 }
                 else -> groupedGames(shown, hub, false)

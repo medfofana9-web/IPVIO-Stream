@@ -1,5 +1,12 @@
 # Changelog
 
+## Fof TV – daily game plan
+
+- New `SportPlan`: while the app is on (any screen), today's and tomorrow's games of the switched-on leagues are matched to channels ahead of time, right when the channels are loaded, again each time the app comes back in front (from another app or sleep), and every 15 minutes. Watch Live is ready before the game starts, and the Sports hub shows "Today: N of M games ready to watch".
+- Schedule and Live rows show the channel each game is on.
+- TV guide reloads once it is 12 hours old, and guide shows are matched for the next 30 hours (was 3 hours, only while Sports was open). Guide slots are sorted and looked up by time window, so the longer guide stays fast.
+- Addons are asked ahead of time for games within 3 hours that have no channel yet; a game starting within 2 hours with still no channel goes to the problem list, so it can be fixed before kick-off.
+
 ## Fof TV – sports games find their channels again
 
 - "No matching channel found" no longer shows for games on your channels: team channels (e.g. "NBA INDIANA PACERS"), the networks ESPN lists for the game (ESPN, NBA TV …) and your own earlier picks count as a match again and play with one click. Only guesses from the usual rights holders stay on the manual Watch Live list.

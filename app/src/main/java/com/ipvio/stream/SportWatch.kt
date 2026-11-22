@@ -60,7 +60,17 @@ object SportWatch {
     var version by mutableIntStateOf(0)
         private set
 
-    fun setSlots(s: List<SportLogic.Slot>) { slots = s; version++ }
+    fun setSlots(s: List<SportLogic.Slot>) { slots = s.sortedBy { it.prog.start }; version++ }
+
+    /** Guide slots that start between [lo] and [hi] (slots are sorted by start, so this stays fast with a 30-hour guide). */
+    private fun slotsBetween(lo: Long, hi: Long): List<SportLogic.Slot> {
+        val all = slots
+        var a = 0; var b = all.size
+        while (a < b) { val m = (a + b) ushr 1; if (all[m].prog.start < lo) a = m + 1 else b = m }
+        var e = a
+        while (e < all.size && all[e].prog.start <= hi) e++
+        return all.subList(a, e)
+    }
 
     private val RACE = Regex("""formel\s?1|formula\s?1|\bf1\b|grand\s?prix""", RegexOption.IGNORE_CASE)
     private val GOLF = Regex("""\bgolf\b|\bpga\b""", RegexOption.IGNORE_CASE)
@@ -184,7 +194,7 @@ object SportWatch {
         SportData.channelsFor(g, sport).forEach { out.add(Hit(it, 2, "")) }
         SportData.channelsFor(g, eventChannels(live)).forEach { out.add(Hit(it, 2, "")) }
         val multiDay = g.end > g.start
-        for (s in slots) {
+        for (s in slotsBetween(g.start - 90 * 60, if (multiDay) maxOf(g.end, g.start + 90 * 60) else g.start + 90 * 60)) {
             val nearStart = kotlin.math.abs(s.prog.start - g.start) <= 90 * 60 ||
                 (multiDay && s.prog.start in g.start..g.end && g.state != 2)
             if (!nearStart || (g.state == 1 && !s.live)) continue

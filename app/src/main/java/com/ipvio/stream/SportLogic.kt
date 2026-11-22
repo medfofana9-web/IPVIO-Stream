@@ -31,10 +31,10 @@ object SportLogic {
     class Slot(val ch: Item, val prog: EpgEntry, val live: Boolean)
 
     /** The match resolver needs the whole guide, including feeds with generic channel labels. */
-    fun matchSlots(channels: List<Item>, progs: (Item) -> List<EpgEntry>, nowSec: Long): List<Slot> = buildList {
+    fun matchSlots(channels: List<Item>, progs: (Item) -> List<EpgEntry>, nowSec: Long, horizonSec: Long = 3 * 3600): List<Slot> = buildList {
         for (channel in channels) {
             for (entry in progs(channel)) {
-                if (entry.end > nowSec && entry.start <= nowSec + 3 * 3600) {
+                if (entry.end > nowSec && entry.start <= nowSec + horizonSec) {
                     add(Slot(channel, entry, entry.start <= nowSec))
                 }
             }

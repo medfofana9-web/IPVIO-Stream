@@ -200,6 +200,7 @@ fun HomeScreen(
     val data = dataState.value ?: prev?.takeIf { it.byId.isNotEmpty() && all.isNotEmpty() } ?: EMPTY_HOME
     val computing = dataState.value == null && prev == null && all.isNotEmpty()
     val live = data.live
+    SportPlan.live = live
     val movies = data.movies
     val series = data.series
     val movieP = data.movieP
