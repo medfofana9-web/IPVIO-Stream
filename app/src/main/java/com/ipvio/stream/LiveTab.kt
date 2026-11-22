@@ -576,6 +576,14 @@ private fun ChannelCard(item: Item, modifier: Modifier, inList: ChList?, onNewLi
     val nowE = Epg.current(epg)
     val nextE = epg.firstOrNull { nowE != null && it.start >= nowE.end }
     val sc by androidx.compose.animation.core.animateFloatAsState(if (f) focusScale(1.04f) else 1f, tween(150), label = "chc")
+    val ctx = LocalContext.current
+    // The channel's own color (from its logo) washes the top of the card; Fof red until it is known
+    val tint by produceState(0, item.logo) {
+        val u = item.logo ?: return@produceState
+        kotlinx.coroutines.delay(250)
+        while (LiveHold.active()) kotlinx.coroutines.delay(120)
+        value = ArtColor.of(ctx, u)
+    }
     Column(
         modifier.fillMaxWidth().height(dpx(190))   // fixed height: cards never grow when guide data arrives
             .graphicsLayer { scaleX = sc; scaleY = sc }
@@ -587,7 +595,7 @@ private fun ChannelCard(item: Item, modifier: Modifier, inList: ChList?, onNewLi
     ) {
         Box(
             Modifier.fillMaxWidth().height(dpx(106))
-                .background(Brush.verticalGradient(listOf(Color(0x1FE60023), Color.Transparent)))
+                .background(Brush.verticalGradient(listOf(if (tint != 0) Color(tint).copy(alpha = 0.7f) else Color(0x1FE60023), Color.Transparent)))
                 .padding(start = dpx(30), end = dpx(30), top = dpx(28), bottom = dpx(6)),
             contentAlignment = Alignment.Center
         ) {

@@ -670,6 +670,11 @@ fun HomeScreen(
                                     } }
                                     "because" -> { /* Fof TV: based on the provider's titles, not shown */ }
                                     "wl" -> { if (wl.isNotEmpty()) item(key = "wl") { ItemsRow("Meine Liste", wl, cardW, onOpen) { onTab(MenuLogic.MYLIST) } } }
+                                    // Shows you follow that got new episodes this week (newest first)
+                                    "newep" -> {
+                                        val ne = NewEpisodes.list.sortedByDescending { it.added }.mapNotNull { n -> lk(n.id) ?: CatalogItems.get(n.id) }.distinctBy { it.id }
+                                        if (ne.isNotEmpty()) item(key = "newep") { ItemsRow("New Episodes This Week", ne, cardW, onOpen) { onTab(2) } }
+                                    }
                                     "hist" -> { if (hist.isNotEmpty()) item(key = "hist") { ItemsRow("Zuletzt geschaut", histTop, cardW, onOpen) { onBrowse(BrowseReq("Zuletzt geschaut", hist, SORT_PLAYLIST)) } } }
                                     "newm" -> { if (movies.isNotEmpty()) item(key = "newm") {
                                         ItemsRow("Recently Added · Movies", newMovies, cardW, onOpen) { onBrowse(BrowseReq("Recently Added · Movies", movies, SORT_NEW)) }
@@ -1108,10 +1113,16 @@ private fun Hero(
 ) {
     val ctx = LocalContext.current
     var idx by remember { mutableIntStateOf(0) }
+    // Trailer running in the card: the slideshow waits until it stops
+    var trailerOn by remember { mutableStateOf(false) }
+    var heroHasFocus by remember { mutableStateOf(false) }
     LaunchedEffect(featured.size, General.heroSec) {
-        while (featured.size > 1 && General.heroSec > 0) { delay(General.heroSec * 1000L); if (!Billboard.active) idx = (idx + 1) % featured.size }
+        while (featured.size > 1 && General.heroSec > 0) { delay(General.heroSec * 1000L); if (!Billboard.active && !trailerOn) idx = (idx + 1) % featured.size }
     }
     val item = featured[idx.coerceIn(0, featured.lastIndex)]
+    val trailerKey = rememberFullMeta(item, rememberMeta(item))?.trailerKey
+    // Read through derivedStateOf: reading the scroll offset directly would recompose the hero on every scroll frame
+    val atTop by remember { derivedStateOf { scrollY() == 0 } }
     // Very long crossfades render two large backdrops at once. On a Fire
     // Stick-class GPU that can produce dropped frames during D-pad movement.
     val heroFadeMs = remember(ctx, Look.motion) {
@@ -1126,7 +1137,7 @@ private fun Hero(
     // Same as the Mac app: a rounded card 18 from the top and 28 from the sides, no glow behind it
     val cardShape = RoundedCornerShape(dpx(22))
     val cardTop = dpx(18)
-    Box(Modifier.fillMaxWidth().height(heroH + dpx(40)).background(Bg).clipToBounds().onFocusChanged { if (it.hasFocus) Billboard.cardFocus = false }) {
+    Box(Modifier.fillMaxWidth().height(heroH + dpx(40)).background(Bg).clipToBounds().onFocusChanged { heroHasFocus = it.hasFocus; if (it.hasFocus) Billboard.cardFocus = false }) {
         // Performance (Fire TV / onn): glow, halo, picture and gradients are ONE cached layer – painted once per title,
         // then only composited. No shadow and no inner parallax (both forced a full repaint on every scroll frame).
         Box(Modifier.fillMaxSize().graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }) {
@@ -1136,6 +1147,8 @@ private fun Hero(
                     val m = rememberMeta(c)
                     m?.backdrop?.let { AsyncImage(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopEnd) }
                 }
+                // Netflix: the trailer fades in over the picture after a few seconds on the same title (muted, never focused)
+                HeroTrailer(trailerKey, heroHasFocus && atTop, Modifier.fillMaxSize()) { trailerOn = it }
                 // Light shading only where the text sits (bottom left), the picture stays bright
                 Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Color(0xBF000000), 0.35f to Color(0x59000000), 0.6f to Color.Transparent)))
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to Color(0xD9000000))))

@@ -139,10 +139,18 @@ object SportAlerts {
                             post(Alert(Lang.tr("Dein Team spielt gleich"), g.home.short + " – " + g.away.short + "  ·  " + hhmm(g.start)), 0)
                         }
                         if (prev == null) continue
-                        // Start of the game only: no alert for every score (close games are announced by Game Day)
                         if (prev.state == 0 && g.state == 1) {
-                            post(Alert(Lang.tr("Dein Team spielt jetzt"), g.home.short + " – " + g.away.short + "  ·  " + g.league), 0)
+                            post(Alert(Lang.tr("Dein Team spielt jetzt"), g.home.short + " – " + g.away.short + "  ·  " + g.league, g), 0)
                         }
+                        val line = g.away.short + " " + (a ?: "") + " – " + (h ?: "") + " " + g.home.short
+                        val sp = SportData.sportOf(g)
+                        // A score by either side, for sports where scores are rare (soccer, hockey, football, baseball);
+                        // held back by the delay so the alert does not spoil a stream that lags behind
+                        if (prev.state == 1 && g.state == 1 && h != null && a != null && prev.h != null && prev.a != null &&
+                            (h != prev.h || a != prev.a) && sp in setOf("soccer", "nhl", "nfl", "mlb")) {
+                            launch { post(Alert("Score", line + "  ·  " + g.detail, g), delaySec) }
+                        }
+                        if (prev.state == 1 && g.state == 2) launch { post(Alert("Final", line), delaySec) }
                     }
                 } else { last.clear(); live = emptyList() }
                 delay(if (live.isNotEmpty()) 15_000L else 60_000L)
@@ -164,13 +172,16 @@ fun SportAlertHost() {
     val a = SportAlerts.current
     if (a != null) Box(Modifier.fillMaxSize().padding(top = 28.dp, end = 36.dp), contentAlignment = Alignment.TopEnd) {
         Column(
-            Modifier.widthIn(max = 460.dp).clip(RoundedCornerShape(DS.RadiusM)).background(Color(0xF2141418))
-                .border(2.dp, Accent1, RoundedCornerShape(DS.RadiusM)).padding(horizontal = 20.dp, vertical = 14.dp),
+            Modifier.widthIn(max = 460.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xF21C1C1C))
+                .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(8.dp)).padding(horizontal = 20.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text(a.title, color = Accent2, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
+            // Same look as the Mac app's game cards: a red tag, then the matchup
+            Box(Modifier.clip(RoundedCornerShape(3.dp)).background(Color(0xFFE60023)).padding(horizontal = 7.dp, vertical = 3.dp)) {
+                Text(raw = true, text = a.title.uppercase(), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
+            }
             Text(raw = true, text = a.text, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            if (a.game != null && SportSession.watching != null) Text(raw = true, text = "Press OK to watch", color = Color(0xFFB0B0B8), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            if (a.game != null && AppNav.playing) Text(raw = true, text = "Press OK to watch", color = Color(0xFFB0B0B8), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         }
     }
     val games = SportAlerts.live

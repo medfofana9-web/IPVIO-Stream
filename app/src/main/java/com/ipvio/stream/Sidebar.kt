@@ -189,12 +189,15 @@ val SideStart: androidx.compose.ui.unit.Dp get() = if (SidebarPrefs.pos == Sideb
 @Composable
 fun Sidebar(tab: Int, onTab: (Int) -> Unit, modifier: Modifier, activeFocus: FocusRequester, onFocusIn: (Boolean) -> Unit) {
     var focusIn by remember { mutableStateOf(false) }   // = the sidebar has focus
+    val ctxS = androidx.compose.ui.platform.LocalContext.current
     val pos = SidebarPrefs.pos
     // While the View live preview is open the app is only looked at: the bar does not open by itself (only "always with text" does)
     val expanded = (focusIn && !ViewLive.active) || SidebarPrefs.labels
     val fm = LocalFocusManager.current
     val scope = rememberCoroutineScope()
-    val visible = AppSettings.menuOrder.filter { it !in AppSettings.menuHidden }
+    // Kids profile: no Live TV and no Sports in the menu (only movies and shows, adult titles hidden by the profile lock)
+    val kids = remember(Profiles.active) { Parental.isKids(ctxS, Profiles.active) }
+    val visible = AppSettings.menuOrder.filter { it !in AppSettings.menuHidden && !(kids && (it == 3 || it == MenuLogic.SPORT || it == MenuLogic.EPG)) }
     val activeVisible = tab in visible
     // Back into the content: the direction away from the bar
     val outKey = when (pos) { SidebarPrefs.RIGHT -> Key.DirectionLeft; SidebarPrefs.TOP -> Key.DirectionDown; else -> Key.DirectionRight }

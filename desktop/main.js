@@ -7,7 +7,7 @@
 //
 // Streams from IPTV providers are often plain http and send no CORS headers, so web security is off for this
 // private player window (it only loads the app's own files).
-const { app, BrowserWindow, Menu, shell, session, dialog } = require('electron');
+const { app, BrowserWindow, Menu, shell, session, dialog, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -16,6 +16,8 @@ const SHELL = require('./package.json').shell || 1;
 const BUNDLED = path.join(__dirname, 'renderer');
 const CACHE = () => path.join(app.getPath('userData'), 'renderer');
 let win = null;
+let loadedDir = null;   // screens the window shows now (an update downloaded while playing waits for the next load)
+function loadScreens() { loadedDir = rendererDir(); win.loadFile(path.join(loadedDir, 'index.html')); }
 
 // Newest complete downloaded screens, else the ones inside the app
 function rendererDir() {
@@ -83,11 +85,12 @@ async function checkShell() {
 
 async function checkUpdates(manual) {
   try {
-    const fresh = await updateRenderer();
-    if (fresh && win) {
-      // Use the new version right away when nothing is playing; otherwise from the next start
+    await updateRenderer();
+    // Newer screens than the ones on show (just downloaded, or downloaded earlier while something was playing)
+    if (win && rendererDir() !== loadedDir) {
       const playing = await win.webContents.executeJavaScript("!document.getElementById('player').classList.contains('hidden')").catch(() => true);
-      if (!playing) win.loadFile(path.join(rendererDir(), 'index.html'));
+      if (!playing) loadScreens();
+      else if (manual) dialog.showMessageBox(win, { message: 'An update is ready', detail: 'It starts as soon as you close the player.' });
     } else if (manual && win) dialog.showMessageBox(win, { message: 'Fof TV is up to date.' });
     await checkShell();
   } catch (e) {
@@ -111,14 +114,14 @@ function createWindow() {
       backgroundThrottling: false
     }
   });
-  win.loadFile(path.join(rendererDir(), 'index.html'));
+  loadScreens();
   win.once('ready-to-show', () => win.show());
   // Links to web pages open in the normal browser, never inside the player window
   win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
   win.webContents.on('will-navigate', (e, url) => { if (!url.startsWith('file://')) { e.preventDefault(); shell.openExternal(url); } });
   // A downloaded version that fails to load falls back to the one inside the app
   win.webContents.on('did-fail-load', () => {
-    if (rendererDir() !== BUNDLED) { try { fs.unlinkSync(path.join(CACHE(), 'current')); } catch (e) {} win.loadFile(path.join(BUNDLED, 'index.html')); }
+    if (rendererDir() !== BUNDLED) { try { fs.unlinkSync(path.join(CACHE(), 'current')); } catch (e) {} loadScreens(); }
   });
 }
 
@@ -133,11 +136,53 @@ app.whenReady().then(() => {
     { role: 'windowMenu' },
     { role: 'help', submenu: [{ label: 'Fof TV on GitHub', click: () => shell.openExternal('https://github.com/' + REPO) }] }
   ]));
+  // YouTube trailers refuse to play in an embed without a web page as referrer (the app's pages are local files)
+  session.defaultSession.webRequest.onBeforeSendHeaders({ urls: ['*://*.youtube-nocookie.com/*', '*://*.youtube.com/*', '*://*.googlevideo.com/*', '*://*.ytimg.com/*'] }, (d, cb) => {
+    d.requestHeaders.Referer = 'https://fof.tv/'; cb({ requestHeaders: d.requestHeaders });
+  });
+  setupDownloads();
   createWindow();
   // Check at start and every 2 hours while the app is open
   setTimeout(() => checkUpdates(false), 4000);
   setInterval(() => checkUpdates(false), 2 * 60 * 60 * 1000);
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
+
+// ------------------------------------------------------------------ downloads (watch offline)
+// Saved to ~/Movies/Fof TV; the list (title, file, size, progress) lives in the app's folder and is shown on the
+// Downloads page. Only direct links (mp4/mkv/…) download; live channels and HLS playlists are not files.
+const DL_DIR = () => path.join(app.getPath('videos'), 'Fof TV');
+const DL_LIST = () => path.join(app.getPath('userData'), 'downloads.json');
+let downloads = [];
+const pending = [];
+function saveDownloads() { try { fs.writeFileSync(DL_LIST(), JSON.stringify(downloads.map(d => Object.assign({}, d, { item: undefined })))); } catch (e) {} }
+function sendDownloads() { if (win) win.webContents.send('downloads', downloads.map(d => Object.assign({}, d, { item: undefined }))); }
+function setupDownloads() {
+  try { downloads = JSON.parse(fs.readFileSync(DL_LIST(), 'utf8')).filter(d => d.state === 'done' && fs.existsSync(d.file)); } catch (e) { downloads = []; }
+  session.defaultSession.on('will-download', (e, item) => {
+    const meta = pending.shift() || { title: item.getFilename(), id: '' };
+    fs.mkdirSync(DL_DIR(), { recursive: true });
+    const ext = (path.extname(item.getFilename()) || '.mp4').slice(0, 6);
+    const safe = meta.title.replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120) || 'Download';
+    let file = path.join(DL_DIR(), safe + ext); let n = 2;
+    while (fs.existsSync(file)) file = path.join(DL_DIR(), `${safe} (${n++})${ext}`);
+    item.setSavePath(file);
+    const d = { key: Date.now() + '-' + Math.random().toString(36).slice(2, 7), title: meta.title, id: meta.id, file, size: item.getTotalBytes(), got: 0, state: 'running', at: Date.now(), item };
+    downloads.unshift(d); sendDownloads();
+    let last = 0;
+    item.on('updated', () => { d.got = item.getReceivedBytes(); d.size = item.getTotalBytes(); if (Date.now() - last > 700) { last = Date.now(); sendDownloads(); } });
+    item.once('done', (ev, state) => { d.state = state === 'completed' ? 'done' : 'failed'; d.got = item.getReceivedBytes(); delete d.item; saveDownloads(); sendDownloads(); });
+  });
+  ipcMain.on('download', (e, { url, title, id }) => { pending.push({ title, id }); win.webContents.downloadURL(url); });
+  ipcMain.on('downloads', () => sendDownloads());
+  ipcMain.on('download-cancel', (e, key) => { const d = downloads.find(x => x.key === key); if (d && d.item) d.item.cancel(); });
+  ipcMain.on('download-delete', (e, key) => {
+    const d = downloads.find(x => x.key === key); if (!d) return;
+    if (d.item) d.item.cancel();
+    try { fs.unlinkSync(d.file); } catch (x) {}
+    downloads = downloads.filter(x => x !== d); saveDownloads(); sendDownloads();
+  });
+  ipcMain.on('download-show', (e, key) => { const d = downloads.find(x => x.key === key); if (d) shell.showItemInFolder(d.file); });
+}
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

@@ -86,6 +86,7 @@ private val HOME_BLOCKS = listOf(
     LayoutBlock("resume", "Weiterschauen", "Dort weitermachen, wo du aufgehört hast"),
     LayoutBlock("trend", "Top 10 heute", "Die beliebtesten Titel des Tages"),
     LayoutBlock("wl", "Meine Liste", "Titel, die du dir gemerkt hast"),
+    LayoutBlock("newep", "New Episodes This Week", "Shows you watch that got new episodes"),
     LayoutBlock("sportlive", "Live sports", "Games on now: one click plays the right channel"),
     LayoutBlock("stremio", "From your Stremio addons", "Popular movies and series, plus your addons' catalogs"),
     LayoutBlock("because", "Weil du etwas geschaut hast", "Ähnliche Titel zu deinem letzten Film oder deiner letzten Serie"),
@@ -109,11 +110,11 @@ object FofHome {
     fun apply(c: android.content.Context) {
         val p = c.applicationContext.getSharedPreferences("fof_flags", android.content.Context.MODE_PRIVATE)
         // v2 (Netflix order): Continue Watching, My List, Top 10, then the discovery rows
-        // v3 (Mac look): the Mac app's order – Continue Watching, Top 10, My List, then the discovery rows
-        if (p.getBoolean("home_v3", false)) return
+        // v4: adds "New Episodes This Week" after My List. v3 (Mac look): the Mac app's order – Continue Watching, Top 10, My List, then the discovery rows
+        if (p.getBoolean("home_v4", false)) return
         HomeLayout.init(c)
         HomeLayout.reset(c)
-        p.edit().putBoolean("home_v1", true).putBoolean("home_v2", true).putBoolean("home_v3", true).apply()
+        p.edit().putBoolean("home_v1", true).putBoolean("home_v2", true).putBoolean("home_v3", true).putBoolean("home_v4", true).apply()
     }
 }
 

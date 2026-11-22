@@ -252,9 +252,11 @@ const ICONS = {
   movies: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 3v18M17 3v18M3 8h4M3 16h4M17 8h4M17 16h4"/></svg>',
   sports: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>',
   mylist: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>',
-  live: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19 5a10 10 0 0 1 0 14M5 19A10 10 0 0 1 5 5"/></svg>'
+  live: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19 5a10 10 0 0 1 0 14M5 19A10 10 0 0 1 5 5"/></svg>',
+  downloads: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>'
 };
-const NAV = [['search', 'Search'], ['home', 'Home'], ['shows', 'TV Shows'], ['movies', 'Movies'], ['sports', 'Sports'], ['live', 'Live TV'], ['mylist', 'My List']];
+const DL = window.fof && window.fof.downloads;
+const NAV = [['search', 'Search'], ['home', 'Home'], ['shows', 'TV Shows'], ['movies', 'Movies'], ['sports', 'Sports'], ['live', 'Live TV'], ['mylist', 'My List'], ...(DL ? [['downloads', 'Downloads']] : [])];
 let current = 'home';
 const navStack = [];
 
@@ -279,6 +281,7 @@ function go(tab, arg) {
   else if (tab === 'sports') renderSports(pg);
   else if (tab === 'mylist') renderMyList(pg);
   else if (tab === 'search') renderSearch(pg);
+  else if (tab === 'downloads') renderDownloads(pg);
   else if (tab === 'detail') renderDetail(pg, arg);
 }
 function openTitle(type, id) { navStack.push(current); go('detail', { type, id }); }
@@ -312,6 +315,22 @@ function heroHtml(m, type, idx, total) {
       <div class="btns"><button class="btn primary" id="hplay">&#x25B6;&nbsp; Play</button><button class="btn" id="hinfo">&#x24D8;&nbsp; More Info</button></div>
     </div>${total > 1 ? `<div class="dots">${Array.from({ length: total }, (_, i) => `<i class="${i === idx ? 'on' : ''}"></i>`).join('')}</div>` : ''}</div>`;
 }
+// Netflix: after a few seconds on the big picture the trailer fades in over it, muted, and loops
+function trailerIn(hero, type, id, onPlay) {
+  clearTimeout(trailerIn.t); trailerIn.on = false;
+  if (store.get('trailers', true) === false || !hero) return;
+  trailerIn.t = setTimeout(async () => {
+    const m = await metaOf(type, id);
+    const k = m && m.trailers && m.trailers[0] && String(m.trailers[0].source || '').replace(/[^\w-]/g, '');
+    if (!k || !document.body.contains(hero) || !$('#player').classList.contains('hidden')) return;
+    const f = document.createElement('iframe');
+    f.className = 'trailer'; f.allow = 'autoplay; encrypted-media';
+    f.src = `https://www.youtube-nocookie.com/embed/${k}?autoplay=1&mute=1&controls=0&loop=1&playlist=${k}&modestbranding=1&playsinline=1&rel=0&iv_load_policy=3&disablekb=1&fs=0`;
+    $('.bg', hero).after(f);
+    trailerIn.on = true; if (onPlay) onPlay();
+    setTimeout(() => f.classList.add('on'), 1800);
+  }, 4000);
+}
 function matchPct(m) { const r = parseFloat(m.imdbRating); return isNaN(r) ? 90 : Math.max(40, Math.min(99, Math.round(r * 9 + 12))); }
 
 function continueRow() {
@@ -330,6 +349,20 @@ function wireContinue(root) {
     if (tt) openTitle(w.s || w.e ? 'series' : 'movie', tt);
     else if (w.url) play({ url: w.url, title: w.title, start: w.pos });
   });
+}
+
+function handoff(pg) {
+  if (handoff.done) return; handoff.done = true;
+  const w = acct.watch[0]; const tt = w && ttOf(w.id);
+  if (!w || !tt || w.next || !w.ts || Date.now() - w.ts > 60 * 60 * 1000 || (w.dur && w.pos > w.dur * 0.93)) return;
+  const b = document.createElement('div'); b.className = 'handoff';
+  const left = w.dur ? Math.max(1, Math.round((w.dur - w.pos) / 60000)) + ' min left' : '';
+  b.innerHTML = `<img src="${esc(bgOf(tt))}" onerror="this.remove()"><div class="hx"><small>KEEP WATCHING ON THIS MAC</small><b>${esc(w.title)}</b><span>${esc(left)}</span></div><button class="btn primary">&#x25B6;&nbsp; Resume</button><button class="x" title="Close">&#x2715;</button>`;
+  document.body.appendChild(b);
+  setTimeout(() => b.classList.add('on'), 50);
+  const close = () => { b.classList.remove('on'); setTimeout(() => b.remove(), 300); };
+  $('.x', b).onclick = close; setTimeout(close, 20000);
+  $('.btn', b).onclick = () => { close(); const series = w.s || w.e; sources({ type: series ? 'series' : 'movie', id: tt, name: w.title.replace(/\s*S\d+\s*E\d+\s*$/i, ''), season: w.s, episode: w.e, start: w.pos, auto: true }); };
 }
 
 async function renderHome(pg) {
@@ -351,10 +384,17 @@ async function renderHome(pg) {
     $('#herobox').innerHTML = heroHtml(m, m.type, idx, featured.length);
     $('#hplay').onclick = () => openTitle(m.type, m.id, true);
     $('#hinfo').onclick = () => openTitle(m.type, m.id);
+    trailerIn($('#herobox .hero'), m.type, m.id);
   };
   drawHero();
   clearInterval(renderHome.t);
-  renderHome.t = setInterval(() => { if (current !== 'home' || !$('#herobox')) return clearInterval(renderHome.t); idx = (idx + 1) % featured.length; drawHero(); }, 9000);
+  // The slideshow waits while a trailer runs and the big picture is in view
+  renderHome.t = setInterval(() => {
+    if (current !== 'home' || !$('#herobox')) return clearInterval(renderHome.t);
+    if (trailerIn.on && $('#page').scrollTop < 300) return;
+    idx = (idx + 1) % featured.length; drawHero();
+  }, 9000);
+  handoff(pg);
   wireRows(pg); wireContinue(pg);
   pg.querySelectorAll('[data-more]').forEach(s => s.onclick = () => go(s.dataset.more === 'movie' ? 'movies' : 'shows'));
   for (const [title, type, g] of genreRows) {
@@ -426,6 +466,7 @@ async function renderDetail(pg, { type, id }) {
     ${type === 'series' ? `<div class="section"><h3>Episodes <span id="sn"></span></h3><div class="eps"><div class="seasons" id="seasons"></div><div class="eplist" id="eplist"></div></div></div>` : ''}
     <div id="more"></div><div style="height:60px"></div></div>`;
   $('#back').onclick = () => go(navStack.pop() || 'home');
+  trailerIn($('.detail .hero', pg), type, id);
   $('#mlb').onclick = async () => { const on = await toggleMyList('stremio:' + id); $('#mlb').innerHTML = on ? '&#x2713;&nbsp; My List' : '+&nbsp; My List'; toast(on ? 'Added to My List' : 'Removed from My List', 1800); };
   if (m.trailers && m.trailers.length) $('#trl').onclick = () => window.open('https://www.youtube.com/watch?v=' + m.trailers[0].source);
   const epsOf = s => (m.videos || []).filter(v => v.season === s).sort((a, b) => a.episode - b.episode);
@@ -494,10 +535,41 @@ async function sources(req) {
   const list = await streamsFor(req);
   if (!document.body.contains(bg)) return;
   if (!list.length) { $('.sheet', bg).innerHTML = `<h2>${esc(label)}</h2><div class="sub">None of your addons has a playable link for this right now.</div>`; return; }
-  $('.sheet', bg).innerHTML = `<h2>${esc(label)}</h2><div class="sub">${list.length} sources · the ones most likely to play on a Mac first. If one does not start, the next one starts by itself.</div>${list.map((s, i) => `<div class="src" data-i="${i}"><span class="q ${s.quality === '4K' ? 'k4' : s.quality === '1080p' ? 'fhd' : ''}">${esc(s.quality || 'HD?')}</span><div class="nm2"><b>${esc(s.addonName)}</b><small>${esc(s.file)}</small></div>${s.risky ? '<span class="warn" title="Uses a format the Mac player often cannot play">may not play</span>' : ''}<span class="sz">${esc(s.size)}</span></div>`).join('')}`;
+  $('.sheet', bg).innerHTML = `<h2>${esc(label)}</h2><div class="sub">${list.length} sources · the ones most likely to play on a Mac first. If one does not start, the next one starts by itself.</div>${list.map((s, i) => `<div class="src" data-i="${i}"><span class="q ${s.quality === '4K' ? 'k4' : s.quality === '1080p' ? 'fhd' : ''}">${esc(s.quality || 'HD?')}</span><div class="nm2"><b>${esc(s.addonName)}</b><small>${esc(s.file)}</small></div>${s.risky ? '<span class="warn" title="Uses a format the Mac player often cannot play">may not play</span>' : ''}<span class="sz">${esc(s.size)}</span>${DL && canDownload(s.url) ? `<button class="dl" data-d="${i}" title="Download to watch offline">&#x2B73;</button>` : ''}</div>`).join('')}`;
+  bg.querySelectorAll('.dl').forEach(b => b.onclick = e => {
+    e.stopPropagation(); const s = list[+b.dataset.d];
+    DL.start(s.url, label, req.id); b.disabled = true; b.innerHTML = '&#x2713;';
+    toast('Downloading “' + label + '” – see Downloads', 2600);
+  });
   bg.querySelectorAll('.src').forEach(el => el.onclick = () => { bg.remove(); document.removeEventListener('keydown', close); play({ url: list[+el.dataset.i].url, title: req.name, sub: req.type === 'series' ? `S${req.season} E${req.episode}` : '', start: req.start || 0, list, idx: +el.dataset.i, req }); });
   // One click play: with "auto" the best source starts at once (like the TV's one-click setting)
   if (req.auto) bg.querySelector('.src').click();
+}
+
+const canDownload = u => /^https?:/.test(u) && !/\.m3u8(\?|$)|\/live\//i.test(u);
+
+// Downloads page: progress while downloading, then play offline, show in Finder or delete
+let dlList = [];
+if (DL) DL.onChange(l => { dlList = l; if (current === 'downloads' && $('#page')) drawDownloads($('#page')); });
+function renderDownloads(pg) { drawDownloads(pg); DL.list(); }
+function drawDownloads(pg) {
+  const mb = b => b > 0 ? (b > 1e9 ? (b / 1e9).toFixed(1) + ' GB' : Math.round(b / 1e6) + ' MB') : '';
+  pg.innerHTML = `<div class="search"><h1 style="font-size:40px;margin:0 0 8px">Downloads</h1><div style="color:var(--grey);margin-bottom:26px">Saved in Movies › Fof TV. They play without internet.</div>
+    ${dlList.length ? dlList.map(d => {
+      const tt = ttOf(d.id); const pr = d.size > 0 ? Math.round(d.got * 100 / d.size) : 0;
+      return `<div class="dlrow" data-k="${esc(d.key)}"><div class="dlimg">${tt ? `<img src="${esc(bgOf(tt))}" onerror="this.remove()">` : ''}</div>
+        <div class="dlx"><b>${esc(d.title)}</b><span>${d.state === 'running' ? `Downloading · ${pr}% of ${mb(d.size)}` : d.state === 'done' ? mb(d.size || d.got) : 'Download failed'}</span>${d.state === 'running' ? `<div class="prog"><i style="width:${pr}%"></i></div>` : ''}</div>
+        ${d.state === 'done' ? '<button class="btn primary" data-a="play">&#x25B6;&nbsp; Play</button><button class="btn" data-a="show">Show</button>' : ''}
+        <button class="btn" data-a="${d.state === 'running' ? 'cancel' : 'del'}">${d.state === 'running' ? 'Cancel' : 'Delete'}</button></div>`;
+    }).join('') : '<div class="empty" style="padding:30px 0">Nothing downloaded yet. On a title, pick a source and press the download arrow next to it.</div>'}</div>`;
+  pg.querySelectorAll('.dlrow button').forEach(b => b.onclick = () => {
+    const d = dlList.find(x => x.key === b.closest('.dlrow').dataset.k); if (!d) return;
+    const a = b.dataset.a;
+    if (a === 'play') play({ url: 'file://' + d.file.split('/').map(encodeURIComponent).join('/'), title: d.title, sub: 'Downloaded' });
+    else if (a === 'show') DL.show(d.key);
+    else if (a === 'cancel') DL.cancel(d.key);
+    else if (a === 'del') DL.remove(d.key);
+  });
 }
 
 // ------------------------------------------------------------------ live TV (account playlist: Xtream or M3U)
@@ -577,12 +649,49 @@ async function renderLive(pg) {
     const l = live.chans.filter(c => c.cat === live.cat).slice(0, 600);
     $('#cg').innerHTML = l.map((c, i) => `<div class="ch" data-i="${i}"><div class="live">LIVE</div><div class="lg">${c.logo ? `<img loading="lazy" src="${esc(c.logo)}" onerror="this.outerHTML='<b>${esc(c.name.slice(0, 2).toUpperCase())}</b>'">` : `<b>${esc(c.name.slice(0, 2).toUpperCase())}</b>`}</div><div class="nm">${esc(c.name)}</div><div class="epg"></div></div>`).join('');
     fillGuide(l, $('#cg'));
-    document.querySelectorAll('#cg .ch').forEach(el => el.onclick = () => { const c = l[+el.dataset.i]; play({ url: c.url, title: c.name, sub: 'Live TV', live: true, zap: l, zi: +el.dataset.i }); });
+    document.querySelectorAll('#cg .ch').forEach(el => el.onclick = () => { stopPreview(); const c = l[+el.dataset.i]; play({ url: c.url, title: c.name, sub: 'Live TV', live: true, zap: l, zi: +el.dataset.i }); });
+    // The channel's own color from its logo, and a muted preview after resting on a card for a moment
+    document.querySelectorAll('#cg .ch').forEach(el => {
+      const img = $('.lg img', el);
+      if (img) { const tint = () => { const c = logoColor(img); if (c) $('.lg', el).style.background = `linear-gradient(180deg, ${c}, transparent)`; }; img.complete ? tint() : img.addEventListener('load', tint, { once: true }); }
+      if (store.get('liveView', 'grid') === 'grid') {
+        el.onmouseenter = () => { clearTimeout(previewT); previewT = setTimeout(() => startPreview(el, l[+el.dataset.i]), 1200); };
+        el.onmouseleave = () => { clearTimeout(previewT); stopPreview(); };
+      }
+    });
     $('#cg').scrollTop = 0;
   };
   $('#lf').oninput = e => drawCats(e.target.value.toLowerCase().trim());
   drawCats(''); drawChans();
 }
+
+// Average color of a logo (colorful pixels count more), as a deep tone for the card's top
+function logoColor(img) {
+  try {
+    const c = document.createElement('canvas'); c.width = c.height = 24; const x = c.getContext('2d'); x.drawImage(img, 0, 0, 24, 24);
+    const d = x.getImageData(0, 0, 24, 24).data; let r = 0, g = 0, b = 0, w = 0;
+    for (let i = 0; i < d.length; i += 4) { if (d[i + 3] < 40) continue; const mx = Math.max(d[i], d[i + 1], d[i + 2]), mn = Math.min(d[i], d[i + 1], d[i + 2]); const s = mx ? (mx - mn) / mx : 0; const wt = 0.05 + s * s * mx / 255; r += d[i] * wt; g += d[i + 1] * wt; b += d[i + 2] * wt; w += wt; }
+    if (!w) return null; r /= w; g /= w; b /= w;
+    if (Math.max(r, g, b) - Math.min(r, g, b) < 25) return null;
+    const k = 120 / Math.max(r, g, b); return `rgba(${Math.round(r * k)},${Math.round(g * k)},${Math.round(b * k)},.75)`;
+  } catch (e) { return null; }
+}
+let previewT = null, preview = null;
+function startPreview(el, c) {
+  stopPreview();
+  if (!$('#player').classList.contains('hidden') || !window.Hls || !Hls.isSupported()) return;
+  const xt = /\/live\/[^/]+\/[^/]+\/\d+\.ts(\?|$)/.test(c.url);
+  const u = xt ? c.url.replace(/\.ts(\?|$)/, '.m3u8$1') : c.url;
+  if (!/m3u8/i.test(u)) return;
+  const v = document.createElement('video'); v.className = 'pv'; v.muted = true; v.playsInline = true;
+  const h = new Hls({ maxBufferLength: 8, enableWorker: true });
+  h.loadSource(u); h.attachMedia(v);
+  h.on(Hls.Events.ERROR, (e, d) => { if (d.fatal) stopPreview(); });
+  v.oncanplay = () => { v.play().catch(() => {}); v.classList.add('on'); };
+  $('.lg', el).appendChild(v);
+  preview = { h, v };
+}
+function stopPreview() { if (!preview) return; try { preview.h.destroy(); } catch (e) {} preview.v.remove(); preview = null; }
 
 // ------------------------------------------------------------------ sports (ESPN scoreboards, like the TV's Sports)
 const LEAGUES = [
@@ -699,6 +808,8 @@ function stopEngines() { if (hls) { hls.destroy(); hls = null; } if (mts) { try 
 function msg(t) { const m = $('#pl-msg'); if (!t) return m.classList.add('hidden'); m.textContent = t; m.classList.remove('hidden'); }
 function play(item) {
   if (cur && !cur.live) saveResume(true);
+  clearInterval(endOfTitle.t); const pe = $('#pl-end'); if (pe) pe.remove();
+  clearTimeout(trailerIn.t); document.querySelectorAll('iframe.trailer').forEach(f => f.remove()); trailerIn.on = false;
   cur = item; stopEngines(); msg('');
   $('#player').classList.remove('mini');
   $('#player').classList.remove('hidden');
@@ -784,7 +895,35 @@ $('#pl-mini').onclick = async () => {
 V.addEventListener('leavepictureinpicture', () => {
   if ($('#player').classList.contains('mini')) { $('#player').classList.remove('mini'); if (!V.paused && cur) poke(); else closePlayer(); }
 });
-V.onended = () => saveResume(true);
+V.onended = () => { saveResume(true); endOfTitle(); };
+async function endOfTitle() {
+  const it = cur; if (!it || it.live || !it.req) return;
+  const req = it.req;
+  const box = document.createElement('div'); box.id = 'pl-end'; $('#player').appendChild(box);
+  const clear = () => { clearInterval(endOfTitle.t); box.remove(); };
+  $('#pl-back').addEventListener('click', clear, { once: true });
+  if (req.type === 'series') {
+    const m = await metaOf('series', req.id);
+    const eps = ((m && m.videos) || []).filter(v => v.season > 0).sort((a, b) => a.season - b.season || a.episode - b.episode);
+    const i = eps.findIndex(v => v.season === req.season && v.episode === req.episode);
+    const nx = i >= 0 ? eps[i + 1] : null;
+    if (nx) {
+      let n = 8;
+      box.innerHTML = `<div class="nextcard">${nx.thumbnail ? `<img src="${esc(nx.thumbnail)}" onerror="this.remove()">` : ''}<div><small>NEXT EPISODE</small><b>S${nx.season} E${nx.episode} · ${esc(nx.name || nx.title || '')}</b></div><button class="btn primary" id="nxgo">&#x25B6;&nbsp; Play in <span id="nxn">${n}</span></button><button class="btn" id="nxno">Cancel</button></div>`;
+      const goNext = () => { clear(); closePlayer(); sources({ type: 'series', id: req.id, name: req.name, season: nx.season, episode: nx.episode, auto: true }); };
+      $('#nxgo', box).onclick = goNext;
+      $('#nxno', box).onclick = clear;
+      endOfTitle.t = setInterval(() => { n--; const s = $('#nxn', box); if (s) s.textContent = n; if (n <= 0) goNext(); }, 1000);
+      return;
+    }
+  }
+  const m = await metaOf(req.type, req.id);
+  const g = m && (m.genres || [])[0];
+  const l = g ? (await catalog(req.type, 'genre=' + encodeURIComponent(g))).filter(x => x.id !== req.id).slice(0, 6) : [];
+  if (!l.length) return clear();
+  box.innerHTML = `<div class="morelike"><small>${esc(req.name)}</small><h2>More Like This</h2><div class="mlrow">${l.map(x => cardHtml(x, req.type)).join('')}</div></div>`;
+  box.querySelectorAll('[data-id]').forEach(c => c.onclick = () => { clear(); closePlayer(); openTitle(c.dataset.type, c.dataset.id); });
+}
 $('#pl-seek').onclick = e => { const r = e.currentTarget.getBoundingClientRect(); if (isFinite(V.duration)) V.currentTime = (e.clientX - r.left) / r.width * V.duration; };
 $('#pl-src').onclick = () => {
   if (cur.zap) { const z = cur.zap; closePlayer(); return; }

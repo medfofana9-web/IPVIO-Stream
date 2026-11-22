@@ -59,6 +59,8 @@ object General {
     var cardArt by mutableIntStateOf(0)
     /** Switch time of the start banner in seconds, 0 = do not switch automatically */
     var heroSec by mutableIntStateOf(9)
+    /** Trailer plays muted in the big picture after a few seconds (-1 = not chosen: on unless the device is a low-memory stick). */
+    var heroTrailer by mutableIntStateOf(-1)
     /** Clock next to the profile icon (default: on). */
     var showClock by mutableStateOf(true)
     /** Sports: show real results (unofficial ESPN source). When off, the sports area uses only playlist and TV guide. */
@@ -147,6 +149,7 @@ object General {
         textScaleIdx = p.getInt("text_scale", 1).coerceIn(0, TEXT_SCALES.lastIndex)
         defaultAspect = p.getInt("aspect", 0).coerceIn(0, ASPECT_NAMES.lastIndex)
         heroSec = p.getInt("hero_sec", 9).coerceIn(0, 60)
+        heroTrailer = p.getInt("hero_trailer", -1).coerceIn(-1, 1)
         showClock = p.getBoolean("show_clock", true)
         sportLive = p.getBoolean("sport_live", true)
         fitX = p.getInt("fit_x", 0).coerceIn(0, 10)
@@ -195,6 +198,8 @@ object General {
         fitX = x.coerceIn(0, 10); fitY = y.coerceIn(0, 10)
         prefs(c).edit().putInt("fit_x", fitX).putInt("fit_y", fitY).apply()
     }
+    fun setHeroTrailer(c: Context, on: Boolean) { heroTrailer = if (on) 1 else 0; prefs(c).edit().putInt("hero_trailer", heroTrailer).apply() }
+    fun trailersOn(c: Context): Boolean = if (heroTrailer < 0) Mem.tier(c) > 0 else heroTrailer == 1
     fun setHeroSec(c: Context, v: Int) { heroSec = v.coerceIn(0, 60); prefs(c).edit().putInt("hero_sec", heroSec).apply() }
     fun markRefreshed(c: Context) { lastRefresh = System.currentTimeMillis(); prefs(c).edit().putLong("last_refresh", lastRefresh).apply() }
 

@@ -1,5 +1,24 @@
 # Changelog
 
+## Fof TV – trailers, More Like This, score alerts, new episodes
+
+- Trailers: after 4 seconds on the big picture (Home, Movies, TV Shows, title page) the trailer fades in over it, muted, and loops; the slideshow waits while it runs. It never takes the remote focus. On by default except on low-memory sticks; Settings > View > "Trailers in the banner" switches it.
+- More Like This: at the end of a movie or the last episode, five recommendations show over the last frame; OK opens a title's page, Back closes the player. Without recommendations the player closes after a few seconds.
+- Sports alerts for your teams: also a pop-up for every score (soccer, hockey, football, baseball) and the final result, held back by the alert delay so a lagging stream is not spoiled. In the player OK switches to the game. The pop-up has the Mac look (red tag, dark card).
+- Home: "New Episodes This Week" row (shows you watch that got new episodes) after My List.
+- Live TV cards take the channel's own color from its logo.
+- Kids profiles: no Live TV and no Sports in the menu.
+
+## Fof TV for Mac 0.3 – trailers, downloads, keep watching
+
+- Trailers fade in over the big picture (Home and title page), muted.
+- Next episode: an 8-second countdown card at the end of an episode; at the end of a movie or show, More Like This.
+- Keep watching on this Mac: a card at the bottom when something was watched on the TV in the last hour, Resume starts it at the same spot.
+- Live TV: channel cards take the logo's color; resting the mouse on a card plays a muted preview.
+- Downloads: a download arrow next to each source saves it to Movies › Fof TV, with a Downloads page (progress, play offline, show in Finder, delete).
+- "Check for Updates" no longer says "up to date" while newer screens wait to load.
+- New app shell (shell 3): one reinstall.
+
 ## Fof TV – same look as the Mac app
 
 - Side rail like the Mac app: plain black, 84 wide, red active item, white focus. Menu order Search, Home, TV Shows, Movies, Sports, Live TV, My List; Settings and phone search sit at the bottom. TV guide, Favorites and History are hidden once (Settings > Menu shows them again). The rail is put back on the left once on every profile.

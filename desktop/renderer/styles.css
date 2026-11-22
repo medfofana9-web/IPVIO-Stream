@@ -248,3 +248,51 @@ input { font: inherit; }
 .chgrid.guide .ch .epg { flex: 1; padding: 0 18px 0 0; font-size: 14px; }
 /* mini player: the page stays usable while the video floats */
 #player.mini { visibility: hidden; pointer-events: none; }
+
+/* ---------- trailer over the big picture (fades in after a few seconds) */
+.hero iframe.trailer { position: absolute; top: 50%; left: 50%; width: 120%; height: 120%; transform: translate(-50%, -50%); border: 0; pointer-events: none; opacity: 0; transition: opacity .7s; }
+.hero iframe.trailer.on { opacity: 1; }
+
+/* ---------- keep watching on this Mac */
+.handoff { position: fixed; right: 28px; bottom: 28px; z-index: 70; display: flex; align-items: center; gap: 16px; background: #1C1C1C; border-radius: 10px; padding: 12px 14px 12px 12px; box-shadow: 0 20px 60px rgba(0,0,0,.7); transform: translateY(140%); transition: transform .3s; max-width: 640px; }
+.handoff.on { transform: none; }
+.handoff img { width: 132px; height: 74px; object-fit: cover; border-radius: 6px; }
+.handoff .hx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.handoff .hx small { color: var(--red); font-weight: 800; font-size: 11px; letter-spacing: 1.5px; }
+.handoff .hx b { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.handoff .hx span { color: var(--soft); font-size: 13px; }
+.handoff .btn { height: 42px; padding: 0 18px; font-size: 15px; }
+.handoff .x { color: var(--grey); font-size: 16px; width: 30px; height: 30px; }
+.handoff .x:hover { color: #fff; }
+
+/* ---------- end of a title: next episode / More Like This */
+#pl-end { position: absolute; inset: 0; z-index: 5; display: flex; align-items: flex-end; justify-content: flex-end; padding: 0 40px 110px; pointer-events: none; }
+#pl-end > * { pointer-events: auto; }
+.nextcard { display: flex; align-items: center; gap: 16px; background: rgba(20,20,20,.92); border-radius: 10px; padding: 14px; max-width: 720px; }
+.nextcard img { width: 160px; height: 90px; object-fit: cover; border-radius: 6px; }
+.nextcard small { color: var(--soft); font-weight: 800; font-size: 11px; letter-spacing: 1.5px; }
+.nextcard b { display: block; font-size: 17px; margin-top: 4px; }
+.nextcard .btn { height: 44px; padding: 0 18px; font-size: 15px; white-space: nowrap; }
+#pl-end:has(.morelike) { background: linear-gradient(180deg, rgba(0,0,0,.2), rgba(0,0,0,.92)); justify-content: flex-start; padding: 0 56px 70px; }
+.morelike small { color: var(--soft); font-size: 16px; font-weight: 600; }
+.morelike h2 { font-size: 32px; margin: 6px 0 18px; }
+.mlrow { display: flex; gap: 14px; }
+.mlrow .card { width: 170px; }
+
+/* ---------- live: muted preview when resting on a channel card */
+.ch .lg { position: relative; }
+.ch video.pv { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .4s; background: #000; }
+.ch video.pv.on { opacity: 1; }
+
+/* ---------- downloads */
+.src .dl { flex: none; width: 34px; height: 34px; border-radius: 50%; font-size: 18px; color: var(--soft); }
+.src .dl:hover { background: rgba(0,0,0,.12); color: #000; }
+.dlrow { display: flex; align-items: center; gap: 18px; padding: 12px; border-radius: 8px; background: #141414; margin-bottom: 10px; }
+.dlimg { width: 160px; height: 90px; border-radius: 6px; overflow: hidden; background: #1F1F1F; flex: none; }
+.dlimg img { width: 100%; height: 100%; object-fit: cover; }
+.dlx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.dlx b { font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dlx span { color: var(--soft); font-size: 14px; }
+.dlx .prog { height: 4px; background: rgba(255,255,255,.2); border-radius: 2px; overflow: hidden; }
+.dlx .prog i { display: block; height: 100%; background: var(--red); }
+.dlrow .btn { height: 40px; padding: 0 16px; font-size: 15px; }

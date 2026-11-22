@@ -246,6 +246,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     var interact by remember { mutableLongStateOf(System.currentTimeMillis()) }
     // Netflix: after about 90 minutes of autoplay without a key press, ask before the next episode
     var stillAsk by remember { mutableStateOf<Episode?>(null) }
+    // End of a movie / the last episode: "More Like This" over the last frame
+    var postPlay by remember { mutableStateOf(false) }
     var flash by remember { mutableStateOf<Flash?>(null) }
     var info by remember { mutableStateOf<String?>(null) }
     var infoFor by remember { mutableStateOf("") }
@@ -839,6 +841,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 val nx = epList[epIdx + 1]
                 if (System.currentTimeMillis() - interact > 90 * 60_000L) { player.pause(); stillAsk = nx } else playEpisode(nx)
             }
+            else if (!cur.live && !hasNext && WatchParty.state == null && cur.archive == null) postPlay = true
         }
     })
 
@@ -849,6 +852,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         if (now - lastBackAt < 350) return
         lastBackAt = now
         when {
+            postPlay -> onBack()
             partyPanel -> partyPanel = false
             scrubTarget >= 0 -> { scrubTarget = -1L; if (resumeAfterScrub) { resumeAfterScrub = false; player.play() } }
             panel != Panel.NONE -> closePanel()
@@ -1735,6 +1739,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             }
         }
 
+        if (postPlay) PostPlay(seriesItem ?: curItem ?: CatalogItems.get(cur.itemId), seriesItem?.title ?: cur.title,
+            onOpen = { OpenTitle.req = it; onBack() }, onClose = { onBack() })
         stillAsk?.let { nx -> StillWatching(seriesItem?.title ?: cur.title, nx,
             onContinue = { stillAsk = null; interact = System.currentTimeMillis(); playEpisode(nx) },
             onStop = { stillAsk = null; onBack() }) }

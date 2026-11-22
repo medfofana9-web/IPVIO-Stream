@@ -495,6 +495,8 @@ private fun DetailScreenFull(
                     Box(Modifier.matchParentSize().clip(RoundedCornerShape(dpx(22))).background(Color(0xFF111111))
                         .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }) {
                         meta?.backdrop?.let { AsyncImage(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter) }
+                        // Trailer fades in over the picture after a few seconds on the page's buttons (muted, never focused)
+                        if (showActions) HeroTrailer(meta?.trailerKey, heroFocused, Modifier.fillMaxSize())
                         Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Color(0xD9000000), 0.4f to Color(0x66000000), 0.65f to Color.Transparent)))
                         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xD9000000))))
                     }

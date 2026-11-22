@@ -546,6 +546,13 @@ private fun AppContent() {
         adding = false
         start(Item("fof-test", Kind.LIVE, "Test stream", null, u, null, "Test"), "Test stream", u)
     }
+    // "More Like This" at the end of a movie: the player closes itself, then the chosen title's page opens
+    LaunchedEffect(OpenTitle.req, playing) {
+        val it = OpenTitle.req ?: return@LaunchedEffect
+        if (playing != null) return@LaunchedEffect
+        OpenTitle.req = null
+        pushTop(it)
+    }
     // Reminder notification tapped: open the channel as soon as the list is loaded
     LaunchedEffect(AppNav.openChannel, liveAll) {
         val id = AppNav.openChannel ?: return@LaunchedEffect
