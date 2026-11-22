@@ -91,6 +91,7 @@ fun StremioSourcesPopup(
     fun choose(s: Stremio.Source) {
         NowSources.set(item.id, imdb, want, Stremio.rank((sources ?: partial) + listOfNotNull(iptv), want, cid), s)
         val title = item.title + if (series) " S${season}E$ep" else ""
+        StartCover.set(item.id, item.title, if (series) "Season $season  ·  Episode $ep" else "", backdrop)
         if (s.hash == null) { onDismiss(); onPlay(s.url, title, 0L) }
         else if (!resolving) {
             resolving = true; rdError = null
@@ -460,19 +461,34 @@ internal fun PlayerSourcePicker(
 @Composable
 internal fun StartScreen(title: String, sub: String, backdrop: String?, note: String, onBack: () -> Unit) {
     Popup(alignment = Alignment.Center, onDismissRequest = onBack, properties = PopupProperties(focusable = true)) {
-        Box(Modifier.fillMaxSize().background(Color.Black)) {
-            if (backdrop != null) coil.compose.AsyncImage(backdrop, null, Modifier.fillMaxSize().graphicsLayer { alpha = 0.55f },
-                contentScale = androidx.compose.ui.layout.ContentScale.Crop, alignment = Alignment.TopCenter)
-            Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Color(0xE6000000), Color(0x66000000), Color(0x14000000)))))
-            Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xD9000000))))
-            Column(Modifier.align(Alignment.BottomStart).padding(start = 64.dp, bottom = 72.dp).widthIn(max = 640.dp)) {
-                Text(title, color = Color.White, fontSize = 44.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 48.sp, raw = true)
-                if (sub.isNotEmpty()) Text(sub, color = Color(0xFFB3B3B3), fontSize = 18.sp, modifier = Modifier.padding(top = 6.dp), raw = true)
-                LoadLine(Modifier.padding(top = 26.dp, bottom = 12.dp))
-                Text(note, color = Color(0xFF8C8C8C), fontSize = 14.sp, raw = true)
-            }
+        StartPicture(Modifier.fillMaxSize(), title, sub, backdrop, note)
+    }
+}
+
+@Composable
+internal fun StartPicture(modifier: Modifier, title: String, sub: String, backdrop: String?, note: String) {
+    Box(modifier.background(Color.Black)) {
+        if (backdrop != null) coil.compose.AsyncImage(backdrop, null, Modifier.fillMaxSize().graphicsLayer { alpha = 0.55f },
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop, alignment = Alignment.TopCenter)
+        Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Color(0xE6000000), Color(0x66000000), Color(0x14000000)))))
+        Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xD9000000))))
+        Column(Modifier.align(Alignment.BottomStart).padding(start = 64.dp, bottom = 72.dp).widthIn(max = 640.dp)) {
+            Text(title, color = Color.White, fontSize = 44.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 48.sp, raw = true)
+            if (sub.isNotEmpty()) Text(sub, color = Color(0xFFB3B3B3), fontSize = 18.sp, modifier = Modifier.padding(top = 6.dp), raw = true)
+            LoadLine(Modifier.padding(top = 26.dp, bottom = 12.dp))
+            Text(note, color = Color(0xFF8C8C8C), fontSize = 14.sp, raw = true)
         }
     }
+}
+
+/** The title shown from Play until the player has its first picture (same look as the start screen). */
+object StartCover {
+    private var id: String? = null; private var title = ""; private var sub = ""; private var art: String? = null; private var at = 0L
+    fun set(itemId: String, t: String, s: String, a: String?) { id = itemId; title = t; sub = s; art = a; at = System.currentTimeMillis() }
+    /** Only for the title just started from Play (and not for a stale one from long ago). */
+    fun owns(itemId: String, playingTitle: String): Boolean =
+        System.currentTimeMillis() - at < 10 * 60_000L && (itemId == id || (title.isNotEmpty() && playingTitle.startsWith(title)))
+    @Composable fun View(modifier: Modifier, note: String) = StartPicture(modifier, title, sub, art, note)
 }
 
 /** Thin red line moving along a grey track: loading without a spinner. Still with "Motion: off". */

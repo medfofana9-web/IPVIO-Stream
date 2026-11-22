@@ -92,7 +92,8 @@ fun Modifier.screenEnter(key: Any? = Unit): Modifier {
     val a = remember(key) { Animatable(0f) }
     // Keep transitions understated. On low-memory TVs a lengthy alpha layer
     // makes returning rows feel like a redraw or flash.
-    val durationMs = if (lowMemoryTv) 90 else if (Look.motion == 1) 120 else 150
+    // Long enough to read as a fade rather than a cut (one alpha layer, cheap even on budget boxes)
+    val durationMs = if (lowMemoryTv) 160 else if (Look.motion == 1) 200 else 240
     LaunchedEffect(key, durationMs) { a.animateTo(1f, tween(durationMs, easing = FastOutSlowInEasing)) }
     return this.graphicsLayer {
         alpha = a.value

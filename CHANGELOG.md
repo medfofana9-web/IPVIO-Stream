@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased – TV: dead sources skipped fast, smoother transitions
+
+- Fof TV: an addon source that shows no picture is replaced after about 6–8 s (was up to 15 s), quietly ("Trying another copy" instead of the addon's web address).
+- From Play until the first picture the title's picture stays up (no black player, spinner or full red progress bar), then fades into the video.
+- The player fades in and out of black instead of cutting; screens fade in a little longer; the banner pictures crossfade in light mode too; rows glide a little softer. Loading in the player is a thin red line instead of the spinner.
+
 ## Unreleased – TV: Play starts sooner
 
 - Fof TV: Play no longer waits for a file name that confirms the title. The source that played before or a confirmed one starts at once; otherwise the best source that is not another title starts 1.5 s after the first addon answers (slow addons are not waited for). The list opens only when every source looks like another title.

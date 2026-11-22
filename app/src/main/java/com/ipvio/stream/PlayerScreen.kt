@@ -59,6 +59,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -548,7 +549,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         if (key != null) SourceMemory.reportWrong(ctx, NowSources.contentId, key)
         triedUrls.add(cur.url)
         val next = nextAddonSource()
-        if (next != null) playSource(next, "Reported – trying " + next.addon, revert = false)
+        if (next != null) playSource(next, "Reported – trying another copy", revert = false)
         else { notice = "Reported. No other fitting source – choose one or press Back"; srcPanel = true }
     }
 
@@ -557,7 +558,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         if (NowSources.owns(cur.itemId, cur.season, cur.episode)) {
             triedUrls.add(cur.url)
             val n = nextAddonSource() ?: return false
-            playSource(n, "Source failed – trying " + n.addon, revert = false)
+            playSource(n, "Trying another copy", revert = false)
             return true
         }
         if (stremioTried || cur.live || cur.archive != null || Stremio.addons.none { it.streams }) return false
@@ -894,7 +895,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     // link rarely helps, so the next source is tried (other quality, next addon stream, next 24/7 episode).
                     // Before this the spinner could stay forever.
                     // Addon movies/episodes have many sources: a source that shows nothing for 12 s is replaced sooner
-                    else if (!cur.live && ((!readyOnce && nowT - bufSince > (if (NowSources.owns(cur.itemId, cur.season, cur.episode)) 12_000L else 20_000L)) || (wdTries >= 2 && nowT - bufSince > 30_000L))) {
+                    else if (!cur.live && ((!readyOnce && nowT - bufSince > (if (NowSources.owns(cur.itemId, cur.season, cur.episode)) 6_000L else 20_000L)) || (wdTries >= 2 && nowT - bufSince > 30_000L))) {
                         bufSince = nowT; wdTries = 0
                         val rv = revertTo
                         if (rv != null && rv.first != cur.url) { revertTo = null; cur = cur.copy(url = rv.first, startMs = rv.second, note = null); notice = "That source did not start – back to the previous one" }
@@ -917,7 +918,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     bufSince = 0L
                     if (player.playbackState == Player.STATE_READY) wdTries = 0
                 }
-                h.postDelayed(this, 5000)
+                h.postDelayed(this, if (readyOnce) 5000 else 2000)
             }
         }
         fun showInfo(w: Int, hh: Int) {
@@ -1593,8 +1594,14 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         }) { partyPanel = false }
 
         // ---------------------------------------------------------------- Messages
-        if (buffering && msg == null && !showGuide) {
-            Spinner(Accent2, Modifier.align(Alignment.Center).size(48.dp))
+        // Until the first picture of a movie/episode started from Play: the title's picture stays (no black player,
+        // no spinner, no empty progress bar); the hand-over to the video fades
+        val coverOn = !readyOnce && !cur.live && msg == null && StartCover.owns(cur.itemId, cur.title)
+        val coverA by androidx.compose.animation.core.animateFloatAsState(if (coverOn) 1f else 0f,
+            androidx.compose.animation.core.tween(if (Lite.on) 180 else 320), label = "cover")
+        if (coverA > 0.01f) StartCover.View(Modifier.fillMaxSize().graphicsLayer { alpha = coverA }, notice?.takeIf { it.startsWith("Trying") || it.startsWith("Reported") } ?: "Starting")
+        if (buffering && msg == null && !showGuide && !coverOn) {
+            LoadLine(Modifier.align(Alignment.Center))
         }
         msg?.takeIf { !Boomer.enabled }?.let { m ->
             Column(

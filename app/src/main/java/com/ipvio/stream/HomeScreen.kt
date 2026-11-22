@@ -1148,7 +1148,8 @@ private fun Hero(
     // Stick-class GPU that can produce dropped frames during D-pad movement.
     val heroFadeMs = remember(ctx, Look.motion, Lite.on) {
         // Light mode: the picture changes at once (a crossfade draws two full-size pictures for a third of a second)
-        if (Look.motion == 0 || Lite.on) 0 else if (Mem.tier(ctx) == 0) 160 else 320
+        // Light mode: a short crossfade instead of a cut (the pictures changing at once looked jumpy)
+        if (Look.motion == 0) 0 else if (Lite.on || Mem.tier(ctx) == 0) 220 else 320
     }
 
     // Picture across the full width (also behind the header), faded into the background at the left and bottom.

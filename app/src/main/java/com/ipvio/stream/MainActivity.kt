@@ -258,7 +258,7 @@ class MainActivity : ComponentActivity() {
 val SmoothSpec = object : BringIntoViewSpec {
     // Spring (no restart from standstill per press): lists, details, search and menus move evenly under quick presses
     override val scrollAnimationSpec: androidx.compose.animation.core.AnimationSpec<Float> =
-        androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 1500f)
+        androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 1100f)
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
         val peek = 90f
         val leading = offset
@@ -700,6 +700,8 @@ private fun AppContent() {
                         returningFromPlayer = true
                         playing = null
                     }
+                    // The player opens out of black instead of cutting in (not after the start screen: it continues it)
+                    if (!StartCover.owns(p.itemId, "")) BlackFade(220)
                 }
             }
             // Round 17: every screen fades in softly (screenEnter); the player deliberately without an effect
@@ -772,6 +774,11 @@ private fun AppContent() {
             SettingsNav.openPage = 3
             goTab(MenuLogic.SETTINGS)
         }
+        // Leaving the player: the screen behind comes up out of black instead of cutting in
+        val wasPlaying = remember { booleanArrayOf(false) }
+        var closeTick by remember { mutableIntStateOf(0) }
+        SideEffect { if (wasPlaying[0] && p == null) closeTick++; wasPlaying[0] = p != null }
+        if (closeTick > 0 && p == null) key(closeTick) { BlackFade(260) }
         // Genre detection in the background: unobtrusive at the top right, never in the player
         if (p == null && !adding) MetaBadge(Modifier.align(Alignment.TopEnd).padding(top = 16.dp, end = 22.dp))
         remindNow?.let { r ->
@@ -816,4 +823,12 @@ private fun LaunchIntro() {
                 modifier = Modifier.graphicsLayer { alpha = word; translationY = (1f - word) * 18f })
         }
     }
+}
+
+/** Black that fades away: softens a hard cut between two screens (one cheap layer, gone after [ms]). */
+@Composable
+fun BlackFade(ms: Int) {
+    val a = remember { androidx.compose.animation.core.Animatable(1f) }
+    LaunchedEffect(Unit) { a.animateTo(0f, tween(ms, easing = FastOutSlowInEasing)) }
+    if (a.value > 0.01f) Box(Modifier.fillMaxSize().graphicsLayer { alpha = a.value }.background(Color.Black))
 }
