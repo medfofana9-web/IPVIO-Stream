@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased – TV: Play starts at once
+
+- Fof TV: Play and episodes start the best confirmed source by themselves (turned on once per profile; Settings › Stremio addons › "Ask me every time" still exists). While it starts: the title's picture with a thin red line instead of the source popup. The list opens only when no source confirms the title (after 8 s at most), Real-Debrid fails or nothing was found.
+- "Sources" on the title page opens as a panel at the right edge: quality as plain text, no colored badges, a word only where something needs attention.
+
 ## Unreleased – TV: Other streams opens at once
 
 - Fof TV: "Other streams" in the player opens immediately with the channels already known for the game; the full search over the playlist runs behind it ("finding more…") and adds the rest. It used to wait for that search first, which took minutes on budget boxes.

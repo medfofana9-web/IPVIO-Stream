@@ -35,7 +35,9 @@ fun StremioSourcesPopup(
     item: Item, knownImdb: String?, startSeason: Int, startEp: Int,
     onPlay: (String, String, Long) -> Unit, onDismiss: () -> Unit,
     /** Fof TV one-click play: start the best stream as soon as the list is there (the list stays as fallback). */
-    auto: Boolean = false
+    auto: Boolean = false,
+    /** Picture behind the start screen (the title page's backdrop). */
+    backdrop: String? = null
 ) {
     val series = item.kind == Kind.SERIES
     var season by remember { mutableIntStateOf(startSeason.coerceAtLeast(1)) }
@@ -108,6 +110,12 @@ fun StremioSourcesPopup(
     LaunchedEffect(iptv) { if (iptv != null && sources.isNullOrEmpty()) { kotlinx.coroutines.delay(80); runCatching { iptvFocus.requestFocus() } } }
     var autoDone by remember { mutableStateOf(false) }
     var noVerified by remember { mutableStateOf(false) }
+    // One-click play waiting on a slow addon: after 8 s with answers but none confirmed, the list opens to choose
+    LaunchedEffect(imdb, refreshToken) {
+        if (!auto || imdb == null) return@LaunchedEffect
+        kotlinx.coroutines.delay(8_000)
+        if (!autoDone && partial.isNotEmpty() && Stremio.bestVerified(partial, want, cid) == null) { autoDone = true; noVerified = true }
+    }
     LaunchedEffect(sources, partial) {
         val l = sources ?: partial
         // Automatic play only with a verified match for exactly this title/episode (starts with the first addon that has
@@ -123,23 +131,33 @@ fun StremioSourcesPopup(
         else if (series) runCatching { stepFocus.requestFocus() }
     }
 
-    Popup(alignment = Alignment.Center, onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
-        val shape = RoundedCornerShape(DS.RadiusM)
+    // Play (one-click): the title's picture while the best confirmed source is found and started – the list only
+    // comes up when no source confirms this title, Real-Debrid fails or nothing was found
+    val startScreen = auto && FofPrefs.oneClick && !noVerified && !noId && rdError == null && sources?.isEmpty() != true
+    if (startScreen) {
+        StartScreen(item.title, if (series) "Season $season  ·  Episode $ep" else "", backdrop,
+            if (resolving || autoDone) "Starting" else "Getting it ready", onDismiss)
+        return
+    }
+    // Sources: a panel at the right edge, like the Mac app
+    Popup(alignment = Alignment.CenterEnd, onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
         Column(
-            Modifier.width(650.dp).heightIn(max = 470.dp).clip(shape)
-                .background(Surf.copy(alpha = 0.98f)).border(1.dp, DS.Overlay3, shape).padding(16.dp),
+            Modifier.width(600.dp).fillMaxHeight()
+                .background(Color(0xFA0E0E0E)).border(1.dp, Color(0xFF1F1F1F))
+                .padding(start = 34.dp, end = 30.dp, top = 40.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Choose a source", color = Color.White, fontSize = 21.sp,
-                    fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), raw = true)
-                PillButton("Refresh sources", raw = true) {
+                Text("SOURCES", color = Color(0xFF808080), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 2.sp, modifier = Modifier.weight(1f), raw = true)
+                PillButton("Refresh", raw = true) {
                     refreshToken++
                     noVerified = false
                 }
             }
-            Text(item.title + if (series) "  ·  Season $season · Episode $ep" else "", color = Muted, fontSize = 15.sp, maxLines = 1, raw = true)
+            Text(item.title, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, raw = true)
+            if (series) Text("Season $season  ·  Episode $ep", color = Muted, fontSize = 15.sp, maxLines = 1, raw = true)
             if (series) {
                 Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     StepRow("Season", "$season", { if (season > 1) { season--; ep = 1 } }, { season++; ep = 1 }, Modifier.focusRequester(stepFocus))
@@ -166,16 +184,15 @@ fun StremioSourcesPopup(
             }
             when {
                 noId -> Text("Couldn't match this title on IMDb. Adding a free TMDB key (Settings > API keys) makes matching more reliable.", color = Muted, fontSize = 16.sp)
-                list == null -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Spinner(Accent2, Modifier.size(28.dp))
-                    Text("Asking your addons…", color = Muted, fontSize = 16.sp)
+                list == null -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    repeat(4) { Box(Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(4.dp)).background(shimmerColor())) }
                 }
                 list.isEmpty() -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("No playable streams found.", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                     // Per addon: down, no links, or only links this app cannot play – tells whether to wait or fix an addon
                     Stremio.lastReport.forEach { Text(it, color = Muted, fontSize = 15.sp, raw = true) }
                 }
-                else -> LazyColumn(Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                else -> LazyColumn(Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     itemsIndexed(list) { i, s ->
                         SourceRow(s, Stremio.match(s, want), SourceMemory.isWrong(cid, s.key), s.key == SourceMemory.lastGood(cid),
                             if (i == 0) Modifier.focusRequester(first) else Modifier) { choose(s) }
@@ -202,36 +219,38 @@ fun StremioSourcesPopup(
 @Composable
 internal fun SourceRow(s: Stremio.Source, match: Int, wrong: Boolean, lastGood: Boolean, modifier: Modifier, active: Boolean = false, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(DS.RadiusS)
+    val shape = RoundedCornerShape(4.dp)
     Row(
         modifier.fillMaxWidth().clip(shape)
-            .background(if (f) DS.Overlay4 else Color.Transparent)
-            .border(DS.Border, if (f) Accent2 else Color.Transparent, shape)
+            .background(if (f) Color.White else Color.Transparent)
             .onFocusChanged { f = it.isFocused }
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        val q = when (s.q) { 3 -> "4K"; 2 -> "FHD"; 1 -> "HD"; else -> null }
-        Box(Modifier.width(52.dp)) { if (q != null) QualityBadge(q) }
+        val q = when (s.q) { 3 -> "4K"; 2 -> "1080p"; 1 -> "720p"; else -> "—" }
+        val ink = if (f) Color.Black else Color.White
+        val soft = if (f) Color(0xFF555555) else Muted
+        Text(q, color = ink, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), raw = true)
         val dim = wrong || match == StremioLogic.MISMATCH
         Column(Modifier.weight(1f)) {
-            Text(s.label, color = if (dim) Muted else Color.White, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, raw = true)
+            Text(s.label, color = if (dim && !f) Muted else ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, raw = true)
             // Only what the addon itself says (no invented quality or speed)
             val facts = StremioLogic.facts(s.info)
             Text((listOf(s.addon) + facts + listOfNotNull(if (s.hash != null) "Real-Debrid" else null, if (lastGood) "Played before" else null)).joinToString("  ·  "),
-                color = Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, raw = true)
+                color = soft, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, raw = true)
         }
-        val (tag, col) = when {
-            active -> "Playing" to Color.White
-            wrong -> "Reported wrong" to Color(0xFFFF6B5E)
-            s.label.startsWith(StremioLogic.LAST_RESORT) -> "Manual selection" to Color(0xFFFFB020)
-            match == StremioLogic.VERIFIED -> "Match" to Color(0xFF4ADE80)
-            match == StremioLogic.MISMATCH -> "Other episode/title" to Color(0xFFFFB020)
-            else -> "Unverified" to Muted
+        // Only what needs attention gets a word; a confirmed match needs none
+        val tag = when {
+            active -> "Playing"
+            wrong -> "Reported wrong"
+            s.label.startsWith(StremioLogic.LAST_RESORT) -> "Manual"
+            match == StremioLogic.MISMATCH -> "Other title"
+            match == StremioLogic.VERIFIED -> null
+            else -> "Not confirmed"
         }
-        Text(tag, color = col, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, raw = true)
+        if (tag != null) Text(tag, color = if (tag == "Playing") ink else soft, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, raw = true)
     }
 }
 
@@ -429,5 +448,34 @@ internal fun PlayerSourcePicker(
                 }
             }
         }
+    }
+}
+
+/** Play: the title's picture with a thin red line while the source starts (no list, no spinner). Back cancels. */
+@Composable
+internal fun StartScreen(title: String, sub: String, backdrop: String?, note: String, onBack: () -> Unit) {
+    Popup(alignment = Alignment.Center, onDismissRequest = onBack, properties = PopupProperties(focusable = true)) {
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            if (backdrop != null) coil.compose.AsyncImage(backdrop, null, Modifier.fillMaxSize().graphicsLayer { alpha = 0.55f },
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop, alignment = Alignment.TopCenter)
+            Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Color(0xE6000000), Color(0x66000000), Color(0x14000000)))))
+            Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xD9000000))))
+            Column(Modifier.align(Alignment.BottomStart).padding(start = 64.dp, bottom = 72.dp).widthIn(max = 640.dp)) {
+                Text(title, color = Color.White, fontSize = 44.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 48.sp, raw = true)
+                if (sub.isNotEmpty()) Text(sub, color = Color(0xFFB3B3B3), fontSize = 18.sp, modifier = Modifier.padding(top = 6.dp), raw = true)
+                LoadLine(Modifier.padding(top = 26.dp, bottom = 12.dp))
+                Text(note, color = Color(0xFF8C8C8C), fontSize = 14.sp, raw = true)
+            }
+        }
+    }
+}
+
+/** Thin red line moving along a grey track: loading without a spinner. Still with "Motion: off". */
+@Composable
+internal fun LoadLine(modifier: Modifier = Modifier) {
+    val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "line")
+    val x by t.animateFloat(-0.36f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1150, easing = androidx.compose.animation.core.FastOutSlowInEasing)), label = "lineX")
+    Box(modifier.width(220.dp).height(2.dp).clip(RoundedCornerShape(1.dp)).background(Color(0x29FFFFFF))) {
+        Box(Modifier.fillMaxHeight().width(80.dp).graphicsLayer { translationX = (if (Look.motion > 0) x else 0f) * 220.dp.toPx() }.background(Color(0xFFE60023)))
     }
 }

@@ -51,7 +51,9 @@ object FofPrefs {
         if (!p.getBoolean("fast_v2", false)) p.edit().putBoolean("clean_look", true).putBoolean("netflix_v1", true).putBoolean("fast_v2", true).apply()
         cleanLook = p.getBoolean("clean_look", true)
         spoilerText = p.getBoolean("spoiler_text", false)
-        oneClick = p.getBoolean("one_click", false)
+        // Play starts the best confirmed source by itself (once per profile; "Ask me every time" stays available)
+        if (!p.getBoolean("one_click_v2", false)) p.edit().putBoolean("one_click", true).putBoolean("one_click_v2", true).apply()
+        oneClick = p.getBoolean("one_click", true)
         providerVod = p.getBoolean("provider_vod", false)
     }
 

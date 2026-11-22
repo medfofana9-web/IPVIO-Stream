@@ -621,7 +621,7 @@ private fun DetailScreenFull(
                                                 ?.takeIf { !ResumeLogic.finished(it.pos, it.dur) }?.pos
                                         AppNav.autoResume = null; AppNav.autoResumeId = null
                                         onPlay(u, t, if (ms > 0) ms else saved ?: 0L)
-                                    }, { showStremio = false; stremioAt = null }, auto = stremioAuto
+                                    }, { showStremio = false; stremioAt = null }, auto = stremioAuto, backdrop = meta?.backdrop
                                 )
                             }
                             if (show247) OptionPopup(listOf("Start from beginning", "Continue from last episode", "Shuffle episodes"), -1, { show247 = false }) { a ->
