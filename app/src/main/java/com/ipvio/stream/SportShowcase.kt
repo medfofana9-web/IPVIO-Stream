@@ -97,11 +97,12 @@ internal fun GameTileCard(g: SportData.Game, modifier: Modifier = Modifier, onCl
         Box(
             // Flat card (no gradients): cleaner, and cheaper to draw on a TV
             Modifier.size(w, h).graphicsLayer { scaleX = sc; scaleY = sc }.clip(shape)
-                .background(FofGlass.body(1, f))
+                // Light mode (budget boxes): one flat color under the team colors, no sheen, border only on focus
+                .then(if (Lite.on) Modifier.background(if (f) Color(0xFF2A2A2A) else Color(0xFF1A1A1A)) else Modifier.background(FofGlass.body(1, f)))
                 // Team colors: away on the left, home on the right, fading into the card (one gradient, cheap to draw)
                 .then(teamTint(g)?.let { Modifier.background(it) } ?: Modifier)
-                .background(FofGlass.sheen(1, f))
-                .border(if (f) 2.dp else 1.dp, if (f) FofGlass.rim() else FofGlass.edge(false), shape)
+                .then(if (Lite.on) Modifier else Modifier.background(FofGlass.sheen(1, f)))
+                .then(if (Lite.on) { if (f) Modifier.border(3.dp, Color.White, shape) else Modifier } else Modifier.border(if (f) 2.dp else 1.dp, if (f) FofGlass.rim() else FofGlass.edge(false), shape))
                 .onFocusChanged { f = it.isFocused }
                 .trackFocus()
                 .restoreFocus("game:" + g.key)

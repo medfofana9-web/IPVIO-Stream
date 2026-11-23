@@ -210,7 +210,9 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                 value = SportFeed.State(all, fresh.size, ls.size, fresh.size == ls.size && all.isEmpty() && !SportData.lastOk)
                 dirty = false
             }
-            launch { while (true) { delay(400); if (dirty) publish() } }
+            // Score updates redraw the whole page: wait for a pause in remote presses (at most 3 s late)
+            launch { var held = 0; while (true) { delay(400); if (dirty) { if (Busy.active() && held < 7) held++ else { held = 0; publish() } } } }
+            val sigs = java.util.concurrent.ConcurrentHashMap<String, Int>()
             // Leagues that can have a game on right now (by the saved schedule, or never loaded) and the top leagues are asked
             // first; the rest waits until they answered (at most 4 s), so live games are not queued behind 60 quiet leagues
             val nowS = System.currentTimeMillis() / 1000
@@ -228,10 +230,12 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     var once = l.path in first
                     while (true) {
                         val r = SportData.fetch(l, SportData.ymd(0, General.zone()), 8_000)
+                        // Nothing changed in this league (same games, states, scores, clocks): no redraw of the page
+                        val sig = r.fold(r.size) { h, x -> 31 * h + (x.key + x.state + x.away.score + x.home.score + x.detail).hashCode() }
+                        val changed = sigs.put(l.path, sig) != sig
                         m[l.path] = r
                         fresh.add(l.path)
-                        pending.addAll(r)
-                        dirty = true
+                        if (changed) { pending.addAll(r); dirty = true }
                         if (once) { once = false; if (firstLeft.decrementAndGet() == 0) { firstDone.complete(Unit); publish(); MainSampler.mark("sports: likely-live leagues answered") } }
                         // The last league answered: show the full picture at once
                         if (fresh.size == ls.size && value.done < ls.size) publish()
@@ -251,6 +255,7 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
         if (warmGames.isEmpty()) return@LaunchedEffect
         while (true) {
             for (game in warmGames) {
+                Busy.quiet()
                 withTimeoutOrNull(4_000L) { SportAddons.find(ctx, game) }
             }
             delay(30_000L)
@@ -259,6 +264,7 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     // Sports shows of the TV guide for Watch Live (once a minute, off the main thread)
     LaunchedEffect(live, Xmltv.channelCount) {
         while (true) {
+            Busy.quiet()
             val s = withContext(Dispatchers.Default) {
                 SportLogic.matchSlots(live, { Xmltv.forChannel(it.tvgId) }, System.currentTimeMillis() / 1000, SportPlan.HORIZON_SEC)
             }

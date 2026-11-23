@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased – TV: lighter Sports page and player
+
+- Sports: a league update that changes nothing (same games, scores and clocks) no longer redraws the page; updates wait for a pause in remote presses (at most 3 s). The page was redrawn several times a minute (97 % slow frames on an onn box).
+- Sports in light mode: game tiles are one flat color under the team colors, without the sheen layer; a white border only on focus.
+- Player: the position is read twice a second only while the controls show (every 2 s otherwise), so the player is redrawn far less.
+- Background work (TV-guide matching for games, addon warm-ups, genre updates on Home) waits until the remote is idle for a moment.
+- Light mode: banner and title-page pictures load at 780 px instead of 1280 px.
+
 ## Unreleased – TV: games start on the listed broadcaster
 
 - Fof TV: a game starts on the network ESPN lists for it (the one on the card, e.g. USA Network) before channels whose TV guide merely names the game. beIN Sports EN 1 listed Liverpool vs Man Utd but showed another match.

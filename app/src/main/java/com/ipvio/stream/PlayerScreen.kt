@@ -1192,9 +1192,11 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     LaunchedEffect(Unit) {
         while (true) {
             if (!cur.live) {
-                pos = player.currentPosition
+                // Every update redraws the player: with the controls hidden every 2 s is enough (skip intro, next episode)
+                val p = player.currentPosition
+                if (controls || kotlin.math.abs(p - pos) >= 1_900) pos = p
                 dur = player.duration.coerceAtLeast(0)
-                buffered = player.bufferedPosition
+                if (controls) buffered = player.bufferedPosition
                 // Some servers never report the end: move to the next episode myself shortly before the end
                 if (!cur.live && cur.archive == null && hasNext && AppSettings.autoNext && !nextDismissed && dur > 0 && dur - pos in 0..700L && player.isPlaying) onEnded()
             }

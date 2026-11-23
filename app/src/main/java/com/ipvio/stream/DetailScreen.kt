@@ -494,7 +494,7 @@ private fun DetailScreenFull(
                 ) {
                     Box(Modifier.matchParentSize().clip(RoundedCornerShape(dpx(22))).background(Color(0xFF111111))
                         .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }) {
-                        meta?.backdrop?.let { AsyncImage(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter) }
+                        meta?.backdrop?.let { AsyncImage(if (Lite.on) cardBackdrop(it) else it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter) }
                         // Trailer fades in over the picture after a few seconds on the page's buttons (muted, never focused)
                         if (showActions) HeroTrailer(meta?.trailerKey, heroFocused, Modifier.fillMaxSize())
                         Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Color(0xD9000000), 0.4f to Color(0x66000000), 0.65f to Color.Transparent)))
@@ -621,7 +621,7 @@ private fun DetailScreenFull(
                                                 ?.takeIf { !ResumeLogic.finished(it.pos, it.dur) }?.pos
                                         AppNav.autoResume = null; AppNav.autoResumeId = null
                                         onPlay(u, t, if (ms > 0) ms else saved ?: 0L)
-                                    }, { showStremio = false; stremioAt = null }, auto = stremioAuto, backdrop = meta?.backdrop
+                                    }, { showStremio = false; stremioAt = null }, auto = stremioAuto, backdrop = meta?.backdrop?.let { if (Lite.on) cardBackdrop(it) else it }
                                 )
                             }
                             if (show247) OptionPopup(listOf("Start from beginning", "Continue from last episode", "Shuffle episodes"), -1, { show247 = false }) { a ->

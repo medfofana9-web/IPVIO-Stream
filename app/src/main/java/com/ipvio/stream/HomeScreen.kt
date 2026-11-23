@@ -186,7 +186,8 @@ fun HomeScreen(
     val order = PlaylistStore.catOrder
     // Adopt genre progress at most every 45 s: every adoption recomputes rows and top lists
     var ver by remember { mutableIntStateOf(HomeVer.value.takeIf { it >= 0 } ?: Classifier.version) }
-    LaunchedEffect(Unit) { while (true) { delay(45_000); if (ver != Classifier.version) { ver = Classifier.version; HomeVer.value = ver } } }
+    // New genre results rebuild the rows: not in the middle of scrolling
+    LaunchedEffect(Unit) { while (true) { delay(45_000); if (ver != Classifier.version) { Busy.quiet(); ver = Classifier.version; HomeVer.value = ver } } }
     var trend by remember { mutableStateOf(HomeVer.trend) }
     LaunchedEffect(all.isNotEmpty()) { if (all.isNotEmpty()) { trend = Trending.titles(); HomeVer.trend = trend } }
     val wantIpvio = AppSettings.ipvioFilter
@@ -1168,7 +1169,8 @@ private fun Hero(
                 .clip(cardShape).background(Color(0xFF111111))) {
                 Crossfade(item, animationSpec = tween(heroFadeMs), label = "heroBg") { c ->
                     val m = rememberMeta(c)
-                    m?.backdrop?.let { AsyncImage(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopEnd) }
+                    // Light mode: the 780-px picture (a third of the pixels to download and decode)
+                    m?.backdrop?.let { AsyncImage(if (Lite.on) cardBackdrop(it) else it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopEnd) }
                 }
                 // Netflix: the trailer fades in over the picture after a few seconds on the same title (muted, never focused)
                 HeroTrailer(trailerKey, heroHasFocus && atTop, Modifier.fillMaxSize()) { trailerOn = it }

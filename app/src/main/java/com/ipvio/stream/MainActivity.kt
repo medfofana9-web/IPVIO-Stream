@@ -49,6 +49,7 @@ class MainActivity : ComponentActivity() {
     private var ambientSwallow = -1
 
     override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (event.action == android.view.KeyEvent.ACTION_DOWN) Busy.last = System.currentTimeMillis()
         // Ambient screen: a key wakes it and is used up (up and down of that key)
         if (event.action == android.view.KeyEvent.ACTION_DOWN && Ambient.key()) { ambientSwallow = event.keyCode; return true }
         if (event.action == android.view.KeyEvent.ACTION_UP && ambientSwallow == event.keyCode) { ambientSwallow = -1; return true }
