@@ -559,11 +559,13 @@ fun HomeScreen(
             val grid = remember(maxWidth, Design.k, General.cardSize) { cardGrid(maxWidth - RowPadX * 2) }
             // Design: big picture 420 px high (start), 345 px (movies/series)
             val heroH = dpx(if (tab == 0) 540 else 450)
+            // Settings always opens, also without a playlist (updates, account, playlist setup)
+            val noPlaylistScreen = tab != MenuLogic.SETTINGS
             when {
                 // Download/parse without a shown list: loading screen with progress (and possibly language selection)
-                PlaylistStore.loading && all.isEmpty() && PlaylistStore.heavy -> PlaylistLoadingOverlay()
-                (PlaylistStore.loading && all.isEmpty()) || computing -> SkeletonHome()
-                all.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                noPlaylistScreen && PlaylistStore.loading && all.isEmpty() && PlaylistStore.heavy -> PlaylistLoadingOverlay()
+                noPlaylistScreen && ((PlaylistStore.loading && all.isEmpty()) || computing) -> SkeletonHome()
+                noPlaylistScreen && all.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         BrandMark(Modifier.size(72.dp))
                         val err = PlaylistStore.error

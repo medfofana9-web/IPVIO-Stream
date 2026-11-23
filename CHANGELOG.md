@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased – TV: Settings without a playlist
+
+- Fof TV: Settings opens even when no playlist is loaded (it showed "No channels yet"), so updates and the account can always be reached.
+
 ## Unreleased – TV: works on networks that block IPTV addresses
 
 - Fof TV looks addresses up over a secure DNS service (Cloudflare, then Google; the device's own lookup as fallback) for the playlist, logins and the player. Home networks that block a provider's address (certificate error over https, a web page instead of the playlist over http) no longer stop the app.
