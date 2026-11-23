@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased – TV: providers with an incomplete certificate chain
+
+- Fof TV completes a server's certificate chain the way browsers do: when a provider sends its certificate without the intermediate, the missing link is downloaded from the address in the certificate and the full chain is checked again by the device's normal check. The playlist loaded on the Mac (Chrome does this) but failed on Android TV with "Secure connection failed (certificate)".
+
 ## Unreleased – TV: Settings without a playlist
 
 - Fof TV: Settings opens even when no playlist is loaded (it showed "No channels yet"), so updates and the account can always be reached.

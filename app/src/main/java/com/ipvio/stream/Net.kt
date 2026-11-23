@@ -13,6 +13,8 @@ object Net {
         .readTimeout(15, TimeUnit.SECONDS)
         // Secure name lookup: works on networks that block IPTV addresses (see SmartDns)
         .dns(SmartDns)
+        // Completes certificate chains that miss their intermediate (as browsers do), see AiaTrust
+        .sslSocketFactory(AiaTrust.socketFactory, AiaTrust.trustManager)
         // Backup servers: if an Xtream server fails, requests go to one of the backup servers entered for it
         .addInterceptor(HostFailover.Interceptor)
         .build()
@@ -22,6 +24,8 @@ object Net {
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .dns(SmartDns)
+        // Completes certificate chains that miss their intermediate (as browsers do), see AiaTrust
+        .sslSocketFactory(AiaTrust.socketFactory, AiaTrust.trustManager)
         .followRedirects(true)
         .followSslRedirects(true)
         .build()
