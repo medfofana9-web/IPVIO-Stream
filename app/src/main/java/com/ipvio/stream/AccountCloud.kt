@@ -377,12 +377,30 @@ object AccountCloud {
         Debrid.init(c)
         syncSecret(c, "debrid", cloud["debrid"], { Debrid.raw() }) { v, _ -> if (v.isNotBlank() || Debrid.on) Debrid.save(c, v) }
         syncSecret(c, "playlist", cloud["playlist"], { PlaylistStore.savedUrl(c).orEmpty() }) { v, _ ->
-            if (v.isNotBlank() && v != PlaylistStore.savedUrl(c)) withContext(Dispatchers.Main) { PlaylistStore.load(c, v, save = true, ask = false) }
+            if (v.isNotBlank() && v != PlaylistStore.savedUrl(c)) restorePlaylistOnce(c, v)
         }
-        // The account has a playlist but it never loaded here (no connection, provider down): try again on every sync
-        // instead of counting it as done
+        // Account sync runs every two minutes. Never re-download a failed large playlist
+        // on every sync: retry after a cooldown, or when the user explicitly retries.
         val cv = cloud["playlist"]?.first.orEmpty()
-        if (cv.isNotBlank() && PlaylistStore.savedUrl(c) == null) withContext(Dispatchers.Main) { PlaylistStore.load(c, cv, save = true, ask = false) }
+        if (cv.isNotBlank() && PlaylistStore.savedUrl(c) == null) restorePlaylistOnce(c, cv)
+    }
+
+    /** One automatic cloud-restore attempt per account/playlist per 30 minutes.
+     * A failed provider or network must not cause an endless download loop.
+     * Manual playlist loading is deliberately unaffected.
+     */
+    private suspend fun restorePlaylistOnce(c: Context, url: String) {
+        if (PlaylistStore.savedUrl(c) == url) return
+        val key = "restore_try_" + (FofAccount.userId ?: return) + "_" + AccountCloudLogic.hash(url)
+        val p = prefs(c)
+        val now = System.currentTimeMillis()
+        val last = p.getLong(key, 0L)
+        if (last > 0L && now >= last && now - last < 30 * 60_000L) return
+        // Persist before starting: a crash or cancelled load must not trigger a retry storm.
+        p.edit().putLong(key, now).apply()
+        withContext(Dispatchers.Main) {
+            PlaylistStore.load(c, url, save = true, ask = false)
+        }
     }
 
     /**
