@@ -379,6 +379,10 @@ object AccountCloud {
         syncSecret(c, "playlist", cloud["playlist"], { PlaylistStore.savedUrl(c).orEmpty() }) { v, _ ->
             if (v.isNotBlank() && v != PlaylistStore.savedUrl(c)) withContext(Dispatchers.Main) { PlaylistStore.load(c, v, save = true, ask = false) }
         }
+        // The account has a playlist but it never loaded here (no connection, provider down): try again on every sync
+        // instead of counting it as done
+        val cv = cloud["playlist"]?.first.orEmpty()
+        if (cv.isNotBlank() && PlaylistStore.savedUrl(c) == null) withContext(Dispatchers.Main) { PlaylistStore.load(c, cv, save = true, ask = false) }
     }
 
     /**

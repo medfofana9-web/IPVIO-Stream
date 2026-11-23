@@ -329,7 +329,9 @@ private fun AppContent() {
     }
     // Interrupted in the middle of adding last time (crash, power loss): the add screen automatically continues loading
     val resumeAdd = remember { PlaylistStore.pending(ctx)?.autoResume == true }
-    var adding by remember { mutableStateOf(PlaylistStore.savedUrl(ctx) == null || resumeAdd) }
+    // Signed in to an account: straight into the app – the account's playlist loads in the background (AccountCloud)
+    var adding by remember { mutableStateOf((PlaylistStore.savedUrl(ctx) == null && !FofAccount.signedIn) || resumeAdd) }
+    LaunchedEffect(FofAccount.signedInState) { if (FofAccount.signedInState && adding && !resumeAdd && PlaylistStore.pending(ctx) == null) adding = false }
     // Top detail page (Item or PersonRef) plus back stack, so Back retraces Movie → Person → Movie
     var top by remember { mutableStateOf<Any?>(null) }
     // A player return must not fade out and reconstruct the previous card grid.

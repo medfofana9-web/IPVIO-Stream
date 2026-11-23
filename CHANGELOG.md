@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased – TV: signing in goes straight into the app
+
+- Fof TV: signed in to an account, the TV no longer stops at "Add playlist"; it opens the app and loads the account's playlist in the background.
+- An account playlist that failed to load (provider unreachable) is tried again on every sync instead of being counted as done.
+
 ## Unreleased – TV: playlist from the account on older boxes
 
 - Fof TV trusts the current list of root certificates (Mozilla's, as browsers use) in addition to the device's own: on older or never-updated TV boxes a provider's https address failed with "Secure connection failed (certificate)", so signing in to an account did not bring its playlist. Nothing is trusted that browsers do not trust; user-added certificates are still not trusted; http stays allowed as before.
