@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased – TV: trailer stops when nobody is watching
+
+- Fof TV: the trailer in the big picture on Home and on title pages stops after 3 minutes without a remote press and starts again with the next press. Left playing on an idle TV it kept the box's graphics busy the whole time (70 % slow frames, 95 % of it GPU, on an onn 4K box).
+
 ## Unreleased – TV: providers with an incomplete certificate chain
 
 - Fof TV completes a server's certificate chain the way browsers do: when a provider sends its certificate without the intermediate, the missing link is downloaded from the address in the certificate and the full chain is checked again by the device's normal check. The playlist loaded on the Mac (Chrome does this) but failed on Android TV with "Secure connection failed (certificate)".

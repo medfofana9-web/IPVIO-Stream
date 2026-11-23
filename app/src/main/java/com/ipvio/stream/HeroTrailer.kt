@@ -20,10 +20,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.delay
 
+/** A trailer stops after the remote has been untouched this long, and starts again with the next key press. */
+private const val IDLE_STOP_MS = 3 * 60_000L
+private val firstShown = System.currentTimeMillis()
+private fun remoteIdle(): Boolean = System.currentTimeMillis() - maxOf(Busy.last, firstShown) >= IDLE_STOP_MS
+
 /**
  * Netflix-style trailer in the big picture: after [delayMs] on the same title the YouTube trailer fades in over the
- * picture, muted, without controls, and loops. It never takes the remote focus. Off on low-memory sticks unless switched
- * on under Settings > View, and only while [active] (the big picture has the focus or is in view).
+ * picture, muted, without controls, and loops while the remote is in use
+ * (it stops after [IDLE_STOP_MS] without a key press). It never takes the remote focus. Off on low-memory sticks unless
+ * switched on under Settings > View, and only while [active] (the big picture has the focus or is in view).
  *
  * [onPlaying] tells the caller to pause the slideshow while the trailer runs.
  */
@@ -36,12 +42,22 @@ fun HeroTrailer(key: String?, active: Boolean, modifier: Modifier, delayMs: Long
     val alpha = remember(key) { Animatable(0f) }
     LaunchedEffect(key, active) {
         if (!active) { alpha.snapTo(0f); show = false; onPlaying(false); return@LaunchedEffect }
-        delay(delayMs)
-        show = true
-        // Give the player a moment to start, so the fade shows moving pictures instead of YouTube's black loading frame
-        delay(1_600)
-        onPlaying(true)
-        alpha.animateTo(1f, tween(if (Look.motion == 0) 0 else 700))
+        while (true) {
+            // Nobody at the remote: no trailer until the next key press
+            while (remoteIdle()) delay(1_000)
+            delay(delayMs)
+            show = true
+            // Give the player a moment to start, so the fade shows moving pictures instead of YouTube's black loading frame
+            delay(1_600)
+            onPlaying(true)
+            alpha.animateTo(1f, tween(if (Look.motion == 0) 0 else 700))
+            // The looping trailer kept the GPU busy for as long as Home stayed open (95 % GPU time, 70 % slow frames
+            // on an onn box left idle): stop it once the remote has been untouched for a while
+            while (!remoteIdle()) delay(5_000)
+            alpha.animateTo(0f, tween(if (Look.motion == 0) 0 else 700))
+            show = false
+            onPlaying(false)
+        }
     }
     DisposableEffect(key) { onDispose { onPlaying(false) } }
     if (!show) return
