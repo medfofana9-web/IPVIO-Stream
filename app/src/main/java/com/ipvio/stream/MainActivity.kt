@@ -377,9 +377,17 @@ private fun AppContent() {
         withContext(Dispatchers.IO) { General.cleanupLegacy(ctx) }
         if (resumeAdd) return@LaunchedEffect
         PlaylistStore.savedUrl(ctx)?.let { u ->
-            val skip = !SettingsLogic.refreshDue(General.plan(), General.lastRefresh, System.currentTimeMillis(), General.zone())
-            val ok = PlaylistStore.load(ctx, u, false, skip)
-            if (ok && !skip) General.markRefreshed(ctx)
+            // Restore the last validated local playlist first, regardless of refresh schedule.
+            // A network change or an unreachable provider must not block startup.
+            val cached = PlaylistStore.load(ctx, u, false, skipNetworkWhenCached = true)
+            if (cached && SettingsLogic.refreshDue(General.plan(), General.lastRefresh, System.currentTimeMillis(), General.zone())) {
+                // Defer network refresh until the cached catalog has been displayed.
+                kotlinx.coroutines.delay(20_000)
+                if (!PlaylistStore.loading) {
+                    val refreshed = PlaylistStore.load(ctx, u, false, skipNetworkWhenCached = false, ask = false)
+                    if (refreshed && PlaylistStore.error == null) General.markRefreshed(ctx)
+                }
+            }
         }
     }
 
