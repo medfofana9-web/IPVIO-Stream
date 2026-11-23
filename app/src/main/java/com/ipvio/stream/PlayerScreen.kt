@@ -156,10 +156,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     // Own HTTP settings: follows redirects even from http to https (many IPTV servers do that)
     // and gives up after 10 s connect time or 15 s read time instead of waiting forever.
     val player = remember {
-        val http = DefaultHttpDataSource.Factory()
-            .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(10_000)
-            .setReadTimeoutMs(15_000)
+        val http = androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(Net.player)
         ExoPlayer.Builder(ctx, SoftAudio.factory(ctx))
             .setLoadControl(Mem.loadControl(ctx))
             .setWakeMode(C.WAKE_MODE_NETWORK)

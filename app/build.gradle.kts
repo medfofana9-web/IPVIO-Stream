@@ -97,6 +97,8 @@ dependencies {
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
 
     implementation("androidx.media3:media3-exoplayer:1.11.1")
+    // The player uses the app's HTTP client (secure name lookup)
+    implementation("androidx.media3:media3-datasource-okhttp:1.11.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.11.1")
     // MPEG-DASH (.mpd) streams; without it Media3 throws IllegalStateException when such a stream is opened
     implementation("androidx.media3:media3-exoplayer-dash:1.11.1")
@@ -105,6 +107,8 @@ dependencies {
     implementation("org.jellyfin.media3:media3-ffmpeg-decoder:1.9.0+1")
 
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // Secure name lookup (SmartDns): IPTV addresses blocked by home networks
+    implementation("com.squareup.okhttp3:okhttp-dnsoverhttps:4.12.0")
     implementation("io.coil-kt:coil-compose:2.7.0")
 
     implementation("androidx.work:work-runtime-ktx:2.10.0")

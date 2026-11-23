@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased – TV: works on networks that block IPTV addresses
+
+- Fof TV looks addresses up over a secure DNS service (Cloudflare, then Google; the device's own lookup as fallback) for the playlist, logins and the player. Home networks that block a provider's address (certificate error over https, a web page instead of the playlist over http) no longer stop the app.
+
 ## Unreleased – TV: signing in goes straight into the app
 
 - Fof TV: signed in to an account, the TV no longer stops at "Add playlist"; it opens the app and loads the account's playlist in the background.

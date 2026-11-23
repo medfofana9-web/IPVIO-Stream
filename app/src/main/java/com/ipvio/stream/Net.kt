@@ -11,8 +11,19 @@ object Net {
     val base: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
+        // Secure name lookup: works on networks that block IPTV addresses (see SmartDns)
+        .dns(SmartDns)
         // Backup servers: if an Xtream server fails, requests go to one of the backup servers entered for it
         .addInterceptor(HostFailover.Interceptor)
+        .build()
+
+    /** For the player: same secure lookup, follows redirects (also http <-> https, common with IPTV servers). */
+    val player: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
+        .dns(SmartDns)
+        .followRedirects(true)
+        .followSslRedirects(true)
         .build()
 
     fun withTimeouts(connectSec: Long, readSec: Long): OkHttpClient =

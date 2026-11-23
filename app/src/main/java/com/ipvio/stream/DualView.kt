@@ -58,10 +58,7 @@ internal fun SecondStream(item: Item, split: Boolean, audioOn: Boolean, modifier
     // small = tile of the multi view: lowest load (small picture, small buffer), because up to four players run at once
     val p = remember {
         runCatching {
-            val http = DefaultHttpDataSource.Factory()
-                .setAllowCrossProtocolRedirects(true)
-                .setConnectTimeoutMs(10_000)
-                .setReadTimeoutMs(15_000)
+            val http = androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(Net.player)
             val lc = DefaultLoadControl.Builder()
                 .setBufferDurationsMs(if (small) 3_000 else 4_000, if (small) 12_000 else 15_000, 1_000, 2_000)
                 .apply { if (small) setTargetBufferBytes(4 * 1024 * 1024) }
