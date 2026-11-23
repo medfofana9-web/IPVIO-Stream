@@ -71,13 +71,17 @@ object PlaylistLogic {
         else -> e is java.io.IOException && !noSpace(e)
     }
 
+    /** 2026-01-01: a device clock earlier than this is wrong. */
+    const val CLOCK_SANE_MS = 1_767_225_600_000L
+
     fun friendlyError(e: Throwable): String = when (e) {
         is PlaylistError -> e.message ?: "Laden fehlgeschlagen."
         is java.net.UnknownHostException -> "Server nicht gefunden. Adresse und Internetverbindung prüfen."
         is java.net.SocketTimeoutException -> "Zeitüberschreitung: Der Server antwortet nicht."
         is java.net.ConnectException -> "Keine Verbindung zum Server."
         is javax.net.ssl.SSLPeerUnverifiedException -> "Das Zertifikat des Anbieters passt nicht zur Server-Adresse. Beim Anbieter nach einer aktuellen Adresse fragen."
-        is javax.net.ssl.SSLException -> "Sichere Verbindung fehlgeschlagen (Zertifikat)."
+        // A device clock before 2026 makes every certificate look invalid (common on TV boxes after a power cut)
+        is javax.net.ssl.SSLException -> if (System.currentTimeMillis() < CLOCK_SANE_MS) "Sichere Verbindung fehlgeschlagen. Datum und Uhrzeit des Geräts prüfen" else "Sichere Verbindung fehlgeschlagen (Zertifikat)."
         is IllegalArgumentException -> "Ungültige Adresse."
         is OutOfMemoryError -> "Die Playlist ist zu groß für den Speicher dieses Geräts."
         is java.io.IOException -> if (noSpace(e)) NO_SPACE else "Verbindung unterbrochen. Bitte erneut versuchen."

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased – TV: playlist from the account on older boxes
+
+- Fof TV trusts the current list of root certificates (Mozilla's, as browsers use) in addition to the device's own: on older or never-updated TV boxes a provider's https address failed with "Secure connection failed (certificate)", so signing in to an account did not bring its playlist. Nothing is trusted that browsers do not trust; user-added certificates are still not trusted; http stays allowed as before.
+- A device clock before 2026 now gives "check this device's date and time" instead of the certificate message.
+
 ## Unreleased – TV: lighter Sports page and player
 
 - Sports: a league update that changes nothing (same games, scores and clocks) no longer redraws the page; updates wait for a pause in remote presses (at most 3 s). The page was redrawn several times a minute (97 % slow frames on an onn box).

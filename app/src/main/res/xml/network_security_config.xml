@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Older TV boxes (Android 7 and earlier, or never updated) miss newer root certificates, e.g. Let's Encrypt's
+  ISRG Root X1/X2: a provider's https address then fails with "Secure connection failed (certificate)".
+  The app also trusts the current Mozilla root list (raw/trusted_roots.pem, from certifi) in addition to the
+  device's own roots. Nothing is trusted that browsers do not trust; user-added certificates are not trusted.
+  Plain http stays allowed as before (android:usesCleartextTraffic="true": many IPTV providers only offer http).
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="@raw/trusted_roots" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
