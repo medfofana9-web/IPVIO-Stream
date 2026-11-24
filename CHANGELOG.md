@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased – DragonStreams first again
+
+- Fof TV (TV and Mac): DragonStreams is always the first source for movies and shows, then Your IPTV, then other addons; another title or episode still goes last. Play waits up to 8 s for DragonStreams to answer instead of starting whichever addon answered first, and a remembered source from another addon no longer jumps ahead of DragonStreams.
+
 ## Unreleased – TV: trailer stops when nobody is watching
 
 - Fof TV: the trailer in the big picture on Home and on title pages stops after 3 minutes without a remote press and starts again with the next press. Left playing on an idle TV it kept the box's graphics busy the whole time (70 % slow frames, 95 % of it GPU, on an onn 4K box).

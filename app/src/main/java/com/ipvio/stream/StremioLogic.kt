@@ -6,6 +6,13 @@ package com.ipvio.stream
  * base/stream/{type}/{id}.json, where id is an IMDb id ("tt0111161") or, for an episode, "tt0903747:1:3".
  */
 object StremioLogic {
+    /** Movies and shows: DragonStreams first, then the viewer's IPTV ("Your IPTV"), then every other addon. */
+    fun sourcePriority(addon: String): Int = when {
+        addon.contains("dragon", ignoreCase = true) -> 0
+        addon.equals("Your IPTV", ignoreCase = true) -> 1
+        else -> 2
+    }
+
     /** File kind of a stream from its labels and address: "mp4", "mkv", "cdn" (CDN link) or null. */
     fun streamKind(info: String, url: String): String? {
         val t = info.lowercase()

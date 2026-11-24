@@ -307,6 +307,10 @@ object Stremio {
         val qOrder = mapOf(2 to 0, 1 to 1, 3 to 2, 0 to 3)
         return l.sortedWith(compareBy<Source>(
             { if (SourceMemory.isWrong(contentId, it.key)) 1 else 0 },
+            // Another title/episode always last, whatever the addon
+            { if (match(it, w) == StremioLogic.MISMATCH) 1 else 0 },
+            // DragonStreams, then Your IPTV, ahead of every other addon
+            { StremioLogic.sourcePriority(it.addon) },
             { -match(it, w) },
             { if (it.key == good) 0 else 1 },
             { if (it.hash != null) 1 else 0 },

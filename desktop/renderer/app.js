@@ -571,7 +571,9 @@ function streamsNow(req) {
   const sid = type === 'series' ? `${id}:${season}:${episode}` : id;
   const all = [], t0 = Date.now();
   const good = store.get('goodSrc', {})[cidOf(req)];
-  const rank = s => (good && srcKey(s) === good ? 100 : 0) + (s.risky ? 0 : 10) + ({ '4K': 3, '1080p': 4, '720p': 2, 'SD': 1 }[s.quality] || 0) + (/\.mp4\b|mp4\)/i.test(s.name + s.title) ? 1 : 0);
+  // DragonStreams is the main source for movies and shows: always above other addons
+  const isDragon = s => /dragon/i.test((s.addon || '') + ' ' + (s.name || ''));
+  const rank = s => (isDragon(s) ? 1000 : 0) + (good && srcKey(s) === good ? 100 : 0) + (s.risky ? 0 : 10) + ({ '4K': 3, '1080p': 4, '720p': 2, 'SD': 1 }[s.quality] || 0) + (/\.mp4\b|mp4\)/i.test(s.name + s.title) ? 1 : 0);
   const sorted = () => all.slice().sort((a, b) => rank(b) - rank(a));
   const tidy = s => {
     const t = (s.name + ' ' + s.title);
@@ -588,7 +590,10 @@ function streamsNow(req) {
   const finish = () => { if (!done) { done = true; resolve(sorted()); } };
   const known = () => good && all.some(s => srcKey(s) === good);
   const ready = () => all.some(s => !s.risky && s.quality && s.quality !== 'SD');
-  const tick = setInterval(() => { const el = Date.now() - t0; if (known() || (el > 1500 && ready()) || (el > 6000 && all.length)) finish(); }, 200);
+  // Wait up to 8 s for DragonStreams before starting another addon's source
+  const dragonWanted = acct.addons.some(b => /dragon/i.test(b));
+  const dragonIn = () => !dragonWanted || all.some(isDragon);
+  const tick = setInterval(() => { const el = Date.now() - t0; if ((known() && dragonIn()) || (el > 1500 && ready() && dragonIn()) || (el > 8000 && all.length)) finish(); }, 200);
   const full = Promise.all(acct.addons.map(async base => {
     try {
       const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 15000);

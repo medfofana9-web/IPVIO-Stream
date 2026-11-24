@@ -119,15 +119,23 @@ fun StremioSourcesPopup(
     // are not waited for). Only when every source looks like another title does the list open.
     var firstAt by remember(imdb, season, ep, refreshToken) { mutableLongStateOf(0L) }
     var tick by remember { mutableIntStateOf(0) }
-    LaunchedEffect(firstAt) { if (firstAt > 0L) { kotlinx.coroutines.delay(1_600); tick++ } }
-    LaunchedEffect(sources, partial, tick) {
-        val l = sources ?: partial
+    LaunchedEffect(firstAt) { if (firstAt > 0L) repeat(16) { kotlinx.coroutines.delay(500); tick++ } }
+    LaunchedEffect(sources, partial, iptv, tick) {
+        val l = (sources ?: partial) + listOfNotNull(iptv)
         if (auto && !autoDone && FofPrefs.oneClick && l.isNotEmpty()) {
             if (firstAt == 0L) firstAt = System.currentTimeMillis()
+            val waited = System.currentTimeMillis() - firstAt
             val known = SourceMemory.lastGood(cid)?.let { k -> l.firstOrNull { it.key == k && !SourceMemory.isWrong(cid, it.key) } }
+            if (known != null && StremioLogic.sourcePriority(known.addon) == 0) { autoDone = true; choose(known); return@LaunchedEffect }
+            // DragonStreams is the main source: give it up to 8 s to answer before anything else starts
+            val dragonInstalled = Stremio.addons.any { it.streams && it.name.contains("dragon", true) }
+            val dragonPending = dragonInstalled && sources == null && l.none { it.addon.contains("dragon", true) } && waited < 8_000
+            if (dragonPending) return@LaunchedEffect
+            val top = Stremio.bestPlayable(l, want, cid)
+            if (top != null && StremioLogic.sourcePriority(top.addon) <= 1) { autoDone = true; choose(top); return@LaunchedEffect }
             val v = known ?: Stremio.bestVerified(l, want, cid)
             if (v != null) { autoDone = true; choose(v); return@LaunchedEffect }
-            if (sources != null || System.currentTimeMillis() - firstAt >= 1_500) {
+            if (sources != null || waited >= 1_500) {
                 autoDone = true
                 val p = Stremio.bestPlayable(l, want, cid)
                 if (p != null) { choose(p); return@LaunchedEffect } else noVerified = true
