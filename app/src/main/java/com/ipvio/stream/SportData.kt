@@ -526,8 +526,12 @@ object SportData {
     private val RX_NONALNUM = Regex("[^a-z0-9 ]")
     private val RX_SPACES = Regex("\\s+")
 
+    // Letters NFD does not split ("Bodø/Glimt" → "bodo glimt", "Æ" → "ae") are folded first
+    private fun fold(s: String): String = s.lowercase(Locale.ROOT).replace('ø', 'o').replace("æ", "ae").replace("œ", "oe")
+        .replace("ß", "ss").replace('đ', 'd').replace('ð', 'd').replace('ł', 'l').replace('ı', 'i').replace("þ", "th")
+
     fun norm(s: String): String =
-        Normalizer.normalize(s.lowercase(Locale.ROOT), Normalizer.Form.NFD).replace(RX_MARKS, "")
+        Normalizer.normalize(fold(s), Normalizer.Form.NFD).replace(RX_MARKS, "")
             .replace(RX_NONALNUM, " ").replace(RX_SPACES, " ").trim()
 
     // Channel titles are normalized again and again (every card, every recomposition): remember the result
@@ -591,8 +595,15 @@ object SportData {
         val first = full.substringBefore(' ')
         // A city on its own is ambiguous even when it is the last word (Real Madrid vs Atlético Madrid).
         val ambiguousShort = full != short && (short == first || short == "madrid")
-        return listOf(full, short.takeUnless { ambiguousShort }.orEmpty()).filter { it.length >= 3 }.distinct()
+        // Event titles often shorten a club ("LASK" for "LASK Linz", "Bodø/Glimt" for "FK Bodø/Glimt"): distinctive words count
+        // too. Words both teams share are dropped in [matches], and both teams must still appear.
+        val words = (full.split(' ') + short.split(' ')).filter { it.length >= 4 && it.any { c -> !c.isDigit() } && it !in EVENT_GENERIC }
+        return (listOf(full, short.takeUnless { ambiguousShort }.orEmpty()) + words).filter { it.length >= 3 }.distinct()
     }
+
+    private val EVENT_GENERIC = GENERIC + setOf("atletico", "olympique", "racing", "dynamo", "dinamo", "rovers", "wanderers", "albion",
+        "county", "town", "west", "north", "south", "east", "saint", "star", "young", "boys", "madrid", "milan", "manchester", "london",
+        "glasgow", "sheffield", "bristol", "munich", "lisbon")
 
     private val chanCache = HashMap<String, Pair<Int, List<Item>>>()
 

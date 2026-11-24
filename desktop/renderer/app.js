@@ -863,17 +863,29 @@ async function renderSports(pg) {
 
 // Channels in the playlist that carry a game: the teams' own channels first, then the national network
 const NET_ALIASES = { 'ESPN': ['espn'], 'ESPN2': ['espn2', 'espn 2'], 'ABC': ['abc'], 'TNT': ['tnt'], 'TBS': ['tbs'], 'NBA TV': ['nba tv', 'nbatv'], 'FOX': ['fox'], 'FS1': ['fs1', 'fox sports 1'], 'CBS': ['cbs'], 'NBC': ['nbc'], 'Peacock': ['peacock'], 'Prime Video': ['prime', 'amazon'], 'NFL Network': ['nfl network'], 'NHL Network': ['nhl network'], 'MLB Network': ['mlb network'], 'truTV': ['trutv', 'tru tv'], 'USA Net': ['usa network'], 'SEC Network': ['sec network'], 'ACC Network': ['acc network'], 'Big Ten Network': ['big ten', 'btn'] };
+// Fold letters that accent-stripping misses ("Bodø/Glimt" → "bodo glimt", "Malmö" → "malmo", "Æ" → "ae")
+const foldName = s => String(s || '').toLowerCase().replace(/ø/g, 'o').replace(/æ/g, 'ae').replace(/œ/g, 'oe').replace(/ß/g, 'ss')
+  .replace(/[đð]/g, 'd').replace(/ł/g, 'l').replace(/ı/g, 'i').replace(/þ/g, 'th').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-z0-9]+/g, ' ').trim();
+// Words too common to name a team on their own (a club's own city is only ambiguous when two clubs share it)
+const TEAM_GENERIC = new Set(['club', 'city', 'united', 'real', 'athletic', 'atletico', 'sporting', 'inter', 'borussia', 'olympique', 'racing', 'dynamo', 'dinamo', 'rovers', 'wanderers', 'albion', 'county', 'town', 'west', 'north', 'south', 'east', 'saint', 'red', 'star', 'young', 'boys', 'the', 'and', 'madrid', 'milan', 'manchester', 'london', 'glasgow', 'sheffield', 'bristol', 'munich', 'lisbon']);
 function gameChannels(g) {
-  const norm = s => ' ' + String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ') + ' ';
-  const has = (n, w) => w && w.length > 2 && n.includes(' ' + w.toLowerCase() + ' ');
+  const norm = s => ' ' + foldName(s) + ' ';
+  const has = (n, w) => { const k = foldName(w); return k.length > 2 && n.includes(' ' + k + ' '); };
   const league = { nba: 'nba', wnba: 'wnba', nfl: 'nfl', nhl: 'nhl', mlb: 'mlb', ncaaf: 'ncaa', ncaab: 'ncaa' }[g.lk] || '';
-  const nets = g.nets.flatMap(n => NET_ALIASES[n] || [n.toLowerCase()]);
+  const nets = g.nets.flatMap(n => NET_ALIASES[n] || [n]).map(foldName).filter(Boolean);   // "Paramount+" → "paramount"
   const out = [];
   // Event channels ("DAZN 59: Tenerife vs. Barcelona @ 22 Nov") must name both teams and, when dated, the game's day –
   // otherwise old or unrelated events ("Sunderland vs Hull City @ 8 Sep", "Barcelona: Coppa Shell") showed up and never started
   const MON = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
   const gd = new Date(g.date), gDay = gd.getDate(), gMon = gd.getMonth();
-  const teamHit = (n, t) => has(n, t.nick) || has(n, t.short) || has(n, t.name) || (t.city && t.nick && has(n, t.city + ' ' + t.nick));
+  // Event titles often shorten a club ("LASK" for "LASK Linz", "Bodø/Glimt" for "FK Bodø/Glimt"): a distinctive word of the
+  // name counts too, unless both teams share it. Both teams and the date must still match, so other games stay out.
+  const words = t => new Set([t.name, t.short, t.nick].flatMap(x => foldName(x).split(' ')).filter(w => w.length >= 4 && !/^\d+$/.test(w) && !TEAM_GENERIC.has(w)));
+  const hw = words(g.home), aw = words(g.away);
+  const own = { home: [...hw].filter(w => !aw.has(w)), away: [...aw].filter(w => !hw.has(w)) };
+  const teamHit = (n, t) => has(n, t.nick) || has(n, t.short) || has(n, t.name) || (t.city && t.nick && has(n, t.city + ' ' + t.nick))
+    || own[t === g.home ? 'home' : 'away'].some(w => n.includes(' ' + w + ' '));
   live.chans.forEach(c => {
     const n = norm(c.name); let sc = 0;
     const lower = String(c.name || '').toLowerCase();
