@@ -389,18 +389,16 @@ object AccountCloud {
      * A failed provider or network must not cause an endless download loop.
      * Manual playlist loading is deliberately unaffected.
      */
-    private suspend fun restorePlaylistOnce(c: Context, url: String) {
-        if (PlaylistStore.savedUrl(c) == url) return
-        val key = "restore_try_" + (FofAccount.userId ?: return) + "_" + AccountCloudLogic.hash(url)
+    private suspend fun restorePlaylistOnce(c: Context, url: String): Unit = withContext(Dispatchers.Main) {
+        if (PlaylistStore.savedUrl(c) == url || PlaylistStore.loading) return@withContext
+        val key = "restore_try_" + (FofAccount.userId ?: return@withContext) + "_" + AccountCloudLogic.hash(url)
         val p = prefs(c)
         val now = System.currentTimeMillis()
         val last = p.getLong(key, 0L)
-        if (last > 0L && now >= last && now - last < 30 * 60_000L) return
+        if (last > 0L && now >= last && now - last < 30 * 60_000L) return@withContext
         // Persist before starting: a crash or cancelled load must not trigger a retry storm.
-        p.edit().putLong(key, now).apply()
-        withContext(Dispatchers.Main) {
-            PlaylistStore.load(c, url, save = true, ask = false)
-        }
+        p.edit().putLong(key, now).commit()
+        PlaylistStore.load(c, url, save = true, skipNetworkWhenCached = true, ask = false, rememberManualJob = false)
     }
 
     /**
