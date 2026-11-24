@@ -46,6 +46,7 @@ fun StremioSourcesPopup(
     var imdb by remember { mutableStateOf<String?>(null) }
     var noId by remember { mutableStateOf(false) }
     var sources by remember { mutableStateOf<List<Stremio.Source>?>(null) }
+    var streamReport by remember { mutableStateOf<List<String>>(emptyList()) }
     var refreshToken by remember { mutableIntStateOf(0) }
     var retriedAlternate by remember(item.id) { mutableStateOf(false) }
     var resolving by remember { mutableStateOf(false) }
@@ -67,14 +68,14 @@ fun StremioSourcesPopup(
     // Your IPTV: its own section under the addon sources (needs no IMDb id; the provider's copy is found by name)
     var iptv by remember { mutableStateOf<Stremio.Source?>(null) }
     var iptvState by remember { mutableStateOf("loading") }   // loading, found, none
-    LaunchedEffect(imdb, season, ep, refreshToken) {
+    LaunchedEffect(imdb, season, ep, refreshToken, Stremio.addons) {
         val id = imdb ?: return@LaunchedEffect
-        sources = null; partial = emptyList()
+        sources = null; partial = emptyList(); streamReport = emptyList()
         // Manual source screens always refresh the add-ons rather than showing
         // a cached partial list. This matters when DragonStreams answers later.
-        val found = Stremio.streams(item.kind, id, season, ep,
+        val lookup = Stremio.lookupStreams(item.kind, id, season, ep,
             onPart = { partial = it }, refresh = !auto || refreshToken > 0)
-        if (found.isEmpty() && !retriedAlternate && Stremio.addons.any { it.streams }) {
+        if (lookup.sources.isEmpty() && !retriedAlternate && Stremio.addons.any { it.streams }) {
             // Some IPTV providers have the IMDb ID of a spin-off with the same name
             // (e.g. Survivor). When no addon finds streams for that ID, retry with
             // Cinemeta's exact title/year match, never with an unrelated title.
@@ -86,7 +87,8 @@ fun StremioSourcesPopup(
                 return@LaunchedEffect
             }
         }
-        sources = found
+        streamReport = lookup.report
+        sources = lookup.sources
     }
     fun choose(s: Stremio.Source) {
         NowSources.set(item.id, imdb, want, Stremio.rank((sources ?: partial) + listOfNotNull(iptv), want, cid), s)
@@ -183,7 +185,7 @@ fun StremioSourcesPopup(
             // status instead of silently making it look like the source was never installed.
             val dragonInstalled = Stremio.addons.any { it.streams && it.name.contains("dragon", true) }
             if (sources != null && dragonInstalled && list.orEmpty().none { it.addon.contains("dragon", true) }) {
-                val detail = Stremio.lastReport.firstOrNull { it.substringBefore(':').contains("dragon", true) }
+                val detail = streamReport.firstOrNull { it.substringBefore(':').contains("dragon", true) }
                     ?: "DragonStreams did not return any playable streams."
                 Text("$detail · Choose Refresh sources to try again.", color = DS.Gold,
                     fontSize = 13.sp, maxLines = 2, raw = true)
@@ -196,7 +198,7 @@ fun StremioSourcesPopup(
                 list.isEmpty() -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("No playable streams found.", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                     // Per addon: down, no links, or only links this app cannot play – tells whether to wait or fix an addon
-                    Stremio.lastReport.forEach { Text(it, color = Muted, fontSize = 15.sp, raw = true) }
+                    streamReport.forEach { Text(it, color = Muted, fontSize = 15.sp, raw = true) }
                 }
                 else -> LazyColumn(Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     itemsIndexed(list) { i, s ->
