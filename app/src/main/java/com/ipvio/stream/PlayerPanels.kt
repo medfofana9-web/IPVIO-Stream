@@ -192,19 +192,20 @@ fun BoxScope.EpisodesPanel(
     val starts = remember(rows) { rows.indices.filter { rows[it].ep != null && (it == 0 || rows[it - 1].ep == null) } }
     val curIdx = rows.indexOfFirst { r -> r.ep != null && r.ep.season == curSeason && r.ep.num == curNum }
     val focusIdx = if (curIdx >= 0) curIdx else rows.indexOfFirst { it.ep != null }
+    val nextIdx = if (curIdx >= 0) (curIdx + 1 until rows.size).firstOrNull { rows[it].ep != null } else null
     val st = rememberLazyListState(maxOf(focusIdx - 2, 0))
     val reqs = remember(rows) { HashMap<Int, FocusRequester>() }
     val scope = rememberCoroutineScope()
     fun jumpTo(target: Int) {
         scope.launch {
-            st.scrollToItem((target - 2).coerceAtLeast(0))
+            st.scrollToItem(target)
             withFrameNanos { }
             withFrameNanos { }
             runCatching { reqs.getOrPut(target) { FocusRequester() }.requestFocus() }
         }
     }
     val seasons = remember(rows) { rows.indices.filter { rows[it].header?.startsWith("Season") == true }.map { it to (rows[it].header ?: "") } }
-    PSimplePanel(if (sid != null) 760.dp else 520.dp, "Episodes", if (long) "Right/Fast-forward = next 50 · Rewind = previous · Left closes" else "Left closes the menu", onClose) {
+    PSimplePanel(if (sid != null) 760.dp else 520.dp, "Episodes", if (long) "Fast-forward / rewind to jump · Left to close" else "Left to close", onClose) {
         // Seasons: one chip each (more than one season), OK jumps to that season's first episode
         if (seasons.size > 1) {
             androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 10.dp)) {
@@ -237,7 +238,7 @@ fun BoxScope.EpisodesPanel(
                         })
                     if (sid != null) {
                         val meta = remember(sid, ep.season, ep.num, infoVer) { EpisodeInfo.get(sid, ep.season, ep.num) }
-                        PEpisodeRow(ep, meta, progress[ResumeLogic.key(ep.season, ep.num)], i == curIdx, curIdx >= 0 && i == curIdx + 1, rowMod) { onPick(ep) }
+                        PEpisodeRow(ep, meta, progress[ResumeLogic.key(ep.season, ep.num)], i == curIdx, i == nextIdx, rowMod) { onPick(ep) }
                     } else PPanelRow("Episode ${ep.num}", i == curIdx, rowMod, trailing = if (i == curIdx) "Playing" else null) { onPick(ep) }
                 }
             }
