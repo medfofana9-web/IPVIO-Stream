@@ -527,8 +527,12 @@ object SportData {
     private val RX_SPACES = Regex("\\s+")
 
     // Letters NFD does not split ("Bodø/Glimt" → "bodo glimt", "Æ" → "ae") are folded first
-    private fun fold(s: String): String = s.lowercase(Locale.ROOT).replace('ø', 'o').replace("æ", "ae").replace("œ", "oe")
-        .replace("ß", "ss").replace('đ', 'd').replace('ð', 'd').replace('ł', 'l').replace('ı', 'i').replace("þ", "th")
+    private fun fold(s: String): String = TextFold.fold(s)
+
+    /** The form [norm] had before letters like ø were folded: only to find favorites and picks saved back then. */
+    fun normLegacy(s: String): String =
+        Normalizer.normalize(s.lowercase(Locale.ROOT), Normalizer.Form.NFD).replace(RX_MARKS, "")
+            .replace(RX_NONALNUM, " ").replace(RX_SPACES, " ").trim()
 
     fun norm(s: String): String =
         Normalizer.normalize(fold(s), Normalizer.Form.NFD).replace(RX_MARKS, "")
@@ -631,13 +635,15 @@ object SportFavs {
     }
 
     fun key(t: SportData.Team) = SportData.norm(t.name)
-    fun has(t: SportData.Team) = t.name.isNotBlank() && key(t) in keys
+    private fun legacyKey(t: SportData.Team) = SportData.normLegacy(t.name)
+    fun has(t: SportData.Team) = t.name.isNotBlank() && (key(t) in keys || legacyKey(t) in keys)
     fun isFavGame(g: SportData.Game) = !g.solo && (has(g.home) || has(g.away))
 
     fun toggle(c: Context, t: SportData.Team) {
         init(c)
         val k = key(t)
-        if (!keys.remove(k)) keys.add(k)
+        val old = legacyKey(t)
+        if (!keys.remove(k) && !(old != k && keys.remove(old))) keys.add(k)
         prefs(c).edit().putString("k", keys.joinToString("|")).apply()
         CloudSync.kick(c)
     }

@@ -50,7 +50,7 @@ object SportLearn {
         val out = ArrayList<String>(3)
         if (!g.solo) {
             val teams = if (SportFavs.has(g.away) && !SportFavs.has(g.home)) listOf(g.away, g.home) else listOf(g.home, g.away)
-            teams.forEach { t -> map[teamKey(g.league, t)]?.let(out::add) }
+            teams.forEach { t -> (map[teamKey(g.league, t)] ?: map["team:" + g.league + "|" + SportData.normLegacy(t.name)])?.let(out::add) }
         }
         g.nets.forEach { n -> map[netKey(n)]?.let(out::add) }
         return out.distinct()

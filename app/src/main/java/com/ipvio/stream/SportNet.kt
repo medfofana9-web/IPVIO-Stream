@@ -16,7 +16,7 @@ object SportNet {
     private val SPACES = Regex("\\s+")
 
     fun norm(s: String): String =
-        Normalizer.normalize(s.lowercase(Locale.ROOT), Normalizer.Form.NFD).replace(MARKS, "")
+        Normalizer.normalize(TextFold.fold(s), Normalizer.Form.NFD).replace(MARKS, "")
             .replace('&', ' ').replace(NONALNUM, " ").replace(SPACES, " ").trim()
 
     /** Words that say nothing about which network a channel is (country, quality, feed). */

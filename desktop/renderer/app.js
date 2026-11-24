@@ -766,7 +766,7 @@ async function renderLive(pg) {
   $('#vg').onclick = () => { store.set('liveView', 'grid'); renderLive(pg); };
   $('#vl').onclick = () => { store.set('liveView', 'guide'); renderLive(pg); };
   const drawCats = f => {
-    $('#cl').innerHTML = live.cats.filter(c => !f || c.name.toLowerCase().includes(f)).map(c => `<button data-c="${esc(c.id)}" class="${c.id === live.cat ? 'on' : ''}">${esc(c.name)}<span>${c.n}</span></button>`).join('');
+    $('#cl').innerHTML = live.cats.filter(c => !f || foldName(c.name).includes(foldName(f))).map(c => `<button data-c="${esc(c.id)}" class="${c.id === live.cat ? 'on' : ''}">${esc(c.name)}<span>${c.n}</span></button>`).join('');
     document.querySelectorAll('#cl button').forEach(b => b.onclick = () => { live.cat = b.dataset.c; drawCats(f); drawChans(); });
   };
   const drawChans = () => {
@@ -864,9 +864,9 @@ async function renderSports(pg) {
 // Channels in the playlist that carry a game: the teams' own channels first, then the national network
 const NET_ALIASES = { 'ESPN': ['espn'], 'ESPN2': ['espn2', 'espn 2'], 'ABC': ['abc'], 'TNT': ['tnt'], 'TBS': ['tbs'], 'NBA TV': ['nba tv', 'nbatv'], 'FOX': ['fox'], 'FS1': ['fs1', 'fox sports 1'], 'CBS': ['cbs'], 'NBC': ['nbc'], 'Peacock': ['peacock'], 'Prime Video': ['prime', 'amazon'], 'NFL Network': ['nfl network'], 'NHL Network': ['nhl network'], 'MLB Network': ['mlb network'], 'truTV': ['trutv', 'tru tv'], 'USA Net': ['usa network'], 'SEC Network': ['sec network'], 'ACC Network': ['acc network'], 'Big Ten Network': ['big ten', 'btn'] };
 // Fold letters that accent-stripping misses ("Bodø/Glimt" → "bodo glimt", "Malmö" → "malmo", "Æ" → "ae")
-const foldName = s => String(s || '').toLowerCase().replace(/ø/g, 'o').replace(/æ/g, 'ae').replace(/œ/g, 'oe').replace(/ß/g, 'ss')
+function foldName(s) { return String(s || '').toLowerCase().replace(/ø/g, 'o').replace(/æ/g, 'ae').replace(/œ/g, 'oe').replace(/ß/g, 'ss')
   .replace(/[đð]/g, 'd').replace(/ł/g, 'l').replace(/ı/g, 'i').replace(/þ/g, 'th').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-  .replace(/[^a-z0-9]+/g, ' ').trim();
+  .replace(/[^a-z0-9]+/g, ' ').trim(); }
 // Words too common to name a team on their own (a club's own city is only ambiguous when two clubs share it)
 const TEAM_GENERIC = new Set(['club', 'city', 'united', 'real', 'athletic', 'atletico', 'sporting', 'inter', 'borussia', 'olympique', 'racing', 'dynamo', 'dinamo', 'rovers', 'wanderers', 'albion', 'county', 'town', 'west', 'north', 'south', 'east', 'saint', 'red', 'star', 'young', 'boys', 'the', 'and', 'madrid', 'milan', 'manchester', 'london', 'glasgow', 'sheffield', 'bristol', 'munich', 'lisbon']);
 function gameChannels(g) {
@@ -1017,7 +1017,7 @@ async function runSearch(q) {
   }
   const [mv, sr] = await Promise.all([catalog('movie', 'search=' + encodeURIComponent(q)), catalog('series', 'search=' + encodeURIComponent(q))]);
   if (($('#sq') || {}).value?.trim() !== q) return;
-  const ch = live.loaded ? live.chans.filter(c => c.name.toLowerCase().includes(q.toLowerCase())).slice(0, 24) : [];
+  const ch = live.loaded ? live.chans.filter(c => (' ' + foldName(c.name) + ' ').includes(foldName(q))).slice(0, 24) : [];
   box.innerHTML = (ch.length ? '<h4>Live TV</h4>' + ch.map((c, i) => `<div class="ch" data-ci="${i}"><div class="live">LIVE</div><div class="lg">${c.logo ? `<img src="${esc(c.logo)}" onerror="this.remove()">` : `<b>${esc(c.name.slice(0, 2))}</b>`}</div><div class="nm">${esc(c.name)}</div></div>`).join('') : '') +
     (mv.length ? '<h4>Movies</h4>' + mv.slice(0, 24).map(m => cardHtml(m, 'movie')).join('') : '') +
     (sr.length ? '<h4>TV Shows</h4>' + sr.slice(0, 24).map(m => cardHtml(m, 'series')).join('') : '') ||

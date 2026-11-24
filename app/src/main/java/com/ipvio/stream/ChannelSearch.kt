@@ -19,7 +19,7 @@ object ChannelSearch {
     private val normCache = java.util.concurrent.ConcurrentHashMap<String, String>()
 
     private fun normNow(t: String): String =
-        java.text.Normalizer.normalize(t.lowercase(), java.text.Normalizer.Form.NFD)
+        java.text.Normalizer.normalize(TextFold.fold(t), java.text.Normalizer.Form.NFD)
             .replace(MARKS, "").replace("ß", "ss")
             .replace(NONWORD, " ").trim()
 
