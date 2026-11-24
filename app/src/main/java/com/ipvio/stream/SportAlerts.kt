@@ -167,7 +167,7 @@ object SportAlerts {
     }
 }
 
-/** Popup (top right) and mini score (freely selectable corner) above everything; they take no focus. */
+/** Sports notifications and the score panel preview. */
 @Composable
 fun SportAlertHost() {
     val a = SportAlerts.current
@@ -185,8 +185,13 @@ fun SportAlertHost() {
             if (a.game != null && AppNav.playing) Text(raw = true, text = "Press OK to watch", color = Color(0xFFB0B0B8), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         }
     }
+    if (SportAlerts.preview) MiniScoreOverlay(preview = true)
+}
+
+@Composable
+fun MiniScoreOverlay(preview: Boolean = false) {
     val games = SportAlerts.live
-    if (SportAlerts.miniOn && (games.isNotEmpty() || SportAlerts.preview)) {
+    if (SportAlerts.miniOn && (games.isNotEmpty() || preview)) {
         val k = when (SportAlerts.miniSize) { 0 -> 0.8f; 2 -> 1.25f; else -> 1f }
         fun corner(c: Int) = when (c and 3) { 0 -> Alignment.TopStart; 1 -> Alignment.TopEnd; 2 -> Alignment.BottomStart; else -> Alignment.BottomEnd }
         val shown = games.take(SportAlerts.MAX_GAMES)

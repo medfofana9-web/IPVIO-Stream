@@ -312,6 +312,10 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     val btn = remember { Panel.entries.associateWith { FocusRequester() } }
 
     val curItem = remember(cur.itemId, liveAll, zapSrc) { liveAll.firstOrNull { it.id == cur.itemId } ?: zapSrc.firstOrNull { it.id == cur.itemId } }
+    val liveSports = cur.live && cur.archive == null &&
+        (SportSession.owns(cur.itemId) || curItem?.let { SportLogic.isSportChannel(it) } == true)
+    val showMiniScores = liveSports && !controls && panel == Panel.NONE && !showChannels &&
+        !showGuide && second == null && multiStart == null && streamPick == null && !partyPanel && !failed && !SportAlerts.preview
     val curIdx = remember(cur.itemId, zapSrc) { zapSrc.indexOfFirst { it.id == cur.itemId } }
     val step = AppSettings.seekStep * 1000L
     val firstFocus = if (cur.live) liveFirst else playBtn
@@ -1552,7 +1556,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             },
             modifier = if (dualSplit) Modifier.align(Alignment.CenterStart).fillMaxHeight().fillMaxWidth(0.5f) else videoMod
         )
-        if (scoreDlg) ScoreOverlayDialog { scoreDlg = false }
+        if (liveSports && scoreDlg) ScoreOverlayDialog { scoreDlg = false }
+        if (showMiniScores && !scoreDlg) MiniScoreOverlay()
         second?.let { s2 ->
             SecondStream(
                 s2, dualSplit, audioOnSecond,
@@ -2236,7 +2241,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             }
                             add(MenuEntry(23, "Streams tauschen", null, false))
                         }
-                        if (cur.live && (SportAlerts.miniOn || SportAlerts.pinned.isNotEmpty())) add(MenuEntry(30, "Score overlay", null, true))
+                        if (liveSports) add(MenuEntry(30, "Score overlay", null, true))
                         add(MenuEntry(0, "Sprungweite", "${step / 1000} s", true))
                         add(MenuEntry(1, "Subtitle appearance", null, true))
                         add(MenuEntry(2, "Videoqualität", currentAlts().size.takeIf { it > 1 }?.let { "$it sources" }, true))
