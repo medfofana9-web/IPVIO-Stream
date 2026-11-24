@@ -1055,15 +1055,16 @@ object PlaylistStore {
     /**
      * Loads a playlist. [save] = newly added (only adopted into the list on success, but remembered beforehand),
      * [ask] = may ask for languages on very large lists (not in the background), [resumed] = continued automatically.
+     * Account restores have their own retry schedule and do not create a manual resume job.
      */
     suspend fun load(
         c: Context, url: String, save: Boolean, skipNetworkWhenCached: Boolean = false,
-        ask: Boolean = true, resumed: Boolean = false
+        ask: Boolean = true, resumed: Boolean = false, rememberManualJob: Boolean = true
     ): Boolean {
         if (!loadLock.tryLock()) return rawChannels.isNotEmpty()
         try {
             M3uParser.liveOnly = !FofPrefs.vodStored(c)
-            return loadInner(c, url, save, skipNetworkWhenCached, ask, resumed)
+            return loadInner(c, url, save, skipNetworkWhenCached, ask, resumed, rememberManualJob)
         } finally {
             loading = false   // also on cancel: otherwise the loading state (and the screen keep-awake) would stay stuck
             heavy = false
@@ -1075,14 +1076,18 @@ object PlaylistStore {
         }
     }
 
-    private suspend fun loadInner(c: Context, url: String, save: Boolean, skipNetworkWhenCached: Boolean, ask: Boolean, resumed: Boolean): Boolean {
+    private suspend fun loadInner(
+        c: Context, url: String, save: Boolean, skipNetworkWhenCached: Boolean,
+        ask: Boolean, resumed: Boolean, rememberManualJob: Boolean = true
+    ): Boolean {
         ensure(c)
         val u = PlaylistLogic.normalizeUrl(url) ?: run { error = "Bitte eine gültige Adresse eingeben (beginnt mit http:// oder https://)."; return false }
         job = currentCoroutineContext()[Job]
         loading = true; error = null; heavy = false
         phase = "Gespeicherte Playlist wird gelesen …"; bytesRead = 0L; totalBytes = -1L; downloadDone = false
         var forceAsk = false
-        if (save) {
+        val trackPending = save && rememberManualJob
+        if (trackPending) {
             val prev = pending(c)
             // Last attempt crashed or was too big, now restarted by hand: show the languages again for a large list
             forceAsk = !resumed && prev != null && prev.url == u && (prev.interrupted || prev.msg == MSG_TOO_BIG)
@@ -1097,7 +1102,7 @@ object PlaylistStore {
         // Take further simultaneously shown playlists straight from the cache (fast start)
         if (usedCache) withContext(Dispatchers.IO) { runCatching { loadExtras(c, network = false) }.onFailure { if (it is CancellationException) throw it } }
         if (usedCache && skipNetworkWhenCached) {
-            if (save) finishSave(c, u)
+            if (save) finishSave(c, u, clearManualJob = trackPending)
             return true
         }
         error = null
@@ -1124,22 +1129,22 @@ object PlaylistStore {
                 else { primaryEpg = urls; primaryOrder = order; langCounts = parsed.counts; langBytes = parsed.bytes; restartCatchup(c) }
                 // Renew further shown playlists from the server as well
                 loadExtras(c, network = true)
-                if (save) finishSave(c, u)
+                if (save) finishSave(c, u, clearManualJob = trackPending)
                 askNext = false
                 true
             } catch (e: CancellationException) {
-                if (save) failPending(c, MSG_CANCEL)
+                if (trackPending) failPending(c, MSG_CANCEL)
                 throw e
             } catch (e: Exception) {
-                if (cancelled()) { if (save) failPending(c, MSG_CANCEL); throw CancellationException("abgebrochen") }
+                if (cancelled()) { if (trackPending) failPending(c, MSG_CANCEL); throw CancellationException("abgebrochen") }
                 val msg = if (e is ParseStop) MSG_TOO_BIG else PlaylistLogic.friendlyError(e)
                 if (e is ParseStop) askNext = true
                 if (rawChannels.isEmpty() || save) error = msg
-                if (save) failPending(c, msg)
+                if (trackPending) failPending(c, msg)
                 usedCache
             } catch (e: OutOfMemoryError) {
                 askNext = true
-                if (save) failPending(c, MSG_TOO_BIG)
+                if (trackPending) failPending(c, MSG_TOO_BIG)
                 if (rawChannels.isEmpty() || save) error = MSG_TOO_BIG
                 usedCache
             }
@@ -1149,12 +1154,12 @@ object PlaylistStore {
     }
 
     /** Newly added playlist loaded successfully: adopt it into the list and delete the remembered job. */
-    private fun finishSave(c: Context, u: String) {
+    private fun finishSave(c: Context, u: String, clearManualJob: Boolean = true) {
         val idx = lists.indexOfFirst { it.url == u }
         if (idx >= 0) active = idx else { lists.add(PL(hostOf(u), u)); active = lists.size - 1 }
         persist(c)
         syncFailover(c)
-        clearPending(c)
+        if (clearManualJob || pending(c)?.url == u) clearPending(c)
     }
 
     /**
