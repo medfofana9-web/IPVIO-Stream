@@ -36,6 +36,12 @@ object ProviderVod {
         Stremio.Source(ProviderVodLogic.ADDON, "Your IPTV · " + hit.name + " S${season}E$ep", e.url, 0, info = info)
     }
 
+    /** Loads the provider's movie and series list ahead (title page opened), so Play does not wait for it. */
+    suspend fun prewarm(c: Context) { withContext(Dispatchers.IO) {
+        val acct = PlaylistStore.savedUrl(c)?.let { XtreamLogic.fromUrl(it) } ?: return@withContext
+        withTimeoutOrNull(25_000) { ensure(c, acct) }
+    } }
+
     private suspend fun ensure(c: Context, a: XtreamLogic.Acct): Map<String, List<Entry>>? = lock.withLock {
         val who = a.base + "|" + a.user
         index?.takeIf { indexFor == who }?.let { return it }

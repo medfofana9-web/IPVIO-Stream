@@ -65,6 +65,8 @@ async function loadAccount() {
     if (s.name === 'addons') { try { acct.addons = JSON.parse(s.value || '[]').filter(a => /^https?:/.test(a)); } catch (e) {} }
     if (s.name === 'playlist') acct.playlist = s.value || '';
   });
+  // Your IPTV's movie and series list is loaded in the background, so the first Play does not wait for it
+  setTimeout(() => providerIndex().catch(() => {}), 4000);
 }
 
 // The TV keeps each profile's data as Android preference files inside fof_profile_data ({files: {store: {key: ["s", "<json>"]}}}).
@@ -546,6 +548,53 @@ async function renderDetail(pg, { type, id, play }) {
   });
 }
 
+// ------------------------------------------------------------------ Your IPTV as a source for movies and shows (Xtream login)
+// The provider's movie and series names are loaded once a day; a title matches only when the cleaned names are equal and
+// the year fits (within one), the same rule the TV uses, so a wrong film never starts
+const PV_ADDON = 'Your IPTV';
+const pv = { idx: null, t: 0, p: null };
+const PV_LANG = /^\s*(?:[\[|(]\s*)?([A-Za-z]{2,3})(?:\s*[\]|)])?\s*[-:|•]\s+/;
+const pvKey = n => foldName(String(n || '').replace(PV_LANG, '').replace(/[(\[]\s*(?:19|20)\d{2}\s*[)\]]/g, ' ')
+  .replace(/\b(4k|uhd|fhd|hd|sd|hevc|h\.?265|x265|multi|vostfr|dual|1080p|720p|2160p)\b/gi, ' ').replace(/&/g, ' and '));
+const pvYear = (name, f) => +((String(name).match(/[(\[]\s*((?:19|20)\d{2})\s*[)\]]/) || [])[1] || (String(f || '').match(/\b(?:19|20)\d{2}\b/) || [])[0] || 0) || null;
+function providerIndex() {
+  const xt = !WEB && xtreamOf(acct.playlist); if (!xt) return Promise.resolve(null);
+  const who = xt.base + '|' + xt.user;
+  if (pv.idx && pv.who === who && Date.now() - pv.t < 24 * 3600 * 1000) return Promise.resolve(pv.idx);
+  if (pv.p && pv.who === who) return pv.p;
+  pv.who = who;
+  const api = `${xt.base}/player_api.php?username=${encodeURIComponent(xt.user)}&password=${encodeURIComponent(xt.pass)}`;
+  const get = a => fetch(api + '&action=' + a, { referrerPolicy: 'no-referrer' }).then(r => r.json()).catch(() => []);
+  pv.p = Promise.all([get('get_vod_streams'), get('get_series')]).then(([mv, sr]) => {
+    const m = new Map(), add = (k, e) => { if (!m.has(k)) m.set(k, []); m.get(k).push(e); };
+    (Array.isArray(mv) ? mv : []).forEach(e => e.name && e.stream_id && add('m:' + pvKey(e.name), { id: e.stream_id, ext: e.container_extension || 'mp4', name: e.name, year: pvYear(e.name, e.year || e.releaseDate || e.release_date) }));
+    (Array.isArray(sr) ? sr : []).forEach(e => e.name && e.series_id && add('s:' + pvKey(e.name), { id: e.series_id, name: e.name, year: pvYear(e.name, e.year || e.releaseDate || e.release_date) }));
+    if (m.size) { pv.idx = m; pv.t = Date.now(); } pv.p = null; return pv.idx;
+  });
+  return pv.p;
+}
+function pvPick(c, year) {
+  const other = year && c.some(x => x.year && Math.abs(x.year - year) > 1);
+  const ok = c.filter(x => !year || (!x.year && !other) || (x.year && Math.abs(x.year - year) <= 1));
+  const en = x => { const l = (x.name.match(PV_LANG) || [])[1]; return !l || /^(en|us|uk|eng)$/i.test(l) ? 0 : 1; };
+  return ok.sort((a, b) => en(a) - en(b) || (a.year === year ? 0 : 1) - (b.year === year ? 0 : 1))[0] || null;
+}
+async function providerSource(req) {
+  const xt = !WEB && xtreamOf(acct.playlist); const tt = ttOf(req.id); if (!xt || !tt) return null;
+  const series = req.type === 'series';
+  const [idx, m] = await Promise.all([providerIndex(), metaOf(series ? 'series' : 'movie', tt)]);
+  if (!idx || !m || !m.name) return null;
+  const year = pvYear('', m.year || m.releaseInfo);
+  const hit = pvPick(idx.get((series ? 's:' : 'm:') + pvKey(m.name)) || [], year); if (!hit) return null;
+  const base = { addon: PV_ADDON, addonName: PV_ADDON, quality: '', size: '', risky: false, title: '' };
+  if (!series) return Object.assign(base, { url: `${xt.base}/movie/${xt.user}/${xt.pass}/${hit.id}.${hit.ext}`, name: PV_ADDON + ' · ' + hit.name, file: hit.name });
+  const info = await getJson(`${xt.base}/player_api.php?username=${encodeURIComponent(xt.user)}&password=${encodeURIComponent(xt.pass)}&action=get_series_info&series_id=${hit.id}`).catch(() => null);
+  const ep = info && info.episodes && (info.episodes[req.season] || info.episodes[String(req.season)] || []).find(e => +e.episode_num === +req.episode);
+  if (!ep) return null;
+  const label = `${hit.name} S${req.season}E${req.episode}`;
+  return Object.assign(base, { url: `${xt.base}/series/${xt.user}/${xt.pass}/${ep.id}.${ep.container_extension || 'mp4'}`, name: PV_ADDON + ' · ' + label, file: label });
+}
+
 // ------------------------------------------------------------------ addon streams (account addons, like the TV's Sources)
 // Asked ahead when a title page opens, so Play has its sources at once (kept 10 minutes, one lookup at a time)
 const streamCache = new Map();
@@ -571,9 +620,9 @@ function streamsNow(req) {
   const sid = type === 'series' ? `${id}:${season}:${episode}` : id;
   const all = [], t0 = Date.now();
   const good = store.get('goodSrc', {})[cidOf(req)];
-  // DragonStreams is the main source for movies and shows: always above other addons
-  const isDragon = s => /dragon/i.test((s.addon || '') + ' ' + (s.name || ''));
-  const rank = s => (isDragon(s) ? 1000 : 0) + (good && srcKey(s) === good ? 100 : 0) + (s.risky ? 0 : 10) + ({ '4K': 3, '1080p': 4, '720p': 2, 'SD': 1 }[s.quality] || 0) + (/\.mp4\b|mp4\)/i.test(s.name + s.title) ? 1 : 0);
+  // DragonStreams is the main source for movies and shows, then Your IPTV, then every other addon
+  const isDragon = s => s.addon !== PV_ADDON && /dragon/i.test((s.addon || '') + ' ' + (s.name || ''));
+  const rank = s => (isDragon(s) ? 1000 : s.addon === PV_ADDON ? 500 : 0) + (good && srcKey(s) === good ? 100 : 0) + (s.risky ? 0 : 10) + ({ '4K': 3, '1080p': 4, '720p': 2, 'SD': 1 }[s.quality] || 0) + (/\.mp4\b|mp4\)/i.test(s.name + s.title) ? 1 : 0);
   const sorted = () => all.slice().sort((a, b) => rank(b) - rank(a));
   const tidy = s => {
     const t = (s.name + ' ' + s.title);
@@ -590,10 +639,22 @@ function streamsNow(req) {
   const finish = () => { if (!done) { done = true; resolve(sorted()); } };
   const known = () => good && all.some(s => srcKey(s) === good);
   const ready = () => all.some(s => !s.risky && s.quality && s.quality !== 'SD');
-  // Wait up to 8 s for DragonStreams before starting another addon's source
-  const dragonWanted = acct.addons.some(b => /dragon/i.test(b));
-  const dragonIn = () => !dragonWanted || all.some(isDragon);
-  const tick = setInterval(() => { const el = Date.now() - t0; if ((known() && dragonIn()) || (el > 1500 && ready() && dragonIn()) || (el > 8000 && all.length)) finish(); }, 200);
+  // Start order: DragonStreams the moment it answers; when it has nothing, Your IPTV; only then other addons.
+  // Every addon is asked at the same time, so nothing waits on a slower one in turn.
+  const dragonBases = acct.addons.filter(b => /dragon/i.test(b));
+  let dragonLeft = dragonBases.length, iptvDone = !xtreamOf(acct.playlist) || WEB;
+  const hasDragon = () => all.some(isDragon), hasIptv = () => all.some(s => s.addon === PV_ADDON);
+  const check = () => {
+    if (done) return;
+    const el = Date.now() - t0;
+    if (hasDragon()) return finish();                              // DragonStreams answered: start now
+    if (dragonLeft > 0 && el < 8000) return;                       // still waiting for DragonStreams (8 s at most)
+    if (hasIptv()) return finish();                                // no DragonStreams copy: your IPTV
+    if (!iptvDone && el < 8000) return;                            // IPTV lookup still running
+    if (known() || ready() || (el > 3000 && all.length)) finish(); // other addons
+  };
+  const tick = setInterval(check, 150);
+  providerSource(req).then(s => { if (s) all.push(s); }).catch(() => {}).finally(() => { iptvDone = true; check(); });
   const full = Promise.all(acct.addons.map(async base => {
     try {
       const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 15000);
@@ -603,7 +664,8 @@ function streamsNow(req) {
       const addon = base.replace(/^https?:\/\//, '').split('/')[0];
       (j.streams || []).forEach(s => { if (s.url && /^https?:/.test(s.url)) all.push(tidy({ url: s.url, name: (s.name || addon).replace(/\n/g, ' '), title: s.title || s.description || '', addon, headers: s.behaviorHints && s.behaviorHints.proxyHeaders && s.behaviorHints.proxyHeaders.request })); });
     } catch (e) {}
-  })).then(() => { clearInterval(tick); finish(); return sorted(); });
+    if (dragonBases.includes(base)) { dragonLeft--; check(); }
+  }).concat([new Promise(r => { const w = setInterval(() => { if (iptvDone) { clearInterval(w); r(); } }, 150); })])).then(() => { clearInterval(tick); finish(); return sorted(); });
   quick.full = full;
   return quick;
 }

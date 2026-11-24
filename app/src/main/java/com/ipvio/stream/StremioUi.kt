@@ -119,8 +119,8 @@ fun StremioSourcesPopup(
     // are not waited for). Only when every source looks like another title does the list open.
     var firstAt by remember(imdb, season, ep, refreshToken) { mutableLongStateOf(0L) }
     var tick by remember { mutableIntStateOf(0) }
-    LaunchedEffect(firstAt) { if (firstAt > 0L) repeat(16) { kotlinx.coroutines.delay(500); tick++ } }
-    LaunchedEffect(sources, partial, iptv, tick) {
+    LaunchedEffect(firstAt) { if (firstAt > 0L) repeat(40) { kotlinx.coroutines.delay(200); tick++ } }
+    LaunchedEffect(sources, partial, iptv, iptvState, tick) {
         val l = (sources ?: partial) + listOfNotNull(iptv)
         if (auto && !autoDone && FofPrefs.oneClick && l.isNotEmpty()) {
             if (firstAt == 0L) firstAt = System.currentTimeMillis()
@@ -129,10 +129,13 @@ fun StremioSourcesPopup(
             if (known != null && StremioLogic.sourcePriority(known.addon) == 0) { autoDone = true; choose(known); return@LaunchedEffect }
             // DragonStreams is the main source: give it up to 8 s to answer before anything else starts
             val dragonInstalled = Stremio.addons.any { it.streams && it.name.contains("dragon", true) }
-            val dragonPending = dragonInstalled && sources == null && l.none { it.addon.contains("dragon", true) } && waited < 8_000
+            val dragonAnswered = imdb?.let { Stremio.dragonAnswered(item.kind, it, season, ep) } == true
+            val dragonPending = dragonInstalled && sources == null && !dragonAnswered && l.none { it.addon.contains("dragon", true) } && waited < 8_000
             if (dragonPending) return@LaunchedEffect
             val top = Stremio.bestPlayable(l, want, cid)
             if (top != null && StremioLogic.sourcePriority(top.addon) <= 1) { autoDone = true; choose(top); return@LaunchedEffect }
+            // No DragonStreams copy: Your IPTV comes next, so wait for its lookup before another addon starts
+            if (iptvState == "loading" && waited < 8_000) return@LaunchedEffect
             val v = known ?: Stremio.bestVerified(l, want, cid)
             if (v != null) { autoDone = true; choose(v); return@LaunchedEffect }
             if (sources != null || waited >= 1_500) {

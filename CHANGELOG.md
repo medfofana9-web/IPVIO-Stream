@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased – Faster one-click Play, Your IPTV second on the Mac, sports names everywhere
+
+- Play starts the moment DragonStreams answers; when it has nothing, Your IPTV is next, then other addons (TV and Mac).
+- TV: DragonStreams MP4 links play by themselves when their file name confirms the title; IPTV movie/series list loads when a title page opens.
+- Mac: Your IPTV (Xtream) is now a source for movies and shows, ranked right after DragonStreams.
+- Sports and channel search fold letters like ø, æ, ß on TV and Mac (Bodø/Glimt), and shortened club names (LASK) match event channels.
+
 ## Unreleased – DragonStreams first again
 
 - Fof TV (TV and Mac): DragonStreams is always the first source for movies and shows, then Your IPTV, then other addons; another title or episode still goes last. Play waits up to 8 s for DragonStreams to answer instead of starting whichever addon answered first, and a remembered source from another addon no longer jumps ahead of DragonStreams.

@@ -220,6 +220,7 @@ private fun DetailScreenFull(
     val tmdbId = meta?.tmdbId
     val imdbId = meta?.imdbId
     LaunchedEffect(Unit) { Stremio.ensure(ctx) }
+    LaunchedEffect(Unit) { runCatching { ProviderVod.prewarm(ctx) } }
     // Title without a playlist link: ask the addons ahead, so Play starts without waiting
     LaunchedEffect(item.id, season, imdbId, Stremio.addons.size) {
         if (!playUrl.isNullOrBlank() || Stremio.addons.none { it.streams } || item.kind == Kind.LIVE) return@LaunchedEffect

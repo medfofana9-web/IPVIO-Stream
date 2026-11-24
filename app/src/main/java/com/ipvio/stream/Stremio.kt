@@ -330,10 +330,12 @@ object Stremio {
 
     /** Quick one-click choice when no file name confirms the title yet: the best source that is not another title/episode. */
     fun bestPlayable(l: List<Source>, w: Want, contentId: String): Source? =
-        rank(l, w, contentId).firstOrNull { match(it, w) != StremioLogic.MISMATCH && !SourceMemory.isWrong(contentId, it.key) && !it.label.startsWith(StremioLogic.LAST_RESORT) }
+        rank(l, w, contentId).firstOrNull { val m = match(it, w); m != StremioLogic.MISMATCH && !SourceMemory.isWrong(contentId, it.key) &&
+            // DragonStreams MP4 links play by themselves only when their file name confirms this title
+            (!it.label.startsWith(StremioLogic.LAST_RESORT) || m == StremioLogic.VERIFIED) }
 
     fun bestVerified(l: List<Source>, w: Want, contentId: String): Source? =
-        rank(l, w, contentId).firstOrNull { match(it, w) == StremioLogic.VERIFIED && !SourceMemory.isWrong(contentId, it.key) && !it.label.startsWith(StremioLogic.LAST_RESORT) }
+        rank(l, w, contentId).firstOrNull { match(it, w) == StremioLogic.VERIFIED && !SourceMemory.isWrong(contentId, it.key) }
 
     /** One-click choice: 1080p direct link first (smooth on a Fire TV), then 720p, 4K, unknown; Real-Debrid last. */
     fun best(l: List<Source>): Source {
@@ -341,6 +343,10 @@ object Stremio {
         for (q in listOf(2, 1, 3, 0)) direct.firstOrNull { it.q == q }?.let { return it }
         return direct.firstOrNull() ?: l.first()
     }
+
+    // Lookups DragonStreams has answered (with or without streams): one-click Play stops waiting for it at once
+    private val dragonDone = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    fun dragonAnswered(kind: Kind, imdb: String, season: Int, ep: Int): Boolean = dragonDone.containsKey("$kind|$imdb|$season|$ep")
 
     private suspend fun streamsNow(stream: List<Addon>, kind: Kind, imdb: String, season: Int, ep: Int, onPart: (List<Source>) -> Unit): StreamLookup = coroutineScope {
         val partial = java.util.Collections.synchronizedList(ArrayList<Source>())
@@ -372,7 +378,13 @@ object Stremio {
                 }, { e ->
                     val why = e.message?.takeIf { it.startsWith("HTTP") } ?: if (e is java.net.SocketTimeoutException) "timed out" else "not responding"
                     emptyList<Source>() to (a.name + ": " + why)
-                })
+                }).also {
+                    // Marked after its streams reached the list, so Play never passes over them
+                    if (a.name.contains("dragon", ignoreCase = true)) {
+                        if (dragonDone.size > 500) dragonDone.clear()
+                        dragonDone["$kind|$imdb|$season|$ep"] = System.currentTimeMillis()
+                    }
+                }
             }
         }.awaitAll()
         // Retain identical URLs from different addons: dropping a cross-addon
