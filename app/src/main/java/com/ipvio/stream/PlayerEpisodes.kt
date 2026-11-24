@@ -31,19 +31,19 @@ internal fun PEpisodeRow(
     val shape = RoundedCornerShape(DS.RadiusM)
     val ctx = LocalContext.current
     Row(
-        modifier.fillMaxWidth().height(112.dp).clip(shape)
+        modifier.fillMaxWidth().height(96.dp).clip(shape)
             .background(if (f) Color(0x29FFFFFF) else if (playing) Color(0x14FFFFFF) else Color.Transparent)
             .onFocusChanged { f = it.isFocused }.clickable(onClick = onClick).padding(10.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.width(164.dp).fillMaxHeight().clip(RoundedCornerShape(DS.RadiusS)).background(Color(0xFF1A1C24)), contentAlignment = Alignment.Center) {
+        Box(Modifier.width(136.dp).fillMaxHeight().clip(RoundedCornerShape(DS.RadiusS)).background(Color(0xFF1A1C24)), contentAlignment = Alignment.Center) {
             val still = meta?.still
             val hide = FofPrefs.spoilerPics && prog?.done != true
             if (still != null) {
                 // Decoded small (no full-size stills while scrolling); blurred-by-size when spoilers are hidden
-                val req = remember(still, hide) { coil.request.ImageRequest.Builder(ctx).data(still).size(if (hide) 32 else 328, if (hide) 18 else 184).build() }
+                val req = remember(still, hide) { coil.request.ImageRequest.Builder(ctx).data(still).size(if (hide) 32 else 272, if (hide) 18 else 152).build() }
                 coil.compose.AsyncImage(req, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-            } else Text("E${ep.num}", color = Color(0x99FFFFFF), fontSize = 22.sp, fontWeight = FontWeight.Bold, raw = true)
+            } else AppIcon(AIcon.Play, Color(0x66FFFFFF), size = 24.dp)
             if (prog != null && !prog.done && prog.fraction > 0.02f) Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color(0x66FFFFFF))) {
                 Box(Modifier.fillMaxWidth(prog.fraction).fillMaxHeight().background(Accent2))
             }
@@ -52,28 +52,24 @@ internal fun PEpisodeRow(
             }
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("E${ep.num} · " + (meta?.name ?: ep.title.ifBlank { "Episode ${ep.num}" }), color = Color.White, fontSize = 18.sp,
-                    fontWeight = if (f || playing) FontWeight.Bold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, raw = true,
-                    modifier = Modifier.weight(1f, fill = false))
-                when {
-                    playing -> Tag("Playing", Accent2)
-                    upNext -> Tag("Up next", Color.White)
-                }
+            val title = meta?.name?.takeIf { it.isNotBlank() } ?: ep.title.ifBlank { "Episode ${ep.num}" }
+            val episodeLabel = "Episode ${ep.num}"
+            Text(
+                if (title.equals(episodeLabel, ignoreCase = true)) episodeLabel else "${ep.num}. $title",
+                color = Color.White, fontSize = 18.sp, fontWeight = if (f || playing) FontWeight.Bold else FontWeight.Medium,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, raw = true
+            )
+            val status = when {
+                playing -> "Now playing"
+                upNext -> "Up next"
+                prog != null && !prog.done && prog.fraction > 0.02f && prog.dur > 0 ->
+                    "${(prog.dur - prog.pos).coerceAtLeast(60) / 60} min left"
+                else -> meta?.runtime?.let { "$it min" }
             }
-            val info = listOfNotNull(meta?.runtime?.let { "$it min" },
-                prog?.takeIf { !it.done && it.fraction > 0.02f && it.dur > 0 }?.let { p -> "${(p.dur - p.pos).coerceAtLeast(60) / 60} min left" },
-                if (prog?.done == true) "Watched" else null, meta?.air).joinToString(" · ")
-            if (info.isNotEmpty()) Text(info, color = Color(0x99FFFFFF), fontSize = 14.sp, raw = true, maxLines = 1)
-            val ov = meta?.overview?.takeIf { !(FofPrefs.spoilerText && prog?.done != true) }
-            if (ov != null) Text(ov, color = if (f) Color(0xD9FFFFFF) else Color(0x80FFFFFF), fontSize = 14.sp, lineHeight = 18.sp, raw = true, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (status != null) Text(status, color = if (playing) Accent2 else Color(0x99FFFFFF), fontSize = 13.sp, raw = true, maxLines = 1)
+            val overview = meta?.overview?.takeIf { f && !(FofPrefs.spoilerText && prog?.done != true) }
+            if (overview != null) Text(overview, color = Color(0xD9FFFFFF), fontSize = 14.sp, lineHeight = 17.sp,
+                raw = true, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
-    }
-}
-
-@Composable
-private fun Tag(t: String, c: Color) {
-    Box(Modifier.clip(RoundedCornerShape(6.dp)).background(c.copy(alpha = 0.16f)).padding(horizontal = 8.dp, vertical = 2.dp)) {
-        Text(t, color = c, fontSize = 12.sp, fontWeight = FontWeight.Bold, raw = true)
     }
 }
