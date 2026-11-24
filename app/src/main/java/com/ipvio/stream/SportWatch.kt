@@ -50,8 +50,8 @@ import androidx.compose.ui.window.Dialog
 object SportWatch {
     /** [why]: 0 = chosen by hand, 1 = TV guide, 2 = channel name, 3 = network, 4 = team channel, 5 = learned. [show] = detail text. */
     class Hit(val ch: Item, val why: Int, val show: String) {
-        /** Hand pick, guide, channel name, ESPN-listed network, team channel and learned pick play automatically; 6 (rights guesses) stays manual. */
-        val autoEligible: Boolean get() = why in 0..5
+        /** Only event-specific evidence or a manual assignment may trigger automatic playback. */
+        val autoEligible: Boolean get() = why == 0 || why == 1 || why == 2 || why == 5
     }
 
     /**
@@ -59,7 +59,7 @@ object SportWatch {
      * then event channels naming both teams, then TV guide matches (a guide entry can be wrong: a channel listed the
      * game but showed another match), learned picks, team channels, guesses.
      */
-    private fun prio(why: Int) = when (why) { 0 -> 0; 3 -> 1; 2 -> 2; 1 -> 3; 5 -> 4; 4 -> 5; else -> 6 }
+    private fun prio(why: Int) = when (why) { 0 -> 0; 2 -> 1; 1 -> 2; 5 -> 3; 3 -> 4; 4 -> 5; else -> 6 }
 
     /** Sports shows from the TV guide (now and the next 48 h), computed by the hub once a minute. */
     @Volatile var slots: List<SportLogic.Slot> = emptyList()
@@ -248,7 +248,7 @@ object SportWatch {
      * Never channels of other matches.
      */
     fun pickerChannels(g: SportData.Game, live: List<Item>): List<Item> =
-        resolve(g, live).filter { it.autoEligible || it.show.endsWith(" feed") }.map { it.ch }
+        resolve(g, live).filter { it.autoEligible || it.why == 3 || it.why == 4 || it.show.endsWith(" feed") }.map { it.ch }
 
     fun resolve(g: SportData.Game, live0: List<Item>): List<Hit> {
         // Today's channel names from the provider (event channels are renamed every day)
@@ -310,7 +310,7 @@ object SportWatch {
         // Working channels before ones marked broken; the rest of the list is the backup order for the player
         // The network on the game card (Paramount+) is tried first: its event feed for this game, then the network channel
         // Soccer: the provider's section for the competition first, then the listed network (Paramount+), then the rest
-        val r = out.sortedWith(compareBy<Hit>({ if (it.autoEligible) 0 else 1 }, { sectionRank(g, it) }, { netRank(g, it) }, { prio(it.why) }))
+        val r = out.sortedWith(compareBy<Hit>({ if (it.autoEligible) 0 else 1 }, { prio(it.why) }, { sectionRank(g, it) }, { netRank(g, it) }))
             .distinctBy { it.ch.id }.sortedBy { if (DeadLinks.isDead(it.ch.url)) 1 else 0 }
         synchronized(cache) { if (cache.size > 800) cache.clear(); cache[g.key] = fullSig to r }
         return r
@@ -326,9 +326,9 @@ object SportWatch {
         val c = SportSession.appCtx()
         return hits.sortedWith(compareBy<Hit>(
             { if (DeadLinks.isDead(it.ch.url)) 1 else 0 },
+            { prio(it.why) },
             { sectionRank(g, it) },
             { netRank(g, it) },
-            { prio(it.why) },
             { if (c != null) -FeedScore.score(c, it.ch.id) else 0 }
         )).map { it.ch }
     }
