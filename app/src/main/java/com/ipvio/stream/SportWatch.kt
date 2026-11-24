@@ -117,7 +117,8 @@ object SportWatch {
     }
 
     /** Prepares the list of sports channels in the background (otherwise the first opening of the hub filters all channels on the main thread). */
-    fun prewarm(live: List<Item>) {
+    fun prewarm(live0: List<Item>) {
+        val live = SportFresh.apply(live0)
         sportChannels(live)
         val sig = sigOf(live)
         if (prep?.sig != sig) build(live, sig)?.let { prep = it; prepVersion++ }
@@ -137,7 +138,7 @@ object SportWatch {
 
     private fun build(live: List<Item>, sig: Int): Prep? = runCatching {
         val m = HashMap<String, MutableList<Item>>()
-        for (c in live) if (c.kind == Kind.LIVE) {
+        for (c in live) if (c.kind == Kind.LIVE && !SportNet.foreign(c.title, c.group)) {
             val t = SportNet.stripPrefix(c.title)
             m.getOrPut(SportNet.key(t)) { ArrayList(2) }.add(c)
             m.getOrPut("~" + SportNet.looseKey(t)) { ArrayList(2) }.add(c)
@@ -182,6 +183,40 @@ object SportWatch {
         return out.sortedBy { if (favAway) (if (it.second == 2) 0 else 1) else (if (it.second == 1) 0 else 1) }
     }
 
+    /** Words a provider uses for a soccer competition's own section ("Live | UEFA Champions League", "Live | EPL", "Live | La Liga"). */
+    private val SECTION = mapOf(
+        "Premier League" to listOf("premier league", "epl", "english premier"),
+        "Champions League" to listOf("champions league", "ucl"),
+        "Europa League" to listOf("europa league", "uel"),
+        "Conference League" to listOf("conference league", "europa conf", "uecl"),
+        "LaLiga" to listOf("la liga", "laliga"),
+        "Serie A" to listOf("serie a"),
+        "Bundesliga" to listOf("bundesliga"),
+        "2. Bundesliga" to listOf("2 bundesliga", "bundesliga 2"),
+        "Ligue 1" to listOf("ligue 1", "ligue1"),
+        "MLS" to listOf("mls"),
+        "Liga MX" to listOf("liga mx"),
+        "FA Cup" to listOf("fa cup"),
+        "Nations League" to listOf("nations league"),
+        "International Friendlies" to listOf("friendly", "friendlies"),
+        "Club World Cup" to listOf("club world cup")
+    )
+
+    /**
+     * Soccer: 0 = a channel of the provider's section for this competition that shows the game (sure match by name or guide),
+     * so "Live | UEFA Champions League" feeds come before every other source; 1 = anything else.
+     */
+    private fun sectionRank(g: SportData.Game, h: Hit): Int {
+        if (h.why != 2 && h.why != 1 && h.why != 0) return 1
+        if (!SportData.isSoccer(g)) return 1
+        val words = SECTION[g.league] ?: listOf(SportNet.norm(g.league)).filter { it.length >= 3 }
+        val grp = " " + SportNet.norm(h.ch.group) + " "
+        val ttl = " " + SportNet.norm(h.ch.title) + " "
+        // "Bundesliga" must not take "2. Bundesliga" feeds and the other way round
+        val other2 = g.league == "Bundesliga" && (grp.contains(" 2 bundesliga ") || ttl.contains(" 2 bundesliga "))
+        return if (!other2 && words.any { w -> grp.contains(" $w ") || ttl.contains(" $w ") }) 0 else 1
+    }
+
     /** 0 = a channel of a network listed for the game that is sure to show it (event feed naming both teams, or the network itself). */
     private fun netRank(g: SportData.Game, h: Hit): Int {
         if (g.nets.isEmpty()) return 1
@@ -200,7 +235,7 @@ object SportWatch {
         val sig = sigOf(live)
         synchronized(feedCache) { feedCache[k]?.let { if (it.first == sig) return it.second } }
         val r = live.filter { c ->
-            if (c.kind != Kind.LIVE) return@filter false
+            if (c.kind != Kind.LIVE || SportNet.foreign(c.title, c.group)) return@filter false
             val ck = SportNet.key(SportNet.stripPrefix(c.title))
             ck.startsWith(k) && FEED_NO.matches(ck.removePrefix(k))
         }.take(40)
@@ -215,7 +250,9 @@ object SportWatch {
     fun pickerChannels(g: SportData.Game, live: List<Item>): List<Item> =
         resolve(g, live).filter { it.autoEligible || it.show.endsWith(" feed") }.map { it.ch }
 
-    fun resolve(g: SportData.Game, live: List<Item>): List<Hit> {
+    fun resolve(g: SportData.Game, live0: List<Item>): List<Hit> {
+        // Today's channel names from the provider (event channels are renamed every day)
+        val live = SportFresh.apply(live0)
         val fixed = SportFix.map[SportFix.key(g)]
         val learned = SportLearn.lookup(g)
         val pr = prepFor(live)
@@ -247,8 +284,11 @@ object SportWatch {
         for (s in slotsBetween(g.start - 90 * 60, if (multiDay) maxOf(g.end, g.start + 90 * 60) else g.start + 90 * 60)) {
             val nearStart = kotlin.math.abs(s.prog.start - g.start) <= 90 * 60 ||
                 (multiDay && s.prog.start in g.start..g.end && g.state != 2)
-            if (!nearStart || (g.state == 1 && !s.live)) continue
+            if (!nearStart) continue
             val exact = SportData.matches(g, s.prog.title)
+            // A running game: an entry naming both teams counts even when the guide starts it later than the real kickoff
+            // (the provider listed Napoli @ Manchester City at 4:00 for a 3:00 game); other entries must be on now
+            if (g.state == 1 && !s.live && !(exact && s.prog.start - g.start in 0..90 * 60)) continue
             if (exact) out.add(Hit(s.ch, 1, s.prog.title))
             else if (showMatches(g, s.prog.title)) out.add(Hit(s.ch, 6, s.prog.title))
         }
@@ -269,7 +309,8 @@ object SportWatch {
         }
         // Working channels before ones marked broken; the rest of the list is the backup order for the player
         // The network on the game card (Paramount+) is tried first: its event feed for this game, then the network channel
-        val r = out.sortedWith(compareBy<Hit>({ if (it.autoEligible) 0 else 1 }, { netRank(g, it) }, { prio(it.why) }))
+        // Soccer: the provider's section for the competition first, then the listed network (Paramount+), then the rest
+        val r = out.sortedWith(compareBy<Hit>({ if (it.autoEligible) 0 else 1 }, { sectionRank(g, it) }, { netRank(g, it) }, { prio(it.why) }))
             .distinctBy { it.ch.id }.sortedBy { if (DeadLinks.isDead(it.ch.url)) 1 else 0 }
         synchronized(cache) { if (cache.size > 800) cache.clear(); cache[g.key] = fullSig to r }
         return r
@@ -279,11 +320,13 @@ object SportWatch {
      * Automatic playback and recovery use event-specific evidence or a channel assigned for this game.
      * Network, team and learned suggestions remain available on the manual Watch Live page.
      */
-    fun channels(g: SportData.Game, live: List<Item>): List<Item> {
+    fun channels(g: SportData.Game, live0: List<Item>): List<Item> {
+        val live = SportFresh.apply(live0)
         val hits = resolve(g, live).filter { it.autoEligible }
         val c = SportSession.appCtx()
         return hits.sortedWith(compareBy<Hit>(
             { if (DeadLinks.isDead(it.ch.url)) 1 else 0 },
+            { sectionRank(g, it) },
             { netRank(g, it) },
             { prio(it.why) },
             { if (c != null) -FeedScore.score(c, it.ch.id) else 0 }
@@ -305,7 +348,9 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
     // Matching a game against thousands of channels must never happen in
     // composition. Until the first lookup is complete show an actual
     // searching state, not the misleading "no matching channel" message.
-    val hitsLoading by produceState<List<SportWatch.Hit>?>(null, g.key, g.nets, hub.live, prepVersion, addonVersion, epgVersion) {
+    val freshVersion = SportFresh.version
+    val hitsLoading by produceState<List<SportWatch.Hit>?>(null, g.key, g.nets, hub.live, prepVersion, addonVersion, epgVersion, freshVersion) {
+        if (SportFresh.stale()) withTimeoutOrNull(4_000L) { SportFresh.refresh() }
         value = withContext(Dispatchers.Default) {
             SportWatch.prewarm(hub.live)
             SportWatch.resolve(g, hub.live)

@@ -61,4 +61,14 @@ class SportNetTest {
         val c = SportData.Game("2", "College Basketball", "Basketball", 0L, 1, "", t("South Alabama", "USA"), t("Troy", "TROY"))
         assertTrue(SportRights.usual(c).isEmpty())
     }
+
+    @Test fun foreignCountryChannelsAreNotUsNetworks() {
+        assertTrue(SportNet.foreign("AU | Paramount +", "AU | Paramount +"))
+        assertTrue(SportNet.foreign("Paramount+ AU 01: East", "AU | Paramount +"))
+        assertFalse(SportNet.foreign("Paramount+ Sports 01", "USA | Paramount+ Sports"))
+        assertFalse(SportNet.foreign("US: ESPN", "USA | Sports"))
+        assertFalse(SportNet.foreign("NBA: Indiana Pacers", "USA | NBA Teams"))
+        assertFalse(SportNet.foreign("UEFA Champions League 09: Real Madrid - PSV", "Live | UEFA Champions League"))
+    }
 }
+

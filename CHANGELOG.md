@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased – TV soccer: today's channel names, competition sections first
+
+- Sports matching uses today's channel names from the provider (Xtream get_live_streams, live only, refreshed every
+  10 minutes while Sports is open and before Watch live / Other streams), like the Mac app. The TV kept the names of its
+  last cold start, so event channels showed old matches ("Porto - Napoli @ 4 Nov").
+- Soccer: channels in the provider's section for the competition ("Live | UEFA Champions League", "Live | EPL") come first,
+  then the listed network (Paramount+), then other sources.
+- Channels of another country ("AU | Paramount+") never count as the US network of the same name.
+- TV guide: a running game also matches a guide entry naming both teams that the guide starts up to 90 minutes late.
+
 ## Unreleased – TV soccer matches the Mac app
 
 - Soccer on TV no longer lists other matches as sources: a Champions League channel that names only one of the two clubs

@@ -94,6 +94,25 @@ object SportNet {
         return s
     }
 
+    private val COUNTRY = Regex("""^\s*\[?([A-Za-z]{2,3})\]?\s*[|:]""")
+    /** Country tags providers put in front of channels and groups (not US; league tags like "NBA:" are not countries). */
+    private val COUNTRIES = setOf("au", "aus", "uk", "gb", "ca", "can", "ie", "ir", "nz", "za", "in", "ind", "pk", "ar", "arg", "br", "bra",
+        "mx", "mex", "es", "esp", "pt", "por", "fr", "fra", "de", "ger", "deu", "it", "ita", "nl", "ned", "be", "bel", "ch", "at", "aut",
+        "se", "swe", "no", "nor", "dk", "den", "fi", "fin", "pl", "pol", "tr", "tur", "gr", "gre", "ro", "rom", "hu", "cz", "sk", "hr",
+        "rs", "ba", "bg", "ru", "rus", "ua", "ukr", "il", "ae", "uae", "sa", "ksa", "qa", "eg", "ma", "dz", "tn", "ng", "ke", "gh", "jp",
+        "kr", "cn", "hk", "tw", "th", "my", "sg", "ph", "id", "vn", "lat", "ex", "af", "al", "am", "arb", "ara", "cl", "co", "pe", "ve", "ec")
+    /**
+     * Channel or group of another country ("AU | Paramount+", "UK: Sky Sports", "CA | TSN"): a US network the scoreboard lists
+     * ("Paramount+") is never that country's channel of the same name.
+     */
+    fun foreign(title: String, group: String): Boolean {
+        for (t in listOf(title, group)) {
+            val code = COUNTRY.find(t)?.groupValues?.get(1)?.lowercase() ?: continue
+            if (code in COUNTRIES) return true
+        }
+        return false
+    }
+
     /** League tags that mark a channel or group as belonging to a league. */
     fun leagueTags(league: String): List<String> = when (league) {
         "NBA" -> listOf("nba")

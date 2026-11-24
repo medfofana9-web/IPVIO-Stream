@@ -106,6 +106,8 @@ class HubCtx(val nav: HubNav, val live: List<Item>, private val onPlay: (Item, L
         scope.launch {
             try {
                 val app = ctxApp
+                // Today's channel names first (event channels are renamed daily); at most 4 s, then the names we have
+                if (g.state != 2 && SportFresh.stale()) withTimeoutOrNull(4_000L) { SportFresh.refresh() }
                 val ready = withContext(Dispatchers.Default) {
                     SportWatch.prewarm(live)
                     SportWatch.channels(g, live)
@@ -260,6 +262,10 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
             }
             delay(30_000L)
         }
+    }
+    // Today's channel names from the provider while the sports area is open (every 10 minutes)
+    LaunchedEffect(Unit) {
+        while (true) { runCatching { SportFresh.refresh() }; delay(10 * 60_000L) }
     }
     // Sports shows of the TV guide for Watch Live (once a minute, off the main thread)
     LaunchedEffect(live, Xmltv.channelCount) {
@@ -476,7 +482,7 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
 private fun FeaturedPanel(g: SportData.Game, hub: HubCtx) {
     val shape = RoundedCornerShape(DS.RadiusL)
     // Channel matching can be expensive on giant lists; never block remote navigation on the UI thread.
-    val chans by produceState(emptyList<Item>(), g.key, hub.live, SportWatch.prepVersion, SportWatch.version, SportAddons.version) {
+    val chans by produceState(emptyList<Item>(), g.key, hub.live, SportWatch.prepVersion, SportWatch.version, SportAddons.version, SportFresh.version) {
         value = withContext(Dispatchers.Default) { SportWatch.prewarm(hub.live); hub.chans(g) }
     }
     val l = SportData.leagueOf(g)

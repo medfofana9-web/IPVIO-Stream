@@ -1907,6 +1907,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                                 streamLoading = true
                                 scope.launch {
                                     kotlinx.coroutines.withTimeoutOrNull(20_000) {
+                                        if (SportFresh.stale()) kotlinx.coroutines.withTimeoutOrNull(4_000L) { SportFresh.refresh() }
                                         if (g == null && !SportSession.owns(cur.itemId) && here != null) {
                                             // Not started from a game: find the live game this channel is showing
                                             val found = withContext(Dispatchers.Default) {

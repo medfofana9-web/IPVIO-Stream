@@ -272,7 +272,7 @@ internal fun MatchCenterPage(g0: SportData.Game, hub: HubCtx) {
     var tab by remember(g.key) { mutableStateOf("Übersicht") }
     val cur = if (tab in tabs) tab else "Übersicht"
     // Off the main thread, and again when the channel index, guide or add-ons change (it used to wait for a later redraw)
-    val chansOrNull by produceState<List<Item>?>(null, g.key, hub.live, SportWatch.prepVersion, SportWatch.version, SportAddons.version) {
+    val chansOrNull by produceState<List<Item>?>(null, g.key, hub.live, SportWatch.prepVersion, SportWatch.version, SportAddons.version, SportFresh.version) {
         value = withContext(Dispatchers.Default) { SportWatch.prewarm(hub.live); hub.chans(g) }
     }
     val chans = chansOrNull.orEmpty()
