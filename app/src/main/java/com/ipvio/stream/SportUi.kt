@@ -462,8 +462,9 @@ internal fun FavoriteButton(on: Boolean, modifier: Modifier = Modifier, onClick:
 
 /** "Watch live" only if a channel of the playlist is matched; otherwise a calm hint instead of a dead button. */
 @Composable
-internal fun WatchLiveButton(chans: List<Item>, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    if (chans.isNotEmpty()) HeroButton("Live ansehen", AIcon.Play, true, modifier, 46) { onClick() }
+internal fun WatchLiveButton(chans: List<Item>, modifier: Modifier = Modifier, live: Boolean = false, onClick: () -> Unit) {
+    // A live game always gets the button at once (like the Mac app): pressing it finds the channel or opens the source list
+    if (chans.isNotEmpty() || live) HeroButton("Live ansehen", AIcon.Play, true, modifier, 46) { onClick() }
     else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(8))) {
         AppIcon(AIcon.Info, Muted, size = dpx(18))
         Text("No matching channel found", color = Muted, fontSize = spx(15))

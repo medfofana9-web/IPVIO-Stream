@@ -609,6 +609,37 @@ object SportData {
         "county", "town", "west", "north", "south", "east", "saint", "star", "young", "boys", "madrid", "milan", "manchester", "london",
         "glasgow", "sheffield", "bristol", "munich", "lisbon")
 
+    private val MONTHS = listOf("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
+    private val RX_DAY_MON = Regex("""\b(\d{1,2})(?:st|nd|rd|th)?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b""", RegexOption.IGNORE_CASE)
+    private val RX_MON_DAY = Regex("""\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2})\b""", RegexOption.IGNORE_CASE)
+
+    /**
+     * Event channels often carry the day of their match ("Porto - Napoli @ 4 Nov"). A dated channel only counts for a game
+     * on that day (one day either side for time zones), like the Mac app; undated channels always pass.
+     */
+    fun dateFits(g: Game, title: String): Boolean {
+        val m1 = RX_DAY_MON.find(title)
+        val m2 = if (m1 == null) RX_MON_DAY.find(title) else null
+        val (day, mon) = when {
+            m1 != null -> m1.groupValues[1].toInt() to MONTHS.indexOf(m1.groupValues[2].lowercase().take(3))
+            m2 != null -> m2.groupValues[2].toInt() to MONTHS.indexOf(m2.groupValues[1].lowercase().take(3))
+            else -> return true
+        }
+        if (g.start <= 0L || mon < 0 || day !in 1..31) return true
+        val gd = java.time.Instant.ofEpochSecond(g.start).atZone(java.time.ZoneOffset.UTC).toLocalDate()
+        for (y in listOf(gd.year - 1, gd.year, gd.year + 1)) {
+            val d = runCatching { java.time.LocalDate.of(y, mon + 1, day) }.getOrNull() ?: continue
+            if (kotlin.math.abs(java.time.temporal.ChronoUnit.DAYS.between(gd, d)) <= 1) return true
+        }
+        return false
+    }
+
+    /** Soccer competition (every league of the "soccer" sport): channels follow the Mac app's stricter rules. */
+    fun isSoccer(g: Game): Boolean = league(g.league)?.sport == "soccer"
+
+    /** Names that stand for one soccer club on a team channel: full and short name only, never a city word ("Manchester"). */
+    fun soccerTeamKeys(t: Team): List<String> = listOf(normCached(t.name), normCached(t.short)).filter { it.length >= 3 && it !in EVENT_GENERIC }.distinct()
+
     private val chanCache = HashMap<String, Pair<Int, List<Item>>>()
 
     /** Channels of [live] whose name shows this game. The result is remembered per game as long as the channel list stays the same. */
@@ -616,7 +647,7 @@ object SportData {
         val k = g.key
         val sig = System.identityHashCode(live) * 31 + live.size
         synchronized(chanCache) { chanCache[k]?.let { if (it.first == sig) return it.second } }
-        val r = live.filter { matches(g, it.title) }
+        val r = live.filter { matches(g, it.title) && dateFits(g, it.title) }
         synchronized(chanCache) { if (chanCache.size > 600) chanCache.clear(); chanCache[k] = sig to r }
         return r
     }

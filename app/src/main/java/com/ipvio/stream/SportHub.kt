@@ -476,8 +476,8 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
 private fun FeaturedPanel(g: SportData.Game, hub: HubCtx) {
     val shape = RoundedCornerShape(DS.RadiusL)
     // Channel matching can be expensive on giant lists; never block remote navigation on the UI thread.
-    val chans by produceState(emptyList<Item>(), g.key, hub.live) {
-        value = withContext(Dispatchers.Default) { hub.chans(g) }
+    val chans by produceState(emptyList<Item>(), g.key, hub.live, SportWatch.prepVersion, SportWatch.version, SportAddons.version) {
+        value = withContext(Dispatchers.Default) { SportWatch.prewarm(hub.live); hub.chans(g) }
     }
     val l = SportData.leagueOf(g)
     Column(
@@ -494,7 +494,7 @@ private fun FeaturedPanel(g: SportData.Game, hub: HubCtx) {
         }
         MatchHeader(g, 110)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(dpx(14), Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
-            WatchLiveButton(chans) { hub.watch(g) }
+            WatchLiveButton(chans, live = g.state == 1) { hub.watch(g) }
             HeroButton("Match Center", AIcon.Info, false, Modifier, 46) { hub.open(g) }
         }
     }

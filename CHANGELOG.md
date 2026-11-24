@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased – TV soccer matches the Mac app
+
+- Soccer on TV no longer lists other matches as sources: a Champions League channel that names only one of the two clubs
+  ("Porto - Napoli", "AEK - Real Madrid", "RB Leipzig - Manchester") is no longer a "team channel"; city words like
+  Manchester never count; dated event channels ("@ 4 Nov") only count on their day.
+- The network on the game card (Paramount+) is tried first: its event feed for the game, then the network channel.
+  Numbered network feeds ("Paramount+ 03") are offered in Other streams right after the sure matches.
+- Soccer: a channel picked by hand for another game on the same network no longer auto-plays for this one.
+- Match page: Watch live shows at once for a live game and the channel count updates when the index is ready.
+
 ## Unreleased – Faster one-click Play, Your IPTV second on the Mac, sports names everywhere
 
 - Play starts the moment DragonStreams answers; when it has nothing, Your IPTV is next, then other addons (TV and Mac).

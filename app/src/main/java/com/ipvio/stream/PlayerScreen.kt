@@ -1926,7 +1926,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                                         }
                                         // Every channel carrying the game, like the Mac app: the sure matches first, then team channels and networks
                                         g?.let { gg ->
-                                            val all = withContext(Dispatchers.Default) { runCatching { SportWatch.prewarm(liveAll); SportWatch.resolve(gg, liveAll).map { it.ch } }.getOrDefault(emptyList()) }
+                                            val all = withContext(Dispatchers.Default) { runCatching { SportWatch.prewarm(liveAll); SportWatch.pickerChannels(gg, liveAll) }.getOrDefault(emptyList()) }
                                             val merged = (list + all).distinctBy { it.id }
                                             if (streamPick != null && merged.size > list.size) streamPick = nameOf(gg) to merged
                                         }

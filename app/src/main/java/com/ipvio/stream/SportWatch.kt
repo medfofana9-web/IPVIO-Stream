@@ -164,10 +164,14 @@ object SportWatch {
         if (g.solo) return emptyList()
         val tags = SportNet.leagueTags(g.league).map { " $it " }
         if (tags.isEmpty()) return emptyList()
-        val hk = SportData.keysCached(g.home).filter { it.length >= 3 }.map { " $it " }
-        val ak = SportData.keysCached(g.away).filter { it.length >= 3 }.map { " $it " }
+        val soccer = SportData.isSoccer(g)
+        // Soccer (like the Mac app): only a club's full or short name, never a city word ("Manchester"), and only a channel
+        // that is just the team ("Napoli TV"), never an event channel of another match ("Porto - Napoli", "AEK - Real Madrid")
+        val hk = (if (soccer) SportData.soccerTeamKeys(g.home) else SportData.keysCached(g.home)).filter { it.length >= 3 }.map { " $it " }
+        val ak = (if (soccer) SportData.soccerTeamKeys(g.away) else SportData.keysCached(g.away)).filter { it.length >= 3 }.map { " $it " }
         val out = ArrayList<Pair<Item, Int>>()
         for ((c, title, group) in pr.team) {
+            if (soccer && (EVENT_NAME.containsMatchIn(c.title) || c.title.contains(':') || title.trim().length > maxOf(g.home.name.length, g.away.name.length) + 12)) continue
             if (tags.none { group.contains(it) || title.contains(it) }) continue
             val h = hk.any { title.contains(it) }
             val a = ak.any { title.contains(it) }
@@ -177,6 +181,39 @@ object SportWatch {
         val favAway = SportFavs.has(g.away) && !SportFavs.has(g.home)
         return out.sortedBy { if (favAway) (if (it.second == 2) 0 else 1) else (if (it.second == 1) 0 else 1) }
     }
+
+    /** 0 = a channel of a network listed for the game that is sure to show it (event feed naming both teams, or the network itself). */
+    private fun netRank(g: SportData.Game, h: Hit): Int {
+        if (g.nets.isEmpty()) return 1
+        if (h.why == 3) return 0
+        if (h.why != 2 && h.why != 1) return 1
+        val ck = SportNet.key(SportNet.stripPrefix(h.ch.title))
+        return if (SportNet.keys(g.nets).any { k -> k.length >= 3 && ck.contains(k) }) 0 else 1
+    }
+
+    private val FEED_NO = Regex("""^\d{1,3}$""")
+    private val feedCache = HashMap<String, Pair<Int, List<Item>>>()
+    /** "Paramount+ 01" … "Paramount+ 40": live channels that are the network plus only a feed number. */
+    private fun netFeeds(live: List<Item>, net: String): List<Item> {
+        val k = SportNet.key(net)
+        if (k.length < 3) return emptyList()
+        val sig = sigOf(live)
+        synchronized(feedCache) { feedCache[k]?.let { if (it.first == sig) return it.second } }
+        val r = live.filter { c ->
+            if (c.kind != Kind.LIVE) return@filter false
+            val ck = SportNet.key(SportNet.stripPrefix(c.title))
+            ck.startsWith(k) && FEED_NO.matches(ck.removePrefix(k))
+        }.take(40)
+        synchronized(feedCache) { if (feedCache.size > 40) feedCache.clear(); feedCache[k] = sig to r }
+        return r
+    }
+
+    /**
+     * "Other streams" in the player: the sure matches (like the Mac app), then the numbered feeds of the game's network.
+     * Never channels of other matches.
+     */
+    fun pickerChannels(g: SportData.Game, live: List<Item>): List<Item> =
+        resolve(g, live).filter { it.autoEligible || it.show.endsWith(" feed") }.map { it.ch }
 
     fun resolve(g: SportData.Game, live: List<Item>): List<Hit> {
         val fixed = SportFix.map[SportFix.key(g)]
@@ -195,7 +232,13 @@ object SportWatch {
         synchronized(cache) { cache[g.key]?.let { if (it.first == fullSig) return it.second } }
         val out = ArrayList<Hit>()
         if (fixed != null) live.firstOrNull { it.id == fixed }?.let { out.add(Hit(it, 0, "")) }
-        learned.forEach { id -> live.firstOrNull { it.id == id }?.let { out.add(Hit(it, 5, "")) } }
+        val soccer = SportData.isSoccer(g)
+        learned.forEach { id -> live.firstOrNull { it.id == id }?.let { ch ->
+            // Soccer: a channel picked for another match (one network, many games at once) is no proof for this one
+            val sure = !soccer || SportData.matches(g, ch.title) ||
+                SportNet.teamOf(ch.title, SportData.soccerTeamKeys(g.home), SportData.soccerTeamKeys(g.away)) != 0
+            out.add(if (sure) Hit(ch, 5, "") else Hit(ch, 6, "Picked before for another game"))
+        } }
         val sport = sportChannels(live)
         // Event channels that name both teams ("NBA 01: Pacers vs Celtics") are the most exact
         SportData.channelsFor(g, sport).forEach { out.add(Hit(it, 2, "")) }
@@ -217,12 +260,16 @@ object SportWatch {
             // networks of that competition are tried, so the game is never "no channel found" while it is on TV
             // Networks ESPN lists for this game count as a match; the usual rights holders are only a guess (manual)
             for (n in g.nets.distinct()) (pr.net[SportNet.key(n)] ?: pr.net["~" + SportNet.looseKey(n)])?.forEach { out.add(Hit(it, 3, n)) }
+            // Numbered feeds of a listed network ("US| Paramount+ 03") without a match name: may show any of that night's games,
+            // so they are offered (right after the sure matches), not auto-played
+            for (n in g.nets.distinct()) netFeeds(live, n).forEach { out.add(Hit(it, 6, "$n feed")) }
             for (n in SportRights.usual(g).filter { it !in g.nets }.distinct()) (pr.net[SportNet.key(n)] ?: pr.net["~" + SportNet.looseKey(n)])?.forEach { out.add(Hit(it, 6, "Usually on $n")) }
             // Still nothing: the networks that carry this sport in the US (tried in order by the player)
             if (out.none { it.autoEligible }) for (n in SportRights.fallback(g)) (pr.net[SportNet.key(n)] ?: pr.net["~" + SportNet.looseKey(n)])?.forEach { out.add(Hit(it, 6, "Usually on $n")) }
         }
         // Working channels before ones marked broken; the rest of the list is the backup order for the player
-        val r = out.sortedWith(compareBy<Hit>({ if (it.autoEligible) 0 else 1 }, { prio(it.why) }))
+        // The network on the game card (Paramount+) is tried first: its event feed for this game, then the network channel
+        val r = out.sortedWith(compareBy<Hit>({ if (it.autoEligible) 0 else 1 }, { netRank(g, it) }, { prio(it.why) }))
             .distinctBy { it.ch.id }.sortedBy { if (DeadLinks.isDead(it.ch.url)) 1 else 0 }
         synchronized(cache) { if (cache.size > 800) cache.clear(); cache[g.key] = fullSig to r }
         return r
@@ -237,6 +284,7 @@ object SportWatch {
         val c = SportSession.appCtx()
         return hits.sortedWith(compareBy<Hit>(
             { if (DeadLinks.isDead(it.ch.url)) 1 else 0 },
+            { netRank(g, it) },
             { prio(it.why) },
             { if (c != null) -FeedScore.score(c, it.ch.id) else 0 }
         )).map { it.ch }

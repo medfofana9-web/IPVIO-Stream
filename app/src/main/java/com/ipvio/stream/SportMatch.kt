@@ -271,13 +271,17 @@ internal fun MatchCenterPage(g0: SportData.Game, hub: HubCtx) {
     }
     var tab by remember(g.key) { mutableStateOf("Übersicht") }
     val cur = if (tab in tabs) tab else "Übersicht"
-    val chans = hub.chans(g)
+    // Off the main thread, and again when the channel index, guide or add-ons change (it used to wait for a later redraw)
+    val chansOrNull by produceState<List<Item>?>(null, g.key, hub.live, SportWatch.prepVersion, SportWatch.version, SportAddons.version) {
+        value = withContext(Dispatchers.Default) { SportWatch.prewarm(hub.live); hub.chans(g) }
+    }
+    val chans = chansOrNull.orEmpty()
     val first = remember { FocusRequester() }
     HubPageFrame(g.groupName, listOf(g.note, if (l != null && l.name != g.groupName) l.name else "").filter { it.isNotBlank() }.joinToString(" · "), { hub.nav.pop() }, first) {
         HubPanel(Modifier.fillMaxWidth()) {
             MatchHeader(g, 84)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(12))) {
-                WatchLiveButton(chans) { hub.watch(g) }
+                WatchLiveButton(chans, live = g.state == 1) { hub.watch(g) }
                 FilterPill(if (chans.isEmpty()) "Sender zuordnen" else Lang.tr("Sender") + " (" + chans.size + ")", false, Modifier.trackFocus(), aicon = AIcon.Live, raw = chans.isNotEmpty()) {
                     hub.nav.open(HubPage.Watch(g))
                 }

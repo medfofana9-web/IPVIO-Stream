@@ -36,4 +36,33 @@ class SportMatchupTest {
         assertFalse(SportData.matches(race, "Formula 1: Qatar Grand Prix"))
         assertFalse(SportData.matches(race.copy(title = "Formula 1"), "Formula 1"))
     }
+
+    // 24 Nov 2026, 20:00 UTC (Champions League night)
+    private val ucl = 1_795_550_400L
+
+    private fun cl(home: SportData.Team, away: SportData.Team) =
+        SportData.Game("cl", "Champions League", "Soccer", ucl, 1, "", home, away, nets = listOf("Paramount+"))
+
+    @Test fun otherChampionsLeagueMatchesAreNotThisGame() {
+        val g = cl(team("Manchester City", "Man City"), team("Napoli"))
+        assertFalse(SportData.matches(g, "UEFA Champions League 04: RB Leipzig - Manchester"))
+        assertFalse(SportData.matches(g, "TV2 NO 19: UEFA Champions League Porto - Napoli I dag"))
+        assertTrue(SportData.matches(g, "Paramount+ 07: Napoli vs Manchester City"))
+        val p = cl(team("PSV Eindhoven", "PSV"), team("Real Madrid"))
+        assertFalse(SportData.matches(p, "TV2 NO 03: UEFA Champions League AEK - Real Madrid I"))
+        assertFalse(SportData.matches(p, "UEFA Champions League 07: PSV Eindhoven - Club Brugge"))
+    }
+
+    @Test fun datedEventChannelOnlyCountsOnItsDay() {
+        val g = cl(team("FC Porto", "Porto"), team("Napoli"))
+        assertFalse(SportData.dateFits(g, "UEFA Champions League 10: Porto - Napoli @ 4 Nov"))
+        assertTrue(SportData.dateFits(g, "UEFA Champions League 10: Porto - Napoli @ 24 Nov"))
+        assertTrue(SportData.dateFits(g, "Porto vs Napoli"))
+    }
+
+    @Test fun soccerTeamKeysSkipCityWords() {
+        val keys = SportData.soccerTeamKeys(team("Manchester City", "Man City"))
+        assertFalse("manchester" in keys)
+        assertTrue("manchester city" in keys)
+    }
 }
