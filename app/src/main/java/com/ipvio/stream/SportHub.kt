@@ -109,32 +109,7 @@ class HubCtx(val nav: HubNav, val live: List<Item>, private val onPlay: (Item, L
         watchJob = scope.launch {
             val pagesAtStart = nav.stack.toList()
             try {
-                val app = ctxApp
-                // Today's channel names first (event channels are renamed daily); at most 4 s, then the names we have
-                if (g.state != 2 && SportFresh.stale()) withTimeoutOrNull(4_000L) { SportFresh.refresh() }
-                val ready = withContext(Dispatchers.Default) {
-                    SportWatch.prewarm(live)
-                    SportWatch.channels(g, live)
-                }
-                if (nav.stack.toList() != pagesAtStart) return@launch
-                if (ready.isNotEmpty()) {
-                    SportSession.start(g, ready, live)
-                    play(SportSession.firstChannel() ?: ready.first(), SportSession.zapList().ifEmpty { ready })
-                    // Warm optional sources only after launching the known channel.
-                    if (app != null && g.state != 2 && SportAddons.cached(g).isEmpty())
-                        launch(Dispatchers.IO) { runCatching { SportAddons.find(app, g) } }
-                    return@launch
-                }
-                // Exact addon game streams may arrive slower than the playlist
-                // index. Give discovery one bounded chance on the FIRST visit.
-                if (app != null && g.state != 2) {
-                    val found = withTimeoutOrNull(4_000L) { SportAddons.find(app, g) }.orEmpty()
-                    if (found.isEmpty() && Stremio.addons.any { it.cats.isNotEmpty() }) {
-                        // One cold-start retry without needing to exit the game page.
-                        withTimeoutOrNull(2_500L) { SportAddons.find(app, g, refresh = true) }
-                    }
-                }
-                val candidates = withContext(Dispatchers.Default) { SportWatch.channels(g, live) }
+                val candidates = SportWatch.startupChannels(ctxApp, g, live)
                 if (nav.stack.toList() != pagesAtStart) return@launch
                 if (candidates.isNotEmpty()) {
                     SportSession.start(g, candidates, live)

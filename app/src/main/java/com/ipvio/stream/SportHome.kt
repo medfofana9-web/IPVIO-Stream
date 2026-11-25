@@ -20,6 +20,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -63,7 +64,7 @@ private val HOME_LEAGUES = listOf("NFL", "NBA", "WNBA", "College Football", "Pre
 
 /**
  * Home row "Live sports": games running now (and favorite-team games starting within the hour), one click plays
- * the matching channel from the playlist (same matching as Watch Live). Without a channel the sports area opens.
+ * the matching channel from the playlist (same matching as Watch Live). Without a channel the source picker opens.
  */
 @Composable
 fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit) {
@@ -98,7 +99,8 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
     // on each scoreboard update causes visible card jank on memory-limited TVs.
     // Key discovery to game identity (not changing score/clock fields).
     val gameKeys = remember(games) { games.map { it.key } }
-    val lookupVersion = (SportWatch.prepVersion * 31 + SportWatch.version) * 31 + SportAddons.version
+    val lookupVersion = ((SportWatch.prepVersion * 31 + SportWatch.version) * 31 + SportAddons.version) * 31 + SportFresh.version
+    LaunchedEffect(Unit) { SportFresh.awaitRefresh() }
     LaunchedEffect(gameKeys, live, lookupVersion) {
         if (live.isEmpty() || games.isEmpty()) return@LaunchedEffect
         val missing = games.filter { readyVersions[it.key] != lookupVersion }
@@ -131,38 +133,24 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
                     openingGame = g.key
                     scope.launch {
                         try {
-                        // Prepared games open immediately; uncached games resolve off the UI thread.
-                        // Do NOT rebuild the whole sports index while a viewer is waiting.
-                        val prepared = readyGames[g.key]?.takeIf { it.isNotEmpty() }
-                            ?: withContext(kotlinx.coroutines.Dispatchers.Default) {
-                                // An early empty result may mean the playlist index wasn't ready.
-                                SportWatch.prewarm(live)
-                                SportWatch.channels(g, live)
+                            val channels = readyGames[g.key]?.takeIf {
+                                readyVersions[g.key] == lookupVersion && it.isNotEmpty()
+                            } ?: SportWatch.startupChannels(ctx.applicationContext, g, live)
+                            if (channels.isNotEmpty()) {
+                                SportSession.start(g, channels, live)
+                                ZapContext.list = SportSession.zapList().ifEmpty { channels }
+                                ZapContext.key = null
+                                onOpen(SportSession.firstChannel() ?: channels.first())
+                            } else {
+                                openInHub(HubPage.Watch(g))
+                                onSports()
                             }
-                        // A game absent from the IPTV guide may still have an exact
-                        // live addon feed. Give it one bounded lookup instead of
-                        // sending the viewer through multiple Sports pages.
-                        val chans = if (prepared.isNotEmpty()) prepared else {
-                            // Retry a transient empty addon catalog once in the
-                            // SAME click. Reopening the page must not be required.
-                            val found = kotlinx.coroutines.withTimeoutOrNull(4_000L) {
-                                SportAddons.find(ctx, g)
-                            }.orEmpty()
-                            if (found.isEmpty() && g.state == 1)
-                                kotlinx.coroutines.withTimeoutOrNull(2_500L) {
-                                    SportAddons.find(ctx, g, refresh = true)
-                                }
-                            withContext(kotlinx.coroutines.Dispatchers.Default) {
-                                SportWatch.prewarm(live)
-                                SportWatch.channels(g, live)
-                            }
-                        }
-                        if (chans.isNotEmpty()) {
-                            // The score bug of the player shows this game's score (SportSession)
-                            SportSession.start(g, chans, live)
-                            val l = SportSession.zapList().ifEmpty { chans }
-                            ZapContext.list = l; ZapContext.key = null; onOpen(SportSession.firstChannel() ?: chans[0])
-                        } else onSports()
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            AutoReport.issue(ctx, "sports", "home source startup failed: " + e.javaClass.simpleName)
+                            openInHub(HubPage.Watch(g))
+                            onSports()
                         } finally {
                             openingGame = null
                         }

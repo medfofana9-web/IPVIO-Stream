@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased – Faster live sports startup
+
+- Open matched channels immediately from Home and Sports. When a game has no match, check provider names and add-ons in parallel for up to three seconds before opening the source picker.
+
 ## Unreleased – Sports playback startup
 
 - Start live-game channel matching off the remote-input thread and open the source picker if startup fails.

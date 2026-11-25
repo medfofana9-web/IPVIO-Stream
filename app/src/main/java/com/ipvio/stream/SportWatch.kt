@@ -24,7 +24,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.produceState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withContext
 import androidx.compose.runtime.setValue
@@ -356,6 +359,52 @@ object SportWatch {
             { if (c != null) -FeedScore.score(c, it.ch.id) else 0 }
         )).map { it.ch }
     }
+
+    /** Start from a matched feed immediately. If there is none, let either refresh supply one. */
+    suspend fun startupChannels(ctx: android.content.Context?, g: SportData.Game, live: List<Item>): List<Item> {
+        suspend fun match(): List<Item> = withContext(Dispatchers.Default) {
+            prewarm(live)
+            channels(g, live)
+        }
+
+        val ready = match()
+        if (ready.isNotEmpty() || g.state == 2) return ready
+        return withTimeoutOrNull(3_000L) {
+            coroutineScope {
+                val completed = Channel<Unit>(2)
+                val nameLookup = launch {
+                    try {
+                        SportFresh.awaitRefresh()
+                    } finally {
+                        completed.trySend(Unit)
+                    }
+                }
+                val addonLookup = launch {
+                    try {
+                        if (ctx != null) SportAddons.find(ctx, g)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        ctx?.let { AutoReport.issue(it, "sports", "add-on lookup failed: " + e.javaClass.simpleName) }
+                    } finally {
+                        completed.trySend(Unit)
+                    }
+                }
+                try {
+                    repeat(2) {
+                        completed.receive()
+                        val found = match()
+                        if (found.isNotEmpty()) return@coroutineScope found
+                    }
+                    emptyList()
+                } finally {
+                    nameLookup.cancel()
+                    addonLookup.cancel()
+                }
+            }
+        }.orEmpty()
+    }
+
 }
 
 /** Watch Live page: the event, all matching channels with reason and availability, play, assign by hand. */
@@ -373,8 +422,8 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
     // composition. Until the first lookup is complete show an actual
     // searching state, not the misleading "no matching channel" message.
     val freshVersion = SportFresh.version
+    LaunchedEffect(g.key) { SportFresh.awaitRefresh() }
     val hitsLoading by produceState<List<SportWatch.Hit>?>(null, g.key, g.nets, hub.live, prepVersion, addonVersion, epgVersion, freshVersion) {
-        if (SportFresh.stale()) withTimeoutOrNull(4_000L) { SportFresh.refresh() }
         value = withContext(Dispatchers.Default) {
             try {
                 SportWatch.prewarm(hub.live)

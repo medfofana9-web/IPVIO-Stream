@@ -3,7 +3,10 @@ package com.ipvio.stream
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -17,6 +20,13 @@ import kotlinx.coroutines.withContext
 object SportFresh {
     private const val MAX_AGE_MS = 10 * 60_000L
     private val lock = Mutex()
+    private val refreshScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    // The provider uses a blocking HTTP reader. A TV screen can stop waiting
+    // without cancelling the shared refresh or waiting for the reader to exit.
+    suspend fun awaitRefresh() {
+        if (stale()) refreshScope.async { refresh() }.await()
+    }
     @Volatile private var names: Map<String, String> = emptyMap()
     @Volatile private var fetchedAt = 0L
 
