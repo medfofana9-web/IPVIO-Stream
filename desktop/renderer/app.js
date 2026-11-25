@@ -742,7 +742,7 @@ function drawDownloads(pg) {
   pg.innerHTML = `<div class="search"><h1 style="font-size:40px;margin:0 0 8px">Downloads</h1><div style="color:var(--grey);margin-bottom:26px">Saved in Movies › Fof TV. They play without internet.</div>
     ${dlList.length ? dlList.map(d => {
       const tt = ttOf(d.id); const pr = d.size > 0 ? Math.round(d.got * 100 / d.size) : 0;
-      return `<div class="dlrow" data-k="${esc(d.key)}"><div class="dlimg">${tt ? `<img src="${esc(bgOf(tt))}" onerror="this.remove()">` : ''}</div>
+      return `<div class="dlrow" data-k="${esc(d.key)}"><div class="dlimg">${tt ? `<img loading="lazy" src="${esc(bgOf(tt))}" onerror="this.remove()">` : ''}</div>
         <div class="dlx"><b>${esc(d.title)}</b><span>${d.state === 'running' ? `Downloading · ${pr}% of ${mb(d.size)}` : d.state === 'done' ? mb(d.size || d.got) : 'Download failed'}</span>${d.state === 'running' ? `<div class="prog"><i style="width:${pr}%"></i></div>` : ''}</div>
         ${d.state === 'done' ? '<button class="btn primary" data-a="play">&#x25B6;&nbsp; Play</button><button class="btn" data-a="show">Show</button>' : ''}
         <button class="btn" data-a="${d.state === 'running' ? 'cancel' : 'del'}">${d.state === 'running' ? 'Cancel' : 'Delete'}</button></div>`;
@@ -993,7 +993,7 @@ async function watchGame(g) {
   const list = gameChannels(g);
   if (!document.body.contains(bg)) return;
   $('.sheet', bg).innerHTML = head + `<div class="sub">${esc(g.detail)}${g.nets.length ? ' · On ' + esc(g.nets.join(', ')) : ''}</div>` +
-    (list.length ? `<div class="chlist">${list.map((c, i) => `<div class="src" data-i="${i}">${c.logo ? `<img src="${esc(c.logo)}" onerror="this.style.visibility='hidden'">` : ''}<div class="nm2"><b>${esc(c.name)}</b><small>${c.sc >= 12 ? 'This game' : c.sc >= 9 ? 'Team channel' : 'National broadcast'}</small></div></div>`).join('')}</div>`
+    (list.length ? `<div class="chlist">${list.map((c, i) => `<div class="src" data-i="${i}">${c.logo ? `<img loading="lazy" src="${esc(c.logo)}" onerror="this.style.visibility='hidden'">` : ''}<div class="nm2"><b>${esc(c.name)}</b><small>${c.sc >= 12 ? 'This game' : c.sc >= 9 ? 'Team channel' : 'National broadcast'}</small></div></div>`).join('')}</div>`
       : '<div class="sub">No channel in your playlist matches this game. Try the league\'s category in Live TV.</div>');
   bg.querySelectorAll('.src').forEach(el => el.onclick = () => { close(); const i = +el.dataset.i; play({ url: list[i].url, title: list[i].name, sub: `${g.away.short} at ${g.home.short}`, live: true, zap: list, zi: i }); });
   // Follow a team (its games first, a score bar while you watch something else, a notification when they start),
