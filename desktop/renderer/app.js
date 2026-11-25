@@ -1124,7 +1124,7 @@ function castButton() {
   b.querySelector('.x').onclick = () => { castTV = null; castButton(); toast('Playing here again', 1800); };
   document.body.appendChild(b);
 }
-async function castPick() {
+async function castPick(onPicked) {
   const bg = document.createElement('div'); bg.className = 'sheet-bg';
   bg.innerHTML = `<div class="sheet"><button class="sx" title="Close">&#x2715;</button><small class="kick">Play on TV</small><h2>Choose a TV</h2><div class="sub">Looking for your TVs…</div></div>`;
   document.body.appendChild(bg); requestAnimationFrame(() => bg.classList.add('on'));
@@ -1145,6 +1145,7 @@ async function castPick() {
     const i = +el.dataset.i; shut();
     castTV = i < 0 ? null : { id: tvs[i].id, name: tvs[i].name || tvs[i].kind };
     castButton();
+    if (castTV && onPicked) return onPicked();
     toast(castTV ? 'Connected to ' + castTV.name + '. Press Play on anything.' : 'Playing here again', 2600);
   });
 }
@@ -1161,14 +1162,17 @@ async function castSend(cmd) {
 }
 async function castTitle(req) {
   const tt = String(req.id).split(':')[0];
-  if (!/^tt\d+$/.test(tt)) { toast('This title can only play here.'); return; }
+  if (!/^tt\d+$/.test(tt)) { toast('This title can only play here.'); return false; }
   const label = req.type === 'series' ? `${req.name} S${req.season} E${req.episode}` : req.name;
-  if (await castSend({ t: 'play', id: 'stremio:' + tt, kind: req.type === 'series' ? 'series' : 'movie', title: req.name || '', s: req.season || 0, e: req.episode || 0, pos: Math.max(0, Math.round(req.start || 0)) }))
-    toast('Starting ' + label + ' on ' + castTV.name, 3000);
+  if (await castSend({ t: 'play', id: 'stremio:' + tt, kind: req.type === 'series' ? 'series' : 'movie', title: req.name || '', s: req.season || 0, e: req.episode || 0, pos: Math.max(0, Math.round(req.start || 0)) })) {
+    toast('Starting ' + label + ' on ' + castTV.name, 3000); return true;
+  }
+  return false;
 }
 async function castLive(item) {
   const m = /\/live\/[^/]+\/[^/]+\/(\d+)(\.\w+)?(\?|$)/.exec(item.url || '');
-  if (await castSend({ t: 'live', sid: m ? m[1] : '', name: item.title || '' })) toast('Switching ' + castTV.name + ' to ' + (item.title || 'the channel'), 2600);
+  if (await castSend({ t: 'live', sid: m ? m[1] : '', name: item.title || '' })) { toast('Switching ' + castTV.name + ' to ' + (item.title || 'the channel'), 2600); return true; }
+  return false;
 }
 
 // ------------------------------------------------------------------ player (hls.js for HLS, mpegts.js for live .ts, native for mp4/webm/mkv)
@@ -1270,6 +1274,17 @@ $('#pl-play').onclick = () => V.paused ? V.play() : V.pause();
 $('#pl-rw').onclick = () => { V.currentTime = Math.max(0, V.currentTime - 10); };
 $('#pl-ff').onclick = () => { V.currentTime = V.currentTime + 10; };
 $('#pl-vol').oninput = e => { V.volume = +e.target.value; };
+(function playerTvButton() {
+  const b = document.createElement('button'); b.id = 'pl-tv'; b.className = 'pl-icon'; b.title = 'Play on TV'; b.innerHTML = TV_ICON;
+  const send = async () => {
+    if (!cur) return;
+    const it = cur, at = isFinite(V.duration) && !it.live ? V.currentTime : 0;
+    const ok = it.live ? await castLive(it) : (it.req ? await castTitle(Object.assign({}, it.req, { name: it.req.name || it.title, start: Math.round(at * 1000) })) : (toast('This one can only play here.'), false));
+    if (ok) closePlayer();
+  };
+  b.onclick = () => castTV ? send() : castPick(send);
+  $('#pl-full').before(b);
+})();
 $('#pl-full').onclick = () => NATIVE && V.webkitEnterFullscreen ? V.webkitEnterFullscreen() : document.fullscreenElement ? document.exitFullscreen() : $('#player').requestFullscreen();
 // iPhone: AirPlay to an Apple TV or AirPlay TV, and a reminder before the 7-day signing runs out (SideStore renews it)
 if (NATIVE) {
