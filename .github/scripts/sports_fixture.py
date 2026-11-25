@@ -50,6 +50,16 @@ if live:
     for i, (grp, name, url) in enumerate(chans):
         out.append(f'#EXTINF:-1 tvg-id="fx{i}" group-title="{grp}",{name}')
         out.append(url)
+# Always-present provider folders for the "Your channels" screenshot (no guide data in the fixture)
+for t in ["DETROIT PISTONS", "ORLANDO MAGIC", "INDIANA PACERS", "BOSTON CELTICS", "LOS ANGELES LAKERS", "DENVER NUGGETS",
+          "GOLDEN STATE WARRIORS", "MIAMI HEAT", "NEW YORK KNICKS", "PHOENIX SUNS"]:
+    out.append(f'#EXTINF:-1 tvg-id="t{t[:3]}" group-title="USA | NBA Teams",NBA {t} (FHD)')
+    out.append(GOOD + "?t=" + t.replace(" ", "_"))
+for i in range(1, 9):
+    out.append(f'#EXTINF:-1 tvg-id="ucl{i}" group-title="Live | UEFA Champions League",UEFA Champions League {i:02d}')
+    out.append(GOOD + f"?ucl={i}")
+out.append('#EXTINF:-1 tvg-id="espn" group-title="USA | Sports",ESPN HD')
+out.append(GOOD + "?espn=1")
 for i in range(3000):
     out.append(f'#EXTINF:-1 tvg-id="ch{i}" group-title="{random.choice(["USA | Entertainment", "UK | Sports", "News"])}",US: Channel {i}')
     out.append(f"http://10.0.2.2:8000/live/x{i}.ts")
