@@ -4,6 +4,7 @@ const v = (process.argv.find(a => a.startsWith('--fof-version=')) || '').split('
 contextBridge.exposeInMainWorld('fof', {
   version: v,
   platform: process.platform,
+  airplay: url => ipcRenderer.send('airplay', String(url)),
   downloads: {
     start: (url, title, id) => ipcRenderer.send('download', { url: String(url), title: String(title || ''), id: String(id || '') }),
     list: () => ipcRenderer.send('downloads'),

@@ -1275,6 +1275,22 @@ $('#pl-play').onclick = () => V.paused ? V.play() : V.pause();
 $('#pl-rw').onclick = () => { V.currentTime = Math.max(0, V.currentTime - 10); };
 $('#pl-ff').onclick = () => { V.currentTime = V.currentTime + 10; };
 $('#pl-vol').oninput = e => { V.volume = +e.target.value; };
+// Mac: AirPlay through Apple's QuickTime Player (the Mac shell opens the stream there; its AirPlay button lists the TVs)
+(function macAirPlay() {
+  if (!window.fof || !window.fof.airplay) return;
+  const b = document.createElement('button'); b.id = 'pl-airmac'; b.className = 'pl-icon'; b.title = 'AirPlay (opens in QuickTime)';
+  b.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 17H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-1"/><path d="M12 15l5 6H7z" fill="currentColor"/></svg>';
+  b.onclick = () => {
+    if (!cur || !cur.url) return;
+    // Live: the provider's HLS link (QuickTime cannot play raw .ts); movies and episodes: the source as it is
+    const u = cur.live ? cur.url.replace(/(\/live\/[^/]+\/[^/]+\/\d+)\.ts(\?|$)/, '$1.m3u8$2') : cur.url;
+    if (!cur.live && /\.(mkv|avi)(\?|$)/i.test(u)) toast('This source is .mkv, which QuickTime may not play. Try another source if it does not start.', 5000);
+    window.fof.airplay(u);
+    V.pause();
+    toast('Opening in QuickTime: click the AirPlay button there and pick your TV', 6000);
+  };
+  $('#pl-full').before(b);
+})();
 (function playerTvButton() {
   const b = document.createElement('button'); b.id = 'pl-tv'; b.className = 'pl-icon'; b.title = 'Play on TV'; b.innerHTML = TV_ICON;
   const send = async () => {

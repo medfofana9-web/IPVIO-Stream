@@ -235,6 +235,14 @@ function setupDownloads() {
     item.on('updated', () => { d.got = item.getReceivedBytes(); d.size = item.getTotalBytes(); if (Date.now() - last > 700) { last = Date.now(); sendDownloads(); } });
     item.once('done', (ev, state) => { d.state = state === 'completed' ? 'done' : 'failed'; d.got = item.getReceivedBytes(); delete d.item; saveDownloads(); sendDownloads(); });
   });
+  // AirPlay: Chrome's video engine cannot AirPlay, Apple's QuickTime Player can. The stream opens there and its
+  // AirPlay button lists the same TVs as the iPhone (Fire TV, Samsung, Apple TV). http(s) links only.
+  ipcMain.on('airplay', (e, url) => {
+    url = String(url || '');
+    if (!/^https?:\/\/[^\s"']+$/.test(url) || process.platform !== 'darwin') return;
+    const script = `tell application "QuickTime Player"\nactivate\nset d to open URL "${url}"\ndelay 1\ntry\nplay d\nend try\nend tell`;
+    require('child_process').execFile('osascript', ['-e', script], () => {});
+  });
   ipcMain.on('download', (e, { url, title, id }) => { pending.push({ title, id }); win.webContents.downloadURL(url); });
   ipcMain.on('downloads', () => sendDownloads());
   ipcMain.on('download-cancel', (e, key) => { const d = downloads.find(x => x.key === key); if (d && d.item) d.item.cancel(); });
