@@ -31,7 +31,7 @@
   .desc { font-size: 14px; -webkit-line-clamp: 3; margin-bottom: 14px; }
   .btn { height: 42px; padding: 0 18px; font-size: 15px; }
   .btn:hover { transform: none; }
-  .dots { right: 18px; bottom: auto; top: 16px; }
+  .dots { right: 66px; bottom: auto; top: 16px; }   /* room for the Play on TV button */
   .dots i.on { width: 22px; }
   .detail .hero { height: auto; min-height: 520px; }
   .detail .hero .info { position: relative; left: auto; right: auto; bottom: auto; padding: 200px 18px 22px; }

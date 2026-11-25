@@ -43,6 +43,9 @@ object RemoteHub {
     @Volatile var phoneAt = 0L
     @Volatile var phoneSignInAt = 0L
 
+    /** Context for the volume button when commands come from the account ("Play on TV") and the phone page is off. */
+    fun attach(ctx: Context) { if (appCtx == null) appCtx = ctx.applicationContext }
+
     fun start(ctx: Context): PhoneImport? {
         appCtx = ctx.applicationContext
         server?.let { if (active) return it }
@@ -207,7 +210,7 @@ object RemoteHub {
         }
     }
 
-    private fun control(c: String, v: String): String {
+    internal fun control(c: String, v: String): String {
         val idle = "{\"idle\":true}"
         when (c) {
             "stop" -> { if (player == null) return idle; closeTick++ }

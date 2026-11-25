@@ -278,6 +278,7 @@ function renderShell(tab) {
     <main class="page" id="page"></main></div>`;
   document.querySelectorAll('.rail a[data-k]').forEach(a => a.onclick = () => go(a.dataset.k));
   $('#me').onclick = () => { acct.profile = null; store.del('profile'); showWho(); };
+  castButton();
   go(tab);
 }
 function go(tab, arg) {
@@ -702,6 +703,7 @@ async function sources(req) {
 // Play: straight into the player – the title's picture while the best source is found and started (no list)
 let startTok = 0;
 async function watch(req) {
+  if (castTV) return castTitle(req);   // connected to a TV: the TV plays it
   if (!acct.addons.length) return sources(req);
   const tok = ++startTok;
   const tt = String(req.id).split(':')[0];
@@ -1093,11 +1095,84 @@ async function runSearch(q) {
   box.querySelectorAll('[data-ci]').forEach(el => el.onclick = () => { const c = ch[+el.dataset.ci]; play({ url: c.url, title: c.name, sub: 'Live TV', live: true, zap: ch, zi: +el.dataset.ci }); });
 }
 
+// ------------------------------------------------------------------ Play on TV
+// Pick one of the account's TVs; from then on Play, episodes and channels start on that TV (its own sources and
+// player, full quality) and this screen becomes the remote. Commands go through the account: fof_cast_send
+// (docs/supabase/cast.sql); the TV app picks them up within a few seconds while it is open.
+let castTV = null;
+const TV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>';
+(function castStyle() {
+  const st = document.createElement('style');
+  st.textContent = `#castbtn{position:fixed;top:calc(14px + env(safe-area-inset-top));right:16px;z-index:45;width:42px;height:42px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer}
+#castbtn.on{background:#E50914}
+#castbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(24px + env(safe-area-inset-bottom));z-index:46;display:flex;align-items:center;gap:6px;background:#181818;border:1px solid #2a2a2a;border-radius:12px;padding:8px 10px 8px 14px;box-shadow:0 10px 30px rgba(0,0,0,.6);max-width:calc(100% - 24px)}
+#castbar .nm{font-size:13px;color:#bbb;margin-right:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px}#castbar .nm b{color:#fff;display:block;font-size:14px}
+#castbar button{width:40px;height:40px;border-radius:8px;border:0;background:transparent;color:#fff;font-size:17px;cursor:pointer}#castbar button:active{background:#333}
+.tvpick{display:flex;align-items:center;gap:14px;padding:14px 8px;margin:0 -8px;border-radius:8px;cursor:pointer}.tvpick:hover{background:#222}.tvpick small{display:block;color:#888;font-size:13px;margin-top:2px}
+@media (max-width: 820px), (hover: none) and (pointer: coarse){#castbar{bottom:calc(76px + env(safe-area-inset-bottom))}}`;
+  document.head.appendChild(st);
+})();
+function castButton() {
+  if (!$('#castbtn')) { const b = document.createElement('button'); b.id = 'castbtn'; b.title = 'Play on TV'; b.innerHTML = TV_ICON; b.onclick = castPick; document.body.appendChild(b); }
+  $('#castbtn').classList.toggle('on', !!castTV);
+  const bar = $('#castbar');
+  if (!castTV) { if (bar) bar.remove(); return; }
+  if (bar) return;
+  const b = document.createElement('div'); b.id = 'castbar';
+  b.innerHTML = `<div class="nm"><b>${esc(castTV.name)}</b>Playing on TV</div><button data-c="skip" data-v="-10" title="Back 10 s">&#x21BA;</button><button data-c="pause" title="Play / Pause">&#x23EF;</button><button data-c="skip" data-v="10" title="Forward 10 s">&#x21BB;</button><button data-c="vol" data-v="-1" title="Quieter">&#x2212;</button><button data-c="vol" data-v="1" title="Louder">+</button><button data-c="stop" title="Stop">&#x25A0;</button><button class="x" title="Disconnect">&#x2715;</button>`;
+  b.querySelectorAll('[data-c]').forEach(x => x.onclick = () => castSend({ t: 'ctl', c: x.dataset.c, v: x.dataset.v || '' }));
+  b.querySelector('.x').onclick = () => { castTV = null; castButton(); toast('Playing here again', 1800); };
+  document.body.appendChild(b);
+}
+async function castPick() {
+  const bg = document.createElement('div'); bg.className = 'sheet-bg';
+  bg.innerHTML = `<div class="sheet"><button class="sx" title="Close">&#x2715;</button><small class="kick">Play on TV</small><h2>Choose a TV</h2><div class="sub">Looking for your TVs…</div></div>`;
+  document.body.appendChild(bg); requestAnimationFrame(() => bg.classList.add('on'));
+  const shut = () => bg.remove();
+  bg.onclick = e => { if (e.target === bg || e.target.closest('.sx')) shut(); };
+  let tvs = [];
+  try { tvs = ((await sb('/rest/v1/fof_devices?select=id,name,kind,last_seen,revoked&revoked=eq.false&order=last_seen.desc')) || []).filter(d => /TV|Android/i.test(d.kind || '') && !/app/i.test(d.kind || '')); } catch (e) {}
+  const sh = $('.sheet', bg); if (!sh) return;
+  sh.innerHTML = `<button class="sx" title="Close">&#x2715;</button><small class="kick">Play on TV</small><h2>Choose a TV</h2>` +
+    (tvs.length ? `<div class="sub">Fof TV has to be open on the TV.</div>` + tvs.map((d, i) => `<div class="tvpick" data-i="${i}">${TV_ICON}<div><b>${esc(d.name || d.kind)}</b><small>${esc(d.kind)}${castTV && castTV.id === d.id ? ' · connected' : ''}</small></div></div>`).join('') +
+      (castTV ? `<div class="tvpick" data-i="-1"><span style="width:22px;text-align:center">&#x2715;</span><div><b>Play on this ${esc(HERE)}</b></div></div>` : '')
+    : `<div class="sub">No TV is signed in to your account yet. Sign in to Fof TV on the TV (Settings › Account), then try again.</div>`);
+  sh.querySelectorAll('.tvpick').forEach(el => el.onclick = () => {
+    const i = +el.dataset.i; shut();
+    castTV = i < 0 ? null : { id: tvs[i].id, name: tvs[i].name || tvs[i].kind };
+    castButton();
+    toast(castTV ? 'Connected to ' + castTV.name + '. Press Play on anything.' : 'Playing here again', 2600);
+  });
+}
+async function castSend(cmd) {
+  if (!castTV) return false;
+  try {
+    const r = await rpc('fof_cast_send', { p_to: castTV.id, p_cmd: cmd });
+    if (r && r.err) { toast(r.err); return false; }
+    return true;
+  } catch (e) {
+    toast(/404|PGRST202|fof_cast_send/.test(String(e.message)) ? 'Play on TV is not switched on for your account yet.' : 'Could not reach the TV (' + String(e.message).slice(0, 40) + ')');
+    return false;
+  }
+}
+async function castTitle(req) {
+  const tt = String(req.id).split(':')[0];
+  if (!/^tt\d+$/.test(tt)) { toast('This title can only play here.'); return; }
+  const label = req.type === 'series' ? `${req.name} S${req.season} E${req.episode}` : req.name;
+  if (await castSend({ t: 'play', id: 'stremio:' + tt, kind: req.type === 'series' ? 'series' : 'movie', title: req.name || '', s: req.season || 0, e: req.episode || 0, pos: Math.max(0, Math.round(req.start || 0)) }))
+    toast('Starting ' + label + ' on ' + castTV.name, 3000);
+}
+async function castLive(item) {
+  const m = /\/live\/[^/]+\/[^/]+\/(\d+)(\.\w+)?(\?|$)/.exec(item.url || '');
+  if (await castSend({ t: 'live', sid: m ? m[1] : '', name: item.title || '' })) toast('Switching ' + castTV.name + ' to ' + (item.title || 'the channel'), 2600);
+}
+
 // ------------------------------------------------------------------ player (hls.js for HLS, mpegts.js for live .ts, native for mp4/webm/mkv)
 const V = $('#video'); let hls = null, mts = null, cur = null, idleT = null;
 function stopEngines() { if (hls) { hls.destroy(); hls = null; } if (mts) { try { mts.destroy(); } catch (e) {} mts = null; } V.removeAttribute('src'); V.load(); }
 function msg(t) { const m = $('#pl-msg'); if (!t) return m.classList.add('hidden'); m.textContent = t; m.classList.remove('hidden'); }
 function play(item) {
+  if (castTV && item.live && !item.here) return castLive(item);
   if (cur && !cur.live) saveResume(true);
   clearInterval(endOfTitle.t); const pe = $('#pl-end'); if (pe) pe.remove();
   clearTimeout(trailerIn.t); document.querySelectorAll('iframe.trailer').forEach(f => f.remove()); trailerIn.on = false;

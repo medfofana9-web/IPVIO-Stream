@@ -196,6 +196,7 @@ class MainActivity : ComponentActivity() {
         SportPlan.kick()   // back in front: bring the game plan up to date at once
         super.onStart()
         Reminders.foreground = true
+        CastInbox.start(applicationContext)   // "Play on TV" from the iPhone / Mac app, while the app is in front
     }
 
     override fun onStop() {
@@ -204,6 +205,7 @@ class MainActivity : ComponentActivity() {
         // Leaving the app or the TV goes to sleep: save where this person stopped right away
         CloudSync.now(applicationContext)
         LiveSync.stop()
+        CastInbox.stop()
         super.onStop()
     }
 
