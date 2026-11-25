@@ -135,6 +135,9 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           script: |
             adb wait-for-device
+            adb root || true; sleep 2; adb wait-for-device
+            adb shell setprop persist.sys.timezone America/New_York || true
+            adb shell service call alarm 3 s16 America/New_York >/dev/null || true
             adb install -r app.apk
             adb logcat -c
             adb shell am start -W -n com.fof.tv/com.ipvio.stream.MainActivity --es fof_test_playlist http://10.0.2.2:8000/test.m3u

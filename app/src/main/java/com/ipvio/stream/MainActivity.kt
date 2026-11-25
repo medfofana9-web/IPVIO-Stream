@@ -579,7 +579,10 @@ private fun AppContent() {
         if (liveAll.isEmpty()) return@LaunchedEffect
         AppNav.testSport = null
         val l = SportData.league(league) ?: return@LaunchedEffect
-        val g = runCatching { SportData.fetch(l, SportData.ymd(0, General.zone()), 0) }.getOrDefault(emptyList()).firstOrNull { it.state == 1 }
+        // Today and yesterday: a late game is still "yesterday" in the US while the device clock may already be past midnight
+        val g = listOf(0, -1).firstNotNullOfOrNull { d ->
+            runCatching { SportData.fetch(l, SportData.ymd(d, General.zone()), 0) }.getOrDefault(emptyList()).firstOrNull { it.state == 1 }
+        }
         if (g == null) { android.util.Log.i("FofStart", "fixture: no live $league game"); return@LaunchedEffect }
         android.util.Log.i("FofStart", "fixture: game " + g.away.name + " at " + g.home.name)
         StartTrace.ok("fixture")
