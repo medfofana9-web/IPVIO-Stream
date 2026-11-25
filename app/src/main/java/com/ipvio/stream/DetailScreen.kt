@@ -912,7 +912,7 @@ private fun EpisodeRow(ep: Episode, em: EpMeta?, v: Variant, prog: ResumeLogic.E
                 if (hide) {
                     val ctxI = androidx.compose.ui.platform.LocalContext.current
                     val req = remember(em.still) { coil.request.ImageRequest.Builder(ctxI).data(em.still).size(32, 18).build() }
-                    AsyncImage(req, null, Modifier.fillMaxSize().blur(14.dp), contentScale = ContentScale.Crop)
+                    AsyncImage(req, null, Modifier.fillMaxSize().then(if (Lite.on) Modifier else Modifier.blur(14.dp)), contentScale = ContentScale.Crop)   // Lite: the 32x18 picture is soft enough without the GPU blur pass
                 } else AsyncImage(em.still, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             } else BrandMark(Modifier.size(dpx(40)).graphicsLayer { alpha = 0.5f })
             // Selected: Netflix's round play button over the still
@@ -986,7 +986,7 @@ private fun EpisodeCard(ep: Episode, em: EpMeta?, prog: ResumeLogic.EpPos?, w: a
             // No spoilers: an episode not watched yet shows a blurred picture, sharp again once watched
             val hide = FofPrefs.spoilerPics && prog?.done != true
             val req = remember(still, hide) { coil.request.ImageRequest.Builder(ctxI).data(still).size(if (hide) 32 else 640, if (hide) 18 else 360).build() }
-            AsyncImage(req, null, Modifier.fillMaxSize().then(if (hide) Modifier.blur(14.dp) else Modifier), contentScale = ContentScale.Crop)
+            AsyncImage(req, null, Modifier.fillMaxSize().then(if (hide && !Lite.on) Modifier.blur(14.dp) else Modifier), contentScale = ContentScale.Crop)
         } else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { BrandMark(Modifier.size(dpx(44)).graphicsLayer { alpha = 0.35f }) }
         Row(
             Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Color(0xCC000000)).padding(horizontal = dpx(12), vertical = dpx(8)),

@@ -482,7 +482,7 @@ internal fun StartScreen(title: String, sub: String, backdrop: String?, note: St
 @Composable
 internal fun StartPicture(modifier: Modifier, title: String, sub: String, backdrop: String?, note: String) {
     Box(modifier.background(Color.Black)) {
-        if (backdrop != null) coil.compose.AsyncImage(backdrop, null, Modifier.fillMaxSize().graphicsLayer { alpha = 0.55f },
+        if (backdrop != null) coil.compose.AsyncImage(backdrop, null, Modifier.fillMaxSize(), alpha = 0.55f,
             contentScale = androidx.compose.ui.layout.ContentScale.Crop, alignment = Alignment.TopCenter)
         Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Color(0xE6000000), Color(0x66000000), Color(0x14000000)))))
         Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xD9000000))))

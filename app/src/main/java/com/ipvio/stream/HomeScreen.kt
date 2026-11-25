@@ -1054,7 +1054,7 @@ private fun ResumeCard(item: Item, se: Pair<Int, Int>?, badge: String?, sub: Str
             val blur = img == still && FofPrefs.spoilerPics && badge != null
             if (blur) {
                 val req = remember(still) { coil.request.ImageRequest.Builder(ctx).data(still).size(32, 18).build() }
-                AsyncImage(req, item.title, Modifier.fillMaxSize().blur(14.dp), contentScale = ContentScale.Crop, onError = { ci++ })
+                AsyncImage(req, item.title, Modifier.fillMaxSize().then(if (Lite.on) Modifier else Modifier.blur(14.dp)), contentScale = ContentScale.Crop, onError = { ci++ })
             } else AsyncImage(img, item.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, onError = { ci++ })
         }
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.35f to Color.Transparent, 1f to Color(0xE6000000))))
