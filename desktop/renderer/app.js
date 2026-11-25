@@ -1126,6 +1126,7 @@ function castButton() {
 }
 async function castPick(onPicked) {
   const bg = document.createElement('div'); bg.className = 'sheet-bg';
+  bg.style.zIndex = 95;   // above the player (80): the TV list also opens from the player's TV button
   bg.innerHTML = `<div class="sheet"><button class="sx" title="Close">&#x2715;</button><small class="kick">Play on TV</small><h2>Choose a TV</h2><div class="sub">Looking for your TVs…</div></div>`;
   document.body.appendChild(bg); requestAnimationFrame(() => bg.classList.add('on'));
   const shut = () => bg.remove();
