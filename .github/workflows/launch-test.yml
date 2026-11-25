@@ -166,6 +166,12 @@ jobs:
         run: |
           grep -n -A25 "FATAL EXCEPTION" logcat.txt | grep -A25 "com.fof.tv" | head -60 || true
           grep -E "FofStart|com.fof.tv.*(Exception|Error)|ExoPlayerImpl|PlaybackException" logcat.txt | tail -60 || true
+          for f in s_channels.png s_channels_focus.png; do
+            if [ -s "$f" ]; then
+              ffmpeg -loglevel error -y -i "$f" -vf scale=960:-1 -q:v 6 "${f%.png}.jpg"
+              echo "IMG-BEGIN ${f%.png}"; base64 -w 0 "${f%.png}.jpg"; echo; echo "IMG-END"
+            fi
+          done
           python3 .github/scripts/sports_check.py srv/fixture.json logcat.txt
           grep -q RUNNING alive.txt && ! grep -q NOT-RUNNING alive.txt
       - uses: actions/upload-artifact@v4
