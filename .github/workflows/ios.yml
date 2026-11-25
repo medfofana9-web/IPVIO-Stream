@@ -16,7 +16,7 @@ permissions:
 jobs:
   ios:
     runs-on: macos-15
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -30,10 +30,13 @@ jobs:
           npm ci --no-audit --no-fund
           FOF_IOS_VERSION="$V" node make-www.js
           npx cap sync ios
+      - name: VLC (CocoaPods)
+        working-directory: mobile/ios/App
+        run: pod install --repo-update | tail -5
       - name: Build for iPhone (unsigned)
         working-directory: mobile/ios/App
         run: |
-          xcodebuild -project App.xcodeproj -scheme App -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+          xcodebuild -workspace App.xcworkspace -scheme App -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
             -derivedDataPath build MARKETING_VERSION="$V" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build | tail -30
           mkdir -p Payload && cp -R build/Build/Products/Release-iphoneos/App.app Payload/
@@ -42,7 +45,7 @@ jobs:
         working-directory: mobile/ios/App
         continue-on-error: true
         run: |
-          xcodebuild -project App.xcodeproj -scheme App -configuration Debug -sdk iphonesimulator \
+          xcodebuild -workspace App.xcworkspace -scheme App -configuration Debug -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' -derivedDataPath simbuild CODE_SIGNING_ALLOWED=NO build | tail -5
           DEV=$(xcrun simctl list devices available | grep -m1 -E 'iPhone 1[5-7]( Pro)? \(' | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
           xcrun simctl boot "$DEV"; xcrun simctl bootstatus "$DEV" -b

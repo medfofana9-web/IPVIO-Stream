@@ -123,10 +123,11 @@ function toggleMyList(id) {
 }
 // Resume point of what is playing (same entry the TV writes); a finished movie leaves Continue Watching
 let lastSave = 0;
-function saveResume(force) {
-  const it = cur; if (!it || it.live || !it.req || !isFinite(V.duration) || V.duration < 60) return;
+function saveResume(force, posS, durS) {   // posS/durS: from the iPhone's VLC player (the web player is idle then)
+  const it = cur, D = durS != null ? durS : V.duration, P = posS != null ? posS : V.currentTime;
+  if (!it || it.live || !it.req || !isFinite(D) || D < 60) return;
   const now = Date.now(); if (!force && now - lastSave < 30000) return; lastSave = now;
-  const pos = Math.round(V.currentTime * 1000), dur = Math.round(V.duration * 1000);
+  const pos = Math.round(P * 1000), dur = Math.round(D * 1000);
   if (pos < 20000) return;
   const id = 'stremio:' + it.req.id, done = pos > dur * 0.93;
   const title = it.req.name + (it.req.type === 'series' ? ` S${it.req.season}E${it.req.episode}` : '');
@@ -628,7 +629,7 @@ function streamsNow(req) {
   const good = store.get('goodSrc', {})[cidOf(req)];
   // DragonStreams is the main source for movies and shows, then Your IPTV, then every other addon
   const isDragon = s => s.addon !== PV_ADDON && /dragon/i.test((s.addon || '') + ' ' + (s.name || ''));
-  const rank = s => (NATIVE && s.risky ? -5000 : 0) + (isDragon(s) ? 1000 : s.addon === PV_ADDON ? 500 : 0) + (good && srcKey(s) === good ? 100 : 0) + (s.risky ? 0 : 10) + ({ '4K': 3, '1080p': 4, '720p': 2, 'SD': 1 }[s.quality] || 0) + (/\.mp4\b|mp4\)/i.test(s.name + s.title) ? 1 : 0);
+  const rank = s => (isDragon(s) ? 1000 : s.addon === PV_ADDON ? 500 : 0) + (good && srcKey(s) === good ? 100 : 0) + (s.risky ? 0 : 10) + ({ '4K': 3, '1080p': 4, '720p': 2, 'SD': 1 }[s.quality] || 0) + (/\.mp4\b|mp4\)/i.test(s.name + s.title) ? 1 : 0);
   const sorted = () => all.slice().sort((a, b) => rank(b) - rank(a));
   const tidy = s => {
     const t = (s.name + ' ' + s.title);
@@ -636,7 +637,7 @@ function streamsNow(req) {
     s.size = (t.match(/(\d+(?:[.,]\d+)?)\s?(GB|MB)/i) || [''])[0].replace(',', '.');
     s.file = (s.title.split('\n').map(x => x.trim()).find(x => /\.(mkv|mp4|avi|ts|m4v|webm)\b/i.test(x)) || s.title.split('\n')[0] || '').replace(/^[^\w\[]+/, '').slice(0, 140);
     // The Mac plays H.264 MP4/MKV well; HEVC/x265, AV1 and some MKV audio often not
-    s.risky = NATIVE ? /\.(mkv|avi|webm)\b|\bmkv\b/i.test(t + ' ' + (s.url || '')) : /hevc|x265|h\.?265|\bav1\b|dolby ?vision|\bdv\b|truehd|atmos|dts/i.test(t);
+    s.risky = NATIVE ? false : /hevc|x265|h\.?265|\bav1\b|dolby ?vision|\bdv\b|truehd|atmos|dts/i.test(t);
     s.addonName = s.name.split(/\s{2,}|\|/)[0].trim().slice(0, 40);
     return s;
   };
@@ -1095,6 +1096,23 @@ async function runSearch(q) {
   box.querySelectorAll('[data-ci]').forEach(el => el.onclick = () => { const c = ch[+el.dataset.ci]; play({ url: c.url, title: c.name, sub: 'Live TV', live: true, zap: ch, zi: +el.dataset.ci }); });
 }
 
+// ------------------------------------------------------------------ iPhone: VLC for formats Apple's player cannot open
+// .mkv / .avi / .webm (most addon movie files) play in a native VLC player; when it closes, the spot is saved as
+// usual and Next Episode / Continue Watching keep working. Other formats stay in Apple's player (AirPlay, PiP).
+const vlcFor = url => /\.(mkv|avi|webm|wmv|flv)(\?|#|$)/i.test(String(url || '').split('?')[0]) || /\.(mkv|avi)\b/i.test(String(url || ''));
+async function playVlc(item, startS) {
+  const nat = window.Capacitor.Plugins && window.Capacitor.Plugins.FofNative;
+  if (!nat || !nat.playVlc) return fail('This source does not play on the iPhone (format). Trying the next one.');
+  if (cur && !cur.live) saveResume(true);
+  cur = item; stopEngines(); starting(false); $('#player').classList.add('hidden');
+  try {
+    const r = await nat.playVlc({ url: item.url, title: item.title || '', sub: item.sub || '', start: startS != null ? startS : (item.start || 0) / 1000 });
+    if (r && r.duration > 0) saveResume(true, r.position, r.duration);
+    if (r && r.failed) { if (item.list && item.idx + 1 < item.list.length) { toast('Source did not start – trying the next one'); return play(Object.assign({}, item, { url: item.list[item.idx + 1].url, idx: item.idx + 1 })); } toast('This one will not start right now. Try Sources on the title page.', 4000); }
+  } catch (e) { toast('Could not open the player: ' + String(e.message || e).slice(0, 60)); }
+  cur = null;
+}
+
 // ------------------------------------------------------------------ Play on TV
 // Pick one of the account's TVs; from then on Play, episodes and channels start on that TV (its own sources and
 // player, full quality) and this screen becomes the remote. Commands go through the account: fof_cast_send
@@ -1190,6 +1208,7 @@ function stopEngines() { if (hls) { hls.destroy(); hls = null; } if (mts) { try 
 function msg(t) { const m = $('#pl-msg'); if (!t) return m.classList.add('hidden'); m.textContent = t; m.classList.remove('hidden'); }
 function play(item) {
   if (castTV && item.live && !item.here) return castLive(item);
+  if (NATIVE && !item.live && vlcFor(item.url)) return playVlc(item);
   if (cur && !cur.live) saveResume(true);
   clearInterval(endOfTitle.t); const pe = $('#pl-end'); if (pe) pe.remove();
   clearTimeout(trailerIn.t); document.querySelectorAll('iframe.trailer').forEach(f => f.remove()); trailerIn.on = false;
