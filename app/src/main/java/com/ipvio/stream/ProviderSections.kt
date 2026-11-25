@@ -3,6 +3,7 @@ package com.ipvio.stream
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -18,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -75,16 +77,19 @@ fun ProviderSections(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
         }
         return
     }
-    val firstTile = remember { FocusRequester() }
+    val selReq = remember { FocusRequester() }
     val restoreReq = remember { FocusRequester() }
     val gridState = rememberLazyGridState()
     Column(Modifier.fillMaxSize()) {
+        // Coming down from the tab bar, focus lands on the folder that is shown (not the chip that happens to be below)
         LazyRow(
+            Modifier.focusProperties { enterTo { selReq } }.focusGroup(),
             contentPadding = PaddingValues(horizontal = DS.PageX, vertical = dpx(6)),
             horizontalArrangement = Arrangement.spacedBy(dpx(10))
         ) {
             items(sections, key = { it.first }) { (g, list) ->
-                FilterPill(ProviderSectionsLogic.sectionName(g) + "  " + list.size, g == cur?.first, raw = true) {
+                FilterPill(ProviderSectionsLogic.sectionName(g) + "  " + list.size, g == cur?.first,
+                    if (g == cur?.first) Modifier.focusRequester(selReq) else Modifier, raw = true) {
                     sel = g; ProviderMemory.section = g
                 }
             }
@@ -101,7 +106,6 @@ fun ProviderSections(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
             itemsIndexed(tiles, key = { _, t -> t.first.id }) { i, (c, st) ->
                 val mod = when {
                     c.id == ProviderMemory.tileId -> Modifier.focusRequester(restoreReq)
-                    i == 0 -> Modifier.focusRequester(firstTile)
                     else -> Modifier
                 }
                 ProviderTile(c, st, mod) {
