@@ -159,6 +159,7 @@ jobs:
             adb exec-out screencap -p > s_channels.png
             adb shell input keyevent 20; sleep 2
             adb exec-out screencap -p > s_channels_focus.png
+            adb shell am broadcast -a com.fof.tv.TAB --ei tab 0; sleep 4
             adb shell am broadcast -a com.fof.tv.TAB --ei tab 10 --ei hubtab 0
             sleep 15
             adb shell input keyevent 20; sleep 2; adb shell input keyevent 20; sleep 2
