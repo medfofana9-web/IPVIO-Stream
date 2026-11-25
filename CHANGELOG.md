@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased – Reliability overhaul, batch 2 (release candidate, device test pending)
+
+- Freeze watch (release builds): when the main thread is stuck for 2 s, its stack (class, method, line only) goes to the
+  problem list as "freeze: …", so Home or Sports freezes on the onn 4K point at the code that blocked (`FreezeWatch`).
+- Screensaver: on budget boxes and with Motion off the idle artwork no longer drifts and crossfades for 2 s (two
+  full-screen pictures redrawn every frame for as long as the TV sat idle); smaller artwork on budget boxes. Its frames
+  are now measured as "ambient" instead of being counted against the tab underneath – that is what made Sports look
+  97 % slow and GPU-bound in the reports.
+- Sports player: the game-switch ticker names the games without scores (no spoilers over the picture).
+
 ## Unreleased – Reliability overhaul, batch 1 (release candidate, device test pending)
 
 - DragonStreams across TVs: when a TV took over the account's addons while an addon's manifest could not be read

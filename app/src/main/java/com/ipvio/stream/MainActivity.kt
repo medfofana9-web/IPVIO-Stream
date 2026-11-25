@@ -69,6 +69,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // Real frame times on this TV (summaries go to the account's problem list)
         FrameStats.install(this)
+        FreezeWatch.install(this)
         // Load settings early so colors and size are right in the very first frame.
         Profiles.init(this)
         val pick = Profiles.needsPicker(this)

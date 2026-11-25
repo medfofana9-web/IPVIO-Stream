@@ -21,7 +21,9 @@ import org.json.JSONObject
  */
 object FrameStats {
     /** Current screen: the player, or the side menu tab (0 Home, …). */
-    private fun screen(): String = if (AppNav.playing) "player" else "tab" + NavState.tab
+    // The idle screensaver is its own screen: its frames (minutes of slow artwork) were counted against the tab
+    // underneath and made e.g. Sports look 97 % slow and GPU-bound while nobody was navigating
+    private fun screen(): String = if (AppNav.playing) "player" else if (Ambient.on) "ambient" else "tab" + NavState.tab
 
     private class Agg { var frames = 0; var slow = 0; var frozen = 0; var worst = 0L; val ph = LongArray(5); val hist = IntArray(6) }
     private val agg = HashMap<String, Agg>()

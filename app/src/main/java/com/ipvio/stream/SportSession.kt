@@ -171,7 +171,6 @@ object SportSession {
     }
 }
 
-private fun scoreText(t: SportData.Team): String = if (SportPrefs.hideScores) "" else t.score.orEmpty()
 
 internal fun teamColor(t: SportData.Team): Color = runCatching {
     val h = t.color?.removePrefix("#") ?: return Color(0xFF2A2A30)
@@ -232,7 +231,8 @@ private fun Ticker(games: List<SportData.Game>, current: String) {
                     .padding(horizontal = 10.dp, vertical = 8.dp)) {
                     Column {
                         val line = if (g.solo) g.title.ifBlank { g.league }
-                            else g.away.abbr.ifBlank { g.away.short } + " " + scoreText(g.away) + "  " + g.home.abbr.ifBlank { g.home.short } + " " + scoreText(g.home)
+                            // No scores over the picture: the ticker names the games only, so switching never spoils a result
+                            else g.away.abbr.ifBlank { g.away.short } + "  at  " + g.home.abbr.ifBlank { g.home.short }
                         Text(raw = true, text = line, color = if (on) Color.Black else Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(raw = true, text = g.detail, color = if (on) Color.White else Color(0xFF9A9AA2), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }

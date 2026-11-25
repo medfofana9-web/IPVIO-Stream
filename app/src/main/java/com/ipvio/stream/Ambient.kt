@@ -31,7 +31,7 @@ object Ambient {
     fun key(): Boolean { lastKey = System.currentTimeMillis(); if (on) { on = false; return true }; return false }
 
     fun pool(): List<Pair<Item, String>> = (Catalog.cached(Catalog.featured(Kind.MOVIE)) + Catalog.cached(Catalog.popular(Kind.SERIES)) + Catalog.cached(Catalog.popular(Kind.MOVIE)))
-        .distinctBy { it.id }.mapNotNull { i -> Catalog.meta(i)?.backdrop?.let { i to it.replace("/t/p/w780/", "/t/p/w1280/") } }.shuffled().take(40)
+        .distinctBy { it.id }.mapNotNull { i -> Catalog.meta(i)?.backdrop?.let { i to (if (Lite.on) it else it.replace("/t/p/w780/", "/t/p/w1280/")) } }.shuffled().take(40)
 }
 
 @Composable
@@ -49,11 +49,14 @@ fun AmbientHost() {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { delay(12_000); i = (i + 1) % pool.size; now = System.currentTimeMillis() } }
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        Crossfade(i, animationSpec = tween(2_000), label = "amb") { k ->
+        // Budget boxes (Lite) and Motion off: the picture changes with a short fade and stands still. The 14 s drift and
+        // 2 s crossfade of two full-screen pictures kept the GPU drawing every frame for as long as the TV sat idle.
+        val calm = Lite.on || Look.motion == 0
+        Crossfade(i, animationSpec = tween(if (calm) 400 else 2_000), label = "amb") { k ->
             val (item, url) = pool[k]
             // Slow drift: one gentle move per picture (drawn by the layer, nothing is laid out again)
             val t = remember { androidx.compose.animation.core.Animatable(0f) }
-            LaunchedEffect(k) { t.animateTo(1f, tween(14_000, easing = androidx.compose.animation.core.LinearEasing)) }
+            LaunchedEffect(k) { if (!calm) t.animateTo(1f, tween(14_000, easing = androidx.compose.animation.core.LinearEasing)) }
             Box(Modifier.fillMaxSize()) {
                 AsyncImage(url, null, Modifier.fillMaxSize().graphicsLayer { val s = 1.04f + 0.04f * t.value; scaleX = s; scaleY = s; translationX = -24f * t.value }, contentScale = ContentScale.Crop)
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to Color(0xCC000000))))
