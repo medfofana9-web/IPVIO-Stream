@@ -8,6 +8,9 @@
 - launch-test job `sports-start`: synthetic provider for tonight's live NBA game (ESPN scoreboard), dead first feed,
   team channel, feed of another game. Emulator result on Pistons–Magic (before the 2.5 s change): cold 7.4 s
   (4.6 s on the dead feed, 2.5 s net+decode), repeat 2.1 s, right feed both times, never the other game.
+- Emulator after the bytes-based dead-feed rule (Celtics–Wizards, 24 Nov 21:3x ET): cold 5.3 s (dead feed 2.5 s,
+  net+decode 2.0 s), repeat 2.3 s, right feed both times. A first version judged "no data" by buffered video and dropped a
+  working feed; replaced by `StreamBytes` (bytes read in `HostFailover.DataSourceWrapper`).
 - Series page layout C (`DetailScreen.kt` eppane: `SeasonPill`, `EpisodeCard`, `EpisodePanel`, `SynopsisDialog`).
 - Not measured: real onn 4K / Fire TV, real provider (DNS, ConnGuard, redirects), TiviMate comparison.
 
