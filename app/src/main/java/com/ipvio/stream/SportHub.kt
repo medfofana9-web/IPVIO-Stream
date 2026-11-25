@@ -137,7 +137,7 @@ class HubCtx(val nav: HubNav, val live: List<Item>, private val onPlay: (Item, L
 internal fun openInHub(p: HubPage) { HubMemory.keep = listOf(p) }
 
 /** Tab and filters survive leaving the hub (e.g. after Watch Live and back from the player). */
-private object HubMemory {
+internal object HubMemory {
     /** Pages that were open when a live stream started (restored when the hub comes back). */
     var keep: List<HubPage> = emptyList()
     var tab = 0
@@ -145,7 +145,9 @@ private object HubMemory {
     var day = 0
 }
 
-private val HUB_TABS = listOf("Übersicht", "Live", "Spielplan", "Ligen", "Teams", "Favoriten", "Sender")
+private val HUB_TABS = listOf("Übersicht", "Live", "Spielplan", "Ligen", "Teams", "Favoriten", "Sender", "Your channels")
+/** Tab bar order: Overview, Your channels (the provider's sports folders), Live, Schedule, Leagues. */
+private val HUB_BAR = listOf(0, 7, 1, 2, 3)
 
 /**
  * Sports Hub: Overview, Live, Schedule, Leagues, Teams, Favorites and the channel area (previous sports page).
@@ -274,11 +276,12 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(dpx(10))
         ) {
             // Four tabs: Overview, Live, Schedule, Leagues (Teams, Favorites and Channels are still reached from inside)
-            itemsIndexed(HUB_TABS.take(4)) { i, t ->
+            items(HUB_BAR) { i ->
+                val t = HUB_TABS[i]
                 // The chosen tab is where the focus lands when coming from the sidebar (the channel tab has its own target)
                 val base = if (i == tab && tab != 6) Modifier.focusRequester(ContentFocus.req) else Modifier.trackFocus()
                 // Live tab: Down goes to the sport filter first (not to the competition row below it)
-                FilterPill(t, tab == i, if (tab == 1) base.focusProperties { down = sportReq } else base) {
+                FilterPill(t, tab == i, if (tab == 1 && i == 1) base.focusProperties { down = sportReq } else base, raw = i == 7) {
                     tab = i; HubMemory.tab = i
                 }
             }
@@ -292,7 +295,7 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
         }
         // Content ends at the tab bar: rows and enlarged tiles never slide over the tabs
         Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
-        if (!General.sportLive && tab != 6) {
+        if (!General.sportLive && tab != 6 && tab != 7) {
             HubEmpty(AIcon.Live, "Live-Ergebnisse sind aus", "Ergebnisse, Tabellen und Spielpläne kommen von ESPN (inoffizielle Quelle). Schalte sie ein, um den Sports Hub zu nutzen.",
                 "Einschalten") { General.setSportLive(ctx, true) }
         } else when (tab) {
@@ -302,6 +305,7 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
             3 -> HubLeagues(hub)
             4 -> HubTeams(hub)
             5 -> HubFavorites(feed, hub)
+            7 -> ProviderSections(live, onPlay)
             else -> SportTab(live, onPlay)
         }
         }

@@ -153,6 +153,12 @@ jobs:
             adb shell am broadcast -a com.fof.tv.TAB --es sport NBA
             sleep 30
             adb exec-out screencap -p > s_play2.png
+            adb shell input keyevent 4; sleep 4
+            adb shell am broadcast -a com.fof.tv.TAB --ei tab 10 --ei hubtab 7
+            sleep 12
+            adb exec-out screencap -p > s_channels.png
+            adb shell input keyevent 20; sleep 2
+            adb exec-out screencap -p > s_channels_focus.png
             (adb shell pidof com.fof.tv > /dev/null && echo RUNNING || echo NOT-RUNNING) | tee alive.txt
             adb logcat -d > logcat.txt
       - name: Checks

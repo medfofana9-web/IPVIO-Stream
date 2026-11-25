@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased – Sports: "Your channels" (provider sections, layout B) (release candidate, device test pending)
+
+- New Sports tab "Your channels", right after Overview: the provider's NBA, WNBA, NFL, college and soccer folders as they
+  are ("NBA Teams", "UEFA Champions League" …) plus ESPN and NBA TV, one tile per channel with its logo, name and the
+  state from the provider's guide ("● Live · NBA: Pistons at Magic", "In 3 h · DAL @ DEN", "Tomorrow", "No game today").
+  Live tiles first. OK plays the channel at once (no game matching); Back returns to the same tile.
+
 ## Unreleased – Provider team channels as the sports directory (release candidate, device test pending)
 
 - The provider's own guide codes count as proof of a matchup: "Live in 3 hours: DET @ ORL", "NBA: ORL vs DET",

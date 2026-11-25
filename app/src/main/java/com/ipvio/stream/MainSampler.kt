@@ -30,6 +30,7 @@ object MainSampler {
             override fun onReceive(ctx: Context, i: Intent) {
                 AppNav.testTab = i.getIntExtra("tab", -1)
                 i.getStringExtra("sport")?.let { AppNav.testSport = it }
+                i.getIntExtra("hubtab", -1).takeIf { it >= 0 }?.let { HubMemory.tab = it }
                 // Search journey: type a query as if entered on the keyboard
                 i.getStringExtra("q")?.let { SearchState.query = it }
             }
