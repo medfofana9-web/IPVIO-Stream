@@ -51,7 +51,9 @@ fun AmbientHost() {
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         // Budget boxes (Lite) and Motion off: the picture changes with a short fade and stands still. The 14 s drift and
         // 2 s crossfade of two full-screen pictures kept the GPU drawing every frame for as long as the TV sat idle.
-        val calm = Lite.on || Look.motion == 0
+        // Calm on every TV: the onn 4K Plus (not a budget box) still reported 99–100 % slow frames at 76–81 % GPU while the
+        // drift and long crossfade ran for as long as the TV sat idle. Now a short fade, then a still picture.
+        val calm = true
         Crossfade(i, animationSpec = tween(if (calm) 400 else 2_000), label = "amb") { k ->
             val (item, url) = pool[k]
             // Slow drift: one gentle move per picture (drawn by the layer, nothing is laid out again)

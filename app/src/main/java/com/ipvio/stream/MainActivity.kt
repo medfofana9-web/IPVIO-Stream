@@ -93,6 +93,7 @@ class MainActivity : ComponentActivity() {
         }
         // Extra audio decoder (AC3/DTS): checked in the background so the first player never waits for it
         SoftAudio.warmUp(this)
+        FontWarmUp.start()
         // Personal data (Continue watching, watched, My List, favorites) follows the signed-in person: every 2 minutes
         // while the app is open (cheap: only a time stamp is fetched when nothing changed); also on return and on leaving
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {

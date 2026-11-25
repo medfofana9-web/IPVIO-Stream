@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased – Freeze and screensaver fixes from the onn 4K reports
+
+- Backup fonts (Turkish, Greek, Cyrillic, Arabic letters, flag emoji) load in the background at start: the first draw
+  of such a name froze Sports for over 2 s on an onn 4K (freeze report inside text drawing).
+- Screensaver: a short fade and a still picture on every TV (the onn 4K Plus reported 99–100 % slow frames, 76–81 % GPU,
+  for as long as it sat idle).
+
 ## Unreleased – Sports overview: no row jumps, no repeated games, full team names, dimmed page behind the menu
 
 - The same game in Top 10, My teams and Coming Up shared one focus key, so restoring focus could land on its copy in
