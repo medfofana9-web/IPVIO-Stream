@@ -31,6 +31,7 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -466,10 +467,16 @@ private fun AppContent() {
     // Shared provider login: a new stream only starts while one of its streams is free (see ConnGuard)
     var limitHit by remember { mutableStateOf<Pair<ConnGuard.State, () -> Unit>?>(null) }
     val guardScope = rememberCoroutineScope()
+    var pendingStart by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     fun start(item: Item, title: String, url: String, startMs: Long = 0L) {
+        // A second selection supersedes an outstanding provider connection check.
+        pendingStart?.cancel()
+        limitHit = null
         if (ConnLogic.acctOf(url) == null) { startChecked(item, title, url, startMs); return }
-        guardScope.launch {
+        pendingStart = guardScope.launch {
             val full = ConnGuard.blockedBy(url, replacing = playing != null)
+            // A cancelled check must never navigate into the player after a newer selection.
+            if (!kotlinx.coroutines.currentCoroutineContext().isActive) return@launch
             if (full == null) { ConnGuard.changed(); startChecked(item, title, url, startMs) }
             else limitHit = full to { ConnGuard.changed(); start(item, title, url, startMs) }
         }
