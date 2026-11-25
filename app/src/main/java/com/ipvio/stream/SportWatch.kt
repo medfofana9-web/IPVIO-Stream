@@ -108,14 +108,20 @@ object SportWatch {
         }
     }
 
-    // Channels whose name looks like an event ("Fubo 03: Spain vs England", "ViX 12 | España - Inglaterra")
+    // Match sports categories and event-shaped names in one stable list so the per-game cache can reuse the scan.
     private var evSig = 0
     private var evList: List<Item> = emptyList()
     private val EVENT_NAME = Regex("""\b(vs\.?|v|at|@|-|–)\b|\|.*\S""", RegexOption.IGNORE_CASE)
     private fun eventChannels(live: List<Item>): List<Item> {
         val sig = System.identityHashCode(live) * 31 + live.size
         synchronized(this) {
-            if (sig != evSig) { evList = live.filter { it.kind == Kind.LIVE && it.title.length > 12 && EVENT_NAME.containsMatchIn(it.title) }; evSig = sig }
+            if (sig != evSig) {
+                val sports = sportChannels(live).toHashSet()
+                evList = live.filter { c ->
+                    c in sports || (c.kind == Kind.LIVE && c.title.length > 12 && EVENT_NAME.containsMatchIn(c.title))
+                }
+                evSig = sig
+            }
             return evList
         }
     }
@@ -123,7 +129,7 @@ object SportWatch {
     /** Prepares the list of sports channels in the background (otherwise the first opening of the hub filters all channels on the main thread). */
     fun prewarm(live0: List<Item>) {
         val live = SportFresh.apply(live0)
-        sportChannels(live)
+        eventChannels(live)
         val sig = sigOf(live)
         if (prep?.sig != sig) build(live, sig)?.let { prep = it; prepVersion++ }
     }
@@ -189,6 +195,7 @@ object SportWatch {
 
     /** Words a provider uses for a soccer competition's own section ("Live | UEFA Champions League", "Live | EPL", "Live | La Liga"). */
     private val SECTION = mapOf(
+        "NBA" to listOf("nba", "league pass"),
         "Premier League" to listOf("premier league", "epl", "english premier"),
         "Champions League" to listOf("champions league", "ucl"),
         "Europa League" to listOf("europa league", "uel"),
@@ -207,12 +214,12 @@ object SportWatch {
     )
 
     /**
-     * Soccer: 0 = a channel of the provider's section for this competition that shows the game (sure match by name or guide),
+     * 0 = a channel of the provider's section for this competition that shows the game (sure match by name or guide),
      * so "Live | UEFA Champions League" feeds come before every other source; 1 = anything else.
      */
     private fun sectionRank(g: SportData.Game, h: Hit): Int {
         if (h.why != 2 && h.why != 1 && h.why != 0) return 1
-        if (!SportData.isSoccer(g)) return 1
+        if (g.league != "NBA" && !SportData.isSoccer(g)) return 1
         val words = SECTION[g.league] ?: listOf(SportNet.norm(g.league)).filter { it.length >= 3 }
         val grp = " " + SportNet.norm(h.ch.group) + " "
         val ttl = " " + SportNet.norm(h.ch.title) + " "
@@ -280,9 +287,7 @@ object SportWatch {
                 SportNet.teamOf(ch.title, SportData.soccerTeamKeys(g.home), SportData.soccerTeamKeys(g.away)) != 0
             out.add(if (sure) Hit(ch, 5, "") else Hit(ch, 6, "Picked before for another game"))
         } }
-        val sport = sportChannels(live)
         // Event channels that name both teams ("NBA 01: Pacers vs Celtics") are the most exact
-        SportData.channelsFor(g, sport).forEach { out.add(Hit(it, 2, "")) }
         SportData.channelsFor(g, eventChannels(live)).forEach { out.add(Hit(it, 2, "")) }
         val multiDay = g.end > g.start
         for (s in slotsBetween(g.start - 90 * 60, if (multiDay) maxOf(g.end, g.start + 90 * 60) else g.start + 90 * 60)) {

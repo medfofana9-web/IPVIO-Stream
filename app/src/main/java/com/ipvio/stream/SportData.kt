@@ -645,7 +645,12 @@ object SportData {
     /** Channels of [live] whose name shows this game. The result is remembered per game as long as the channel list stays the same. */
     fun channelsFor(g: Game, live: List<Item>): List<Item> {
         val k = g.key
-        val sig = System.identityHashCode(live) * 31 + live.size
+        val sig = listOf(
+            System.identityHashCode(live), live.size,
+            g.home.name.hashCode(), g.home.short.hashCode(),
+            g.away.name.hashCode(), g.away.short.hashCode(),
+            g.title.hashCode(), g.start.hashCode()
+        ).fold(17) { acc, n -> acc * 31 + n }
         synchronized(chanCache) { chanCache[k]?.let { if (it.first == sig) return it.second } }
         val r = live.filter { matches(g, it.title) && dateFits(g, it.title) }
         synchronized(chanCache) { if (chanCache.size > 600) chanCache.clear(); chanCache[k] = sig to r }

@@ -3,6 +3,7 @@
 ## Unreleased – Faster live sports startup
 
 - Open matched channels immediately from Home and Sports. When a game has no match, check provider names and add-ons in parallel for up to three seconds before opening the source picker.
+- Reuse one channel-name scan per game and prioritize exact matches in the provider’s NBA and soccer competition categories.
 
 ## Unreleased – Sports playback startup
 
