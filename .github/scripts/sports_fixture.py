@@ -43,7 +43,7 @@ if live:
     chans = [
         ("USA | NBA", f"NBA 01: {match}", HANG),
         ("USA | NBA", f"NBA 03: {match}", GOOD),
-        ("USA NBA Teams", f'NBA: {home["displayName"]}', GOOD),
+        ("USA NBA Teams", f'NBA: {home["displayName"]}', GOOD + "?team=1"),
         ("USA | NBA", wrong, GOOD),
     ]
     fx.update(game=match, expected=[c[1] for c in chans[1:3]], forbidden=[wrong, chans[0][1]])

@@ -8,8 +8,8 @@ import org.junit.Test
 
 class StartTraceTest {
     @Test fun stepsAddUpToTheTotal() {
-        val l = StartTraceLogic.line("sports", 1_000, 1_200, 1_250, 1_300, 5_300, 3, 1)!!
-        assertEquals("sports 4.3s · pick 0.2 · guard 0.1 · ui 0.1 · net+decode 4.0 · feeds 3 · failover 1", l.text)
+        val l = StartTraceLogic.line("sports", 1_000, 1_200, 1_250, 1_300, 5_300, 3, 1, lastOpen = 3_800)!!
+        assertEquals("sports 4.3s · pick 0.2 · guard 0.1 · ui 0.1 · failed feeds 2.5 · net+decode 1.5 · feeds 3 · failover 1", l.text)
         assertTrue(l.slow)
     }
 

@@ -9,6 +9,9 @@ internal object SportsStartupLogic {
     fun nextFeedDelayMs(verified: Boolean, candidates: Int): Long? =
         if (candidates <= 1) null else if (verified) 7_500L else 4_500L
 
+    /** A feed that has sent no data at all by now is dead or hanging: the next feed is tried without waiting longer. */
+    const val NO_DATA_MS = 2_500L
+
     fun shouldTryNext(readyOnce: Boolean, isLiveGame: Boolean, candidates: Int): Boolean =
         !readyOnce && isLiveGame && candidates > 1
 }

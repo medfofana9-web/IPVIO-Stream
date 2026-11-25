@@ -1,5 +1,16 @@
 # Work state
 
+## 24 Nov 2026 – NBA start speed + series layout C (release candidate, `[device-test]`)
+- Serial waits removed between OK and picture: ConnGuard provider round trip (cached count, prefetch via `StartPrep`),
+  SmartDns (parallel DoH, 1.5 s budget, stale cache), live start buffer (`BufferLogic.liveStartMs/learnedNow`),
+  SportFresh identical-name rebuilds; hanging first feed left after 2.5 s without data (`SportsStartupLogic.NO_DATA_MS`).
+- `StartTrace`: OK → pick → guard → ui → failed feeds → net+decode; logcat tag `FofStart`, report `start:` when ≥ 3 s.
+- launch-test job `sports-start`: synthetic provider for tonight's live NBA game (ESPN scoreboard), dead first feed,
+  team channel, feed of another game. Emulator result on Pistons–Magic (before the 2.5 s change): cold 7.4 s
+  (4.6 s on the dead feed, 2.5 s net+decode), repeat 2.1 s, right feed both times, never the other game.
+- Series page layout C (`DetailScreen.kt` eppane: `SeasonPill`, `EpisodeCard`, `EpisodePanel`, `SynopsisDialog`).
+- Not measured: real onn 4K / Fire TV, real provider (DNS, ConnGuard, redirects), TiviMate comparison.
+
 ## 24 Nov 2026 – Sports playback startup
 - Live game cards queue background source matching. Switching games cancels the prior selection. Lookup errors use the source picker and existing diagnostics.
 - The fresh channel-name cache uses the identity of the published map to avoid hashing all its entries per lookup.
