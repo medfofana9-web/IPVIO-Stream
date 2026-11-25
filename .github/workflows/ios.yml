@@ -1,0 +1,94 @@
+name: Fof TV for iPhone
+
+# Builds the iPhone app (mobile/, the shared screens from desktop/renderer in a Capacitor shell) on a Mac runner.
+# The .ipa is unsigned: SideStore signs it with the owner's free Apple ID and renews it before the 7 days run out.
+# Published to the fixed release "ios" (never "latest": the TV updater only looks at the Android releases), together
+# with sidestore-source.json, the SideStore source that tells the phone a newer build is available.
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'mobile/**', 'desktop/renderer/**', '.github/workflows/ios.yml' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Prepare the app
+        working-directory: mobile
+        run: |
+          V="$(node -p "require('./package.json').version.split('.').slice(0,2).join('.')").${{ github.run_number }}"
+          echo "V=$V" >> "$GITHUB_ENV"
+          npm ci --no-audit --no-fund
+          FOF_IOS_VERSION="$V" node make-www.js
+          npx cap sync ios
+      - name: Build for iPhone (unsigned)
+        working-directory: mobile/ios/App
+        run: |
+          xcodebuild -project App.xcodeproj -scheme App -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath build MARKETING_VERSION="$V" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build | tail -30
+          mkdir -p Payload && cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qry FofTV.ipa Payload && ls -la FofTV.ipa
+      - name: Smoke test in the iPhone simulator
+        working-directory: mobile/ios/App
+        continue-on-error: true
+        run: |
+          xcodebuild -project App.xcodeproj -scheme App -configuration Debug -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath simbuild CODE_SIGNING_ALLOWED=NO build | tail -5
+          DEV=$(xcrun simctl list devices available | grep -m1 -E 'iPhone 1[5-7]( Pro)? \(' | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
+          xcrun simctl boot "$DEV"; xcrun simctl bootstatus "$DEV" -b
+          xcrun simctl install "$DEV" simbuild/Build/Products/Debug-iphonesimulator/App.app
+          xcrun simctl launch "$DEV" com.fof.tv.ios
+          sleep 25; mkdir -p shots; xcrun simctl io "$DEV" screenshot shots/launch.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-build
+          path: |
+            mobile/ios/App/FofTV.ipa
+            mobile/ios/App/shots
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        working-directory: mobile/ios/App
+        run: |
+          R="${{ github.repository }}"
+          SIZE=$(stat -f%z FofTV.ipa)
+          cat > sidestore-source.json <<JSON
+          {
+            "name": "Fof TV",
+            "identifier": "com.fof.tv.source",
+            "sourceURL": "https://github.com/$R/releases/download/ios/sidestore-source.json",
+            "apps": [{
+              "name": "Fof TV",
+              "bundleIdentifier": "com.fof.tv.ios",
+              "developerName": "Fof",
+              "subtitle": "Your Fof TV on your iPhone",
+              "localizedDescription": "Fof TV: your account, profiles, movies, shows, sports and live TV.",
+              "iconURL": "https://raw.githubusercontent.com/$R/main/desktop/assets/icon.png",
+              "tintColor": "E50914",
+              "versions": [{
+                "version": "$V",
+                "buildVersion": "${{ github.run_number }}",
+                "date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+                "size": $SIZE,
+                "downloadURL": "https://github.com/$R/releases/download/ios/FofTV.ipa",
+                "minOSVersion": "15.0"
+              }]
+            }],
+            "news": []
+          }
+          JSON
+          python3 -m json.tool sidestore-source.json > /dev/null
+          gh release view ios -R "$R" > /dev/null 2>&1 || gh release create ios -R "$R" --latest=false --title "Fof TV for iPhone" \
+            --notes "Install with SideStore: add the source https://github.com/$R/releases/download/ios/sidestore-source.json, then install Fof TV. SideStore renews it before the 7 days run out."
+          gh release upload ios FofTV.ipa sidestore-source.json -R "$R" --clobber
+          gh release edit ios -R "$R" --title "Fof TV for iPhone $V"

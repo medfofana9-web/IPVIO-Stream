@@ -1,0 +1,17 @@
+{
+  "name": "fof-tv-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fof TV for iPhone - the same screens as the Mac app, in a native iOS shell (Capacitor)",
+  "scripts": {
+    "www": "node make-www.js",
+    "sync": "node make-www.js && npx cap sync ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "^7.4.0",
+    "@capacitor/ios": "^7.4.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.4.0"
+  }
+}

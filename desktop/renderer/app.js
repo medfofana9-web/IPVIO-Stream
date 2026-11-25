@@ -5,7 +5,11 @@
 const SB = 'https://msooylkizqvdrgxrdjww.supabase.co';
 const ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1zb295bGtpenF2ZHJneHJkand3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ3MTAzMTksImV4cCI6MjExMDI4NjMxOX0.PBF00osXJngq78z74Q2jVKFkc5yvJ41z9d7E0jJjryo';
 const CM = 'https://v3-cinemeta.strem.io';
-const VERSION = (window.fof && window.fof.version) || '0.1';
+// The iPhone app runs these same screens in a native iOS shell (mobile/, Capacitor). There the shell fetches IPTV and
+// addon data natively (no CORS or http limits) and the native video player (AVPlayer) plays HLS and mp4, with AirPlay.
+const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+if (NATIVE) { window.Hls = undefined; window.mpegts = undefined; }   // their segment loaders would bypass the native fetch
+const VERSION = (window.fof && window.fof.version) || window.FOF_IOS_VERSION || '0.1';
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -56,7 +60,7 @@ function deviceId() {
 const acct = { profiles: [], pins: {}, addons: [], playlist: '', profile: null, watch: [] };
 
 async function loadAccount() {
-  await rpc('fof_register_device', { p_id: deviceId(), p_name: WEB ? 'Phone' : 'Mac', p_kind: WEB ? 'Web app' : 'Mac app', p_version: VERSION }).catch(() => {});
+  await rpc('fof_register_device', { p_id: deviceId(), p_name: NATIVE ? 'iPhone' : WEB ? 'Phone' : 'Mac', p_kind: NATIVE ? 'iPhone app' : WEB ? 'Web app' : 'Mac app', p_version: VERSION }).catch(() => {});
   acct.profiles = await sb('/rest/v1/fof_profiles?select=id,slot,name,avatar,photo&deleted=eq.false&order=slot');
   const ps = await rpc('fof_pin_status').catch(() => []);
   acct.pins = {}; (ps || []).forEach(p => acct.pins[p.profile_id] = p);
@@ -197,7 +201,7 @@ function askPin(p, err, len = 4) {
       let r = await rpc('fof_verify_pin', { p_profile: p.id, p_pin: pin });
       if (r && r.err === 'signed_out') {
         // This Mac was not registered with the account yet: register, then try once more
-        await rpc('fof_register_device', { p_id: deviceId(), p_name: WEB ? 'Phone' : 'Mac', p_kind: WEB ? 'Web app' : 'Mac app', p_version: VERSION }).catch(() => {});
+        await rpc('fof_register_device', { p_id: deviceId(), p_name: NATIVE ? 'iPhone' : WEB ? 'Phone' : 'Mac', p_kind: NATIVE ? 'iPhone app' : WEB ? 'Web app' : 'Mac app', p_version: VERSION }).catch(() => {});
         r = await rpc('fof_verify_pin', { p_profile: p.id, p_pin: pin });
       }
       if (r && r.ok) { (acct.pins[p.id] = acct.pins[p.id] || {}).unlocked = true; return openProfile(p); }
@@ -259,7 +263,8 @@ const ICONS = {
   downloads: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>'
 };
 // The same screens run as the phone web app (no Mac shell there)
-const WEB = !window.fof;
+const WEB = !window.fof && !NATIVE;
+const HERE = NATIVE ? 'iPhone' : WEB ? 'phone' : 'Mac';
 const DL = window.fof && window.fof.downloads;
 const NAV = [['search', 'Search'], ['home', 'Home'], ['shows', 'TV Shows'], ['movies', 'Movies'], ['sports', 'Sports'], ['live', 'Live TV'], ['mylist', 'My List'], ...(DL ? [['downloads', 'Downloads']] : [])];
 let current = 'home';
@@ -370,7 +375,7 @@ function handoff(pg) {
   if (!w || !tt || w.next || !w.ts || Date.now() - w.ts > 60 * 60 * 1000 || (w.dur && w.pos > w.dur * 0.93)) return;
   const b = document.createElement('div'); b.className = 'handoff';
   const left = w.dur ? Math.max(1, Math.round((w.dur - w.pos) / 60000)) + ' min left' : '';
-  b.innerHTML = `<img src="${esc(bgOf(tt))}" onerror="this.remove()"><div class="hx"><small>KEEP WATCHING ON THIS ${WEB ? 'PHONE' : 'MAC'}</small><b>${esc(w.title)}</b><span>${esc(left)}</span></div><button class="btn primary">&#x25B6;&nbsp; Resume</button><button class="x" title="Close">&#x2715;</button>`;
+  b.innerHTML = `<img src="${esc(bgOf(tt))}" onerror="this.remove()"><div class="hx"><small>KEEP WATCHING ON THIS ${HERE.toUpperCase()}</small><b>${esc(w.title)}</b><span>${esc(left)}</span></div><button class="btn primary">&#x25B6;&nbsp; Resume</button><button class="x" title="Close">&#x2715;</button>`;
   document.body.appendChild(b);
   setTimeout(() => b.classList.add('on'), 50);
   const close = () => { b.classList.remove('on'); setTimeout(() => b.remove(), 300); };
@@ -681,7 +686,7 @@ async function sources(req) {
   bg.onclick = e => { if (e.target === bg || e.target.closest('.sx')) shut(); };
   const close = e => { if (e.key === 'Escape') shut(); };
   document.addEventListener('keydown', close);
-  if (!acct.addons.length) { $('.sheet', bg).innerHTML = `<button class="sx" title="Close">&#x2715;</button><small class="kick">Sources</small><h2>No addons yet</h2><div class="sub">Add Stremio addons on the TV (Settings › Stremio addons). They come to this ${WEB ? 'phone' : 'Mac'} through your account.</div>`; return; }
+  if (!acct.addons.length) { $('.sheet', bg).innerHTML = `<button class="sx" title="Close">&#x2715;</button><small class="kick">Sources</small><h2>No addons yet</h2><div class="sub">Add Stremio addons on the TV (Settings › Stremio addons). They come to this ${HERE} through your account.</div>`; return; }
   const list = await streamsFor(req);
   if (!document.body.contains(bg)) return;
   if (!list.length) { $('.sheet', bg).innerHTML = `<button class="sx" title="Close">&#x2715;</button><small class="kick">Sources</small><h2>${esc(label)}</h2><div class="sub">Nothing playable for this right now.</div>`; return; }
@@ -1106,7 +1111,7 @@ function play(item) {
   startEngine(item, item.url, 0);
   setTimeout(drawScoreBar, 500);
   V.onloadedmetadata = () => { if (item.start > 30000 && isFinite(V.duration)) V.currentTime = Math.max(0, item.start / 1000 - 5); };
-  V.onerror = () => { if (!hls && !mts) fail('This source does not play on the Mac (format). Trying the next one.'); };
+  V.onerror = () => { if (!hls && !mts) fail('This source does not play on the ' + HERE + ' (format). Trying the next one.'); };
   poke();
 }
 // Live: HLS (.m3u8) through hls.js first – it keeps a buffer and recovers from network hiccups far better than raw
@@ -1134,7 +1139,7 @@ function startEngine(item, url, attempt) {
       autoCleanupSourceBuffer: true, autoCleanupMaxBackwardDuration: 60, autoCleanupMinBackwardDuration: 30, lazyLoad: false });
     mts.attachMediaElement(V); mts.load();
     mts.on(mpegts.Events.ERROR, () => fail('This channel does not start right now.'));
-  } else V.src = url;
+  } else V.src = NATIVE ? hlsUrl : url;
   V.play().catch(() => {});
 }
 
@@ -1186,7 +1191,26 @@ $('#pl-play').onclick = () => V.paused ? V.play() : V.pause();
 $('#pl-rw').onclick = () => { V.currentTime = Math.max(0, V.currentTime - 10); };
 $('#pl-ff').onclick = () => { V.currentTime = V.currentTime + 10; };
 $('#pl-vol').oninput = e => { V.volume = +e.target.value; };
-$('#pl-full').onclick = () => document.fullscreenElement ? document.exitFullscreen() : $('#player').requestFullscreen();
+$('#pl-full').onclick = () => NATIVE && V.webkitEnterFullscreen ? V.webkitEnterFullscreen() : document.fullscreenElement ? document.exitFullscreen() : $('#player').requestFullscreen();
+// iPhone: AirPlay to an Apple TV or AirPlay TV, and a reminder before the 7-day signing runs out (SideStore renews it)
+if (NATIVE) {
+  V.setAttribute('x-webkit-airplay', 'allow');
+  const air = document.createElement('button'); air.id = 'pl-air'; air.className = 'pl-icon'; air.title = 'AirPlay';
+  air.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 17H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-1"/><path d="M12 15l5 6H7z" fill="currentColor"/></svg>';
+  air.onclick = () => { if (V.webkitShowPlaybackTargetPicker) V.webkitShowPlaybackTargetPicker(); };
+  $('#pl-full').before(air);
+  const nat = window.Capacitor.Plugins && window.Capacitor.Plugins.FofNative;
+  if (nat) nat.info().then(i => {
+    if (!i || !i.expires) return;
+    const left = (new Date(i.expires) - Date.now()) / 864e5; if (left > 2) return;
+    const b = document.createElement('div');
+    b.style.cssText = 'position:fixed;left:12px;right:12px;top:calc(10px + env(safe-area-inset-top));z-index:999;background:#141414;border:1px solid #e50914;border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:12px;font-size:14px';
+    b.innerHTML = `<span style="flex:1">Fof TV needs a refresh ${left < 1 ? 'today' : 'in ' + Math.ceil(left) + ' days'} or it stops opening.</span><button class="btn primary" style="height:36px;padding:0 14px">Renew</button><button class="x" style="background:none;border:0;color:#aaa;font-size:18px">&#x2715;</button>`;
+    b.querySelector('.btn').onclick = () => nat.openSideStore();
+    b.querySelector('.x').onclick = () => b.remove();
+    document.body.appendChild(b);
+  }).catch(() => {});
+}
 $('#pl-back').onclick = closePlayer;
 // Mini player: the video floats in a small macOS window above everything while you keep browsing
 $('#pl-mini').onclick = async () => {

@@ -1,0 +1,15 @@
+{
+  "appId": "com.fof.tv.ios",
+  "appName": "Fof TV",
+  "webDir": "www",
+  "backgroundColor": "#000000",
+  "ios": {
+    "contentInset": "never",
+    "scrollEnabled": false,
+    "allowsLinkPreview": false,
+    "limitsNavigationsToAppBoundDomains": false
+  },
+  "plugins": {
+    "CapacitorHttp": { "enabled": true }
+  }
+}
