@@ -47,8 +47,12 @@ jobs:
           DEV=$(xcrun simctl list devices available | grep -m1 -E 'iPhone 1[5-7]( Pro)? \(' | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
           xcrun simctl boot "$DEV"; xcrun simctl bootstatus "$DEV" -b
           xcrun simctl install "$DEV" simbuild/Build/Products/Debug-iphonesimulator/App.app
-          xcrun simctl launch "$DEV" com.fof.tv.ios
+          xcrun simctl launch --stdout=$PWD/app-out.txt --stderr=$PWD/app-out.txt "$DEV" com.fof.tv.ios
           sleep 25; mkdir -p shots; xcrun simctl io "$DEV" screenshot shots/launch.png
+          echo "--- app console"; grep -E "⚡️|error|Error" app-out.txt | head -40 || true
+          # The screenshot in the log (artifacts are not reachable from every reviewer): small JPEG as base64
+          sips -s format jpeg -s formatOptions 55 -Z 900 shots/launch.png --out shots/launch.jpg > /dev/null
+          echo "SHOT-BEGIN"; base64 -i shots/launch.jpg | fold -w 4000; echo "SHOT-END"
       - uses: actions/upload-artifact@v4
         with:
           name: ios-build
