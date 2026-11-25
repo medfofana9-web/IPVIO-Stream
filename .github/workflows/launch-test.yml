@@ -159,6 +159,7 @@ jobs:
         if: always()
         run: |
           grep -n -A25 "FATAL EXCEPTION" logcat.txt | grep -A25 "com.fof.tv" | head -60 || true
+          grep -E "FofStart|com.fof.tv.*(Exception|Error)|ExoPlayerImpl|PlaybackException" logcat.txt | tail -60 || true
           python3 .github/scripts/sports_check.py srv/fixture.json logcat.txt
           grep -q RUNNING alive.txt && ! grep -q NOT-RUNNING alive.txt
       - uses: actions/upload-artifact@v4

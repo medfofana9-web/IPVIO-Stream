@@ -581,7 +581,10 @@ private fun AppContent() {
         val l = SportData.league(league) ?: return@LaunchedEffect
         // Today and yesterday: a late game is still "yesterday" in the US while the device clock may already be past midnight
         val g = listOf(0, -1).firstNotNullOfOrNull { d ->
-            runCatching { SportData.fetch(l, SportData.ymd(d, General.zone()), 0) }.getOrDefault(emptyList()).firstOrNull { it.state == 1 }
+            val ymd = SportData.ymd(d, General.zone())
+            val all = runCatching { SportData.fetch(l, ymd, 0) }.onFailure { android.util.Log.i("FofStart", "fixture: fetch failed " + it) }.getOrDefault(emptyList())
+            android.util.Log.i("FofStart", "fixture: $ymd ${General.zone().id} games=${all.size} states=" + all.joinToString(",") { it.state.toString() } + " ok=" + SportData.lastOk)
+            all.firstOrNull { it.state == 1 }
         }
         if (g == null) { android.util.Log.i("FofStart", "fixture: no live $league game"); return@LaunchedEffect }
         android.util.Log.i("FofStart", "fixture: game " + g.away.name + " at " + g.home.name)
