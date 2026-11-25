@@ -578,7 +578,9 @@ private fun AppContent() {
         val league = AppNav.testSport ?: return@LaunchedEffect
         if (liveAll.isEmpty()) return@LaunchedEffect
         AppNav.testSport = null
-        val l = SportData.league(league) ?: return@LaunchedEffect
+        // Own scope: clearing the request above restarts this effect, which must not cancel the start
+        openScope.launch {
+        val l = SportData.league(league) ?: return@launch
         // Today and yesterday: a late game is still "yesterday" in the US while the device clock may already be past midnight
         val g = listOf(0, -1).firstNotNullOfOrNull { d ->
             val ymd = SportData.ymd(d, General.zone())
@@ -586,18 +588,19 @@ private fun AppContent() {
             android.util.Log.i("FofStart", "fixture: $ymd ${General.zone().id} games=${all.size} states=" + all.joinToString(",") { it.state.toString() } + " ok=" + SportData.lastOk)
             all.firstOrNull { it.state == 1 }
         }
-        if (g == null) { android.util.Log.i("FofStart", "fixture: no live $league game"); return@LaunchedEffect }
+        if (g == null) { android.util.Log.i("FofStart", "fixture: no live $league game"); return@launch }
         android.util.Log.i("FofStart", "fixture: game " + g.away.name + " at " + g.home.name)
         StartTrace.ok("fixture")
         val chans = SportWatch.startupChannels(ctx.applicationContext, g, liveAll)
         StartTrace.picked(chans.size)
         android.util.Log.i("FofStart", "fixture: candidates " + chans.joinToString(" | ") { it.title })
-        if (chans.isEmpty()) return@LaunchedEffect
+        if (chans.isEmpty()) return@launch
         SportSession.start(g, chans, liveAll)
         ZapContext.list = SportSession.zapList().ifEmpty { chans }; ZapContext.key = null
         val ch = SportSession.firstChannel() ?: chans.first()
         top = null; trail.clear(); browse = null; cats = null; adding = false
         start(ch, ch.title, ch.url)
+        }
     }
     LaunchedEffect(AppNav.onNowSignal) { if (AppNav.onNowSignal > 0) goTab(MenuLogic.SPORT) }
     // "More Like This" at the end of a movie: the player closes itself, then the chosen title's page opens
