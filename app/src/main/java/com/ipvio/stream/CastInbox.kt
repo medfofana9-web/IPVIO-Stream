@@ -66,7 +66,7 @@ object CastInbox {
                 val sid = cmd.optString("sid").filter { it.isDigit() }.take(12)
                 val name = cmd.optString("name").take(200)
                 val all = PlaylistStore.channels.filter { it.kind == Kind.LIVE }
-                val ch = (if (sid.isNotEmpty()) all.firstOrNull { CastLogic.sameStream(it.url, sid) } else null)
+                val ch = (if (sid.isNotEmpty()) all.firstOrNull { PlayOnTvLogic.sameStream(it.url, sid) } else null)
                     ?: all.firstOrNull { it.title.equals(name, ignoreCase = true) } ?: return
                 RemoteHub.playReq = RemoteHub.Play(ch.id, 0, 0)
             }
@@ -75,7 +75,7 @@ object CastInbox {
     }
 }
 
-object CastLogic {
+object PlayOnTvLogic {
     /** Xtream live link of stream [sid]: .../live/user/pass/<sid>.ts (or .m3u8, or without extension). */
     fun sameStream(url: String, sid: String): Boolean {
         val last = url.substringBefore('?').trimEnd('/').substringAfterLast('/')
