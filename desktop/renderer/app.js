@@ -1131,10 +1131,14 @@ async function castPick() {
   const shut = () => bg.remove();
   bg.onclick = e => { if (e.target === bg || e.target.closest('.sx')) shut(); };
   let tvs = [];
-  try { tvs = ((await sb('/rest/v1/fof_devices?select=id,name,kind,last_seen,revoked&revoked=eq.false&order=last_seen.desc')) || []).filter(d => /TV|Android/i.test(d.kind || '') && !/app/i.test(d.kind || '')); } catch (e) {}
+  try { tvs = ((await sb('/rest/v1/fof_devices?select=id,name,kind,app_version,last_seen,revoked&revoked=eq.false&order=last_seen.desc')) || []).filter(d => /TV|Android/i.test(d.kind || '') && !/app/i.test(d.kind || '')); } catch (e) {}
+  // Every reinstall or new sign-in on a TV registers a new device: show each TV once, its most recent sign-in
+  const seen = new Set(); tvs = tvs.filter(d => { const k = (d.name || d.kind || '').toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+  // Play on TV came with TV version 1.3.220
+  const tvOld = d => { const m = /^1\.3\.(\d+)/.exec(d.app_version || ''); return m ? +m[1] < 220 : false; };
   const sh = $('.sheet', bg); if (!sh) return;
   sh.innerHTML = `<button class="sx" title="Close">&#x2715;</button><small class="kick">Play on TV</small><h2>Choose a TV</h2>` +
-    (tvs.length ? `<div class="sub">Fof TV has to be open on the TV.</div>` + tvs.map((d, i) => `<div class="tvpick" data-i="${i}">${TV_ICON}<div><b>${esc(d.name || d.kind)}</b><small>${esc(d.kind)}${castTV && castTV.id === d.id ? ' · connected' : ''}</small></div></div>`).join('') +
+    (tvs.length ? `<div class="sub">Fof TV has to be open on the TV.</div>` + tvs.map((d, i) => `<div class="tvpick" data-i="${i}">${TV_ICON}<div><b>${esc(d.name || d.kind)}</b><small>${esc(d.kind)}${tvOld(d) ? ' · update Fof TV on this TV first' : ''}${castTV && castTV.id === d.id ? ' · connected' : ''}</small></div></div>`).join('') +
       (castTV ? `<div class="tvpick" data-i="-1"><span style="width:22px;text-align:center">&#x2715;</span><div><b>Play on this ${esc(HERE)}</b></div></div>` : '')
     : `<div class="sub">No TV is signed in to your account yet. Sign in to Fof TV on the TV (Settings › Account), then try again.</div>`);
   sh.querySelectorAll('.tvpick').forEach(el => el.onclick = () => {
