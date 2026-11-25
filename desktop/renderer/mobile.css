@@ -72,11 +72,11 @@
   /* Live TV: categories become a sideways strip at the top */
   .livepage { flex-direction: column; }
   /* Search + Channels/Guide on one line, the categories as a swipeable row of chips under it */
-  .cats { width: auto; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 12px 12px 8px; border-right: 0; border-bottom: 1px solid #111; flex: none; overflow: visible; }
-  .cats input { width: 100%; min-width: 0; margin: 0; }
-  .viewsw { margin: 0; }
-  .viewsw button { flex: none; padding: 8px 14px; }
-  #cl { grid-column: 1 / -1; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
+  .cats { width: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 12px 8px; border-right: 0; border-bottom: 1px solid #111; flex: none; overflow: visible; }
+  .cats input { flex: 1 1 0; width: auto; min-width: 0; margin: 0; }
+  .viewsw { margin: 0; flex: none; }
+  .cats .viewsw button { width: auto; flex: none; padding: 8px 14px; }
+  #cl { flex: 1 0 100%; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
   #cl::-webkit-scrollbar { display: none; }
   .cats #cl button { width: auto; flex: none; white-space: nowrap; background: #1a1a1a; border-radius: 16px; padding: 8px 14px; font-size: 14px; }
   .cats #cl button.on { background: #fff; color: #000; }

@@ -1,5 +1,6 @@
 import UIKit
 import AVFoundation
+import AVKit
 import WebKit
 import Capacitor
 
@@ -47,7 +48,8 @@ public class FofNativePlugin: CAPPlugin, CAPBridgedPlugin {
     public let jsName = "FofNative"
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "info", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "openSideStore", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "openSideStore", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "playNative", returnType: CAPPluginReturnPromise)
     ]
 
     // App version and the date the signing profile runs out (free Apple IDs: 7 days after the last refresh)
@@ -64,6 +66,35 @@ public class FofNativePlugin: CAPPlugin, CAPBridgedPlugin {
         DispatchQueue.main.async {
             for s in ["sidestore://", "altstore://"] {
                 if let u = URL(string: s), UIApplication.shared.canOpenURL(u) { UIApplication.shared.open(u); break }
+            }
+            call.resolve()
+        }
+    }
+
+    // Apple's own player: keeps playing over AirPlay and in picture in picture when Fof TV is closed or the phone is locked
+    @objc func playNative(_ call: CAPPluginCall) {
+        guard let s = call.getString("url"), let url = URL(string: s) else { call.reject("bad url"); return }
+        let start = call.getDouble("start") ?? 0
+        let wantAirPlay = call.getBool("airplay") ?? false
+        DispatchQueue.main.async {
+            let player = AVPlayer(url: url)
+            player.allowsExternalPlayback = true
+            player.usesExternalPlaybackWhileExternalScreenIsActive = true
+            let vc = AVPlayerViewController()
+            vc.player = player
+            vc.allowsPictureInPicturePlayback = true
+            vc.canStartPictureInPictureAutomaticallyFromInline = true
+            vc.updatesNowPlayingInfoCenter = true
+            vc.modalPresentationStyle = .fullScreen
+            self.bridge?.viewController?.present(vc, animated: true) {
+                if start > 1 { player.seek(to: CMTime(seconds: start, preferredTimescale: 600)) }
+                player.play()
+                // Open the AirPlay list right away (same as tapping AirPlay in Apple's player)
+                if wantAirPlay {
+                    let picker = AVRoutePickerView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
+                    vc.view.addSubview(picker)
+                    for case let b as UIButton in picker.subviews { b.sendActions(for: .touchUpInside) }
+                }
             }
             call.resolve()
         }

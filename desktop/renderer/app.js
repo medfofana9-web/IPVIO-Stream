@@ -1276,7 +1276,16 @@ if (NATIVE) {
   V.setAttribute('x-webkit-airplay', 'allow');
   const air = document.createElement('button'); air.id = 'pl-air'; air.className = 'pl-icon'; air.title = 'AirPlay';
   air.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 17H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-1"/><path d="M12 15l5 6H7z" fill="currentColor"/></svg>';
-  air.onclick = () => { if (V.webkitShowPlaybackTargetPicker) V.webkitShowPlaybackTargetPicker(); };
+  // The web player stops when the app goes to the background; Apple's own player keeps playing over AirPlay
+  // (and in picture in picture) after Fof TV is closed, so AirPlay hands the stream over to it
+  air.onclick = () => {
+    const nat0 = window.Capacitor.Plugins && window.Capacitor.Plugins.FofNative;
+    const src = cur && (V.currentSrc || V.src);
+    if (!nat0 || !nat0.playNative || !src || /^blob:/.test(src)) { if (V.webkitShowPlaybackTargetPicker) V.webkitShowPlaybackTargetPicker(); return; }
+    const at = isFinite(V.duration) && !(cur && cur.live) ? V.currentTime : 0;
+    V.pause();
+    nat0.playNative({ url: src, title: (cur && cur.title) || '', start: at, airplay: true }).catch(() => { V.play().catch(() => {}); });
+  };
   $('#pl-full').before(air);
   const nat = window.Capacitor.Plugins && window.Capacitor.Plugins.FofNative;
   if (nat) nat.info().then(i => {
