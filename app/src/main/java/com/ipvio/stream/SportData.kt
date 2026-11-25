@@ -586,8 +586,43 @@ object SportData {
             }.map { start -> (start + 1)..(start + key.length) }
         }
         val awaySpans = spans(away).toList()
-        return spans(home).any { homeSpan ->
+        if (spans(home).any { homeSpan ->
             awaySpans.any { awaySpan -> homeSpan.last < awaySpan.first || awaySpan.last < homeSpan.first }
+        }) return true
+        return codesMatch(g, text)
+    }
+
+    /** US leagues whose team codes providers write in guides ("Live in 3 hours: DET @ ORL", "NBA: CLE @ NY"). */
+    private val CODE_LEAGUES = setOf("NBA", "WNBA", "NFL", "NHL", "MLB")
+    /** A code pair in its original capitals: "DET @ ORL", "DET at ORL", "DET vs. ORL", "DET v ORL". */
+    private val CODE_PAIR = Regex("""(?<![A-Za-z])([A-Z]{2,4})\s*(?:@|at|vs\.?|v\.?)\s*([A-Z]{2,4})(?![A-Za-z])""")
+    private val OTHER_LEAGUE = Regex("""(?<![A-Za-z])(NBA|WNBA|NFL|NHL|MLB|NCAA[A-Z]*|MLS)(?![A-Za-z])""")
+    /** Codes providers use besides ESPN's (ESPN "GS" = "GSW", "NY" = "NYK" …). */
+    private val CODE_ALIASES = mapOf(
+        "GS" to setOf("GSW"), "NY" to setOf("NYK"), "NO" to setOf("NOP", "NOR"), "SA" to setOf("SAS"),
+        "UTAH" to setOf("UTA"), "WSH" to setOf("WAS"), "PHX" to setOf("PHO"), "BKN" to setOf("BRK"), "CHA" to setOf("CHO"),
+        "JAX" to setOf("JAC"), "LAR" to setOf("LA"), "TB" to setOf("TAM"), "NJ" to setOf("NJD"), "LV" to setOf("LAS", "VGK"),
+        "KC" to setOf("KCC"), "SF" to setOf("SFO"), "NE" to setOf("NWE"), "GB" to setOf("GNB")
+    )
+
+    private fun codes(t: Team): Set<String> {
+        val a = t.abbr.trim().uppercase()
+        if (a.length !in 2..4) return emptySet()
+        return setOf(a) + CODE_ALIASES[a].orEmpty()
+    }
+
+    /**
+     * The provider's own guide naming the matchup by team codes. Both codes are needed, side by side around "@"/"at"/"vs",
+     * in either order, and a text naming another league ("NFL: DET @ CHI" for an NBA game) never counts.
+     */
+    fun codesMatch(g: Game, text: String): Boolean {
+        if (g.solo || g.league !in CODE_LEAGUES) return false
+        val h = codes(g.home); val a = codes(g.away)
+        if (h.isEmpty() || a.isEmpty() || h.intersect(a).isNotEmpty()) return false
+        if (OTHER_LEAGUE.findAll(text).any { it.value != g.league }) return false
+        return CODE_PAIR.findAll(text).any { m ->
+            val x = m.groupValues[1]; val y = m.groupValues[2]
+            (x in a && y in h) || (x in h && y in a)
         }
     }
 

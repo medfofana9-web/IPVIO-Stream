@@ -144,7 +144,13 @@ object SportWatch {
      * Prepared lookups per channel list: channels by cleaned network name ("US| ESPN HD" → "espn", plus a looser form)
      * and the sports channels with their cleaned title and group (for team channels). Built once per list, off the main thread.
      */
-    private class Prep(val sig: Int, val net: Map<String, List<Item>>, val team: List<Triple<Item, String, String>>)
+    /**
+     * [team]: sports channels with normalized title and group. [byWord]: for each word of those titles, the channels whose
+     * title has it – the team directory: "NBA DETROIT PISTONS" is found from "detroit" or "pistons" at once instead of by
+     * scanning every sports channel for every game on every press.
+     */
+    private class Prep(val sig: Int, val net: Map<String, List<Item>>, val team: List<Triple<Item, String, String>>,
+                       val byWord: Map<String, IntArray> = emptyMap())
     @Volatile private var prep: Prep? = null
     @Volatile private var building = 0
     var prepVersion by mutableIntStateOf(0)
@@ -160,7 +166,7 @@ object SportWatch {
             m.getOrPut("~" + SportNet.looseKey(t)) { ArrayList(2) }.add(c)
         }
         val team = sportChannels(live).map { c -> Triple(c, " " + SportNet.norm(SportNet.stripPrefix(c.title)) + " ", " " + SportNet.norm(c.group) + " ") }
-        Prep(sig, m, team)
+        Prep(sig, m, team, TeamIndex.build(team.map { it.second }))
     }.getOrNull()
 
     /** Ready lookups for this list, or null while they are built in the background (then team and network matches wait). */
@@ -187,7 +193,10 @@ object SportWatch {
         val hk = (if (soccer) SportData.soccerTeamKeys(g.home) else SportData.keysCached(g.home)).filter { it.length >= 3 }.map { " $it " }
         val ak = (if (soccer) SportData.soccerTeamKeys(g.away) else SportData.keysCached(g.away)).filter { it.length >= 3 }.map { " $it " }
         val out = ArrayList<Pair<Item, Int>>()
-        for ((c, title, group) in pr.team) {
+        // Only channels whose title has the first word of a team key can contain that key (keys match whole words)
+        val cand = TeamIndex.candidates(pr.byWord, hk + ak, pr.team.size)
+        for (ix in cand) {
+            val (c, title, group) = pr.team[ix]
             if (soccer && (EVENT_NAME.containsMatchIn(c.title) || c.title.contains(':') || title.trim().length > maxOf(g.home.name.length, g.away.name.length) + 12)) continue
             if (tags.none { group.contains(it) || title.contains(it) }) continue
             val h = hk.any { title.contains(it) }
@@ -346,7 +355,10 @@ object SportWatch {
             // Before kickoff a team channel saying "Live in 2 hours" is expected: only its guide at kickoff counts
             val title = if (g.state == 1) h.ch.title else ""
             when (SportGuard.check(title, guide) { showMatches(g, it) }) {
-                SportGuard.Verdict.OK -> {}
+                // The team's own channel whose guide names this game ("NBA: Pistons at Magic", "DET @ ORL"): as good as
+                // an exact match, so it is tried with the event feeds instead of after them
+                SportGuard.Verdict.OK -> if (h.why == 4 && guide != null && (showMatches(g, guide.title) || showMatches(g, guide.desc)))
+                    out[i] = Hit(h.ch, 1, guide.title)
                 SportGuard.Verdict.INACTIVE -> out[i] = Hit(h.ch, 6, "No event on this channel now")
                 // Team feed of a team that plays today: a guide placeholder ("No EVENT Today") is often stale on these
                 // feeds, so it stays automatic; network and learned guesses need the guide to agree

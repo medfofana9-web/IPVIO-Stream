@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased – Provider team channels as the sports directory (release candidate, device test pending)
+
+- The provider's own guide codes count as proof of a matchup: "Live in 3 hours: DET @ ORL", "NBA: ORL vs DET",
+  "GSW @ NYK" (NBA, WNBA, NFL, NHL, MLB; both team codes needed; a text naming another league never counts).
+- A team's own channel ("NBA DETROIT PISTONS") whose guide names tonight's game is now treated like an exact match and
+  tried together with the event feeds, not after them.
+- Team directory: sports channel titles are indexed by word once per playlist, so a game card finds its team channels
+  without scanning every sports channel on each press.
+
 ## Unreleased – Profile screen crash fix
 
 - Fixed a crash on the profile screen while the account sync updated a profile picture in the background
