@@ -1188,9 +1188,11 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             SportSession.isVerified(ctx, cur.itemId), SportSession.streams(cur.itemId).size
         )
         if (cur.live && cur.archive == null && startupDelay != null) {
-            // A hanging feed (connection open, nothing sent) is left after 2.5 s; a feed that sends data gets the full time
+            // A hanging feed (connection open, not one byte received) is left after 2.5 s; a feed that sends data, however
+            // slow its first picture, gets the full time
+            val bytesAtOpen = StreamBytes.total.get()
             delay(SportsStartupLogic.NO_DATA_MS)
-            val noData = player.bufferedPosition <= 0L && player.totalBufferedDuration <= 0L
+            val noData = StreamBytes.total.get() == bytesAtOpen
             if (!(noData && SportsStartupLogic.shouldTryNext(readyOnce, SportSession.owns(cur.itemId), SportSession.streams(cur.itemId).size))) {
                 delay((startupDelay - SportsStartupLogic.NO_DATA_MS).coerceAtLeast(0L))
             }

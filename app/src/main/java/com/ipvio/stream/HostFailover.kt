@@ -213,7 +213,8 @@ object HostFailover {
             return inner.open(dataSpec)   // unreachable: the loop always ends with return or throw
         }
 
-        override fun read(buffer: ByteArray, offset: Int, length: Int): Int = inner.read(buffer, offset, length)
+        override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
+            inner.read(buffer, offset, length).also { if (it > 0) StreamBytes.total.addAndGet(it.toLong()) }
         override fun getUri(): Uri? = inner.uri
         override fun getResponseHeaders(): Map<String, List<String>> = inner.responseHeaders
         override fun close() = inner.close()
