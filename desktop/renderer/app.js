@@ -157,7 +157,7 @@ function showSignIn(err) {
       <div class="err" id="er">${esc(err || '')}</div>
       <div class="note">Use the same Fof TV account as your TV. Your profiles, addons, playlist and Continue Watching come with it.</div>
     </form></div>`;
-  $('#em').focus();
+  if (!NATIVE) $('#em').focus();   // on the iPhone the keyboard would cover the screen before anything is tapped
   $('#f').onsubmit = async e => {
     e.preventDefault(); $('#er').textContent = '';
     try { await auth('/auth/v1/token?grant_type=password', { email: $('#em').value.trim(), password: $('#pw').value }); await start(); }
