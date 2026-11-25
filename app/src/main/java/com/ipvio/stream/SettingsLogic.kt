@@ -37,6 +37,22 @@ object SettingsLogic {
         return c.timeInMillis
     }
 
+    /** "At every start": a new start within this time of the last successful download keeps the saved playlist. */
+    const val START_MIN_GAP_MS = 4 * 3_600_000L
+    /** After a failed automatic download (provider down, new Wi-Fi without internet) the next automatic try waits this long. */
+    const val FAIL_BACKOFF_MS = 30 * 60_000L
+
+    /**
+     * Refresh at app start? Like [refreshDue], but "at every start" means at most every [START_MIN_GAP_MS] (the Fire TV
+     * restarts the app often; every start downloaded and re-parsed the whole playlist, slowing navigation for a minute),
+     * and a failed attempt is not repeated before [FAIL_BACKOFF_MS] ([lastFailMs] = last failed try, 0 = none).
+     */
+    fun startRefreshDue(plan: UpdatePlan, lastMs: Long, lastFailMs: Long, nowMs: Long, zone: TimeZone): Boolean {
+        if (lastFailMs in 1..nowMs && nowMs - lastFailMs < FAIL_BACKOFF_MS) return false
+        if (plan.mode == 0) return lastMs <= 0L || nowMs < lastMs || nowMs - lastMs >= START_MIN_GAP_MS
+        return refreshDue(plan, lastMs, nowMs, zone)
+    }
+
     /** Is a refresh due now according to the plan? [lastMs] = last successful refresh (0 = never). */
     fun refreshDue(plan: UpdatePlan, lastMs: Long, nowMs: Long, zone: TimeZone): Boolean = when (plan.mode) {
         0 -> true

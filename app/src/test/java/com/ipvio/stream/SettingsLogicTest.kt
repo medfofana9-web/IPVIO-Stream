@@ -87,4 +87,23 @@ class SettingsLogicTest {
         assertFalse(SettingsLogic.isMidnight(at(2026, 10, 20, 12, 0) / 1000, utc))
         assertFalse(SettingsLogic.isMidnight(at(2026, 10, 20, 0, 5) / 1000, utc))
     }
+
+    @Test fun everyStartRefreshWaitsFourHoursAfterASuccessfulDownload() {
+        val utc = java.util.TimeZone.getTimeZone("UTC")
+        val now = 1_800_000_000_000L
+        val h = 3_600_000L
+        assertTrue(SettingsLogic.startRefreshDue(UpdatePlan(0), 0, 0, now, utc))
+        assertFalse(SettingsLogic.startRefreshDue(UpdatePlan(0), now - 1 * h, 0, now, utc))
+        assertTrue(SettingsLogic.startRefreshDue(UpdatePlan(0), now - 5 * h, 0, now, utc))
+        // Clock went backwards: refresh rather than trust a future time
+        assertTrue(SettingsLogic.startRefreshDue(UpdatePlan(0), now + h, 0, now, utc))
+    }
+
+    @Test fun failedStartRefreshIsNotRepeatedAtOnce() {
+        val utc = java.util.TimeZone.getTimeZone("UTC")
+        val now = 1_800_000_000_000L
+        assertFalse(SettingsLogic.startRefreshDue(UpdatePlan(0), 0, now - 60_000, now, utc))
+        assertTrue(SettingsLogic.startRefreshDue(UpdatePlan(0), 0, now - SettingsLogic.FAIL_BACKOFF_MS, now, utc))
+        assertFalse(SettingsLogic.startRefreshDue(UpdatePlan(4), 0, 0, now, utc))
+    }
 }

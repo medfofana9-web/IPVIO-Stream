@@ -1075,7 +1075,12 @@ object PlaylistStore {
         }
     }
 
+    /** Did the last [load] get a fresh copy from the server? (false: the saved list stayed, e.g. provider unreachable) */
+    @Volatile var lastLoadFromNetwork = false
+        private set
+
     private suspend fun loadInner(c: Context, url: String, save: Boolean, skipNetworkWhenCached: Boolean, ask: Boolean, resumed: Boolean): Boolean {
+        lastLoadFromNetwork = false
         ensure(c)
         val u = PlaylistLogic.normalizeUrl(url) ?: run { error = "Bitte eine gültige Adresse eingeben (beginnt mit http:// oder https://)."; return false }
         job = currentCoroutineContext()[Job]
@@ -1119,6 +1124,7 @@ object PlaylistStore {
                 writeCache(c, u, parsed.items, urls, order, parsed.counts, parsed.bytes, b.hidden)
                 Catchup.saveParsed(c, u, parsed.catchup)
                 commitGz(c, u, gzTmp)
+                lastLoadFromNetwork = true
                 val list = parsed.items
                 if (sig(list) != before || !usedCache || b.hidden != shownHidden) show(c, u, list, urls, order, parsed.counts, parsed.bytes, b.hidden)
                 else { primaryEpg = urls; primaryOrder = order; langCounts = parsed.counts; langBytes = parsed.bytes; restartCatchup(c) }

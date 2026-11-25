@@ -203,7 +203,10 @@ object General {
     fun trailersOn(c: Context): Boolean =
         if (heroTrailer < 0) Mem.tier(c) >= 2 && !android.os.Build.MANUFACTURER.equals("Amazon", true) else heroTrailer == 1
     fun setHeroSec(c: Context, v: Int) { heroSec = v.coerceIn(0, 60); prefs(c).edit().putInt("hero_sec", heroSec).apply() }
-    fun markRefreshed(c: Context) { lastRefresh = System.currentTimeMillis(); prefs(c).edit().putLong("last_refresh", lastRefresh).apply() }
+    fun markRefreshed(c: Context) { lastRefresh = System.currentTimeMillis(); prefs(c).edit().putLong("last_refresh", lastRefresh).remove("refresh_fail_at").apply() }
+    /** Last failed automatic playlist download (0 = none); see [SettingsLogic.startRefreshDue]. */
+    fun lastRefreshFail(c: Context): Long = prefs(c).getLong("refresh_fail_at", 0L)
+    fun markRefreshFailed(c: Context) { prefs(c).edit().putLong("refresh_fail_at", System.currentTimeMillis()).apply() }
 
     fun resetAll(c: Context) {
         // Parental control (PIN) survives a reset, otherwise it could be bypassed with one click

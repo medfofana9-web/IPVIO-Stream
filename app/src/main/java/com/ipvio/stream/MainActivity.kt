@@ -380,12 +380,17 @@ private fun AppContent() {
             // Restore the last validated local playlist first, regardless of refresh schedule.
             // A network change or an unreachable provider must not block startup.
             val cached = PlaylistStore.load(ctx, u, false, skipNetworkWhenCached = true)
-            if (cached && SettingsLogic.refreshDue(General.plan(), General.lastRefresh, System.currentTimeMillis(), General.zone())) {
-                // Defer network refresh until the cached catalog has been displayed.
+            val lastFail = withContext(Dispatchers.IO) { General.lastRefreshFail(ctx) }
+            if (cached && SettingsLogic.startRefreshDue(General.plan(), General.lastRefresh, lastFail, System.currentTimeMillis(), General.zone())) {
+                // Defer network refresh until the cached catalog has been displayed, and start it in a pause of the remote
+                // (download and parse compete with navigation for the CPU on a Fire TV stick)
                 kotlinx.coroutines.delay(20_000)
-                if (!PlaylistStore.loading) {
+                Busy.quiet(15_000)
+                if (!PlaylistStore.loading && DeviceCaps.online(ctx)) {
                     val refreshed = PlaylistStore.load(ctx, u, false, skipNetworkWhenCached = false, ask = false)
-                    if (refreshed && PlaylistStore.error == null) General.markRefreshed(ctx)
+                    // load() keeps the saved list on failure; remember the failure so the next start does not try again at once
+                    if (refreshed && PlaylistStore.error == null && PlaylistStore.lastLoadFromNetwork) General.markRefreshed(ctx)
+                    else withContext(Dispatchers.IO) { General.markRefreshFailed(ctx) }
                 }
             }
         }

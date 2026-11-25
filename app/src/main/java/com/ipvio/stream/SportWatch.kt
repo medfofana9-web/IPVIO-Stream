@@ -307,6 +307,9 @@ object SportWatch {
             // Still nothing: the networks that carry this sport in the US (tried in order by the player)
             if (out.none { it.autoEligible }) for (n in SportRights.fallback(g)) (pr.net[SportNet.key(n)] ?: pr.net["~" + SportNet.looseKey(n)])?.forEach { out.add(Hit(it, 6, "Usually on $n")) }
         }
+        // Event identity first: a guessed channel (network, team, learned) whose own name or guide entry says it is off
+        // air or shows another matchup never plays automatically – it stays on the list, labeled unconfirmed
+        guard(g, out)
         // Working channels before ones marked broken; the rest of the list is the backup order for the player
         // The network on the game card (Paramount+) is tried first: its event feed for this game, then the network channel
         // Soccer: the provider's section for the competition first, then the listed network (Paramount+), then the rest
@@ -314,6 +317,25 @@ object SportWatch {
             .distinctBy { it.ch.id }.sortedBy { if (DeadLinks.isDead(it.ch.url)) 1 else 0 }
         synchronized(cache) { if (cache.size > 800) cache.clear(); cache[g.key] = fullSig to r }
         return r
+    }
+
+    /** See [SportGuard]: demotes guessed hits (network 3, team 4, learned 5) that the channel itself contradicts. */
+    private fun guard(g: SportData.Game, out: MutableList<Hit>) {
+        if (g.state == 2) return
+        val nowS = System.currentTimeMillis() / 1000
+        val at = if (g.state == 1) nowS else g.start
+        for (i in out.indices) {
+            val h = out[i]
+            if (h.why !in 3..5) continue
+            val guide = runCatching { SportGuard.entryAt(Xmltv.forChannel(h.ch.tvgId), at) }.getOrNull()
+            // Before kickoff a team channel saying "Live in 2 hours" is expected: only its guide at kickoff counts
+            val title = if (g.state == 1) h.ch.title else ""
+            when (SportGuard.check(title, guide) { showMatches(g, it) }) {
+                SportGuard.Verdict.OK -> {}
+                SportGuard.Verdict.INACTIVE -> out[i] = Hit(h.ch, 6, "No event on this channel now")
+                SportGuard.Verdict.OTHER_EVENT -> out[i] = Hit(h.ch, 6, "Guide shows another event: " + guide?.title.orEmpty())
+            }
+        }
     }
 
     /**

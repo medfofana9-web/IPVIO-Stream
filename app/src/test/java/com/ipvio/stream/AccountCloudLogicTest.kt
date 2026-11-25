@@ -148,4 +148,19 @@ class AccountCloudLogicTest {
         assertTrue(positions(cloudB.data ?: JSONObject()).isEmpty())
         assertEquals(30 * 60_000L, positions(cloudA.data!!)["movie:tt1"])
     }
+
+    @Test fun addonListCoversOnlyWhenEveryAccountAddonIsPresent() {
+        val dragon = "https://dragon.example.com/abc123"
+        val pengu = "https://pengu.example.org"
+        val local = AccountCloudLogic.addonsJson(listOf(pengu))
+        assertFalse(AccountCloudLogic.covers(local, AccountCloudLogic.addonsJson(listOf(dragon, pengu))))
+        assertTrue(AccountCloudLogic.covers(AccountCloudLogic.addonsJson(listOf(pengu, dragon)), AccountCloudLogic.addonsJson(listOf(dragon))))
+        // Same addon written as a manifest link or with another case counts as present
+        assertTrue(AccountCloudLogic.covers(AccountCloudLogic.addonsJson(listOf(dragon)), AccountCloudLogic.addonsJson(listOf("$dragon/manifest.json"))))
+        assertTrue(AccountCloudLogic.covers(local, "[]"))
+    }
+
+    @Test fun addonHostNeverIncludesThePrivateConfigPath() {
+        assertEquals("dragon.example.com", AccountCloudLogic.addonHost("https://dragon.example.com/eyJzZWNyZXQiOjF9/manifest.json"))
+    }
 }

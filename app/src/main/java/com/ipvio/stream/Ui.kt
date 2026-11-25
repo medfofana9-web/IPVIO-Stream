@@ -44,7 +44,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.TextStyle
@@ -268,9 +267,14 @@ fun Field(
 /** Plain loading circle (replaces the one from material3). */
 @Composable
 fun Spinner(color: Color, modifier: Modifier = Modifier) {
-    val t = rememberInfiniteTransition(label = "spin")
-    val a by t.animateFloat(0f, 360f, infiniteRepeatable(tween(1100, easing = LinearEasing)), label = "spinA")
-    Canvas(modifier.rotate(if (Look.motion > 0) a else 0f)) {
+    // "Motion: off": no transition at all (it requested a new frame on every vsync even when not shown turning).
+    // Otherwise the angle is read in the layer, so turning redraws one small layer instead of recomposing the caller.
+    val turn: Modifier = if (Look.motion > 0) {
+        val t = rememberInfiniteTransition(label = "spin")
+        val a = t.animateFloat(0f, 360f, infiniteRepeatable(tween(1100, easing = LinearEasing)), label = "spinA")
+        Modifier.graphicsLayer { rotationZ = a.value }
+    } else Modifier
+    Canvas(modifier.then(turn)) {
         val w = size.minDimension * 0.09f
         val tl = androidx.compose.ui.geometry.Offset(w / 2, w / 2)
         val sz = androidx.compose.ui.geometry.Size(size.width - w, size.height - w)
@@ -282,6 +286,9 @@ fun Spinner(color: Color, modifier: Modifier = Modifier) {
 /** Placeholder color that pulses gently (loading skeleton instead of a spinner). Calm with "Motion: off". */
 @Composable
 fun shimmerColor(): Color {
+    // Budget boxes (Lite) and "Motion: off": a calm placeholder. The pulse recomposed every skeleton on every frame
+    // and kept the GPU drawing the whole screen while a page loaded.
+    if (Look.motion == 0 || Lite.on) return Color.White.copy(alpha = 0.06f)
     val t = rememberInfiniteTransition(label = "sk")
     val a by t.animateFloat(0.04f, 0.08f, infiniteRepeatable(tween(900), androidx.compose.animation.core.RepeatMode.Reverse), label = "ska")
     return Color.White.copy(alpha = if (Look.motion > 0) a else 0.08f)

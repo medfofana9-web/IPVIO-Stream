@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased – Reliability overhaul, batch 1 (release candidate, device test pending)
+
+- DragonStreams across TVs: when a TV took over the account's addons while an addon's manifest could not be read
+  (network change, slow server), the account list was marked as applied without that addon. DragonStreams then stayed
+  missing on that TV, and the next local addon change uploaded the shorter list and removed it from every TV. The sync
+  now retries until every account addon is on the TV (an addon unreachable for 24 h no longer blocks the sync).
+- One-click Play: DragonStreams' answer from an earlier attempt (often a timeout) no longer counts for a new attempt, so
+  Play waits for DragonStreams again instead of starting the IPTV copy first. The wait is 12 s (was 8 s).
+- Sports, event identity before reliability: network, team and learned channels whose own name or guide entry at
+  kickoff says "No Game Today", "No Event", "Signing Off", "Off Air", "Data Not Available", "Live in X Hours", or names
+  another matchup, never play automatically. They stay on Watch Live, labeled unconfirmed (`SportGuard`).
+- Playlist: "refresh at every start" (the default) downloaded and re-parsed the whole playlist on every cold start,
+  20 s after opening, competing with navigation. It now refreshes at start at most every 4 hours, waits for a pause in
+  remote presses, skips when offline, and a failed attempt waits 30 minutes. A failed download that kept the saved list
+  was recorded as a successful refresh; it no longer is.
+- Loading spinners and skeletons no longer run an animation on budget boxes or with Motion off (they requested a frame
+  on every vsync); the spinner turns in its own layer instead of recomposing its screen.
+
 ## Unreleased – TV soccer: today's channel names, competition sections first
 
 - Sports matching uses today's channel names from the provider (Xtream get_live_streams, live only, refreshed every

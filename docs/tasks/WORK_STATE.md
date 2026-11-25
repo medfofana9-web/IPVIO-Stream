@@ -1,5 +1,16 @@
 # Work state
 
+## 24 Nov 2026 – Reliability overhaul, batch 1 (release candidate, `[device-test]`)
+- Done: addon sync no longer drops/removes DragonStreams on a failed manifest read (`AccountCloud.syncSecret/applyAddons`,
+  `AccountCloudLogic.covers`); stale DragonStreams answer reset per lookup (`Stremio.lookupStreams`), 12 s wait
+  (`StremioUi`); sports event-identity guard (`SportGuard`, `SportWatch.guard`); start refresh at most every 4 h with
+  30 min failure backoff (`SettingsLogic.startRefreshDue`, `General.markRefreshFailed`, `PlaylistStore.lastLoadFromNetwork`);
+  spinner/skeleton animations off on Lite/Motion off (`Ui.kt`).
+- Tests added: `SportGuardTest`, `AccountCloudLogicTest` (covers/addonHost), `SettingsLogicTest` (startRefreshDue). Run in CI.
+- Evidence used: auto-reports #41–#43 (onn 4K: Home frozen 3.4 s, Sports 97 % slow frames with GPU/sync ~81 %).
+- Not done / next: device profiling of Sports GPU cost and Home freezes; Live TV guide redesign; player reuse on zapping
+  review; diagnostics export. Device test checklist in the release notes.
+
 ## 15 Nov 2026 – 1.3.84: one account per household (T-007)
 - See `docs/tasks/T-007-one-account-profiles.md`. Backend applied and tested (`docs/supabase/accounts_test.sql`).
 - Next: maintainer test on two TVs (sign in, PIN per profile, resume on the other TV, Connected Devices).

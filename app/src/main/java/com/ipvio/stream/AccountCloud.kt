@@ -416,7 +416,14 @@ object AccountCloud {
         val local = read()
         val localChanged = AccountCloudLogic.hash(local) != p.getString(hk, null)
         val cloudChanged = cloud != null && cloud.second != p.getString(ak, null)
-        fun mark(v: String, at: String) { p.edit().putString(hk, AccountCloudLogic.hash(v)).putString(ak, at).apply() }
+        fun mark(v: String, at: String) { p.edit().putString(hk, AccountCloudLogic.hash(v)).putString(ak, at).remove("xp_${uid}_$name").apply() }
+        // Addons that cannot be added yet are retried on every sync; an addon that stays unreachable for a day (removed by
+        // its author) no longer blocks the account's addon sync
+        fun waitMore(): Boolean {
+            val pk = "xp_${uid}_$name"; val now = System.currentTimeMillis()
+            val since = p.getLong(pk, 0L).takeIf { it in 1..now } ?: now.also { p.edit().putLong(pk, it).apply() }
+            return now - since < 24 * 3600_000L
+        }
         suspend fun upload(v: String) {
             val r = rpc(c, "fof_secret_put", JSONObject().put("p_name", name).put("p_value", v))
             if (r.first in 200..299) mark(v, r.second.trim().trim('"'))
@@ -425,13 +432,22 @@ object AccountCloud {
             SyncLogic.Step.NOTHING -> {}
             // A TV that never synced does not send "nothing"; later an emptied value (addons removed) is sent
             SyncLogic.Step.UPLOAD -> if (!(first && (local.isBlank() || local == "[]"))) upload(local)
-            SyncLogic.Step.APPLY -> { apply(cloud!!.first, false); mark(read(), cloud.second) }
+            SyncLogic.Step.APPLY -> {
+                apply(cloud!!.first, false)
+                // Addons: an addon whose manifest could not be read right now (network change, slow server) is not on this
+                // TV yet. Marking the account value as applied would leave it missing for good – and the next local change
+                // would even upload the shorter list and remove it from every TV. Leave it unmarked: the next sync retries.
+                if (name != "addons" || AccountCloudLogic.covers(read(), cloud.first) || !waitMore()) mark(read(), cloud.second)
+            }
             SyncLogic.Step.MERGE -> {
                 val cv = cloud!!.first
                 if (name == "addons") {
                     val joined = AccountCloudLogic.mergeAddons(AccountCloudLogic.parseAddons(local), AccountCloudLogic.parseAddons(cv))
                     applyAddons(c, joined, removeOthers = false)
                     val now = read()
+                    // Not every account addon could be added (manifest unreachable): neither upload the shorter list
+                    // (that would remove the addon from the account) nor mark it done; the next sync retries
+                    if (!AccountCloudLogic.covers(now, AccountCloudLogic.addonsJson(joined)) && waitMore()) return
                     if (AccountCloudLogic.parseAddons(now).map { it.lowercase() }.toSet() != AccountCloudLogic.parseAddons(cv).map { it.lowercase() }.toSet()) upload(now) else mark(now, cloud.second)
                 } else if (local.isBlank() || (first && cv.isNotBlank())) { apply(cv, true); mark(read(), cloud.second) }
                 else upload(local)
@@ -440,11 +456,15 @@ object AccountCloud {
     }
 
     private suspend fun applyAddons(c: Context, want: List<String>, removeOthers: Boolean) {
-        val have = Stremio.addons.map { it.base.lowercase() }.toSet()
-        for (a in want) if (a.lowercase() !in have) runCatching { Stremio.add(c, a) }
+        fun k(u: String) = (StremioLogic.base(u) ?: u).lowercase()
+        val have = Stremio.addons.map { k(it.base) }.toSet()
+        for (a in want) if (k(a) !in have) {
+            val err = runCatching { Stremio.add(c, a) }.getOrElse { it.message ?: "failed" }
+            if (err != null) Diag.report("Addon sync: could not add " + AccountCloudLogic.addonHost(a) + " – " + err.take(80))
+        }
         if (removeOthers) {
-            val keep = want.map { it.lowercase() }.toSet()
-            for (a in Stremio.addons.toList()) if (a.base.lowercase() !in keep) withContext(Dispatchers.Main) { Stremio.remove(c, a.base) }
+            val keep = want.map(::k).toSet()
+            for (a in Stremio.addons.toList()) if (k(a.base) !in keep) withContext(Dispatchers.Main) { Stremio.remove(c, a.base) }
         }
     }
 
@@ -561,6 +581,16 @@ object AccountCloudLogic {
     }.getOrDefault(emptyList())
 
     fun addonsJson(list: List<String>): String = JSONArray(list).toString()
+
+    /** Does this TV's addon list [localJson] hold every addon of [wantJson] (case-insensitive base URLs)? */
+    fun covers(localJson: String, wantJson: String): Boolean {
+        fun k(u: String) = (StremioLogic.base(u) ?: u).lowercase()
+        val have = parseAddons(localJson).map(::k).toSet()
+        return parseAddons(wantJson).all { k(it) in have }
+    }
+
+    /** Host of an addon link for logs: never the path, which can carry the addon's private configuration. */
+    fun addonHost(base: String): String = base.substringAfter("://").substringBefore('/').take(60)
     fun parseAddons(raw: String): List<String> = runCatching {
         val a = JSONArray(raw); (0 until a.length()).map { a.optString(it) }.filter { it.startsWith("http") }
     }.getOrDefault(emptyList())

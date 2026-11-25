@@ -270,6 +270,9 @@ object Stremio {
             if (joined != null) return joined
         }
         val part = java.util.Collections.synchronizedList(ArrayList<Source>())
+        // A fresh lookup asks DragonStreams again: its answer from an earlier attempt (often a timeout) must not make
+        // one-click Play stop waiting for it and start a lower-priority source before DragonStreams has answered now
+        dragonDone.remove("$kind|$imdb|$season|$ep")
         val job = kotlinx.coroutines.CompletableDeferred<StreamLookup>()
         inflight[requestKey] = job to part
         try {
@@ -346,7 +349,8 @@ object Stremio {
 
     // Lookups DragonStreams has answered (with or without streams): one-click Play stops waiting for it at once
     private val dragonDone = java.util.concurrent.ConcurrentHashMap<String, Long>()
-    fun dragonAnswered(kind: Kind, imdb: String, season: Int, ep: Int): Boolean = dragonDone.containsKey("$kind|$imdb|$season|$ep")
+    fun dragonAnswered(kind: Kind, imdb: String, season: Int, ep: Int): Boolean =
+        dragonDone["$kind|$imdb|$season|$ep"]?.let { System.currentTimeMillis() - it < 10 * 60_000L } == true
 
     private suspend fun streamsNow(stream: List<Addon>, kind: Kind, imdb: String, season: Int, ep: Int, onPart: (List<Source>) -> Unit): StreamLookup = coroutineScope {
         val partial = java.util.Collections.synchronizedList(ArrayList<Source>())
