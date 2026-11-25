@@ -128,7 +128,7 @@ fun DetailScreen(
     )
 }
 
-@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun DetailScreenFull(
     item: Item, all: List<Item>, onPlay: (String, String, Long) -> Unit,
