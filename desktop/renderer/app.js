@@ -628,7 +628,7 @@ function streamsNow(req) {
   const good = store.get('goodSrc', {})[cidOf(req)];
   // DragonStreams is the main source for movies and shows, then Your IPTV, then every other addon
   const isDragon = s => s.addon !== PV_ADDON && /dragon/i.test((s.addon || '') + ' ' + (s.name || ''));
-  const rank = s => (isDragon(s) ? 1000 : s.addon === PV_ADDON ? 500 : 0) + (good && srcKey(s) === good ? 100 : 0) + (s.risky ? 0 : 10) + ({ '4K': 3, '1080p': 4, '720p': 2, 'SD': 1 }[s.quality] || 0) + (/\.mp4\b|mp4\)/i.test(s.name + s.title) ? 1 : 0);
+  const rank = s => (NATIVE && s.risky ? -5000 : 0) + (isDragon(s) ? 1000 : s.addon === PV_ADDON ? 500 : 0) + (good && srcKey(s) === good ? 100 : 0) + (s.risky ? 0 : 10) + ({ '4K': 3, '1080p': 4, '720p': 2, 'SD': 1 }[s.quality] || 0) + (/\.mp4\b|mp4\)/i.test(s.name + s.title) ? 1 : 0);
   const sorted = () => all.slice().sort((a, b) => rank(b) - rank(a));
   const tidy = s => {
     const t = (s.name + ' ' + s.title);
@@ -636,7 +636,7 @@ function streamsNow(req) {
     s.size = (t.match(/(\d+(?:[.,]\d+)?)\s?(GB|MB)/i) || [''])[0].replace(',', '.');
     s.file = (s.title.split('\n').map(x => x.trim()).find(x => /\.(mkv|mp4|avi|ts|m4v|webm)\b/i.test(x)) || s.title.split('\n')[0] || '').replace(/^[^\w\[]+/, '').slice(0, 140);
     // The Mac plays H.264 MP4/MKV well; HEVC/x265, AV1 and some MKV audio often not
-    s.risky = /hevc|x265|h\.?265|\bav1\b|dolby ?vision|\bdv\b|truehd|atmos|dts/i.test(t);
+    s.risky = NATIVE ? /\.(mkv|avi|webm)\b|\bmkv\b/i.test(t + ' ' + (s.url || '')) : /hevc|x265|h\.?265|\bav1\b|dolby ?vision|\bdv\b|truehd|atmos|dts/i.test(t);
     s.addonName = s.name.split(/\s{2,}|\|/)[0].trim().slice(0, 40);
     return s;
   };
@@ -1099,7 +1099,8 @@ async function runSearch(q) {
 // Pick one of the account's TVs; from then on Play, episodes and channels start on that TV (its own sources and
 // player, full quality) and this screen becomes the remote. Commands go through the account: fof_cast_send
 // (docs/supabase/cast.sql); the TV app picks them up within a few seconds while it is open.
-let castTV = null;
+let castTV = store.get('castTV', null);   // remembered: Play keeps going to that TV until you disconnect
+let castZap = null;   // channel list of the last channel sent, for CH+ / CH- on the remote bar
 const TV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>';
 (function castStyle() {
   const st = document.createElement('style');
@@ -1107,9 +1108,9 @@ const TV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" str
 #castbtn.on{background:#E50914}
 #castbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(24px + env(safe-area-inset-bottom));z-index:46;display:flex;align-items:center;gap:6px;background:#181818;border:1px solid #2a2a2a;border-radius:12px;padding:8px 10px 8px 14px;box-shadow:0 10px 30px rgba(0,0,0,.6);max-width:calc(100% - 24px)}
 #castbar .nm{font-size:13px;color:#bbb;margin-right:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px}#castbar .nm b{color:#fff;display:block;font-size:14px}
-#castbar button{width:40px;height:40px;border-radius:8px;border:0;background:transparent;color:#fff;font-size:17px;cursor:pointer}#castbar button:active{background:#333}
+#castbar button{min-width:40px;padding:0 6px;font-weight:700;font-size:15px;height:40px;border-radius:8px;border:0;background:transparent;color:#fff;font-size:17px;cursor:pointer}#castbar button:active{background:#333}
 .tvpick{display:flex;align-items:center;gap:14px;padding:14px 8px;margin:0 -8px;border-radius:8px;cursor:pointer}.tvpick:hover{background:#222}.tvpick small{display:block;color:#888;font-size:13px;margin-top:2px}
-@media (max-width: 820px), (hover: none) and (pointer: coarse){#castbar{bottom:calc(76px + env(safe-area-inset-bottom))}}`;
+@media (max-width: 820px), (hover: none) and (pointer: coarse){#castbar{bottom:calc(76px + env(safe-area-inset-bottom));left:10px;right:10px;transform:none;max-width:none;flex-wrap:wrap;justify-content:space-between;gap:2px;padding:10px 8px}#castbar .nm{flex-basis:100%;max-width:none;margin:0 6px 4px}#castbar .nm b{display:inline;margin-right:6px}#castbar button{min-width:34px;padding:0 4px;font-size:14px}}`;
   document.head.appendChild(st);
 })();
 function castButton() {
@@ -1119,9 +1120,14 @@ function castButton() {
   if (!castTV) { if (bar) bar.remove(); return; }
   if (bar) return;
   const b = document.createElement('div'); b.id = 'castbar';
-  b.innerHTML = `<div class="nm"><b>${esc(castTV.name)}</b>Playing on TV</div><button data-c="skip" data-v="-10" title="Back 10 s">&#x21BA;</button><button data-c="pause" title="Play / Pause">&#x23EF;</button><button data-c="skip" data-v="10" title="Forward 10 s">&#x21BB;</button><button data-c="vol" data-v="-1" title="Quieter">&#x2212;</button><button data-c="vol" data-v="1" title="Louder">+</button><button data-c="stop" title="Stop">&#x25A0;</button><button class="x" title="Disconnect">&#x2715;</button>`;
+  b.innerHTML = `<div class="nm"><b>${esc(castTV.name)}</b>Playing on TV</div><button data-c="skip" data-v="-10" title="Back 10 s">&#x21BA;</button><button data-c="pause" title="Play / Pause">&#x23EF;</button><button data-c="skip" data-v="10" title="Forward 10 s">&#x21BB;</button><button data-z="-1" title="Channel down">CH&#x2212;</button><button data-z="1" title="Channel up">CH+</button><button data-c="vol" data-v="-1" title="Quieter">&#x2212;</button><button data-c="vol" data-v="1" title="Louder">+</button><button data-c="stop" title="Stop">&#x25A0;</button><button class="x" title="Disconnect">&#x2715;</button>`;
   b.querySelectorAll('[data-c]').forEach(x => x.onclick = () => castSend({ t: 'ctl', c: x.dataset.c, v: x.dataset.v || '' }));
-  b.querySelector('.x').onclick = () => { castTV = null; castButton(); toast('Playing here again', 1800); };
+  b.querySelector('.x').onclick = () => { castTV = null; store.del('castTV'); castButton(); toast('Playing here again', 1800); };
+  b.querySelectorAll('[data-z]').forEach(x => x.onclick = () => {
+    if (!castZap || !castZap.list.length) return toast('Start a channel first', 1800);
+    castZap.i = (castZap.i + +x.dataset.z + castZap.list.length) % castZap.list.length;
+    const c = castZap.list[castZap.i]; castLive({ url: c.url, title: c.name, zap: castZap.list, zi: castZap.i });
+  });
   document.body.appendChild(b);
 }
 async function castPick(onPicked) {
@@ -1145,6 +1151,7 @@ async function castPick(onPicked) {
   sh.querySelectorAll('.tvpick').forEach(el => el.onclick = () => {
     const i = +el.dataset.i; shut();
     castTV = i < 0 ? null : { id: tvs[i].id, name: tvs[i].name || tvs[i].kind };
+    if (castTV) store.set('castTV', castTV); else store.del('castTV');
     castButton();
     if (castTV && onPicked) return onPicked();
     toast(castTV ? 'Connected to ' + castTV.name + '. Press Play on anything.' : 'Playing here again', 2600);
@@ -1171,6 +1178,7 @@ async function castTitle(req) {
   return false;
 }
 async function castLive(item) {
+  if (item.zap && item.zap.length) castZap = { list: item.zap, i: item.zi || 0 };
   const m = /\/live\/[^/]+\/[^/]+\/(\d+)(\.\w+)?(\?|$)/.exec(item.url || '');
   if (await castSend({ t: 'live', sid: m ? m[1] : '', name: item.title || '' })) { toast('Switching ' + castTV.name + ' to ' + (item.title || 'the channel'), 2600); return true; }
   return false;
@@ -1291,6 +1299,57 @@ $('#pl-vol').oninput = e => { V.volume = +e.target.value; };
   };
   $('#pl-full').before(b);
 })();
+(function multiviewButton() {
+  if (NATIVE) return;
+  const b = document.createElement('button'); b.id = 'pl-multi'; b.className = 'pl-icon'; b.title = 'Add to Multiview (up to 4 games)';
+  b.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><path d="M17 13v8M13 17h8"/></svg>';
+  b.onclick = () => { if (!cur || !cur.live) return toast('Multiview is for live channels and games', 2500); const it = cur; closePlayer(); multiAdd(it.url, it.title, it.sub); };
+  $('#pl-full').before(b);
+})();
+const multi = [];
+function multiAdd(url, title, sub) {
+  if (multi.some(m => m.url === url)) return multiDraw();
+  if (multi.length >= 4) { toast('Multiview holds 4 games. Close one first.', 3000); return multiDraw(); }
+  multi.push({ url, title, sub }); multiDraw();
+}
+function multiDraw() {
+  let box = $('#multi');
+  if (!multi.length) { if (box) { box.querySelectorAll('div[data-u]').forEach(t => { try { t._h && t._h.destroy(); } catch (e) {} }); box.remove(); } const mb = $('#multibar'); if (mb) mb.remove(); return; }
+  if (!box) {
+    box = document.createElement('div'); box.id = 'multi';
+    box.style.cssText = 'position:fixed;inset:0;z-index:82;background:#000;display:grid;gap:4px;padding:4px';
+    document.body.appendChild(box);
+  }
+  const n = multi.length; box.style.gridTemplateColumns = n === 1 ? '1fr' : '1fr 1fr'; box.style.gridTemplateRows = n <= 2 ? '1fr' : '1fr 1fr';
+  // Keep tiles that are still there (no restart), add new ones, drop closed ones
+  [...box.children].forEach(t => { if (!multi.some(m => m.url === t.dataset.u)) { try { t._h && t._h.destroy(); } catch (e) {} t.remove(); } });
+  multi.forEach((m, i) => {
+    let t = [...box.children].find(x => x.dataset.u === m.url);
+    if (!t) {
+      t = document.createElement('div'); t.dataset.u = m.url;
+      t.style.cssText = 'position:relative;background:#111;overflow:hidden;border-radius:6px;outline:3px solid transparent;cursor:pointer';
+      t.innerHTML = `<video muted playsinline style="width:100%;height:100%;object-fit:contain"></video><div style="position:absolute;left:10px;top:8px;right:44px;font-size:13px;font-weight:700;text-shadow:0 1px 3px #000">${esc(m.title)}<span style="display:block;font-weight:500;color:#bbb">${esc(m.sub || '')}</span></div><button class="mx" title="Close" style="position:absolute;right:8px;top:6px;width:30px;height:30px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:15px">&#x2715;</button>`;
+      box.appendChild(t);
+      const v = $('video', t), xt = /\/live\/[^/]+\/[^/]+\/\d+\.ts(\?|$)/.test(m.url), u = xt ? m.url.replace(/\.ts(\?|$)/, '.m3u8$1') : m.url;
+      if (window.Hls && Hls.isSupported() && /m3u8/i.test(u)) { const h = new Hls({ maxBufferLength: 12, enableWorker: true }); h.loadSource(u); h.attachMedia(v); t._h = h; } else v.src = u;
+      v.play().catch(() => {});
+      $('.mx', t).onclick = e => { e.stopPropagation(); const k = multi.findIndex(x => x.url === m.url); if (k >= 0) multi.splice(k, 1); multiDraw(); };
+      t.onclick = () => box.querySelectorAll('div[data-u]').forEach(o => { const on = o === t; $('video', o).muted = !on; o.style.outlineColor = on ? '#E50914' : 'transparent'; });
+      t.ondblclick = () => { const k = multi.findIndex(x => x.url === m.url); multi.splice(k, 1); multiDraw(); play({ url: m.url, title: m.title, sub: m.sub, live: true }); };
+    }
+  });
+  if (!$('#multibar')) {
+    const bar = document.createElement('div'); bar.id = 'multibar';
+    bar.style.cssText = 'position:fixed;right:14px;bottom:14px;z-index:83;display:flex;gap:8px';
+    bar.innerHTML = '<button class="btn" id="mxadd" style="height:38px;padding:0 14px;font-size:14px">+ Add a game</button><button class="btn primary" id="mxall" style="height:38px;padding:0 14px;font-size:14px">Close Multiview</button>';
+    document.body.appendChild(bar);
+    $('#mxadd').onclick = () => { box.style.display = 'none'; bar.style.display = 'none'; toast('Pick a game or channel, then press Multiview in the player', 3500); go('sports'); };
+    $('#mxall').onclick = () => { multi.splice(0); multiDraw(); };
+  }
+  box.style.display = 'grid'; $('#multibar').style.display = 'flex';
+  if (!multi.length) $('#multibar').remove();
+}
+
 (function playerTvButton() {
   const b = document.createElement('button'); b.id = 'pl-tv'; b.className = 'pl-icon'; b.title = 'Play on TV'; b.innerHTML = TV_ICON;
   const send = async () => {
