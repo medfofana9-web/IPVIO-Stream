@@ -264,11 +264,12 @@ fun Sidebar(tab: Int, onTab: (Int) -> Unit, modifier: Modifier, activeFocus: Foc
     val w by animateDpAsState(if (expanded) DS.SidebarOpenW else DS.SidebarCollapsedW, if (Look.motion == 0) snap() else tween(220), label = "sideW")
     Box(modifier.fillMaxHeight()) {
         // Expanded (only with "icons only"): darken the content behind so the texts are well readable
+        // The whole page dims (not only a strip next to the menu): cards beside the open menu looked covered, not set back
         if (focusIn && !SidebarPrefs.labels) Box(
-            Modifier.width(w + dpx(260)).fillMaxHeight().align(if (right) Alignment.CenterEnd else Alignment.CenterStart)
+            Modifier.fillMaxWidth().fillMaxHeight().align(if (right) Alignment.CenterEnd else Alignment.CenterStart)
                 .background(
-                    if (right) Brush.horizontalGradient(0f to Color.Transparent, 0.45f to Color(0xB3000000), 1f to Color(0xF2000000))
-                    else Brush.horizontalGradient(0f to Color(0xF2000000), 0.55f to Color(0xB3000000), 1f to Color.Transparent)
+                    if (right) Brush.horizontalGradient(0f to Color(0x99000000), 0.6f to Color(0xB3000000), 1f to Color(0xF2000000))
+                    else Brush.horizontalGradient(0f to Color(0xF2000000), 0.4f to Color(0xB3000000), 1f to Color(0x99000000))
                 )
         )
         Column(

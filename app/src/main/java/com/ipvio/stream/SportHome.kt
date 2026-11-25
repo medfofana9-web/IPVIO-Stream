@@ -122,7 +122,7 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
     if (teamGames.isNotEmpty()) Column(Modifier.padding(top = dpx(10)), verticalArrangement = Arrangement.spacedBy(dpx(10))) {
         Text("Your teams today", color = Color.White, fontSize = spx(24), fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = RowPadX))
         LazyRow(contentPadding = PaddingValues(horizontal = RowPadX, vertical = dpx(10)), horizontalArrangement = Arrangement.spacedBy(dpx(18))) {
-            items(teamGames, key = { "t" + it.key }) { g -> GameTileCard(g) { onSports() } }
+            items(teamGames, key = { "t" + it.key }) { g -> GameTileCard(g, place = "home-teams") { onSports() } }
         }
     }
     if (games.isEmpty()) return
@@ -131,7 +131,7 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
         // Same matchup tiles as the sports area (one look everywhere)
         LazyRow(contentPadding = PaddingValues(horizontal = RowPadX, vertical = dpx(10)), horizontalArrangement = Arrangement.spacedBy(dpx(18))) {
             items(games, key = { it.key }) { g ->
-                GameTileCard(g) {
+                GameTileCard(g, place = "home-live") {
                     // Same game again while it resolves: ignored. Another game: it replaces the first, which can
                     // then never start late on top of it
                     if (openingGame == g.key) return@GameTileCard

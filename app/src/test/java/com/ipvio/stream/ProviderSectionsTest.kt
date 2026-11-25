@@ -48,3 +48,11 @@ class ProviderSectionsTest {
         assertEquals(listOf(2, 3, 1, 0), ProviderSectionsLogic.order(s))
     }
 }
+
+class GameTileNameTest {
+    @Test fun longNamesShrinkInsteadOfBeingCut() {
+        assertEquals(16f, SportShowcase.nameSize("SABAH"), 0.01f)
+        assertTrue(SportShowcase.nameSize("BARCELONA") < 14f)
+        assertEquals(11f, SportShowcase.nameSize("BORUSSIA MÖNCHENGLADBACH"), 0.01f)
+    }
+}

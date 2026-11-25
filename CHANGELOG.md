@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased – Sports overview: no row jumps, no repeated games, full team names, dimmed page behind the menu
+
+- The same game in Top 10, My teams and Coming Up shared one focus key, so restoring focus could land on its copy in
+  another row (the page jumped between rows). Each row now has its own keys; Back still returns to the card you played.
+- The page scrolls with the focused row settling at the same height each time (one row per press).
+- My teams no longer repeats games already in Top 10.
+- Long team names on game tiles get a smaller size instead of being cut ("BARCELONA", not "BARCELO…").
+- The open side menu dims the whole page behind it.
+
 ## Unreleased – Sports: "Your channels" (provider sections, layout B) (release candidate, device test pending)
 
 - New Sports tab "Your channels", right after Overview: the provider's NBA, WNBA, NFL, college and soccer folders as they

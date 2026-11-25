@@ -47,6 +47,9 @@ import kotlinx.coroutines.awaitAll
  * Rows: Live now, then one row per sport.
  */
 internal object SportShowcase {
+    /** Team name size on a game tile: 16 up to 7 letters, then smaller so 9–11 letters still fit ("BARCELONA"), at least 11. */
+    fun nameSize(name: String): Float = if (name.length <= 7) 16f else maxOf(11f, 16f * 7.5f / name.length)
+
     /** English row title per sport key. */
     fun title(sport: String): String = when (sport) {
         "soccer" -> "Soccer"; "basketball" -> "Basketball"; "nfl" -> "Football"; "nhl" -> "Hockey"
@@ -81,12 +84,15 @@ private fun accentBrush(away: Color, home: Color): Brush {
 }
 
 @Composable
-internal fun GameTile(g: SportData.Game, hub: HubCtx, modifier: Modifier = Modifier) =
-    GameTileCard(g, modifier) { if (g.state == 1) hub.watch(g) else hub.open(g) }
+internal fun GameTile(g: SportData.Game, hub: HubCtx, modifier: Modifier = Modifier, place: String = "tile") =
+    GameTileCard(g, modifier, place) { if (g.state == 1) hub.watch(g) else hub.open(g) }
 
 /** The matchup tile itself (also used by the Live sports row on the home screen). */
 @Composable
-internal fun GameTileCard(g: SportData.Game, modifier: Modifier = Modifier, onClick: () -> Unit) {
+internal fun GameTileCard(g: SportData.Game, modifier: Modifier = Modifier, place: String = "tile", onClick: () -> Unit) {
+    // Focus memory per row: the same game in Top 10, My teams and Coming Up shared one key, so restoring focus could land
+    // on its copy in another row (the page jumped between rows)
+    val fkey = "$place:game:" + g.key
     var f by remember { mutableStateOf(false) }
     val sc by animateFloatAsState(if (f) focusScale(1.055f) else 1f, androidx.compose.animation.core.tween(150), label = "gametile")
     val shape = RoundedCornerShape(dpx(18))
@@ -105,8 +111,8 @@ internal fun GameTileCard(g: SportData.Game, modifier: Modifier = Modifier, onCl
                 .then(if (Lite.on) { if (f) Modifier.border(3.dp, Color.White, shape) else Modifier } else Modifier.border(if (f) 2.dp else 1.dp, if (f) FofGlass.rim() else FofGlass.edge(false), shape))
                 .onFocusChanged { f = it.isFocused }
                 .trackFocus()
-                .restoreFocus("game:" + g.key)
-                .clickable { SportSession.lastTile = "game:" + g.key; onClick() }
+                .restoreFocus(fkey)
+                .clickable { SportSession.lastTile = fkey; onClick() }
         ) {
             Row(Modifier.fillMaxWidth().padding(horizontal = dpx(16), vertical = dpx(12)), verticalAlignment = Alignment.CenterVertically) {
                 if (live) {
@@ -169,8 +175,10 @@ private fun TileSide(t: SportData.Team, modifier: Modifier) {
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         TeamLogo(t.logo, t.abbr.ifBlank { t.short }, dpx(74))
         Spacer(Modifier.height(dpx(12)))
-        Text(raw = true, text = t.short.ifBlank { t.name }.uppercase(), color = Color.White, fontSize = spx(16), fontWeight = FontWeight.Bold,
-            letterSpacing = 1.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+        // Long names get a smaller size instead of being cut ("BARCELO…"); only very long ones still end in "…"
+        val name = t.short.ifBlank { t.name }.uppercase()
+        Text(raw = true, text = name, color = Color.White, fontSize = spx(SportShowcase.nameSize(name)), fontWeight = FontWeight.Bold,
+            letterSpacing = if (name.length > 8) 0.sp else 1.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
     }
 }
 
@@ -180,7 +188,8 @@ private fun TileSide(t: SportData.Team, modifier: Modifier) {
  * opens the Match Center (same as [GameTile]).
  */
 @Composable
-internal fun MacGameCard(g: SportData.Game, hub: HubCtx, modifier: Modifier = Modifier) {
+internal fun MacGameCard(g: SportData.Game, hub: HubCtx, modifier: Modifier = Modifier, place: String = "grid") {
+    val fkey = "$place:game:" + g.key
     var f by remember { mutableStateOf(false) }
     val sc by animateFloatAsState(if (f) focusScale(1.02f) else 1f, androidx.compose.animation.core.tween(150), label = "macgame")
     val shape = RoundedCornerShape(dpx(8))
@@ -190,8 +199,8 @@ internal fun MacGameCard(g: SportData.Game, hub: HubCtx, modifier: Modifier = Mo
             .border(if (f) 3.dp else 0.dp, if (f) Color.White else Color.Transparent, shape)
             .onFocusChanged { f = it.isFocused }
             .trackFocus()
-            .restoreFocus("game:" + g.key)
-            .clickable { SportSession.lastTile = "game:" + g.key; if (live) hub.watch(g) else hub.open(g) }
+            .restoreFocus(fkey)
+            .clickable { SportSession.lastTile = fkey; if (live) hub.watch(g) else hub.open(g) }
             .padding(horizontal = dpx(18), vertical = dpx(16))
     ) {
         Row(Modifier.fillMaxWidth().height(dpx(24)), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
@@ -250,7 +259,7 @@ internal fun GameTileRow(title: String, games: List<SportData.Game>, hub: HubCtx
         HubSectionTitle(title, raw = true, action = if (onMore != null) "See all" else null, onAction = onMore)
         Spacer(Modifier.height(dpx(10)))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(18)), contentPadding = PaddingValues(vertical = dpx(10))) {
-            items(games.take(30), key = { title + it.key }) { g -> GameTile(g, hub) }
+            items(games.take(30), key = { title + it.key }) { g -> GameTile(g, hub, place = title) }
         }
     }
 }

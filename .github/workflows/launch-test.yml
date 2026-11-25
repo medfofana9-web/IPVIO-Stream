@@ -159,6 +159,12 @@ jobs:
             adb exec-out screencap -p > s_channels.png
             adb shell input keyevent 20; sleep 2
             adb exec-out screencap -p > s_channels_focus.png
+            adb shell am broadcast -a com.fof.tv.TAB --ei tab 10 --ei hubtab 0
+            sleep 15
+            adb shell input keyevent 20; sleep 2; adb shell input keyevent 20; sleep 2
+            adb exec-out screencap -p > s_overview.png
+            adb shell input keyevent 21; sleep 1; adb shell input keyevent 21; sleep 1; adb shell input keyevent 21; sleep 2
+            adb exec-out screencap -p > s_menu.png
             (adb shell pidof com.fof.tv > /dev/null && echo RUNNING || echo NOT-RUNNING) | tee alive.txt
             adb logcat -d > logcat.txt
       - name: Checks
@@ -166,7 +172,7 @@ jobs:
         run: |
           grep -n -A25 "FATAL EXCEPTION" logcat.txt | grep -A25 "com.fof.tv" | head -60 || true
           grep -E "FofStart|com.fof.tv.*(Exception|Error)|ExoPlayerImpl|PlaybackException" logcat.txt | tail -60 || true
-          for f in s_channels.png s_channels_focus.png; do
+          for f in s_channels.png s_channels_focus.png s_overview.png s_menu.png; do
             if [ -s "$f" ]; then
               ffmpeg -loglevel error -y -i "$f" -vf scale=960:-1 -q:v 6 "${f%.png}.jpg"
               echo "IMG-BEGIN ${f%.png}"; base64 -w 0 "${f%.png}.jpg"; echo; echo "IMG-END"

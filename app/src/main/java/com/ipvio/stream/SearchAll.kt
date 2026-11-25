@@ -247,7 +247,7 @@ internal fun SearchGameRow(games: List<SportData.Game>, first: FocusRequester?, 
     Column {
         ResultTitle("Games")
         LazyRow(contentPadding = PaddingValues(horizontal = DS.PageX, vertical = 18.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-            itemsIndexed(games, key = { _, it -> "game|" + it.key }) { i, g -> GameTileCard(g, Modifier.first(i, first)) { onGame(g) } }
+            itemsIndexed(games, key = { _, it -> "game|" + it.key }) { i, g -> GameTileCard(g, Modifier.first(i, first), place = "search") { onGame(g) } }
         }
     }
 }

@@ -379,6 +379,7 @@ private fun buildOverview(raw: List<SportData.Game>, hub: HubCtx, matchChannels:
     return HubOverviewModel(games, liveMine, upcoming, finals, top, hasCh.filterValues { it }.keys, popular, newsLeagues, counts)
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit) {
     val ctx = LocalContext.current
@@ -418,6 +419,10 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
     LaunchedEffect(liveKeys, games.size, ahead.soccer.size, ahead.nba.size, ahead.football.size) {
         if (!inList && (listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0)) runCatching { listState.scrollToItem(0) }
     }
+    // Rows of different heights (wide tiles, grid cards): the focused row always settles at the same height, so Up and Down
+    // move the page one row at a time instead of the minimal-scroll jumps
+    val pivot = remember(listState) { PivotSpec(0.18f) { listState } }
+    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides pivot) {
     LazyColumn(state = listState, modifier = Modifier.onFocusChanged { inList = it.hasFocus }, contentPadding = PaddingValues(horizontal = DS.PageX, vertical = dpx(8)), verticalArrangement = Arrangement.spacedBy(dpx(14))) {
         when {
             // feed.games too: the page model can lag a moment behind the feed, and must never show "no games" meanwhile
@@ -449,7 +454,7 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
             l.chunked(4).forEachIndexed { r, row ->
                 item(key = key + "_" + r) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(dpx(14))) {
-                        row.forEach { g -> MacGameCard(g, hub, Modifier.weight(1f)) }
+                        row.forEach { g -> MacGameCard(g, hub, Modifier.weight(1f), place = key) }
                         repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
@@ -460,12 +465,16 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
             .sortedWith(compareBy({ if (it.state == 1) 0 else 1 }, { if (SportHubFavs.isFavGame(it)) 0 else 1 }, { popularity(it) })).take(10)
         if (top10.size >= 3) item(key = "top10") { Box(Modifier.padding(top = dpx(8))) { GameTileRow("Top 10 Games Today", top10, hub, null) } }
         grid("live", "Live Now", liveAll)
-        if (mine.isNotEmpty()) item(key = "myteams") { GameTileRow("My teams", mine.take(12), hub, null) }
+        // My teams: only games not already in the Top 10 above (the same games side by side made the page repeat itself)
+        val shown = if (top10.size >= 3) top10.map { it.key }.toSet() else emptySet()
+        val mineRest = mine.filter { it.key !in shown }
+        if (mineRest.isNotEmpty()) item(key = "myteams") { GameTileRow("My teams", mineRest.take(12), hub, null) }
         grid("soon", "Coming Up", comingUp)
         grid("final", "Final", finals.take(24))
         if (!SportData.lastOk && games.isNotEmpty()) item(key = "stale") {
             Text("Hinweis: Die letzte Aktualisierung hat nicht geklappt. Angezeigt wird der letzte Stand.", color = Muted, fontSize = spx(14))
         }
+    }
     }
 }
 
