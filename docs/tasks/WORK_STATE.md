@@ -1,5 +1,10 @@
 # Work state
 
+## 24 Nov 2026 – Sports playback startup
+- Live game cards queue background source matching. Switching games cancels the prior selection. Lookup errors use the source picker and existing diagnostics.
+- The fresh channel-name cache uses the identity of the published map to avoid hashing all its entries per lookup.
+- Local whitespace validation passed. Gradle download was blocked. Verify Android CI and test game launch, rapid selection, and Back on onn 4K and Fire TV.
+
 ## 24 Nov 2026 – Reliability overhaul, batch 1 (release candidate, `[device-test]`)
 - Done: addon sync no longer drops/removes DragonStreams on a failed manifest read (`AccountCloud.syncSecret/applyAddons`,
   `AccountCloudLogic.covers`); stale DragonStreams answer reset per lookup (`Stremio.lookupStreams`), 12 s wait

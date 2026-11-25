@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -112,7 +113,15 @@ object SportSession {
         sorted.forEach { gameOfCh.putIfAbsent(it.id, g.key) }
         switchedAt = System.currentTimeMillis()
         version++
-        discoverJob = scope.launch { addLiveGames(g, live, sorted) }
+        discoverJob = scope.launch {
+            try {
+                addLiveGames(g, live, sorted)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                app?.let { AutoReport.issue(it, "sports", "game switching lookup failed: " + e.javaClass.simpleName) }
+            }
+        }
     }
 
     /** First channel to play for the game, verified channels first. */

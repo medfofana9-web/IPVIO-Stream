@@ -44,6 +44,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -91,7 +92,8 @@ class HubCtx(val nav: HubNav, val live: List<Item>, private val onPlay: (Item, L
     /** For the addon lookup of a game (set where the hub is built). */
     var ctxApp: android.content.Context? = null
     var scopeApp: kotlinx.coroutines.CoroutineScope? = null
-    private var pendingAddon: String? = null
+    private var watchJob: kotlinx.coroutines.Job? = null
+    private var pendingGame: String? = null
     fun chans(g: SportData.Game): List<Item> = SportWatch.channels(g, live)
     /** Remember the open pages (Match Center, Watch Live …): Back from the player returns to exactly there. */
     fun play(ch: Item, list: List<Item>) { HubMemory.keep = nav.stack.toList(); nav.clear(); onPlay(ch, list) }
@@ -100,10 +102,12 @@ class HubCtx(val nav: HubNav, val live: List<Item>, private val onPlay: (Item, L
         // On the first visit the playlist's channel index may still be warming.
         // Never interpret that unfinished lookup as "no stream" for a game.
         // Keep D-pad handling on the main thread and run source matching off it.
-        if (pendingAddon == g.key) return
+        if (watchJob?.isActive == true && pendingGame == g.key) return
         val scope = scopeApp ?: return
-        pendingAddon = g.key
-        scope.launch {
+        watchJob?.cancel()
+        pendingGame = g.key
+        watchJob = scope.launch {
+            val pagesAtStart = nav.stack.toList()
             try {
                 val app = ctxApp
                 // Today's channel names first (event channels are renamed daily); at most 4 s, then the names we have
@@ -112,6 +116,7 @@ class HubCtx(val nav: HubNav, val live: List<Item>, private val onPlay: (Item, L
                     SportWatch.prewarm(live)
                     SportWatch.channels(g, live)
                 }
+                if (nav.stack.toList() != pagesAtStart) return@launch
                 if (ready.isNotEmpty()) {
                     SportSession.start(g, ready, live)
                     play(SportSession.firstChannel() ?: ready.first(), SportSession.zapList().ifEmpty { ready })
@@ -130,12 +135,16 @@ class HubCtx(val nav: HubNav, val live: List<Item>, private val onPlay: (Item, L
                     }
                 }
                 val candidates = withContext(Dispatchers.Default) { SportWatch.channels(g, live) }
+                if (nav.stack.toList() != pagesAtStart) return@launch
                 if (candidates.isNotEmpty()) {
                     SportSession.start(g, candidates, live)
                     play(SportSession.firstChannel() ?: candidates.first(), SportSession.zapList().ifEmpty { candidates })
                 } else nav.open(HubPage.Watch(g))
-            } finally {
-                pendingAddon = null
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                ctxApp?.let { AutoReport.issue(it, "sports", "source startup failed: " + e.javaClass.simpleName) }
+                if (nav.stack.toList() == pagesAtStart) nav.open(HubPage.Watch(g))
             }
         }
     }

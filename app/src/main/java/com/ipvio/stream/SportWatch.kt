@@ -22,6 +22,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.produceState
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
@@ -313,7 +314,7 @@ object SportWatch {
         // Working channels before ones marked broken; the rest of the list is the backup order for the player
         // The network on the game card (Paramount+) is tried first: its event feed for this game, then the network channel
         // Soccer: the provider's section for the competition first, then the listed network (Paramount+), then the rest
-        val r = out.sortedWith(compareBy<Hit>({ if (it.autoEligible) 0 else 1 }, { sectionRank(g, it) }, { netRank(g, it) }, { prio(it.why) }))
+        val r = out.sortedWith(compareBy<Hit>({ if (it.autoEligible) 0 else 1 }, { if (it.show == "Addon") 1 else 0 }, { sectionRank(g, it) }, { netRank(g, it) }, { prio(it.why) }))
             .distinctBy { it.ch.id }.sortedBy { if (DeadLinks.isDead(it.ch.url)) 1 else 0 }
         synchronized(cache) { if (cache.size > 800) cache.clear(); cache[g.key] = fullSig to r }
         return r
@@ -348,6 +349,7 @@ object SportWatch {
         val c = SportSession.appCtx()
         return hits.sortedWith(compareBy<Hit>(
             { if (DeadLinks.isDead(it.ch.url)) 1 else 0 },
+            { if (it.show == "Addon") 1 else 0 },
             { sectionRank(g, it) },
             { netRank(g, it) },
             { prio(it.why) },
@@ -374,8 +376,15 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
     val hitsLoading by produceState<List<SportWatch.Hit>?>(null, g.key, g.nets, hub.live, prepVersion, addonVersion, epgVersion, freshVersion) {
         if (SportFresh.stale()) withTimeoutOrNull(4_000L) { SportFresh.refresh() }
         value = withContext(Dispatchers.Default) {
-            SportWatch.prewarm(hub.live)
-            SportWatch.resolve(g, hub.live)
+            try {
+                SportWatch.prewarm(hub.live)
+                SportWatch.resolve(g, hub.live)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AutoReport.issue(ctx, "sports", "source matching failed: " + e.javaClass.simpleName)
+                emptyList()
+            }
         }
     }
     val hits = hitsLoading.orEmpty()
@@ -390,6 +399,10 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
             addonPending = true
             try {
                 withTimeoutOrNull(5_000L) { SportAddons.find(ctx, g, refresh) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AutoReport.issue(ctx, "sports", "add-on lookup failed: " + e.javaClass.simpleName)
             } finally { addonPending = false }
             if (automatic.isNotEmpty() || g.state != 1) break
             delay(12_000L)
@@ -446,7 +459,7 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
                 hitsLoading == null -> "checking guide and channel names"
                 automatic.any { it.show != "Addon" } -> "matched"
                 else -> "no confirmed feed"
-            } + (reports?.let { "\\n" + it } ?: ""),
+            } + (reports?.let { "\n" + it } ?: ""),
             color = Muted, fontSize = spx(14), raw = true, modifier = Modifier.padding(vertical = dpx(8))
         )
         if (searching) HubLoading("Still checking sources…")

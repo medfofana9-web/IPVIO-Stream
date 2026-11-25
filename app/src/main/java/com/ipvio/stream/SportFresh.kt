@@ -59,7 +59,7 @@ object SportFresh {
     }
 
     private var lastIn: List<Item>? = null
-    private var lastVer = -1
+    private var lastNames: Map<String, String>? = null
     private var lastOut: List<Item> = emptyList()
 
     /**
@@ -69,8 +69,7 @@ object SportFresh {
     fun apply(live: List<Item>): List<Item> {
         val n = names
         if (n.isEmpty() || live.isEmpty()) return live
-        val ver = n.hashCode() xor System.identityHashCode(n)
-        synchronized(this) { if (lastIn === live && lastVer == ver) return lastOut }
+        synchronized(this) { if (lastIn === live && lastNames === n) return lastOut }
         var changed = false
         val out = live.map { c ->
             if (c.kind != Kind.LIVE || c.src != 0) return@map c
@@ -78,7 +77,7 @@ object SportFresh {
             if (fresh == null || fresh == c.title) c else { changed = true; c.copy(title = fresh) }
         }
         val r = if (changed) out else live
-        synchronized(this) { lastIn = live; lastVer = ver; lastOut = r }
+        synchronized(this) { lastIn = live; lastNames = n; lastOut = r }
         return r
     }
 }

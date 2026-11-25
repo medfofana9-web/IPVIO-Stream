@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased – Sports playback startup
+
+- Start live-game channel matching off the remote-input thread and open the source picker if startup fails.
+- Prefer usable IPTV matches over add-ons and place source diagnostics on a separate line.
+
 ## Unreleased – Reliability overhaul, batch 2 (release candidate, device test pending)
 
 - Freeze watch (release builds): when the main thread is stuck for 2 s, its stack (class, method, line only) goes to the

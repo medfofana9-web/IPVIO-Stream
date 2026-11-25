@@ -82,7 +82,7 @@ private fun accentBrush(away: Color, home: Color): Brush {
 
 @Composable
 internal fun GameTile(g: SportData.Game, hub: HubCtx, modifier: Modifier = Modifier) =
-    GameTileCard(g, modifier) { if (g.state == 1 && hub.chans(g).isNotEmpty()) hub.watch(g) else hub.open(g) }
+    GameTileCard(g, modifier) { if (g.state == 1) hub.watch(g) else hub.open(g) }
 
 /** The matchup tile itself (also used by the Live sports row on the home screen). */
 @Composable
@@ -191,7 +191,7 @@ internal fun MacGameCard(g: SportData.Game, hub: HubCtx, modifier: Modifier = Mo
             .onFocusChanged { f = it.isFocused }
             .trackFocus()
             .restoreFocus("game:" + g.key)
-            .clickable { SportSession.lastTile = "game:" + g.key; if (live && hub.chans(g).isNotEmpty()) hub.watch(g) else hub.open(g) }
+            .clickable { SportSession.lastTile = "game:" + g.key; if (live) hub.watch(g) else hub.open(g) }
             .padding(horizontal = dpx(18), vertical = dpx(16))
     ) {
         Row(Modifier.fillMaxWidth().height(dpx(24)), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
