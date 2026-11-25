@@ -387,7 +387,9 @@ private fun DetailScreenFull(
 
     fun focusActiveSeason() {
         scope.launch {
-            seasonRowState.scrollToItem((seasons.indexOf(season) - 2).coerceAtLeast(0))
+            // Scroll the season row only when the shown season is off screen (no jump when it is already visible)
+            if (seasonRowState.layoutInfo.visibleItemsInfo.none { it.key == season })
+                seasonRowState.scrollToItem((seasons.indexOf(season) - 2).coerceAtLeast(0))
             withFrameNanos { }
             withFrameNanos { }
             runCatching { seasonReq.requestFocus() }
@@ -443,7 +445,6 @@ private fun DetailScreenFull(
     }
 
     LaunchedEffect(season, gi, focusTick) {
-        seasonRowState.scrollToItem((seasons.indexOf(season) - 2).coerceAtLeast(0))
         epListState.scrollToItem(0)
         if (groups.size > 1) groupRowState.scrollToItem((gi - 2).coerceAtLeast(0))
         if (refocusEp) {
@@ -724,96 +725,122 @@ private fun DetailScreenFull(
                 }
             }
             if (item.kind == Kind.SERIES) item(key = "eppane") {
-                // Episodes area (round 16): seasons on the left with the shown season marked, episodes on the right.
-                // Right in the episode list = next season, Left = to the season selection.
-                Row(
-                    Modifier.fillMaxWidth().height(paneH).padding(top = dpx(16))
+                // Episodes area (layout C): a row of seasons ("Season 1", "Season 2" …) right above one row of wide
+                // episode cards, and one panel below with the focused episode's details. Card sizes never change; only the
+                // panel's text follows the focus. Left/Right stay in a row; Up: episodes → seasons → Play; Down: seasons →
+                // episodes → full synopsis (when cut) → Cast, Ratings, Trailer.
+                val cardW = dpx(360)
+                val cardH = dpx(202)
+                var seasonDwell by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+                var synopsisOf by remember(item.id) { mutableStateOf<Episode?>(null) }
+                var panelCut by remember(item.id) { mutableStateOf(false) }
+                fun selectSeason(sn: Int) {
+                    if (sn == season) return
+                    enterAtEnd[0] = false; startFirst[0] = true
+                    season = sn
+                    targetIdx[0] = -1
+                }
+                fun enterEpisodes() {
+                    seasonDwell?.cancel()
+                    val rs = resumeSE?.takeIf { it.first == season }?.let { EpisodeLogic.indexOfNum(eps, it.second) }?.takeIf { it >= 0 }
+                    targetIdx[0] = rs ?: -1
+                    refocusEp = true
+                    focusTick++
+                }
+                Column(
+                    Modifier.fillMaxWidth().padding(top = dpx(16))
                         .onFocusChanged {
                             if (it.hasFocus && listState.firstVisibleItemIndex < EP_PANE)
                                 scope.launch { listState.animateScrollToItem(EP_PANE) }
                         }
                         .focusProperties { enterTo { seasonReq } }
-                        .focusGroup(),
-                    horizontalArrangement = Arrangement.spacedBy(dpx(14))
+                        .focusGroup()
                 ) {
-                    LazyColumn(
-                        Modifier.width(dpx(200)).fillMaxHeight(),
+                    Row(
+                        Modifier.padding(bottom = dpx(8)),
+                        horizontalArrangement = Arrangement.spacedBy(dpx(16)), verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Episodes", raw = true, color = Color.White, fontSize = spx(26), fontWeight = FontWeight.Bold, letterSpacing = 0.sp)
+                        val cnt = eps.size
+                        Text(if (cnt == 1) "1 episode" else "$cnt episodes", raw = true, color = Color(0xFF9A9A9A), fontSize = spx(17))
+                        if (epLoading) Text("Updating episode info", color = Muted, fontSize = spx(13))
+                        if (item.episodes.size > EpisodeLogic.LONG) DetailPill("Find episode", icon = AIcon.Down) { jumpOpen = !jumpOpen }
+                    }
+                    // Seasons: the shown season stays filled, the remote focus is a white ring – always tell apart
+                    LazyRow(
+                        Modifier.offset(x = (-10).dp),
                         state = seasonRowState,
-                        verticalArrangement = Arrangement.spacedBy(dpx(3)),
-                        contentPadding = PaddingValues(vertical = dpx(6))
+                        horizontalArrangement = Arrangement.spacedBy(dpx(10)),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = dpx(8))
                     ) {
                         items(seasons, key = { it }) { sn ->
-                            val cnt = remember(item.id, sn) { item.episodes.count { it.season == sn } }
-                            SeasonEntry(
-                                sn, cnt, sn == season,
+                            SeasonPill(
+                                sn, sn == season,
                                 if (sn == season) Modifier.focusRequester(seasonReq) else Modifier,
-                                onRight = {
-                                    // Right or OK: show the season and jump to the first episode (same season: to the last position)
-                                    if (sn != season) { enterAtEnd[0] = false; startFirst[0] = true; season = sn; targetIdx[0] = -1 }
-                                    else targetIdx[0] = epFocusIdx[0]
-                                    refocusEp = true
-                                    focusTick++
-                                }
+                                onFocused = {
+                                    // Resting on a season shows its episodes; holding Right across seasons does not load each one
+                                    seasonDwell?.cancel()
+                                    if (sn != season) seasonDwell = scope.launch { delay(320); selectSeason(sn) }
+                                },
+                                onDown = { selectSeason(sn); enterEpisodes() },
+                                onClick = { selectSeason(sn); enterEpisodes() }
                             )
                         }
                     }
-                    Column(Modifier.weight(1f).fillMaxHeight()) {
-                        Row(
-                            Modifier.padding(bottom = dpx(10)),
-                            horizontalArrangement = Arrangement.spacedBy(dpx(16)), verticalAlignment = Alignment.CenterVertically
+                    // Long season: sections (TMDB seasons or blocks of 50 episodes) instead of an endless row
+                    if (groups.size > 1) {
+                        LazyRow(
+                            Modifier.offset(x = (-10).dp),
+                            state = groupRowState,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                         ) {
-                            Text("Episodes", raw = true, color = Color.White, fontSize = spx(28),
-                                fontWeight = FontWeight.Bold, letterSpacing = 0.sp)
-                            Text("Season $season", raw = true, color = Color(0xFFBCBCBC), fontSize = spx(20), fontWeight = FontWeight.Medium)
-                            // Fof TV: no permanent remote hints (clutter); only a short note while episode info loads
-                            if (epLoading) Text("Updating episode info", color = Muted, fontSize = spx(13))
-                            if (item.episodes.size > EpisodeLogic.LONG) DetailPill("Find episode", icon = AIcon.Down) { jumpOpen = !jumpOpen }
-                        }
-                        // Long season: sections (TMDB seasons or blocks of 50 episodes) instead of an endless list
-                        if (groups.size > 1) {
-                            LazyRow(
-                                Modifier.offset(x = (-10).dp),
-                                state = groupRowState,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
-                            ) {
-                                itemsIndexed(groups) { k, g ->
-                                    DetailPill(
-                                        EpisodeLogic.label(g),
-                                        if (k == gi) Modifier.focusRequester(groupReq) else Modifier,
-                                        light = k == gi
-                                    ) { anchor = g.from; epFocusIdx[0] = g.from }
-                                }
+                            itemsIndexed(groups) { k, g ->
+                                DetailPill(
+                                    EpisodeLogic.label(g),
+                                    if (k == gi) Modifier.focusRequester(groupReq) else Modifier,
+                                    light = k == gi
+                                ) { anchor = g.from; epFocusIdx[0] = g.from; targetIdx[0] = g.from; refocusEp = true; focusTick++ }
                             }
                         }
-                        if (jumpOpen) Row(
-                            Modifier.padding(bottom = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                    }
+                    if (jumpOpen) Row(
+                        Modifier.padding(bottom = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Field(
+                            jumpText, { v -> jumpText = v.filter { it.isDigit() }.take(4) }, "Episode number",
+                            Modifier.width(280.dp), inner = Modifier.focusRequester(jumpReq), number = true, onDone = { doJump() }
+                        )
+                        DetailPill("Go", light = true) { doJump() }
+                        DetailPill("Cancel") { jumpOpen = false; jumpText = "" }
+                    }
+                    // One row of wide episode cards; the focused card settles near the left edge (no double scroll)
+                    val epPivot = remember(epListState) { PivotSpec(0.06f) { epListState } }
+                    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides epPivot) {
+                        LazyRow(
+                            Modifier.fillMaxWidth().height(cardH + dpx(20)).offset(x = (-10).dp),
+                            state = epListState,
+                            horizontalArrangement = Arrangement.spacedBy(dpx(16)),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = dpx(10))
                         ) {
-                            Field(
-                                jumpText, { v -> jumpText = v.filter { it.isDigit() }.take(4) }, "Episode number",
-                                Modifier.width(280.dp), inner = Modifier.focusRequester(jumpReq), number = true, onDone = { doJump() }
-                            )
-                            DetailPill("Go", light = true) { doJump() }
-                            DetailPill("Cancel") { jumpOpen = false; jumpText = "" }
-                        }
-                        LazyColumn(Modifier.fillMaxWidth().weight(1f), state = epListState, contentPadding = PaddingValues(bottom = dpx(40))) {
                             itemsIndexed(shown, key = { _, ep -> "e${ep.season}_${ep.num}" }) { j, ep ->
                                 val i = (group?.from ?: 0) + j
-                                val em = metaOf(ep)
+                                val last = j == shown.lastIndex
                                 val v = pick(ep)
-                                EpisodeRow(
-                                    ep, em, v, progress[ResumeLogic.key(ep.season, ep.num)],
+                                EpisodeCard(
+                                    ep, metaOf(ep), progress[ResumeLogic.key(ep.season, ep.num)], cardW, cardH,
                                     Modifier
                                         .focusRequester(epReq(i))
                                         .onPreviewKeyEvent { ev ->
                                             if (ev.type != KeyEventType.KeyDown) false
                                             else when (ev.key) {
-                                                // Left: to the season selection; Right: next section, at the end of the season the next season
-                                                Key.DirectionLeft -> { if (ev.nativeKeyEvent.repeatCount == 0) { if (groups.size > 1 && gi > 0) switchGroup(-1) else focusActiveSeason() }; true }
-                                                Key.DirectionRight -> { if (ev.nativeKeyEvent.repeatCount == 0) switchGroup(1); true }
-                                                Key.DirectionUp -> if (j == 0 && groups.size > 1) { focusActiveGroup(); true } else false
+                                                // Row ends: on to the next section / season at its first episode (one step per press)
+                                                Key.DirectionRight -> if (last) { if (ev.nativeKeyEvent.repeatCount == 0) switchGroup(1); true } else false
+                                                Key.DirectionLeft -> if (j == 0) { if (ev.nativeKeyEvent.repeatCount == 0 && groups.size > 1 && gi > 0) switchGroup(-1); true } else false
+                                                Key.DirectionUp -> { if (groups.size > 1) focusActiveGroup() else focusActiveSeason(); true }
+                                                Key.Info -> { synopsisOf = ep; true }
                                                 else -> false
                                             }
                                         },
@@ -832,7 +859,15 @@ private fun DetailScreenFull(
                             }
                         }
                     }
+                    // Details of the focused (or last focused) episode: fixed height, so nothing below moves
+                    val pIdx = (if (focusedIdx >= 0) focusedIdx else epFocusIdx[0]).coerceIn(0, (eps.size - 1).coerceAtLeast(0))
+                    val pEp = eps.getOrNull(pIdx)
+                    if (pEp != null) EpisodePanel(
+                        pEp, metaOf(pEp), pick(pEp), progress[ResumeLogic.key(pEp.season, pEp.num)],
+                        onCut = { panelCut = it }, showMore = panelCut
+                    ) { synopsisOf = pEp }
                 }
+                synopsisOf?.let { e -> SynopsisDialog(item.title, e, metaOf(e)) { synopsisOf = null } }
             }
             credits?.let { c ->
                 if (c.cast.isNotEmpty()) item(key = "cast") { CastRow(c.cast, castState, if (memKey?.startsWith("c:") == true) memKey.drop(2).toIntOrNull() else null, restoreReq) { p -> DetailFocus.last[item.id] = "c:" + p.id; onPerson(PersonRef(p.id, p.name, p.photo, item.id)) } }
@@ -904,6 +939,109 @@ private fun EpisodeRow(ep: Episode, em: EpMeta?, v: Variant, prog: ResumeLogic.E
             }
             // Fof touch: the air date in small type
             em?.air?.let { Text(raw = true, text = it, color = Color(0xFF7A7A7A), fontSize = spx(13)) }
+        }
+    }
+}
+
+/** Season pill (layout C): "Season N"; the shown season is filled, the remote focus is a white ring around any pill. */
+@Composable
+private fun SeasonPill(season: Int, selected: Boolean, modifier: Modifier, onFocused: () -> Unit, onDown: () -> Unit, onClick: () -> Unit) {
+    var f by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(50)
+    Box(
+        modifier.clip(shape)
+            .background(if (selected) Color(0xFFEDEDED) else Color(0xFF26262B))
+            .border(if (f) 3.dp else 0.dp, if (f) Color.White else Color.Transparent, shape)
+            .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocused() }
+            .onPreviewKeyEvent { ev ->
+                if (ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionDown) { if (ev.nativeKeyEvent.repeatCount == 0) onDown(); true } else false
+            }
+            .clickable(onClick = onClick)
+            .padding(horizontal = dpx(22), vertical = dpx(10))
+    ) {
+        Text(raw = true, text = "Season $season", color = if (selected) Color(0xFF111111) else if (f) Color.White else Color(0xFFBDBDBD),
+            fontSize = spx(18), fontWeight = if (selected || f) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
+    }
+}
+
+/**
+ * Wide episode card (layout C): a fixed 16:9 still with "4 · Title" on a dark strip, the progress line along the bottom,
+ * a check when watched. Same size with or without artwork; the picture is decoded at card size.
+ */
+@Composable
+private fun EpisodeCard(ep: Episode, em: EpMeta?, prog: ResumeLogic.EpPos?, w: androidx.compose.ui.unit.Dp, h: androidx.compose.ui.unit.Dp,
+                        modifier: Modifier, onFocus: () -> Unit, onToggleSeen: () -> Unit, onClick: () -> Unit) {
+    var f by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(dpx(8))
+    Box(
+        modifier.size(w, h).clip(shape).background(Color(0xFF1C1C20))
+            .border(if (f) 3.dp else 0.dp, if (f) Color.White else Color.Transparent, shape)
+            .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
+            .favKeys(onToggleSeen)
+            .clickable(onClick = onClick)
+    ) {
+        val still = em?.still
+        if (still != null) {
+            val ctxI = androidx.compose.ui.platform.LocalContext.current
+            // No spoilers: an episode not watched yet shows a blurred picture, sharp again once watched
+            val hide = FofPrefs.spoilerPics && prog?.done != true
+            val req = remember(still, hide) { coil.request.ImageRequest.Builder(ctxI).data(still).size(if (hide) 32 else 640, if (hide) 18 else 360).build() }
+            AsyncImage(req, null, Modifier.fillMaxSize().then(if (hide) Modifier.blur(14.dp) else Modifier), contentScale = ContentScale.Crop)
+        } else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { BrandMark(Modifier.size(dpx(44)).graphicsLayer { alpha = 0.35f }) }
+        Row(
+            Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Color(0xCC000000)).padding(horizontal = dpx(12), vertical = dpx(8)),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(8))
+        ) {
+            Text(raw = true, text = ep.num.toString() + " · " + (em?.name ?: ep.title), color = Color.White, fontSize = spx(16),
+                fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            if (prog?.done == true) AppIcon(AIcon.Check, Color(0xFF46D369), size = dpx(16))
+        }
+        val frac = if (prog?.done == true) 1f else prog?.fraction ?: 0f
+        if (frac > 0.02f) Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(dpx(4)).background(Color(0x66808080))) {
+            Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(Color(0xFFE60023)))
+        }
+    }
+}
+
+/** Details of the focused episode under the row: fixed height; "Full synopsis" appears only when the text is cut. */
+@Composable
+private fun EpisodePanel(ep: Episode, em: EpMeta?, v: Variant, prog: ResumeLogic.EpPos?, onCut: (Boolean) -> Unit, showMore: Boolean, onMore: () -> Unit) {
+    Column(Modifier.fillMaxWidth().height(dpx(150)).padding(top = dpx(6)), verticalArrangement = Arrangement.spacedBy(dpx(6))) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(12))) {
+            Text(raw = true, text = "S${ep.season} · E${ep.num}  " + (em?.name ?: ep.title), color = Color.White, fontSize = spx(20),
+                fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            v.quality?.let { QualityBadge(it) }
+            val bits = listOfNotNull(
+                em?.runtime?.let { if (it >= 60) "${it / 60}h ${it % 60}m" else "${it}m" },
+                em?.air,
+                prog?.takeIf { !it.done && it.fraction > 0.02f }?.let { "${(it.fraction * 100).toInt()}% watched" },
+                if (prog?.done == true) "Watched" else null
+            )
+            if (bits.isNotEmpty()) Text(raw = true, text = bits.joinToString("  ·  "), color = Color(0xFFB0B0B0), fontSize = spx(15), maxLines = 1)
+        }
+        val text = em?.overview?.takeIf { !(FofPrefs.spoilerText && prog?.done != true) }
+        if (text != null) Text(raw = true, text = text, color = Color(0xFFCFCFCF), fontSize = spx(16), lineHeight = spx(23),
+            maxLines = 2, overflow = TextOverflow.Ellipsis, onTextLayout = { onCut(it.hasVisualOverflow) })
+        else { LaunchedEffect(ep.season, ep.num) { onCut(false) } }
+        if (showMore && text != null) DetailPill("Full synopsis", icon = AIcon.Info) { onMore() }
+    }
+}
+
+/** Full synopsis of one episode; Back or OK closes it. */
+@Composable
+private fun SynopsisDialog(show: String, ep: Episode, em: EpMeta?, onClose: () -> Unit) {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
+        val f = remember { FocusRequester() }
+        LaunchedEffect(Unit) { delay(60); runCatching { f.requestFocus() } }
+        Column(
+            Modifier.width(760.dp).heightIn(max = 560.dp).clip(RoundedCornerShape(18.dp)).background(Color(0xF2141416))
+                .border(1.dp, Color(0x1FFFFFFF), RoundedCornerShape(18.dp)).padding(28.dp)
+                .focusRequester(f).focusable().clickable(onClick = onClose).verticalScroll(androidx.compose.foundation.rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(raw = true, text = show, color = Color(0x99FFFFFF), fontSize = 15.sp)
+            Text(raw = true, text = "Season ${ep.season} · Episode ${ep.num}  " + (em?.name ?: ep.title), color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text(raw = true, text = em?.overview ?: "No synopsis for this episode.", color = Color(0xE6FFFFFF), fontSize = 18.sp, lineHeight = 27.sp)
         }
     }
 }

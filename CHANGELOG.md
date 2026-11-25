@@ -10,6 +10,20 @@
 - Start live-game channel matching off the remote-input thread and open the source picker if startup fails.
 - Prefer usable IPTV matches over add-ons and place source diagnostics on a separate line.
 
+## Unreleased – NBA start speed and series page layout C (release candidate, device test pending)
+
+- Sports start: no provider round trip before the picture when the last stream count (prefetched while Sports or the
+  Home live row is on screen) shows two free streams; secure DNS asked in parallel with a 1.5 s budget and known names
+  answered from the cache; live start buffer no longer grows by 2–4 s for good after one stuttering evening; identical
+  provider names no longer rebuild every channel lookup every 10 minutes. A second game picked on Home replaces the first.
+- Start trace: OK → source → stream allowed → open → first frame (and failovers) in diagnostics; starts of 3 s or more
+  are reported as "start: …" with step times only.
+- Series page, layout C: "Season N" pills above one row of wide episode cards (title on the still, progress line,
+  watched check), a fixed panel with the focused episode's synopsis, runtime, air date and progress, and "Full synopsis"
+  when the text is cut. Card sizes never change; resting on a season shows it, Down enters its episodes (resume episode
+  first); Up goes episodes → seasons → Play.
+- launch-test: sports-start job (synthetic provider for tonight's live NBA game, dead first feed, feed of another game).
+
 ## Unreleased – Reliability overhaul, batch 2 (release candidate, device test pending)
 
 - Freeze watch (release builds): when the main thread is stuck for 2 s, its stack (class, method, line only) goes to the
