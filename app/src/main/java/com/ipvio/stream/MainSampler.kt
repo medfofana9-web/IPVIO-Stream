@@ -29,6 +29,7 @@ object MainSampler {
         val t = object : BroadcastReceiver() {
             override fun onReceive(ctx: Context, i: Intent) {
                 AppNav.testTab = i.getIntExtra("tab", -1)
+                i.getStringExtra("sport")?.let { AppNav.testSport = it }
                 // Search journey: type a query as if entered on the keyboard
                 i.getStringExtra("q")?.let { SearchState.query = it }
             }

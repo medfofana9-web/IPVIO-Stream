@@ -75,6 +75,18 @@ object BufferLogic {
         return maxOf(planned.toLong(), share).toInt()
     }
 
+    /**
+     * Live start threshold: the picture of a live channel or game starts after [base] start ms, plus at most 0.4 s per
+     * learned level. The full [scale] added 2 s per level to the start of every stream, for good: one stuttering evening
+     * made every later channel switch and sports start 2–4 s slower. Stutter protection stays in the rebuffer value.
+     */
+    fun liveStartMs(baseStart: Int, level: Int): Int = (baseStart + 400 * level.coerceIn(0, 2)).coerceAtMost(2_000)
+
+    /** Automatic level learned on stutter is forgotten after [LEARN_TTL_MS] (the slow network may be gone). */
+    const val LEARN_TTL_MS = 3L * 86_400_000L
+    fun learnedNow(learned: Int, learnedAtMs: Long, nowMs: Long): Int =
+        if (learned <= 0 || learnedAtMs <= 0L || nowMs < learnedAtMs || nowMs - learnedAtMs >= LEARN_TTL_MS) 0 else learned
+
     /** [base] = (min ms, max ms, start ms, rebuffer ms, byte limit or -1). */
     fun scale(base: IntArray, level: Int): IntArray {
         if (level <= 0) return base

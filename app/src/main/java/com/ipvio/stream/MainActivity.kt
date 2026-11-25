@@ -467,11 +467,12 @@ private fun AppContent() {
     var limitHit by remember { mutableStateOf<Pair<ConnGuard.State, () -> Unit>?>(null) }
     val guardScope = rememberCoroutineScope()
     fun start(item: Item, title: String, url: String, startMs: Long = 0L) {
-        if (ConnLogic.acctOf(url) == null) { startChecked(item, title, url, startMs); return }
+        if (ConnLogic.acctOf(url) == null) { if (item.kind == Kind.LIVE) StartTrace.allowed(); startChecked(item, title, url, startMs); return }
         guardScope.launch {
-            val full = ConnGuard.blockedBy(url, replacing = playing != null)
-            if (full == null) { ConnGuard.changed(); startChecked(item, title, url, startMs) }
-            else limitHit = full to { ConnGuard.changed(); start(item, title, url, startMs) }
+            val replacing = playing != null
+            val full = ConnGuard.blockedBy(url, replacing = replacing)
+            if (full == null) { ConnGuard.changed(replacing); if (item.kind == Kind.LIVE) StartTrace.allowed(); startChecked(item, title, url, startMs) }
+            else limitHit = full to { ConnGuard.invalidate(); start(item, title, url, startMs) }
         }
     }
     limitHit?.let { (s, retry) ->
@@ -571,6 +572,26 @@ private fun AppContent() {
         AppNav.testUrl = null
         adding = false
         start(Item("fof-test", Kind.LIVE, "Test stream", null, u, null, "Test"), "Test stream", u)
+    }
+    // Test builds: OK on the first live game of a league, through the same path as the Home live tile (sports fixture)
+    LaunchedEffect(AppNav.testSport, liveAll) {
+        val league = AppNav.testSport ?: return@LaunchedEffect
+        if (liveAll.isEmpty()) return@LaunchedEffect
+        AppNav.testSport = null
+        val l = SportData.league(league) ?: return@LaunchedEffect
+        val g = runCatching { SportData.fetch(l, SportData.ymd(0, General.zone()), 0) }.getOrDefault(emptyList()).firstOrNull { it.state == 1 }
+        if (g == null) { android.util.Log.i("FofStart", "fixture: no live $league game"); return@LaunchedEffect }
+        android.util.Log.i("FofStart", "fixture: game " + g.away.name + " at " + g.home.name)
+        StartTrace.ok("fixture")
+        val chans = SportWatch.startupChannels(ctx.applicationContext, g, liveAll)
+        StartTrace.picked(chans.size)
+        android.util.Log.i("FofStart", "fixture: candidates " + chans.joinToString(" | ") { it.title })
+        if (chans.isEmpty()) return@LaunchedEffect
+        SportSession.start(g, chans, liveAll)
+        ZapContext.list = SportSession.zapList().ifEmpty { chans }; ZapContext.key = null
+        val ch = SportSession.firstChannel() ?: chans.first()
+        top = null; trail.clear(); browse = null; cats = null; adding = false
+        start(ch, ch.title, ch.url)
     }
     LaunchedEffect(AppNav.onNowSignal) { if (AppNav.onNowSignal > 0) goTab(MenuLogic.SPORT) }
     // "More Like This" at the end of a movie: the player closes itself, then the chosen title's page opens

@@ -78,6 +78,8 @@ object AppNav {
     var testPlaylist: String? = null
     /** Test builds: tab requested by the journey test (com.fof.tv.TAB broadcast), -1 = none. */
     var testTab by androidx.compose.runtime.mutableIntStateOf(-1)
+    /** Test builds only: start the first live game of this league like OK on its card (sports start fixture). */
+    var testSport by androidx.compose.runtime.mutableStateOf<String?>(null)
     /** "Watch now" on a catalog title: its title page starts the best addon stream right away. */
     var autoStream: String? = null
     /** Resume of a catalog title: season, episode, position in ms (used with [autoStream]). */

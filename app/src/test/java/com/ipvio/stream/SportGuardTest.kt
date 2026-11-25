@@ -49,7 +49,8 @@ class SportGuardTest {
 
     @Test fun placeholderChannelOrGuideIsInactive() {
         assertEquals(SportGuard.Verdict.INACTIVE, SportGuard.check("Pacers: No Game Today", null, pacersKnicks))
-        assertEquals(SportGuard.Verdict.INACTIVE, SportGuard.check("Pacers TV", EpgEntry("Signing Off", "", 100, 200), pacersKnicks))
+        assertEquals(SportGuard.Verdict.GUIDE_INACTIVE, SportGuard.check("Pacers TV", EpgEntry("Signing Off", "", 100, 200), pacersKnicks))
+        assertEquals(SportGuard.Verdict.GUIDE_INACTIVE, SportGuard.check("EPL 04", EpgEntry("No EVENT Today", "", 100, 200), pacersKnicks))
     }
 
     @Test fun staleGuideEntriesAreIgnored() {

@@ -126,8 +126,14 @@ object SportWatch {
         }
     }
 
+    @Volatile private var lastInput: List<Item>? = null
+
+    /** New provider names arrived: prepare the lookups again for the list the screens last used. */
+    fun rewarm() { lastInput?.let { prewarm(it) } }
+
     /** Prepares the list of sports channels in the background (otherwise the first opening of the hub filters all channels on the main thread). */
     fun prewarm(live0: List<Item>) {
+        lastInput = live0
         val live = SportFresh.apply(live0)
         eventChannels(live)
         val sig = sigOf(live)
@@ -342,6 +348,9 @@ object SportWatch {
             when (SportGuard.check(title, guide) { showMatches(g, it) }) {
                 SportGuard.Verdict.OK -> {}
                 SportGuard.Verdict.INACTIVE -> out[i] = Hit(h.ch, 6, "No event on this channel now")
+                // Team feed of a team that plays today: a guide placeholder ("No EVENT Today") is often stale on these
+                // feeds, so it stays automatic; network and learned guesses need the guide to agree
+                SportGuard.Verdict.GUIDE_INACTIVE -> if (h.why != 4) out[i] = Hit(h.ch, 6, "Guide: no event on this channel")
                 SportGuard.Verdict.OTHER_EVENT -> out[i] = Hit(h.ch, 6, "Guide shows another event: " + guide?.title.orEmpty())
             }
         }

@@ -61,9 +61,13 @@ object SportFresh {
                 }.getOrNull()
             }
             fetchedAt = System.currentTimeMillis()
-            if (!fresh.isNullOrEmpty()) {
+            // Only new names count: replacing an identical map every 10 minutes made every channel lookup (sports
+            // channels, event feeds, team index) rebuild on the next OK press – seconds on an onn 4K or Fire TV stick
+            if (!fresh.isNullOrEmpty() && fresh != names) {
                 names = fresh
                 withContext(Dispatchers.Main) { version++ }
+                // Rebuild the lookups now, in the background, for the list the screens use
+                withContext(Dispatchers.Default) { runCatching { SportWatch.rewarm() } }
             }
         }
     }

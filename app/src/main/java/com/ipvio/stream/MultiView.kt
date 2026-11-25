@@ -106,7 +106,7 @@ fun MultiViewScreen(live: List<Item>, start: List<Item>? = null, onExit: ((Item?
         scope.launch {
             val full = ConnGuard.blockedBy(ch.url, replacing = replacing)
             if (full != null) { limit = full; return@launch }
-            ConnGuard.changed()
+            ConnGuard.changed(replacing)
             if (replacing) slots[p] = ch else if (p == slots.size && slots.size < cap) slots.add(ch)
         }
     }

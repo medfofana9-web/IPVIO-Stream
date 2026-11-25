@@ -104,6 +104,7 @@ class HubCtx(val nav: HubNav, val live: List<Item>, private val onPlay: (Item, L
         // Keep D-pad handling on the main thread and run source matching off it.
         if (watchJob?.isActive == true && pendingGame == g.key) return
         val scope = scopeApp ?: return
+        StartTrace.ok("sports")
         watchJob?.cancel()
         pendingGame = g.key
         watchJob = scope.launch {
@@ -111,6 +112,7 @@ class HubCtx(val nav: HubNav, val live: List<Item>, private val onPlay: (Item, L
             try {
                 val candidates = SportWatch.startupChannels(ctxApp, g, live)
                 if (nav.stack.toList() != pagesAtStart) return@launch
+                StartTrace.picked(candidates.size)
                 if (candidates.isNotEmpty()) {
                     SportSession.start(g, candidates, live)
                     play(SportSession.firstChannel() ?: candidates.first(), SportSession.zapList().ifEmpty { candidates })
@@ -153,6 +155,8 @@ private val HUB_TABS = listOf("Übersicht", "Live", "Spielplan", "Ligen", "Teams
 fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     SideEffect { ContentFocus.tab = MenuLogic.SPORT }
     LaunchedEffect(Unit) { MainSampler.mark("sports: opened") }
+    // Stream count and provider address ready before OK (see StartPrep)
+    LaunchedEffect(Unit) { while (true) { StartPrep.warm(); kotlinx.coroutines.delay(30_000L) } }
     val ctx = LocalContext.current
     SportFavs.init(ctx)
     SportLeagues.init(ctx)

@@ -128,7 +128,7 @@ object AppSettings {
         clockBg = p.getBoolean("clock_bg", true)
         clockBgOpacity = p.getInt("clock_bg_op", 40).coerceIn(10, 100)
         bufferMode = p.getInt("buf_mode", 0).coerceIn(0, 3)
-        bufferLearned = p.getInt("buf_learned", 0).coerceIn(0, 2)
+        bufferLearned = BufferLogic.learnedNow(p.getInt("buf_learned", 0).coerceIn(0, 2), p.getLong("buf_learned_at", 0L), System.currentTimeMillis())
         clockPos = p.getInt("clock_pos", 0).coerceIn(0, 3)
         clockOpacity = p.getInt("clock_opacity", 70).coerceIn(20, 100)
         clockSize = p.getInt("clock_size", 1).coerceIn(0, 2)
@@ -297,7 +297,7 @@ object AppSettings {
         val n = BufferLogic.bump(bufferMode, bufferLearned)
         if (n == bufferLearned) return
         bufferLearned = n
-        prefs(c).edit().putInt("buf_learned", n).apply()
+        prefs(c).edit().putInt("buf_learned", n).putLong("buf_learned_at", System.currentTimeMillis()).apply()
     }
 
     fun setAutoFps(c: Context, on: Boolean) {

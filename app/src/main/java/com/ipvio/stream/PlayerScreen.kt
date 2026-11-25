@@ -158,7 +158,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     val player = remember {
         val http = androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(Net.player)
         ExoPlayer.Builder(ctx, SoftAudio.factory(ctx))
-            .setLoadControl(Mem.loadControl(ctx))
+            .setLoadControl(Mem.loadControl(ctx, live = req.live && req.archive == null))
             .setWakeMode(C.WAKE_MODE_NETWORK)
             // "tap://" = live buffer on the device (rewind, recording), everything else as before
             .setMediaSourceFactory(
@@ -412,6 +412,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         FeedScore.failed(ctx, cur.itemId)
         val n = SportSession.next(cur.itemId) ?: return false
         sportT[0] = System.currentTimeMillis()
+        StartTrace.failover()
         notice = (if (midGame) "Feed froze – switched to " else "Stream didn't start – trying ") + n.title
         switchTo(n, SportSession.zapList())
         return true
@@ -1066,6 +1067,9 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 val vf = player.videoFormat
                 if (vf != null) showInfo(vf.width, vf.height)
             }
+            override fun onRenderedFirstFrame() {
+                if (cur.live && cur.archive == null) { if (BuildConfig.VERSION_NAME.endsWith("-test")) StartTrace.playingTitle = cur.title; StartTrace.firstFrame(ctx) }
+            }
             override fun onVideoSizeChanged(videoSize: VideoSize) { showInfo(videoSize.width, videoSize.height); if (cur.live) FeedScore.height(ctx, cur.itemId, videoSize.height) }
         }
         player.addListener(l)
@@ -1079,6 +1083,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             // Detail page remembers the last played episode (also after "Next episode")
             if (!cur.live && cur.archive == null) DetailReturn.set(cur.itemId, cur.season, cur.episode)
             saveProgress()
+            StartTrace.abandon()
             h.removeCallbacksAndMessages(null)
             player.removeListener(l)
             player.release()
@@ -1162,6 +1167,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             return@LaunchedEffect
         }
         resolvedUrl = playUrl
+        if (cur.live && cur.archive == null) StartTrace.opening()
         if (cur.live && cur.archive == null && (LiveTimeshift.wanted(playUrl) || Recorder.isRecording(cur.itemId))) {
             // Live via the buffer on the device (rewind; with a running recording the same connection)
             if (!LiveTimeshift.start(ctx, player, playUrl)) {

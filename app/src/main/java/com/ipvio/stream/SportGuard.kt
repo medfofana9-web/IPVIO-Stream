@@ -37,7 +37,11 @@ object SportGuard {
     fun entryAt(list: List<EpgEntry>, atSec: Long): EpgEntry? = list.firstOrNull { it.start <= atSec && it.end > atSec }
 
     /** Result of the identity check for a guessed channel. */
-    enum class Verdict { OK, INACTIVE, OTHER_EVENT }
+    /**
+     * INACTIVE: the channel's own name says nothing is on. GUIDE_INACTIVE: only its guide entry says so – provider guides
+     * keep "No EVENT Today" on numbered and team feeds that do carry the game, so this alone is weak evidence.
+     */
+    enum class Verdict { OK, INACTIVE, GUIDE_INACTIVE, OTHER_EVENT }
 
     /**
      * [channelTitle]: the channel's own name, [guide]: its guide entry at kickoff (null = no fresh guide data, nothing
@@ -48,8 +52,8 @@ object SportGuard {
         if (guide == null) return Verdict.OK
         val t = guide.title
         if (isThisGame(t) || isThisGame(guide.desc)) return Verdict.OK
-        if (inactive(t)) return Verdict.INACTIVE
         if (namesMatchup(t)) return Verdict.OTHER_EVENT
+        if (inactive(t)) return Verdict.GUIDE_INACTIVE
         return Verdict.OK
     }
 }

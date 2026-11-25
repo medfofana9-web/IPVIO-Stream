@@ -47,8 +47,12 @@ object Mem {
         else -> intArrayOf(30_000, 60_000, 1_500, 8_000, -1)
     }
 
-    fun loadControl(ctx: Context): DefaultLoadControl {
-        val p = BufferLogic.scale(bufferPlan(tier(ctx)), BufferLogic.level(AppSettings.bufferMode, AppSettings.bufferLearned))
+    fun loadControl(ctx: Context, live: Boolean = false): DefaultLoadControl {
+        val base = bufferPlan(tier(ctx))
+        val lvl = BufferLogic.level(AppSettings.bufferMode, AppSettings.bufferLearned)
+        val p = BufferLogic.scale(base, lvl)
+        // Live: first picture after the short start threshold (TiviMate-like zapping); bigger buffers still apply after it
+        if (live) p[2] = BufferLogic.liveStartMs(base[2], lvl)
         val b = DefaultLoadControl.Builder().setBufferDurationsMs(p[0], p[1], p[2], p[3])
         val bytes = BufferLogic.byteLimit(p[4], Runtime.getRuntime().maxMemory())
         if (bytes > 0) b.setTargetBufferBytes(bytes).setPrioritizeTimeOverSizeThresholds(false)

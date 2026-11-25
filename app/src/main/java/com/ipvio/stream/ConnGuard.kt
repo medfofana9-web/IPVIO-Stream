@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.Request
@@ -39,34 +40,67 @@ object ConnGuard {
     fun acctOf(url: String): XtreamLogic.Acct? = ConnLogic.acctOf(url)
 
     @Volatile private var last: Pair<Long, State>? = null
+    /** Streams started here since [last] was read (counted on top of its active streams). */
+    @Volatile private var startedSince = 0
+    private val bg = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+    @Volatile private var fetching: kotlinx.coroutines.Deferred<State?>? = null
 
     /** Streams this device itself holds (player, multi view tiles): they are replaced, not added. */
     @Volatile var own = 0
 
+    private fun fetchAsync(a: XtreamLogic.Acct, delayMs: Long = 0): kotlinx.coroutines.Deferred<State?> {
+        fetching?.let { if (it.isActive) return it }
+        val d = bg.async {
+            if (delayMs > 0) kotlinx.coroutines.delay(delayMs)
+            val s = runCatching {
+                Net.withTimeouts(2, 2).newCall(Request.Builder().url(XtreamLogic.api(a)).build()).execute().use { r ->
+                    if (!r.isSuccessful) null else ConnLogic.parse(r.body?.string().orEmpty())
+                }
+            }.getOrNull()
+            if (s != null) { last = System.currentTimeMillis() to s; startedSince = 0 }
+            s
+        }
+        fetching = d
+        return d
+    }
+
     suspend fun state(url: String): State? {
         val a = acctOf(url) ?: return null
-        last?.let { if (System.currentTimeMillis() - it.first < 8_000L) return it.second }
-        val s = withTimeoutOrNull(2_500L) {
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    Net.withTimeouts(2, 2).newCall(Request.Builder().url(XtreamLogic.api(a)).build()).execute().use { r ->
-                        if (!r.isSuccessful) null else ConnLogic.parse(r.body?.string().orEmpty())
-                    }
-                }.getOrNull()
-            }
-        } ?: return null
-        last = System.currentTimeMillis() to s
-        return s
+        last?.let { if (System.currentTimeMillis() - it.first < 8_000L) return it.second.let { s -> s.copy(active = s.active + startedSince) } }
+        return withTimeoutOrNull(ConnLogic.LIVE_CHECK_MS) { fetchAsync(a).await() }
     }
 
-    /** null = a stream may start; otherwise the state that blocks it. [replacing] = this device stops one of its own for it. */
+    /** Ask the provider ahead (Sports or Home live row on screen), so pressing OK can start at once. */
+    fun prefetch(url: String?) {
+        val a = url?.let { acctOf(it) } ?: return
+        val l = last
+        if (l != null && System.currentTimeMillis() - l.first < ConnLogic.PREFETCH_EVERY_MS) return
+        fetchAsync(a)
+    }
+
+    /**
+     * null = a stream may start; otherwise the state that blocks it. [replacing] = this device stops one of its own for it.
+     * A recent answer with at least two free streams starts at once (it was a provider round trip, up to 2.5 s, before
+     * every channel or game); close to the limit the provider is asked again, so the family cap still holds.
+     */
     suspend fun blockedBy(url: String, replacing: Boolean = false): State? {
+        val freed = if (replacing) maxOf(own, 1) else 0
+        val l = last
+        if (l != null && ConnLogic.clearlyFree(l.second.active + startedSince, l.second.max, freed, System.currentTimeMillis() - l.first)) {
+            // Keep the count current for the next start, once this stream is connected and counted by the provider
+            acctOf(url)?.let { fetchAsync(it, delayMs = 6_000) }
+            return null
+        }
         val s = state(url) ?: return null
-        return if (ConnLogic.full(s.active, s.max, if (replacing) maxOf(own, 1) else 0)) s else null
+        return if (ConnLogic.full(s.active, s.max, freed)) s else null
     }
 
-    /** A new stream started or stopped here: the next check asks the provider again. */
-    fun changed() { last = null }
+    /** A new stream started here: counted on top of the last answer until the provider is asked again ([replacing]:
+     * this device stopped one of its own for it, so the count stays). */
+    fun changed(replacing: Boolean = false) { if (!replacing) startedSince++ }
+
+    /** "Try again" after the limit dialog: the next check asks the provider. */
+    fun invalidate() { last = null; startedSince = 0 }
 }
 
 /** Pure parts (testable without Android). */
@@ -88,6 +122,16 @@ object ConnLogic {
         val max = ui.opt("max_connections")?.toString()?.trim()?.toIntOrNull() ?: return null
         return if (max > 0) ConnGuard.State(active, max) else null
     }
+
+    /** Longest wait for the provider's stream count before a start is allowed anyway (was 2.5 s). */
+    const val LIVE_CHECK_MS = 1_500L
+    /** How old a stream count may be to start without asking again. */
+    const val TRUST_MS = 60_000L
+    const val PREFETCH_EVERY_MS = 30_000L
+
+    /** A recent count ([ageMs]) leaves at least two streams free: start without waiting for the provider. */
+    fun clearlyFree(active: Int, max: Int, freedHere: Int, ageMs: Long): Boolean =
+        max > 0 && ageMs in 0 until TRUST_MS && active - freedHere + 2 <= max
 
     /** All streams in use, not counting [freedHere] that this device gives up for the new one. */
     fun full(active: Int, max: Int, freedHere: Int): Boolean = active - freedHere >= max

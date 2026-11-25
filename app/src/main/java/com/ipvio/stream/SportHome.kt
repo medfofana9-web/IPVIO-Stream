@@ -77,6 +77,7 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
     val readyVersions = remember(live) { HashMap<String, Int>() }
     // Ignore repeated OK presses while the same match is resolving.
     var openingGame by remember { mutableStateOf<String?>(null) }
+    val openJob = remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var teamGames by remember { mutableStateOf(emptyList<SportData.Game>()) }
     val games by produceState(emptyList<SportData.Game>(), SportPrefs.version) {
         while (true) {
@@ -101,6 +102,8 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
     val gameKeys = remember(games) { games.map { it.key } }
     val lookupVersion = ((SportWatch.prepVersion * 31 + SportWatch.version) * 31 + SportAddons.version) * 31 + SportFresh.version
     LaunchedEffect(Unit) { SportFresh.awaitRefresh() }
+    // Stream count and provider address ready before OK (see StartPrep)
+    LaunchedEffect(Unit) { while (true) { StartPrep.warm(); delay(30_000L) } }
     LaunchedEffect(gameKeys, live, lookupVersion) {
         if (live.isEmpty() || games.isEmpty()) return@LaunchedEffect
         val missing = games.filter { readyVersions[it.key] != lookupVersion }
@@ -129,14 +132,19 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
         LazyRow(contentPadding = PaddingValues(horizontal = RowPadX, vertical = dpx(10)), horizontalArrangement = Arrangement.spacedBy(dpx(18))) {
             items(games, key = { it.key }) { g ->
                 GameTileCard(g) {
-                    if (openingGame != null) return@GameTileCard
+                    // Same game again while it resolves: ignored. Another game: it replaces the first, which can
+                    // then never start late on top of it
+                    if (openingGame == g.key) return@GameTileCard
+                    openJob.value?.cancel()
                     openingGame = g.key
-                    scope.launch {
+                    StartTrace.ok("home")
+                    openJob.value = scope.launch {
                         try {
                             val channels = readyGames[g.key]?.takeIf {
                                 readyVersions[g.key] == lookupVersion && it.isNotEmpty()
                             } ?: SportWatch.startupChannels(ctx.applicationContext, g, live)
                             if (channels.isNotEmpty()) {
+                                StartTrace.picked(channels.size)
                                 SportSession.start(g, channels, live)
                                 ZapContext.list = SportSession.zapList().ifEmpty { channels }
                                 ZapContext.key = null
@@ -152,7 +160,7 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
                             openInHub(HubPage.Watch(g))
                             onSports()
                         } finally {
-                            openingGame = null
+                            if (openingGame == g.key) openingGame = null
                         }
                     }
                 }
