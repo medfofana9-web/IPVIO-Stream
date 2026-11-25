@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased – Profile screen crash fix
+
+- Fixed a crash on the profile screen while the account sync updated a profile picture in the background
+  (auto-report #54). Avatar changes from the sync are now applied on the main thread, like profile names.
+
 ## Unreleased – Faster live sports startup
 
 - Open matched channels immediately from Home and Sports. When a game has no match, check provider names and add-ons in parallel for up to three seconds before opening the source picker.

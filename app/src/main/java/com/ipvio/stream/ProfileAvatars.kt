@@ -86,6 +86,15 @@ object ProfileAvatars {
     var version by mutableIntStateOf(0)
         private set
 
+    // The account sync changes avatars on a background thread; bumping this state there while a screen reads it
+    // crashed the profile screen ("Reading a state that was created after the snapshot was taken", auto-report #54).
+    // Like the profile list (Profiles.rename/remove run on Main), the change is applied on the main thread.
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+
+    private fun bump() {
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) version++ else main.post { version++ }
+    }
+
     fun photoFile(c: Context, id: Int): File = File(c.applicationContext.filesDir, "avatars/p$id.jpg")
 
     fun presetFor(c: Context, id: Int): Preset {
@@ -103,7 +112,7 @@ object ProfileAvatars {
     fun set(c: Context, id: Int, value: String?) {
         if (value == keyOf(c, id) && value?.startsWith("photo:") != true) return
         prefs(c).edit().apply { if (value == null) remove("a$id") else putString("a$id", value) }.apply()
-        version++
+        bump()
         CloudSync.kick(c)
     }
 
@@ -119,7 +128,7 @@ object ProfileAvatars {
         val sq = android.graphics.Bitmap.createBitmap(bmp, (bmp.width - s) / 2, (bmp.height - s) / 2, s, s)
         val out = android.graphics.Bitmap.createScaledBitmap(sq, minOf(s, 320), minOf(s, 320), true)
         f.outputStream().use { out.compress(android.graphics.Bitmap.CompressFormat.JPEG, 86, it) }
-        if (fromAccount != null) { prefs(c).edit().putString("a$id", fromAccount).apply(); version++ }
+        if (fromAccount != null) { prefs(c).edit().putString("a$id", fromAccount).apply(); bump() }
         else set(c, id, "photo:" + (System.currentTimeMillis() / 1000 % 1_000_000).toInt())
         return true
     }
