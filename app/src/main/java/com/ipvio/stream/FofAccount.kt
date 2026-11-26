@@ -283,10 +283,8 @@ object FofAccount {
         val t = token(c) ?: return@withContext
         val (kind, at) = CrashLog.last(c) ?: return@withContext
         if (at <= prefs(c).getLong("rep_acct_at", 0L) || System.currentTimeMillis() - at > 7 * 86_400_000L) return@withContext
-        val body = JSONObject().put("profile", Profiles.activeName().take(60)).put("kind", kind.take(400)).put("version", AppUpdate.currentName(c).take(30))
-            .put("device", (android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL).trim().take(80))
-            .put("happened_at", java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.format(java.util.Date(at)))
-        val (code, _) = runCatching { call("POST", "/rest/v1/fof_reports", body.toString(), t) }.getOrDefault(0 to "")
+        // The problem's name stays as before; raw frames, memory and the last steps follow as details (split into rows)
+        val code = AutoReport.post(c, t, Profiles.activeName(), ReportLogic.join(kind.take(380), CrashLog.details(c)), at)
         if (code in 200..299) prefs(c).edit().putLong("rep_acct_at", at).apply()
     }
 

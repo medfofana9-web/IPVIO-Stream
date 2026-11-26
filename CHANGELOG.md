@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased – More detailed automatic problem reports (T-010)
+
+- Freezes and crashes carry the raw code location; the hourly report job turns it back into source lines with the
+  release's mapping file. Freezes are followed until they end (length, where the time went, most common place).
+- Slow-screen reports say how many frames were drawn while nobody pressed a key, where in the screen the slow frames
+  were (title page, settings, search), the display mode, Lite/Motion/clean look and memory. A still screen that keeps
+  drawing is measured once and reported as "idle-draw" with the code that keeps it busy.
+- Playback errors name the error code, HTTP status, kind of stream (e.g. "live xtream ts", never the address), format
+  and failovers; low-memory closes include memory and screen from just before; all problem reports list the last steps.
+- Issues are grouped without line numbers and keep a "Versions seen" line, so a fix shows as versions that stop reporting.
+
 ## Unreleased – Welcome screen crash and Sports freeze from the auto-reports
 
 - Fixed a crash on the welcome (profile) screen on the onn 4K (auto-report #63): the account sync could create the

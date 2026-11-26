@@ -188,7 +188,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     var failed by remember { mutableStateOf(false) }
     // Automatic problem report: a stream that finally did not play (title and reason only, never the link)
     LaunchedEffect(failed) {
-        if (failed) AutoReport.issue(ctx, "stream", (if (cur.live) "live " else "vod ") + "'" + cur.title + "' – " + (msg ?: "no picture"))
+        if (failed) AutoReport.issue(ctx, "stream", (if (cur.live) "live " else "vod ") + "'" + cur.title + "' – " + (msg ?: "no picture"),
+            runCatching { ReportLogic.sourceKind(cur.url, cur.live) + " · failovers " + StartTrace.failoverCount() + " · " + ReportCtx.all(ctx) }.getOrDefault(""))
     }
     // Watch Together panel (start / code / reactions / leave)
     var partyPanel by remember { mutableStateOf(false) }
@@ -953,8 +954,18 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         val l = object : Player.Listener {
             override fun onPlayerError(e: PlaybackException) {
                 pError = true
-                FrameStats.incident(ctx, FrameStats.Incident.PLAYBACK_ERROR)
                 val status = httpStatusOf(e)
+                // Report details: error code, HTTP status, kind of stream (from the address shape), format, feeds tried
+                runCatching {
+                    val vf = player.videoFormat
+                    val fmt = listOfNotNull(vf?.sampleMimeType?.substringAfter('/'), vf?.let { if (it.height > 0) "${it.width}x${it.height}" else null })
+                    ReportCtx.crumb("error " + e.errorCodeName.removePrefix("ERROR_CODE_"))
+                    FrameStats.incident(ctx, FrameStats.Incident.PLAYBACK_ERROR, listOf(
+                        e.errorCodeName.removePrefix("ERROR_CODE_") + (if (status > 0) " HTTP $status" else ""),
+                        ReportLogic.sourceKind(cur.url, cur.live), fmt.joinToString(" ").ifEmpty { "no format yet" },
+                        "ready before " + readyOnce, "failovers " + StartTrace.failoverCount(), ReportCtx.all(ctx)
+                    ).joinToString(" · "))
+                }.onFailure { FrameStats.incident(ctx, FrameStats.Incident.PLAYBACK_ERROR) }
                 Diag.report("Playback: " + e.errorCodeName + (if (status > 0) " (HTTP $status)" else ""))
                 val decoder = e.errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
                     e.errorCode == PlaybackException.ERROR_CODE_DECODING_FAILED ||

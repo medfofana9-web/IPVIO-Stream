@@ -109,6 +109,7 @@ object SettingsNav {
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun SettingsHub(onAdd: () -> Unit, reload: () -> Unit) {
+    ReportPlace("settings")
     if (FofPrefs.cleanLook) { SettingsTwoPane(onAdd, reload); return }
     val ctx = LocalContext.current
     var page by remember { mutableIntStateOf(-1) }

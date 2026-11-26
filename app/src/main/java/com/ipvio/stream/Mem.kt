@@ -93,8 +93,15 @@ object CrashLog {
                     .joinToString(" < ") { (it.fileName ?: it.className.substringAfterLast('.')) + ":" + it.lineNumber }
                 val kind = root.javaClass.simpleName + (if (root is OutOfMemoryError) " (Speicher voll)" else "") +
                     (root.message?.take(140)?.let { ": $it" } ?: "")
+                // Report details (key "details", next to "last"): raw frames for retracing, thread, outer exception, context
+                val details = runCatching {
+                    listOf("raw: " + FreezeLogic.raw(root.stackTrace.toList(), 10), "thread " + t.name.take(30),
+                        if (root !== e) "outer " + e.javaClass.simpleName + " at " + FreezeLogic.raw(e.stackTrace.toList(), 3) else "",
+                        ReportCtx.all(app)).filter { it.isNotBlank() }.joinToString(" · ")
+                }.getOrDefault("")
                 app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
                     .putString("last", kind + (if (frames.isNotEmpty()) " · " + frames else ""))
+                    .putString("details", details)
                     .putLong("at", System.currentTimeMillis()).putBoolean("shown", false).commit()
             }
             prev?.uncaughtException(t, e)
@@ -123,9 +130,14 @@ object CrashLog {
                 else -> return
             }
             val mb = e.pss / 1024
+            // What was going on just before (the snapshot [ReportCtx] saves every 30 s): a low-memory close has no stack
+            val details = listOfNotNull("rss " + e.rss / 1024 + " MB", "importance " + e.importance,
+                ReportCtx.snapshotBefore(app, e.timestamp)?.let { "before: $it" },
+                "ram ${Mem.totalMb(app)}MB tier ${Mem.tier(app)}").joinToString(" · ")
             // Keep a freeze location saved by the watcher a moment before (it says where the screen was stuck)
             val prev = sp.getString("last", null)?.takeIf { it.startsWith("Freeze") && e.timestamp - sp.getLong("at", 0L) in 0..120_000 }
             sp.edit().putString("last", "$why (memory $mb MB" + (e.description?.take(80)?.let { ", $it" } ?: "") + ")" + (prev?.let { " · $it" } ?: ""))
+                .putString("details", details)
                 .putLong("at", e.timestamp).putBoolean("shown", false).commit()
         }
     }
@@ -160,8 +172,10 @@ object CrashLog {
                         val own = st.filter { it.className.startsWith("com.ipvio") }.take(5).ifEmpty { st.take(4) }
                         val where = own.joinToString(" < ") { (it.fileName ?: it.className.substringAfterLast('.')) + ":" + it.lineNumber }
                         android.util.Log.w("FofFreeze", "main thread stuck: $where")
+                        val details = runCatching { "raw: " + FreezeLogic.raw(st.toList()) + " · " + ReportCtx.all(app) }.getOrDefault("")
                         app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
                             .putString("last", "Freeze (screen stuck 4 s) · $where")
+                            .putString("details", details)
                             .putLong("at", System.currentTimeMillis()).putBoolean("shown", false).commit()
                     }
                     while (tick.get() == sent) Thread.sleep(500)
@@ -175,6 +189,9 @@ object CrashLog {
         val s = sp.getString("last", null) ?: return null
         return s to sp.getLong("at", 0L)
     }
+
+    /** Details of [last] for the problem report (raw frames, memory, last steps); empty for older entries. */
+    fun details(ctx: Context): String = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("details", null).orEmpty()
 
     /** Last crash not shown yet and less than 30 minutes old; marks it as shown. */
     fun takeRecent(ctx: Context): String? {

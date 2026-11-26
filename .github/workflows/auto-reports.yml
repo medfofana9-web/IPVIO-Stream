@@ -10,10 +10,18 @@ on:
       hours:
         description: 'How many hours back to read'
         default: '2'
+      dry_run:
+        description: 'Print the issues instead of writing them (1 = yes)'
+        default: '0'
+      retrace_test:
+        description: 'Only test retracing: "<version>|<raw frames>"'
+        default: ''
 
 permissions:
   issues: write
   contents: read
+  # The R8 mapping of each release (artifact of release.yml) turns raw stack frames back into source lines
+  actions: read
 
 jobs:
   reports:
@@ -26,4 +34,6 @@ jobs:
           FOF_SUPABASE_SERVICE_KEY: ${{ secrets.FOF_SUPABASE_SERVICE_KEY }}
           GH_TOKEN: ${{ github.token }}
           LOOKBACK_HOURS: ${{ github.event.inputs.hours || '2' }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || '0' }}
+          RETRACE_TEST: ${{ github.event.inputs.retrace_test || '' }}
         run: python3 tools/auto_reports.py

@@ -91,6 +91,7 @@ fun DetailScreen(
     embedded: Boolean = false, autoFocus: Boolean = true, onTopUp: (() -> Unit)? = null,
     showActions: Boolean = true
 ) {
+    if (!embedded) ReportPlace("detail")
     val ctx = LocalContext.current
     var tryNo by remember(item.id) { mutableIntStateOf(0) }
     // Cinema preview without buttons (info only) does not need the episodes

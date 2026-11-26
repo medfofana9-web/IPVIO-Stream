@@ -11,7 +11,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import org.json.JSONObject
 
 /**
  * Measures real frames on this TV (Android frame metrics, no extra library): per screen how many frames were slow and
@@ -25,7 +24,12 @@ object FrameStats {
     // underneath and made e.g. Sports look 97 % slow and GPU-bound while nobody was navigating
     private fun screen(): String = if (AppNav.playing) "player" else if (Ambient.on) "ambient" else "tab" + NavState.tab
 
-    private class Agg { var frames = 0; var slow = 0; var frozen = 0; var worst = 0L; val ph = LongArray(5); val hist = IntArray(6) }
+    private class Agg {
+        var frames = 0; var slow = 0; var frozen = 0; var worst = 0L; val ph = LongArray(5); val hist = IntArray(6)
+        // Frames drawn with no key pressed for 3 s (a still screen should draw almost none), when it started, and the
+        // place inside the screen of each slow frame (title page, settings …)
+        var idle = 0; var idleSlow = 0; val since = System.currentTimeMillis(); val where = HashMap<String, Int>()
+    }
     private val agg = HashMap<String, Agg>()
     private var started = 0L
     private var thread: HandlerThread? = null
@@ -56,8 +60,11 @@ object FrameStats {
             a.frames++
             a.hist[when { ms < 17 -> 0; ms < 25 -> 1; ms < 34 -> 2; ms < 50 -> 3; ms < 100 -> 4; else -> 5 }]++
             if (ms > a.worst) a.worst = ms
+            val idle = System.currentTimeMillis() - Ambient.lastKey > IDLE_MS
+            if (idle) { a.idle++; idleFrames++; if (ms >= 25) a.idleSlow++ }
             if (ms >= 25) {
                 a.slow++
+                a.where.merge(ReportCtx.place, 1, Int::plus)
                 if (ms >= 700) a.frozen++
                 a.ph[0] += m.getMetric(FrameMetrics.INPUT_HANDLING_DURATION) + m.getMetric(FrameMetrics.UNKNOWN_DELAY_DURATION)
                 a.ph[1] += m.getMetric(FrameMetrics.ANIMATION_DURATION)
@@ -77,16 +84,32 @@ object FrameStats {
             " worst ${worst}ms h=" + hist.joinToString("/") + " | in ${pc(0)} an ${pc(1)} lay ${pc(2)} dr ${pc(3)} gpu ${pc(4)}"
     }
 
+    private const val IDLE_MS = 3_000L
+
+    /** Details of one screen's summary: idle drawing, where the slow frames were, settings, display, memory. */
+    private fun details(c: Context, a: Agg): String {
+        val secs = ((System.currentTimeMillis() - a.since) / 1000).coerceAtLeast(1)
+        val idle = "idle ${a.idle}f" + (if (a.idle > 0) " slow ${a.idleSlow * 100 / a.idle}%" else "") + " · over ${secs}s"
+        return listOf(idle, "where " + ReportLogic.places(a.where), ReportCtx.settings(), ReportCtx.display, ReportCtx.mem(c))
+            .filter { it.isNotBlank() }.joinToString(" · ")
+    }
+
     /** Sends the summary (when there is enough to judge) and starts a new measurement. */
     fun flush(c: Context) {
         val lines = synchronized(agg) {
-            val l = agg.filter { it.value.frames >= 120 }.map { (k, a) -> line(k, a.frames, a.slow, a.frozen, a.worst, a.ph, a.hist) }
+            val l = agg.filter { it.value.frames >= 120 }.map { (k, a) ->
+                ReportLogic.join(line(k, a.frames, a.slow, a.frozen, a.worst, a.ph, a.hist), details(c, a))
+            }
             if (l.isNotEmpty()) agg.clear()
             l
         }
         if (lines.isEmpty() || !FofAccount.signedIn) return
         send(c, lines.map { "perf: " + it })
     }
+
+    /** All frames drawn with no key pressed for 3 s, since start (read by [IdleDraw]; written by the frames thread only). */
+    @Volatile var idleFrames = 0L
+        private set
 
     /** "Report lag" (double Menu): what was measured since the last summary, every screen, without clearing it. */
     fun snapshot(): List<String> = synchronized(agg) {
@@ -108,28 +131,25 @@ object FrameStats {
 
     private val reportedAt = HashMap<Incident, Long>()
 
-    /** Only fixed labels leave the device. Repeated incidents are limited to one per category per minute. */
-    fun incident(c: Context, incident: Incident) {
+    /**
+     * Only fixed labels name the incident; [details] adds error codes, stream kind and format (never addresses or
+     * titles). Repeated incidents are limited to one per category per minute.
+     */
+    fun incident(c: Context, incident: Incident, details: String = "") {
         if (!FofAccount.signedIn) return
         val now = android.os.SystemClock.elapsedRealtime()
         synchronized(reportedAt) {
             if (reportedAt[incident]?.let { now - it < 60_000 } == true) return
             reportedAt[incident] = now
         }
-        send(c, listOf("reliability: " + incident.label))
+        send(c, listOf(ReportLogic.join("reliability: " + incident.label, details)))
     }
 
     private fun send(c: Context, summaries: List<String>) {
         val app = c.applicationContext
         scope.launch {
             val t = FofAccount.tokenFor(app) ?: return@launch
-            for (summary in summaries) {
-                val body = JSONObject().put("profile", "-").put("kind", summary.take(400))
-                    .put("version", AppUpdate.currentName(app).take(30))
-                    .put("device", (Build.MANUFACTURER + " " + Build.MODEL).trim().take(80))
-                    .put("happened_at", java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.format(java.util.Date()))
-                runCatching { FofAccount.call("POST", "/rest/v1/fof_reports", body.toString(), t) }
-            }
+            for (summary in summaries) AutoReport.post(app, t, "-", summary, System.currentTimeMillis())
         }
     }
 }

@@ -70,6 +70,7 @@ fun SearchScreen(
     tab: Int, state: LazyListState,
     onOpen: (Item) -> Unit, onBrowse: (BrowseReq) -> Unit, onTab: (Int) -> Unit
 ) {
+    ReportPlace("search")
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val all = PlaylistStore.channels

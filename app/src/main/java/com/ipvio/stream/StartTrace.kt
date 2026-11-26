@@ -21,7 +21,9 @@ object StartTrace {
     private fun now() = SystemClock.elapsedRealtime()
 
     /** OK pressed on a game card / Home live tile ([from] = "sports", "home") or a channel ("live"). */
-    @Synchronized fun ok(from: String) { origin = from; tOk = now(); tPick = 0; tAllowed = 0; tOpen = 0; tLastOpen = 0; feeds = 0; failovers = 0 }
+    @Synchronized fun failoverCount(): Int = failovers
+
+    @Synchronized fun ok(from: String) { ReportCtx.crumb("ok $from"); origin = from; tOk = now(); tPick = 0; tAllowed = 0; tOpen = 0; tLastOpen = 0; feeds = 0; failovers = 0 }
 
     /** Sources for the game are known ([n] candidates). */
     @Synchronized fun picked(n: Int) { if (tOk > 0 && tPick == 0L) { tPick = now(); feeds = n } }
@@ -55,9 +57,10 @@ object StartTrace {
             r
         } ?: return
         last = line.text
+        ReportCtx.crumb("picture " + line.text.substringAfter(' ').substringBefore(' '))
         android.util.Log.i("FofStart", "first frame: " + line.text + (if (BuildConfig.VERSION_NAME.endsWith("-test")) " · on " + playingTitle else ""))
         Diag.report("Start " + line.text)
-        if (line.slow) AutoReport.issue(c, "start", line.text)
+        if (line.slow) AutoReport.issue(c, "start", line.text, ReportCtx.all(c))
     }
 
     /** Player closed before a picture: the trace ends without a result. */

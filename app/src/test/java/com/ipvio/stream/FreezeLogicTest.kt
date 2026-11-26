@@ -30,4 +30,17 @@ class FreezeLogicTest {
     @Test fun emptyTraceGivesNothing() {
         assertEquals("", FreezeLogic.summarize(emptyList()))
     }
+
+    @Test fun rawFramesKeepClassAndMethodForRetracing() {
+        val trace = listOf(
+            e("androidx.compose.runtime.a", "b", "r8-map-id-123", 48),
+            e("com.ipvio.stream.ProfileAvatars", "presetFor", "ProfileAvatars.kt", 378),
+            e("android.os.Looper", "loop", "Looper.java", 200)
+        )
+        assertEquals("androidx.compose.runtime.a.b:48 < com.ipvio.stream.ProfileAvatars.presetFor:378", FreezeLogic.raw(trace))
+    }
+
+    @Test fun waitingForWorkIsNoFreeze() {
+        assertTrue(FreezeLogic.idle(listOf(e("android.os.MessageQueue", "nativePollOnce", null, -2))))
+    }
 }
