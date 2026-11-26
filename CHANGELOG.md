@@ -6,6 +6,9 @@
   the addons have answered. When that copy did not start, the list of other sources was still empty and playback gave
   up with "This stream does not start" (Inside Man, report from 1.3.280). The addons are now asked again and the next
   fitting source starts at the same spot.
+- A source that is still downloading (bytes arriving) gets up to 30 s instead of 6 s before the next one is tried: a
+  resume far into a file on a server that cannot jump to the spot has to read up to it first (DragonStreams played
+  Inside Man from the start but not on Resume).
 
 ## Unreleased – Subtitles from the internet
 

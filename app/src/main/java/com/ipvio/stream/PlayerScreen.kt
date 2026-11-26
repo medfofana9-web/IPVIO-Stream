@@ -901,6 +901,9 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         // If the player hangs in buffering for a long time (dead connection without an error): reconnect up to twice
         var bufSince = 0L
         var wdTries = 0
+        // Bytes received when the wait began: a source that is downloading (e.g. a resume far into a file from a server
+        // without range requests, which must read up to the spot) is not dropped after 6 s like one that sends nothing
+        var bufBytes = 0L
         val tick = object : Runnable {
             override fun run() {
                 saveProgress(push = false)
@@ -908,13 +911,14 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 val nowT = System.currentTimeMillis()
                 if (cur.live && cur.archive == null && !readyOnce && SportSession.owns(cur.itemId) && sportT[0] > 0 && nowT - sportT[0] > 6_000L) sportFailover()
                 if (player.playbackState == Player.STATE_BUFFERING && player.playWhenReady && !pError) {
-                    if (bufSince == 0L) bufSince = nowT
+                    val receiving = bufSince > 0L && StreamBytes.total.get() - bufBytes > 256 * 1024
+                    if (bufSince == 0L) { bufSince = nowT; bufBytes = StreamBytes.total.get() }
                     // Movie/episode that never showed a picture, or still hanging after two reconnects: reloading the same
                     // link rarely helps, so the next source is tried (other quality, next addon stream, next 24/7 episode).
                     // Before this the spinner could stay forever.
                     // Addon movies/episodes have many sources: a source that shows nothing for 12 s is replaced sooner
-                    else if (!cur.live && ((!readyOnce && nowT - bufSince > (if (NowSources.owns(cur.itemId, cur.season, cur.episode)) 6_000L else 20_000L)) || (wdTries >= 2 && nowT - bufSince > 30_000L))) {
-                        bufSince = nowT; wdTries = 0
+                    else if (!cur.live && ((!readyOnce && nowT - bufSince > (if (NowSources.owns(cur.itemId, cur.season, cur.episode) && !receiving) 6_000L else if (receiving) 30_000L else 20_000L)) || (wdTries >= 2 && nowT - bufSince > 30_000L))) {
+                        bufSince = nowT; bufBytes = StreamBytes.total.get(); wdTries = 0
                         val rv = revertTo
                         if (rv != null && rv.first != cur.url) { revertTo = null; cur = cur.copy(url = rv.first, startMs = rv.second, note = null); notice = "That source did not start – back to the previous one" }
                         else if (switchSource("Source did not start", sameFirst = false)) msg = null
