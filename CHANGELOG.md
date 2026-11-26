@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased – A movie whose first source does not start keeps trying the addons
+
+- Resume (and Play) with one-click starts the source that played before at once, often the provider's own copy, before
+  the addons have answered. When that copy did not start, the list of other sources was still empty and playback gave
+  up with "This stream does not start" (Inside Man, report from 1.3.280). The addons are now asked again and the next
+  fitting source starts at the same spot.
+
 ## Unreleased – Subtitles from the internet
 
 - Movies and episodes whose stream has no subtitles in your subtitle language get them from OpenSubtitles (free

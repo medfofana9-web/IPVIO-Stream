@@ -560,8 +560,23 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         // Addon title: the next source from its own list (same identity), as often as there are fitting sources
         if (NowSources.owns(cur.itemId, cur.season, cur.episode)) {
             triedUrls.add(cur.url)
-            val n = nextAddonSource() ?: return false
-            playSource(n, "Trying another copy", revert = false)
+            nextAddonSource()?.let { playSource(it, "Trying another copy", revert = false); return true }
+            // The list was taken when the source was picked, often before the addons answered (one-click starts a source
+            // that played before at once, e.g. the provider's copy). When that one does not start, the list held nothing
+            // else and playback gave up ("This stream does not start", Inside Man on Resume): ask the addons now, once.
+            val w = NowSources.want
+            val imdb = NowSources.imdb
+            if (stremioTried || w == null || imdb == null || Stremio.addons.none { it.streams }) return false
+            stremioTried = true
+            scope.launch {
+                val fresh = runCatching {
+                    Stremio.streams(if (w.series) Kind.SERIES else Kind.MOVIE, imdb, w.season.coerceAtLeast(1), w.ep.coerceAtLeast(1))
+                }.getOrDefault(emptyList()).filter { it.url.isNotBlank() || it.hash != null }
+                NowSources.list = Stremio.rank((NowSources.list + fresh).distinctBy { it.key }, w, NowSources.contentId)
+                val n = nextAddonSource()
+                if (n != null) playSource(n, "Trying another copy", revert = false)
+                else { msg = "No working source in your playlist or your Stremio addons.  " + Lang.tr("Press Back to return."); failed = true }
+            }
             return true
         }
         if (stremioTried || cur.live || cur.archive != null || Stremio.addons.none { it.streams }) return false
