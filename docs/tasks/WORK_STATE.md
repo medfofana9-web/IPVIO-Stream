@@ -1,5 +1,12 @@
 # Work state
 
+## 26 Nov 2026 – 1.3.279: detailed reports (T-010), resume fix; online subtitles on branch `auto-fix`
+- Released 1.3.279: T-010 (see `docs/tasks/T-010-detailed-reports.md`), movie Resume asks addons for a fresh link
+  (`ResumeFreshLogic.movieUrl`, `DetailScreen` Resume uses `targetFresh`), #63 and #64–#66 fixes (1.3.271).
+- Branch `auto-fix` (CI green, not released): online subtitles (`OnlineSubs.kt`, `PlayerScreen.kt` LaunchedEffect after
+  first READY, `OnlineSubsLogicTest`). OpenSubtitles v3 answer format checked (url, 3-letter `lang`, `pob`).
+- Not tested on a device: all of the above. Next: check the first `idle-draw:`/`perf:` issues with the new details.
+
 ## 24 Nov 2026 – NBA start speed + series layout C (release candidate, `[device-test]`)
 - Serial waits removed between OK and picture: ConnGuard provider round trip (cached count, prefetch via `StartPrep`),
   SmartDns (parallel DoH, 1.5 s budget, stale cache), live start buffer (`BufferLogic.liveStartMs/learnedNow`),
