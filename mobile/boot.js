@@ -46,7 +46,8 @@
       if (localStorage.getItem(KEY + 'Bad') === c.sha) return;     // this one failed before
       return Promise.all(FILES.map(function (f) { return get('https://raw.githubusercontent.com/' + REPO + '/' + c.sha + '/desktop/renderer/' + f); }))
         .then(function (txt) {
-          new Function(txt[0]);                                    // must at least parse
+          // (no parse check here: the page's security policy blocks eval; a version that fails to start is dropped on launch)
+          if (txt[0].length < 50000) throw new Error('app.js looks incomplete');
           var files = {}; FILES.forEach(function (f, i) { files[f] = txt[i]; });
           localStorage.setItem(KEY, JSON.stringify({ sha: c.sha, date: date, files: files }));
           pending = true;
