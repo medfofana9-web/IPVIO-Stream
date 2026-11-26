@@ -22,6 +22,9 @@ object StreamHeaders {
         byUrl[url] = headers
     }
 
+    /** Headers an addon asked for this link (the background source check sends them like the player). */
+    fun headersFor(url: String): Map<String, String> = byUrl[url].orEmpty()
+
     /** Called right before the player opens [url]. */
     fun begin(url: String) {
         active = byUrl[url]

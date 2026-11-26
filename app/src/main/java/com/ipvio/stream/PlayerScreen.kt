@@ -188,6 +188,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     var failed by remember { mutableStateOf(false) }
     // Automatic problem report: a stream that finally did not play (title and reason only, never the link)
     LaunchedEffect(failed) {
+        if (failed && BuildConfig.VERSION_NAME.endsWith("-test")) android.util.Log.i("FofPlay", "failed " + cur.url.substringAfterLast('/') + ": " + msg)
         if (failed) AutoReport.issue(ctx, "stream", (if (cur.live) "live " else "vod ") + "'" + cur.title + "' – " + (msg ?: "no picture"),
             runCatching { ReportLogic.sourceKind(cur.url, cur.live) + " · failovers " + StartTrace.failoverCount() + " · " + ReportCtx.all(ctx) }.getOrDefault(""))
     }
@@ -560,17 +561,25 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         // Addon title: the next source from its own list (same identity), as often as there are fitting sources
         if (NowSources.owns(cur.itemId, cur.season, cur.episode)) {
             triedUrls.add(cur.url)
-            nextAddonSource()?.let { playSource(it, "Trying another copy", revert = false); return true }
+            // Never started: tried after the others for a while (one-click no longer picks it first because it played before)
+            if (!readyOnce) NowSources.currentKey?.let { SourceHealth.failed(ctx, NowSources.contentId, it) }
+            val next = nextAddonSource()
             // The list was taken when the source was picked, often before the addons answered (one-click starts a source
             // that played before at once, e.g. the provider's copy). When that one does not start, the list held nothing
             // else and playback gave up ("This stream does not start", Inside Man on Resume): ask the addons now, once.
             val w = NowSources.want
             val imdb = NowSources.imdb
-            if (stremioTried || w == null || imdb == null || Stremio.addons.none { it.streams }) return false
+            when (StartWatchLogic.addonFallback(next != null, stremioTried, Stremio.addons.any { it.streams }, w != null && imdb != null)) {
+                StartWatchLogic.Step.PLAY_NEXT -> { playSource(next!!, "Trying another copy", revert = false); return true }
+                StartWatchLogic.Step.GIVE_UP -> return false
+                StartWatchLogic.Step.ASK_ADDONS -> {}
+            }
+            if (w == null || imdb == null) return false
             stremioTried = true
             scope.launch {
                 val fresh = runCatching {
-                    Stremio.streams(if (w.series) Kind.SERIES else Kind.MOVIE, imdb, w.season.coerceAtLeast(1), w.ep.coerceAtLeast(1))
+                    // Fresh answers (new links), not the 10-minute cache that may hold the same expired ones
+                    Stremio.lookupStreams(if (w.series) Kind.SERIES else Kind.MOVIE, imdb, w.season.coerceAtLeast(1), w.ep.coerceAtLeast(1), refresh = true).sources
                 }.getOrDefault(emptyList()).filter { it.url.isNotBlank() || it.hash != null }
                 NowSources.list = Stremio.rank((NowSources.list + fresh).distinctBy { it.key }, w, NowSources.contentId)
                 val n = nextAddonSource()
@@ -917,7 +926,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     // link rarely helps, so the next source is tried (other quality, next addon stream, next 24/7 episode).
                     // Before this the spinner could stay forever.
                     // Addon movies/episodes have many sources: a source that shows nothing for 12 s is replaced sooner
-                    else if (!cur.live && ((!readyOnce && nowT - bufSince > (if (NowSources.owns(cur.itemId, cur.season, cur.episode) && !receiving) 6_000L else if (receiving) 30_000L else 20_000L)) || (wdTries >= 2 && nowT - bufSince > 30_000L))) {
+                    else if (!cur.live && ((!readyOnce && nowT - bufSince > StartWatchLogic.giveUpMs(NowSources.owns(cur.itemId, cur.season, cur.episode), receiving)) || (wdTries >= 2 && nowT - bufSince > 30_000L))) {
                         bufSince = nowT; bufBytes = StreamBytes.total.get(); wdTries = 0
                         val rv = revertTo
                         if (rv != null && rv.first != cur.url) { revertTo = null; cur = cur.copy(url = rv.first, startMs = rv.second, note = null); notice = "That source did not start – back to the previous one" }
@@ -1053,7 +1062,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                         readyOnce = true; DeadLinks.ok(ctx, cur.url); SportSession.started(ctx, cur.itemId); revertTo = null
                         if (cur.live && cur.archive == null) { FeedScore.started(ctx, cur.itemId, System.currentTimeMillis() - feedStartT[0]); FeedScore.height(ctx, cur.itemId, player.videoSize.height) }
                         // Remember the source that played this title/episode (preferred next time)
-                        if (NowSources.owns(cur.itemId, cur.season, cur.episode)) NowSources.currentKey?.let { SourceMemory.played(ctx, NowSources.contentId, it) }
+                        if (NowSources.owns(cur.itemId, cur.season, cur.episode)) NowSources.currentKey?.let { SourceMemory.played(ctx, NowSources.contentId, it); SourceHealth.ok(ctx, NowSources.contentId, it) }
+                        if (BuildConfig.VERSION_NAME.endsWith("-test")) android.util.Log.i("FofPlay", "ready " + cur.url.substringAfterLast('/') + " at " + player.currentPosition / 1000 + "s")
                     }
                 }
                 // Stutter: rebuffering in the middle of playback, not right after seeking

@@ -60,7 +60,7 @@ fun StremioSourcesPopup(
         noId = imdb == null
     }
     val ctx = androidx.compose.ui.platform.LocalContext.current
-    SourceMemory.init(ctx)
+    SourceMemory.init(ctx); SourceHealth.load(ctx)
     // What was asked for: the identity every stream is checked against (no title search anywhere after this)
     val want = Stremio.Want(series, item.title, item.year ?: Catalog.meta(item)?.year?.toString()?.take(4)?.toIntOrNull(), season, ep)
     val cid = SourceMemory.contentId(imdb, series, season, ep)
@@ -125,7 +125,10 @@ fun StremioSourcesPopup(
         if (auto && !autoDone && FofPrefs.oneClick && l.isNotEmpty()) {
             if (firstAt == 0L) firstAt = System.currentTimeMillis()
             val waited = System.currentTimeMillis() - firstAt
-            val known = SourceMemory.lastGood(cid)?.let { k -> l.firstOrNull { it.key == k && !SourceMemory.isWrong(cid, it.key) } }
+            // The source that played before starts at once, unless it failed lately (did not start, or cannot jump to a
+            // saved spot when resuming): then the normal order decides (Inside Man, 1.3.280)
+            val resuming = (AppNav.autoResume?.third ?: 0L) > 0L
+            val known = SourceMemory.lastGood(cid)?.let { k -> l.firstOrNull { it.key == k && !SourceMemory.isWrong(cid, it.key) && SourceHealth.penalty(cid, it.key, resuming) == 0 } }
             if (known != null && StremioLogic.sourcePriority(known.addon) == 0) { autoDone = true; choose(known); return@LaunchedEffect }
             // DragonStreams is the main source: give it up to 12 s to answer before anything else starts (its links are
             // scraped on request and often take 8–12 s; at 8 s the IPTV copy won although DragonStreams had the title)

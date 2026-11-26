@@ -100,6 +100,15 @@ class MainActivity : ComponentActivity() {
             kotlinx.coroutines.delay(10_000)
             while (true) { runCatching { FofAccount.sync(this@MainActivity) }; kotlinx.coroutines.delay(3 * 3600_000L) }
         }
+        // Sources of Continue watching and the addons are checked in the background (SourceCheck), so Resume starts a
+        // source that works; never while something plays
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+            kotlinx.coroutines.delay(90_000)
+            while (true) {
+                if (Reminders.foreground && !AppNav.playing) runCatching { SourceCheck.maybeRun(applicationContext) }
+                kotlinx.coroutines.delay(5 * 60_000L)
+            }
+        }
         // Extra audio decoder (AC3/DTS): checked in the background so the first player never waits for it
         SoftAudio.warmUp(this)
         FontWarmUp.start()

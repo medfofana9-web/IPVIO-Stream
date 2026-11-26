@@ -308,8 +308,12 @@ object Stremio {
     fun rank(l: List<Source>, w: Want, contentId: String): List<Source> {
         val good = SourceMemory.lastGood(contentId)
         val qOrder = mapOf(2 to 0, 1 to 1, 3 to 2, 0 to 3)
+        // Resuming a saved spot: a server that cannot jump into the file is tried after the others
+        val resuming = (AppNav.autoResume?.third ?: 0L) > 0L
         return l.sortedWith(compareBy<Source>(
             { if (SourceMemory.isWrong(contentId, it.key)) 1 else 0 },
+            // Did not start lately (in the player or the background check): after the others, whatever the addon
+            { SourceHealth.penalty(contentId, it.key, resuming) },
             // Another title/episode always last, whatever the addon
             { if (match(it, w) == StremioLogic.MISMATCH) 1 else 0 },
             // DragonStreams, then Your IPTV, ahead of every other addon
