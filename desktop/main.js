@@ -237,11 +237,19 @@ function setupDownloads() {
   });
   // AirPlay: Chrome's video engine cannot AirPlay, Apple's QuickTime Player can. The stream opens there and its
   // AirPlay button lists the same TVs as the iPhone (Fire TV, Samsung, Apple TV). http(s) links only.
-  ipcMain.on('airplay', (e, url) => {
+  ipcMain.handle('airplay', async (e, url) => {
     url = String(url || '');
-    if (!/^https?:\/\/[^\s"']+$/.test(url) || process.platform !== 'darwin') return;
-    const script = `tell application "QuickTime Player"\nactivate\nset d to open URL "${url}"\ndelay 1\ntry\nplay d\nend try\nend tell`;
-    require('child_process').execFile('osascript', ['-e', script], () => {});
+    if (!/^https?:\/\/[^\s"']+$/.test(url) || process.platform !== 'darwin') return { ok: false, err: 'not supported here' };
+    const { execFile } = require('child_process');
+    const run = (cmd, args) => new Promise(res => execFile(cmd, args, { timeout: 20000 }, (err, out, se) => res(err ? String(se || err.message).trim() : '')));
+    // 1) QuickTime Player (its AirPlay button lists the TVs)
+    const qt = `tell application "QuickTime Player"\nactivate\nset d to open URL "${url}"\ndelay 2\ntry\nplay d\nend try\nend tell`;
+    let err = await run('osascript', ['-e', qt]);
+    if (!err) return { ok: true, app: 'QuickTime' };
+    // 2) Safari plays HLS itself and has AirPlay in its video controls
+    const err2 = await run('open', ['-a', 'Safari', url]);
+    if (!err2) return { ok: true, app: 'Safari' };
+    return { ok: false, err: err.slice(0, 160) };
   });
   ipcMain.on('download', (e, { url, title, id }) => { pending.push({ title, id }); win.webContents.downloadURL(url); });
   ipcMain.on('downloads', () => sendDownloads());

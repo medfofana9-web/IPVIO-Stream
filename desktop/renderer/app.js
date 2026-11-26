@@ -1312,9 +1312,13 @@ $('#pl-vol').oninput = e => { V.volume = +e.target.value; };
     // Live: the provider's HLS link (QuickTime cannot play raw .ts); movies and episodes: the source as it is
     const u = cur.live ? cur.url.replace(/(\/live\/[^/]+\/[^/]+\/\d+)\.ts(\?|$)/, '$1.m3u8$2') : cur.url;
     if (!cur.live && /\.(mkv|avi)(\?|$)/i.test(u)) toast('This source is .mkv, which QuickTime may not play. Try another source if it does not start.', 5000);
-    window.fof.airplay(u);
-    V.pause();
-    toast('Opening in QuickTime: click the AirPlay button there and pick your TV', 6000);
+    toast('Opening for AirPlay…', 2500);
+    // Pause here only once the stream is open in QuickTime/Safari (older Mac shells return nothing: keep playing)
+    Promise.resolve(window.fof.airplay(u)).then(r => {
+      if (r && r.ok) { V.pause(); toast(r.app === 'Safari' ? 'Opened in Safari: click the AirPlay icon in the video and pick your TV' : 'Opened in QuickTime: click the AirPlay icon (bottom right) and pick your TV', 7000); }
+      else if (r) toast('AirPlay could not open (' + (r.err || 'unknown') + '). Use the TV button instead.', 7000);
+      else toast('Update the Mac app to use AirPlay (Fof TV 0.5.1)', 5000);
+    }).catch(e => toast('AirPlay could not open: ' + String(e.message || e).slice(0, 80), 6000));
   };
   $('#pl-full').before(b);
 })();
