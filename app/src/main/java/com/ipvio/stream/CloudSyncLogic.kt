@@ -29,6 +29,7 @@ object SyncLogic {
         "fof_gameday",        // close-game alerts and game reminders
         "fof_share",          // share what I'm watching
         "fof_recap",          // Previously on
+        "fof_calendar",       // shows followed in Calendar
         "fof_flags",          // clean look, spoiler settings
         AVATAR,               // the profile's avatar (not a file: written through ProfileAvatars)
         NAME,                 // the profile's name (shown on every TV)

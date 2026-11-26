@@ -87,6 +87,11 @@ function readProfile(files) {
   // Synced with the TVs: pinned Sports channels and "Share what I'm watching"
   const pins = strOf(files, 'fof_sport', 'pins'); acct.sportPins = pins == null ? null : pins.split('\n').filter(Boolean);
   const sh = files && files.fof_share && files.fof_share.watching; acct.shareW = sh && sh[0] === 'b' ? !!sh[1] : null;
+  // Calendar "Following": shows picked there (none picked yet = My List) and favorite teams (same store as the TV's Sports)
+  const cs = strOf(files, 'fof_calendar', 'shows'); acct.calShows = cs == null ? null : cs.split('\n').filter(Boolean);
+  acct.favTeams = (strOf(files, 'ipvio_sportfavs', 'k') || '').split('|').filter(Boolean);
+  acct.teamInfo = {}; (strOf(files, 'ipvio_sporthub', 't') || '').split('\n').forEach(l => { const x = l.split('\t'); if (x.length >= 6) acct.teamInfo[x[0]] = { name: x[1], short: x[2], logo: x[3], path: x[4], id: x[5] }; });
+  acct.catItems = {}; try { JSON.parse(strOf(files, 'fof_catalog_items', 'a') || '[]').forEach(o => acct.catItems[o.i] = o); } catch (e) {}
 }
 async function loadWatch(pid) {
   try {
@@ -1914,7 +1919,8 @@ const dkey = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '
 async function calData() {
   if (cal.data && Date.now() - cal.data.t < 30 * 60 * 1000) return cal.data.l;
   const out = [];
-  const ids = acct.mylist.map(ttOf).filter(Boolean).slice(0, 40);
+  const ids = [...new Set((acct.calShows || acct.mylist).map(ttOf).filter(Boolean))].slice(0, 40);
+  const favs = new Set(acct.favTeams || []);
   const from = Date.now() - 45 * 864e5, to = Date.now() + 75 * 864e5;
   await Promise.all(ids.map(async tt => {
     const m = await metaOf('series', tt); if (!m || !m.videos) return;
@@ -1924,20 +1930,107 @@ async function calData() {
     }
   }));
   const days = [...Array(7)].map((_, i) => { const d = new Date(Date.now() + i * 864e5); return d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0'); });
-  await Promise.all(LEAGUES.slice(0, 6).flatMap(l => days.map(async ds => {
+  const favPaths = Object.values(acct.teamInfo || {}).map(t => t.path);
+  const lgs = LEAGUES.filter((l, i) => i < 6 || favPaths.includes(l[2]));
+  await Promise.all(lgs.flatMap(l => days.map(async ds => {
     const j = await getJson(`https://site.api.espn.com/apis/site/v2/sports/${l[2]}/scoreboard?dates=${ds}`, 30 * 60 * 1000).catch(() => null);
     for (const e of (j && j.events) || []) {
       const c = (e.competitions || [])[0] || {}; const nets = (c.broadcasts || []).flatMap(b => b.names || []);
-      if (!nets.length) continue;
       const side = h => ((c.competitors || []).find(k => k.homeAway === h) || {}).team || {};
       const a = side('away'), hm = side('home'), t = Date.parse(e.date);
-      out.push({ day: dkey(new Date(t)), t, kind: 2, title: (a.shortDisplayName || '') + ' at ' + (hm.shortDisplayName || ''), sub: l[1] + ' · ' + nets.join(' · '),
+      const fav = favs.has(favKey(a.displayName)) || favs.has(favKey(hm.displayName));
+      if (!nets.length && !fav) continue;
+      out.push({ day: dkey(new Date(t)), t, kind: 2, fav, title: (a.shortDisplayName || '') + ' at ' + (hm.shortDisplayName || ''), sub: l[1] + (nets.length ? ' · ' + nets.join(' · ') : ''),
         colors: ['#' + (a.color || '2a3142'), '#' + (hm.color || '2a3142')], open: () => go('sports') });
     }
   })));
   out.sort((x, y) => x.t - y.t);
   cal.data = { t: Date.now(), l: out };
   return out;
+}
+const favKey = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ø/g, 'o').replace(/æ/g, 'ae').replace(/ß/g, 'ss').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+const teamCase = k => k.replace(/\b\w/g, c => c.toUpperCase());
+function calFollowShows() { return [...new Set((acct.calShows || acct.mylist).filter(id => ttOf(id)))]; }
+function followRailHtml() {
+  const teams = acct.favTeams || [], shows = calFollowShows();
+  const ini = n => esc(String(n).replace(/[^A-Za-z0-9 ]/g, '').split(' ').filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase());
+  const col = n => ['#1D428A', '#C8102E', '#2E9D5B', '#F08C2B', '#7C4DFF', '#00A3A3', '#552583'][[...String(n)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 0) % 7];
+  const tRow = k => { const t = (acct.teamInfo || {})[k], nm = t ? t.name : teamCase(k); return `<div class="fr" title="${esc(nm)}"><i style="background:${col(nm)}">${t && t.logo ? `<img src="${esc(t.logo)}" onerror="this.remove()">` : ini(nm)}</i><b>${esc(nm)}</b><button class="fx" data-ut="${esc(k)}" title="Unfollow">&#x2715;</button></div>`; };
+  const sRow = id => { const tt = ttOf(id), c = (acct.catItems || {})[id], nm = (c && c.t) || (cal.names && cal.names[tt]) || 'Show'; return `<div class="fr s" title="${esc(nm)}"><i style="background:${col(nm)}"><img src="${esc(posterOfId(tt))}" onerror="this.remove()"></i><b data-nm="${esc(tt)}">${esc(nm)}</b><button class="fx" data-us="${esc(id)}" title="Unfollow">&#x2715;</button></div>`; };
+  return `<aside class="frail"><h3>Following</h3><div class="fh">TEAMS</div>${teams.length ? teams.map(tRow).join('') : '<div class="fn">No teams yet</div>'}<div class="fh">SHOWS</div>${shows.length ? shows.map(sRow).join('') : '<div class="fn">No shows yet</div>'}<button class="fadd">+ Follow a team or show</button></aside>`;
+}
+function followRailWire(box, changed) {
+  box.querySelectorAll('[data-nm]').forEach(async el => { if (el.textContent !== 'Show') return; const m = await metaOf('series', el.dataset.nm); if (m) { (cal.names = cal.names || {})[el.dataset.nm] = m.name; el.textContent = m.name; el.parentNode.title = m.name; } });
+  box.querySelectorAll('[data-ut]').forEach(b => b.onclick = e => { e.stopPropagation(); followTeam(b.dataset.ut, null).then(changed); });
+  box.querySelectorAll('[data-us]').forEach(b => b.onclick = e => { e.stopPropagation(); followShow(b.dataset.us, null).then(changed); });
+  const add = $('.fadd', box); if (add) add.onclick = () => followPicker(changed);
+}
+function followShow(id, meta) {
+  const on = !calFollowShows().includes(id);
+  return saveProfile(files => {
+    const raw = strOf(files, 'fof_calendar', 'shows');
+    let l = raw == null ? (strOf(files, 'ipvio_lib', 'watch') || '').split('\n').filter(x => ttOf(x)) : raw.split('\n').filter(Boolean);
+    l = l.filter(x => x !== id); if (on) l.push(id);
+    setStr(files, 'fof_calendar', 'shows', l.join('\n'));
+    if (on && meta) {   // so the TV knows the title too
+      let a = []; try { a = JSON.parse(strOf(files, 'fof_catalog_items', 'a') || '[]'); } catch (e) {}
+      if (!a.some(o => o.i === id)) { a.unshift({ i: id, t: meta.name, s: true, p: meta.poster || '' }); setStr(files, 'fof_catalog_items', 'a', JSON.stringify(a.slice(0, 400))); }
+    }
+  }).then(ok => { if (!ok) toast('Could not save to your account.'); return on; });
+}
+function followTeam(key, t) {
+  const on = !(acct.favTeams || []).includes(key);
+  return saveProfile(files => {
+    const ks = (strOf(files, 'ipvio_sportfavs', 'k') || '').split('|').filter(x => x && x !== key); if (on) ks.push(key);
+    setStr(files, 'ipvio_sportfavs', 'k', ks.join('|'));
+    const ls = (strOf(files, 'ipvio_sporthub', 't') || '').split('\n').filter(x => x && x.split('\t')[0] !== key);
+    const cl = v => String(v || '').replace(/[\t\n]/g, ' ');
+    if (on && t) ls.push([key, t.name, t.short, t.logo, t.path, t.id].map(cl).join('\t'));
+    setStr(files, 'ipvio_sporthub', 't', ls.join('\n'));
+  }).then(ok => { if (!ok) toast('Could not save to your account.'); return on; });
+}
+async function allTeams() {
+  if (cal.teams) return cal.teams;
+  const out = [];
+  await Promise.all(LEAGUES.map(async l => {
+    const j = await getJson(`https://site.api.espn.com/apis/site/v2/sports/${l[2]}/teams?limit=400`, 24 * 3600 * 1000).catch(() => null);
+    const ts = (((j && j.sports) || [])[0] || {}).leagues; for (const x of ((ts && ts[0] && ts[0].teams) || [])) {
+      const t = x.team || {}; if (!t.displayName) continue;
+      out.push({ name: t.displayName, short: t.shortDisplayName || t.displayName, logo: ((t.logos || [])[0] || {}).href || '', path: l[2], id: String(t.id || ''), league: l[1] });
+    }
+  }));
+  return (cal.teams = out);
+}
+function followPicker(changed) {
+  const bg = document.createElement('div'); bg.className = 'sheet-bg'; let tab = 0, dirty = false, q = '', seq = 0;
+  bg.innerHTML = `<div class="sheet fpk"><button class="sx" title="Close">&#x2715;</button><h2>Follow a team or show</h2><div class="ftabs"><button data-t="0" class="on">Teams</button><button data-t="1">Shows</button></div><input class="pinq" placeholder="Search teams" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid #333;background:#141a26;color:#fff;font-size:15px;margin:0 0 12px"><div class="chlist"><div class="sub">Loading…</div></div></div>`;
+  document.body.appendChild(bg);
+  const close = () => { bg.remove(); if (dirty) changed(); };
+  bg.onclick = e => { if (e.target === bg || e.target.closest('.sx')) close(); };
+  const row = (img, nm, sub, on, i) => `<div class="src" data-i="${i}">${img ? `<img loading="lazy" src="${esc(img)}" onerror="this.style.visibility='hidden'">` : ''}<div class="nm2"><b>${esc(nm)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</div><span class="st${on ? ' on' : ''}">${on ? '&#x2713; Following' : '+ Follow'}</span></div>`;
+  const draw = async () => {
+    const my = ++seq, list = $('.chlist', bg);
+    let l;
+    if (tab === 0) {
+      const all = await allTeams(); if (my !== seq) return;
+      const n = q.toLowerCase(); l = (n ? all.filter(t => t.name.toLowerCase().includes(n) || t.league.toLowerCase().includes(n)) : all).slice(0, 120);
+      list.innerHTML = l.map((t, i) => row(t.logo, t.name, t.league, (acct.favTeams || []).includes(favKey(t.name)), i)).join('') || '<div class="sub">No teams match.</div>';
+    } else {
+      if (q.length > 1) { const j = await getJson(`${CM}/catalog/series/top/search=${encodeURIComponent(q)}.json`, 3600 * 1000).catch(() => null); if (my !== seq) return; l = ((j && j.metas) || []).slice(0, 40).map(m => ({ id: 'stremio:' + m.id, meta: m })); }
+      else l = await Promise.all(acct.mylist.filter(id => ttOf(id)).slice(0, 60).map(async id => ({ id, meta: await metaOf('series', ttOf(id)) }))).then(a => a.filter(x => x.meta && x.meta.type !== 'movie'));
+      if (my !== seq) return;
+      const fs = calFollowShows();
+      list.innerHTML = l.map((x, i) => row(x.meta.poster, x.meta.name, x.meta.releaseInfo || '', fs.includes(x.id), i)).join('') || '<div class="sub">Type a show name to search.</div>';
+    }
+    list.querySelectorAll('.src').forEach(el => el.onclick = async () => {
+      const x = l[+el.dataset.i]; dirty = true;
+      const on = tab === 0 ? await followTeam(favKey(x.name), x) : await followShow(x.id, x.meta);
+      const st = $('.st', el); st.className = 'st' + (on ? ' on' : ''); st.innerHTML = on ? '&#x2713; Following' : '+ Follow';
+    });
+  };
+  bg.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { tab = +b.dataset.t; bg.querySelectorAll('[data-t]').forEach(x => x.classList.toggle('on', x === b)); $('.pinq', bg).placeholder = tab ? 'Search shows' : 'Search teams'; draw(); });
+  let tm; $('.pinq', bg).oninput = e => { q = e.target.value.trim(); clearTimeout(tm); tm = setTimeout(draw, 250); };
+  draw();
 }
 function calCard(e) {
   const tm = e.kind === 2 ? new Date(e.t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
@@ -1958,6 +2051,19 @@ async function renderCalendar(pg) {
 .calday{height:76px;border-radius:10px;background:#151a25 center/cover;position:relative;cursor:pointer;outline:3px solid transparent;overflow:hidden}.calday.sel{outline-color:#4d8bff}.calday:hover{outline-color:#fff}
 .calday:after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,#0006,#000b)}.calday .n{position:absolute;left:8px;top:4px;font-weight:800;z-index:1}.calday .f{opacity:.4}
 .calday .x{position:absolute;left:8px;right:8px;bottom:5px;z-index:1;font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.calwrap{display:grid;grid-template-columns:270px minmax(0,1fr);gap:34px;align-items:start}
+.frail{position:sticky;top:20px;background:#0f1218cc;border-radius:16px;padding:18px 12px}.frail h3{font-size:22px;margin:0 0 4px 8px}
+.frail .fh{color:#8a8f99;font-size:11px;font-weight:800;letter-spacing:1.6px;margin:16px 8px 4px}.frail .fn{color:#777;font-size:13px;margin:0 8px}
+.fr{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:10px;cursor:pointer;position:relative}.fr:hover{background:#ffffff14}
+.fr i{width:30px;height:30px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;font-style:normal;font-size:11px;font-weight:900}.fr i img{width:24px;height:24px;object-fit:contain}
+.fr.s i{border-radius:6px;width:24px;height:34px}.fr.s i img{width:24px;height:34px;object-fit:cover}
+.fr b{flex:1;min-width:0;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fr .fx{opacity:0;border:0;background:none;color:#999;cursor:pointer;font-size:15px}.fr:hover .fx{opacity:1}
+.fadd{width:100%;margin-top:14px;padding:10px;border-radius:12px;border:1px dashed #ffffff33;background:none;color:#aaa;font-size:14px;cursor:pointer}.fadd:hover{background:#fff;color:#000}
+.calday.fv:before{content:'';position:absolute;right:7px;top:7px;width:8px;height:8px;border-radius:50%;background:#ffd34d;z-index:2}
+.fpk .ftabs{display:flex;gap:8px;margin:6px 0 10px}.fpk .ftabs button{padding:8px 16px;border-radius:20px;background:#1a2030;color:#ccc;font-weight:600;border:0;cursor:pointer}.fpk .ftabs button.on{background:#fff;color:#000}
+.fpk .src .st{margin-left:auto;font-size:13px;font-weight:700;color:#aaa;flex:none}.fpk .src .st.on{color:#7be39a}
+@media (max-width: 820px){.calwrap{display:block}.frail{position:static;display:flex;align-items:center;gap:8px;overflow-x:auto;padding:8px 10px;margin:0 0 4px;scrollbar-width:none}.frail::-webkit-scrollbar{display:none}
+.frail h3,.frail .fh,.frail .fn{display:none}.fr{flex:none;background:#1a2030;border-radius:20px;padding:4px 12px 4px 4px}.fr b{max-width:120px}.fr .fx{display:none}.fadd{flex:none;width:auto;margin:0;padding:7px 14px;border-radius:20px}}
 @media (max-width: 820px){.calp{padding:20px 14px 30px}.calp h1{font-size:30px}.calday{height:54px}.calday .x{display:none}.calcard{width:220px}}`; document.head.appendChild(st); }
   if (!cal.day) cal.day = new Date();
   pg.innerHTML = '<div class="calp"><div style="display:flex;align-items:baseline"><h1>Calendar</h1><span class="tz">Times in your time zone</span></div><div id="calbody"><div class="spin"></div></div></div>';
@@ -1987,11 +2093,12 @@ async function renderCalendar(pg) {
       for (let i = 0; i < (cal.view === 1 ? 7 : 42); i++) {
         const d = new Date(d0); d.setDate(d0.getDate() + i); const k = dkey(d), l = byDay[k] || [], f = l[0];
         const bg = f ? (f.kind === 2 ? `background:linear-gradient(90deg,${f.colors[0]},${f.colors[1]})` : (f.img ? `background-image:url('${esc(f.img)}')` : '')) : '';
-        h += `<div class="calday${k === sel ? ' sel' : ''}" data-d="${k}" style="${bg}"><span class="n${cal.view === 2 && d.getMonth() !== cal.day.getMonth() ? ' f' : ''}">${d.getDate()}</span>${f ? `<span class="x">${esc(f.title)}${l.length > 1 ? ' +' + (l.length - 1) : ''}</span>` : ''}</div>`;
+        h += `<div class="calday${k === sel ? ' sel' : ''}${l.some(x => x.fav) ? ' fv' : ''}" data-d="${k}" style="${bg}"><span class="n${cal.view === 2 && d.getMonth() !== cal.day.getMonth() ? ' f' : ''}">${d.getDate()}</span>${f ? `<span class="x">${esc(f.title)}${l.length > 1 ? ' +' + (l.length - 1) : ''}</span>` : ''}</div>`;
       }
       h += '</div>';
     }
-    const box = $('#calbody'); box.innerHTML = h;
+    const box = $('#calbody'); box.innerHTML = `<div class="calwrap">${followRailHtml()}<div class="calmain">${h}</div></div>`;
+    followRailWire(box, () => { cal.data = null; renderCalendar(pg); });
     box.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { cal.tab = +b.dataset.tab; draw(); });
     box.querySelectorAll('[data-view]').forEach(b => b.onclick = () => { cal.view = +b.dataset.view; draw(); });
     box.querySelectorAll('[data-filter]').forEach(b => b.onclick = () => { cal.filter = +b.dataset.filter; draw(); });

@@ -193,9 +193,9 @@ object Taste {
     }
 }
 
-private class TeamPick(val team: SportData.Team, val league: String)
+internal class TeamPick(val team: SportData.Team, val league: String)
 
-private suspend fun loadTeams(leagues: List<String>): List<TeamPick> = withContext(Dispatchers.IO) {
+internal suspend fun loadTeams(leagues: List<String>): List<TeamPick> = withContext(Dispatchers.IO) {
     coroutineScope {
         leagues.mapNotNull { SportData.league(it) }.map { l ->
             async {

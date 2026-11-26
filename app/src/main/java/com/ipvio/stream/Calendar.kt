@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -68,6 +69,8 @@ object CalendarData {
     }.getOrNull()
     private fun img(p: String?) = p?.takeIf { it.isNotBlank() && it != "null" }?.let { "https://image.tmdb.org/t/p/w500$it" }
     private fun date(s: String?) = runCatching { LocalDate.parse(s) }.getOrNull()
+
+    fun clear() { cache = null }
 
     /** My calendar: this and next month for your shows, upcoming movies, your teams' next 7 days. */
     suspend fun mine(ctx: android.content.Context, shows: List<Item>, movies: List<Item>): List<Entry> = withContext(Dispatchers.IO) {
@@ -139,10 +142,17 @@ internal fun CalendarScreen(all: List<Item>, onOpen: (Item) -> Unit) {
     var view by remember { mutableIntStateOf(2) }      // 0 List, 1 Week, 2 Month
     var day by remember { mutableStateOf(LocalDate.now()) }
     val byId = remember(all) { all.associateBy { it.id } }
-    val mineItems = remember(byId, Library.favs.size, Library.watch.size) {
-        (Library.favs + Library.watch).mapNotNull { byId[it] ?: CatalogItems.get(it) }.filter { it.kind != Kind.LIVE }
+    CalFollow.init(ctx)
+    val followVer = CalFollow.version
+    val mineItems = remember(byId, Library.favs.size, Library.watch.size, followVer) {
+        // Shows: the ones followed here (until something is picked: favorites and My List); movies: favorites and My List
+        val shows = CalFollow.shows(ctx).mapNotNull { byId[it] ?: CatalogItems.get(it) }
+        val movies = (Library.favs + Library.watch).mapNotNull { byId[it] ?: CatalogItems.get(it) }.filter { it.kind == Kind.MOVIE }
+        (shows + movies).distinctBy { it.id }
     }
-    val entries by produceState<List<CalendarData.Entry>?>(null, mineItems.size) {
+    var picking by remember { mutableStateOf(false) }
+    val entries by produceState<List<CalendarData.Entry>?>(null, mineItems.size, followVer, SportFavs.keys.size) {
+        if (CalFollow.dirty) { CalFollow.dirty = false; CalendarData.clear() }
         value = CalendarData.mine(ctx, mineItems.filter { it.kind == Kind.SERIES }, mineItems.filter { it.kind == Kind.MOVIE })
     }
     val airing by produceState<List<CalendarData.Entry>>(emptyList(), tab == 1) {
@@ -152,7 +162,9 @@ internal fun CalendarScreen(all: List<Item>, onOpen: (Item) -> Unit) {
     val list = base.filter { filter == 0 || it.kind == filter - 1 }
     val open: (CalendarData.Entry) -> Unit = { e -> e.item?.let(onOpen) ?: e.game?.let { g -> openInHub(HubPage.Match(g)) } }
 
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = DS.PageX, end = DS.PageX, top = dpx(36), bottom = dpx(80)),
+    Row(Modifier.fillMaxSize()) {
+    FollowRail(mineItems.filter { it.kind == Kind.SERIES }) { picking = true }
+    LazyColumn(Modifier.weight(1f).fillMaxHeight(), contentPadding = PaddingValues(start = dpx(40), end = DS.PageX, top = dpx(36), bottom = dpx(80)),
         verticalArrangement = Arrangement.spacedBy(dpx(16))) {
         item(key = "head") {
             Column(verticalArrangement = Arrangement.spacedBy(dpx(14))) {
@@ -228,6 +240,8 @@ internal fun CalendarScreen(all: List<Item>, onOpen: (Item) -> Unit) {
             }
         }
     }
+    }
+    if (picking) FollowPicker(all) { picking = false }
 }
 
 private fun dayTitle(d: LocalDate): String {
