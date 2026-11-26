@@ -226,25 +226,40 @@ fun BoxScope.SportPlayerOverlay() {
 
 @Composable
 private fun Ticker(games: List<SportData.Game>, current: String) {
-    val shape = RoundedCornerShape(14.dp)
-    Column(Modifier.fillMaxWidth().clip(shape).background(Color(0xE60B0B0D)).border(1.dp, Color(0x1FFFFFFF), shape).padding(horizontal = 18.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(raw = true, text = "Live now  ·  Up / Down switches game", color = Color(0xFF9A9AA2), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-        val i = games.indexOfFirst { it.key == current }.coerceAtLeast(0)
-        // The current game in the middle, neighbours around it
-        val from = (i - 2).coerceIn(0, maxOf(0, games.size - 5))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            games.drop(from).take(5).forEach { g ->
-                val on = g.key == current
-                Box(Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).background(if (on) Color(0xFFF2F2F5) else Color(0xFF1C1C21))
-                    .padding(horizontal = 10.dp, vertical = 8.dp)) {
-                    Column {
-                        val line = if (g.solo) g.title.ifBlank { g.league }
-                            // No scores over the picture: the ticker names the games only, so switching never spoils a result
-                            else g.away.abbr.ifBlank { g.away.short } + "  at  " + g.home.abbr.ifBlank { g.home.short }
-                        Text(raw = true, text = line, color = if (on) Color.Black else Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(raw = true, text = g.detail, color = if (on) Color.White else Color(0xFF9A9AA2), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    // Game switcher (Option A): five games across the bottom in team colors with score, clock and channel. The one
+    // playing is marked; the games Up and Down land on are labeled, so switching is never a guess.
+    val shape = RoundedCornerShape(18.dp)
+    val i = games.indexOfFirst { it.key == current }.coerceAtLeast(0)
+    val n = games.size
+    fun at(d: Int) = games[((i + d) % n + n) % n]
+    val shown = if (n >= 5) listOf(-2, -1, 0, 1, 2) else if (n >= 3) listOf(-1, 0, 1) else listOf(0, 1)
+    Column(Modifier.fillMaxWidth().clip(shape).background(Color(0xEE0B0E16)).padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(raw = true, text = "Live games  ·  ▲ Up / ▼ Down switches", color = Color(0xFFAAAAAA), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            shown.forEach { d ->
+                val g = at(d)
+                val label = when (d) { 0 -> "NOW PLAYING"; -1 -> "▲ UP"; 1 -> "▼ DOWN"; else -> null }
+                val on = d == 0
+                val cs = RoundedCornerShape(14.dp)
+                Column(Modifier.weight(1f).clip(cs).background(Color(0xFF12161F))
+                    .border(if (on) 3.dp else 0.dp, if (on) Color.White else Color.Transparent, cs)) {
+                    if (label != null) Text(raw = true, text = label, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp,
+                        modifier = Modifier.fillMaxWidth().background(if (on) Color(0xFFE50914) else Color(0x66000000)).padding(horizontal = 12.dp, vertical = 4.dp))
+                    if (g.solo) Text(raw = true, text = g.title.ifBlank { g.league }, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 2,
+                        modifier = Modifier.padding(12.dp))
+                    else for (t in listOf(g.away, g.home)) Row(
+                        Modifier.fillMaxWidth().background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(teamColor(t), teamColor(t).copy(alpha = 0.5f))))
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        TeamLogo(t.logo, t.abbr, 24.dp)
+                        Text(raw = true, text = t.abbr.ifBlank { t.short }, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), maxLines = 1)
+                        if (g.state != 0 && !SportPrefs.hideScores) Text(raw = true, text = t.score.orEmpty(), color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
                     }
+                    val net = g.tv.ifBlank { g.nets.joinToString(" · ") }
+                    Text(raw = true, text = listOf(g.detail, net).filter { it.isNotBlank() }.joinToString("  ·  "), color = Color(0xFFCCCCCC), fontSize = 13.sp,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
                 }
             }
         }
