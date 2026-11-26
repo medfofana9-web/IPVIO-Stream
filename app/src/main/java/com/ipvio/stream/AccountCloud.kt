@@ -379,6 +379,12 @@ object AccountCloud {
             val want = AccountCloudLogic.parseAddons(cloudVal)
             applyAddons(c, want, removeOthers = !first)
         }
+        // TMDB/OMDb keys typed on one TV reach every TV of the account (stored encrypted, like debrid)
+        Config.init(c)
+        syncSecret(c, "apikeys", cloud["apikeys"], { val t = Config.ownTmdb(c); val o = Config.ownOmdb(c); if (t.isEmpty() && o.isEmpty()) "" else t + "\n" + o }) { v, _ ->
+            val parts = v.split('\n'); val t = Config.clean(parts.getOrNull(0).orEmpty()); val o = Config.clean(parts.getOrNull(1).orEmpty())
+            if (t.isNotEmpty() || o.isNotEmpty()) withContext(Dispatchers.Main) { Config.save(c, t.ifEmpty { Config.ownTmdb(c) }, o.ifEmpty { Config.ownOmdb(c) }) }
+        }
         Debrid.init(c)
         syncSecret(c, "debrid", cloud["debrid"], { Debrid.raw() }) { v, _ -> if (v.isNotBlank() || Debrid.on) Debrid.save(c, v) }
         syncSecret(c, "playlist", cloud["playlist"], { PlaylistStore.savedUrl(c).orEmpty() }) { v, _ ->

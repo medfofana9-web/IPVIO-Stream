@@ -1393,7 +1393,7 @@ private fun ApiKeysPage(ctx: Context) {
         PillButton(if (busy) "Bitte warten …" else "Speichern und prüfen", light = true, icon = AIcon.Check) {
             if (busy) return@PillButton
             busy = true
-            Config.save(ctx, tmdb, omdb)
+            Config.save(ctx, tmdb, omdb); AccountCloud.kick(ctx, 1_000)
             tmdb = Config.ownTmdb(ctx); omdb = Config.ownOmdb(ctx)
             scope.launch {
                 tmdbStatus = if (tmdb.isEmpty()) "" else KeyCheck.tmdb(tmdb) ?: "Schlüssel gültig"
