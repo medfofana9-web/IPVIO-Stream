@@ -101,7 +101,7 @@ object SportWatch {
     private var sportSig = 0
     private var sportList: List<Item> = emptyList()
     private fun sportChannels(live: List<Item>): List<Item> {
-        val sig = System.identityHashCode(live) * 31 + live.size
+        val sig = contentSig(live)
         synchronized(this) {
             if (sig != sportSig) { sportList = live.filter { SportLogic.isSportChannel(it) }; sportSig = sig }
             return sportList
@@ -113,7 +113,7 @@ object SportWatch {
     private var evList: List<Item> = emptyList()
     private val EVENT_NAME = Regex("""\b(vs\.?|v|at|@|-|–)\b|\|.*\S""", RegexOption.IGNORE_CASE)
     private fun eventChannels(live: List<Item>): List<Item> {
-        val sig = System.identityHashCode(live) * 31 + live.size
+        val sig = contentSig(live)
         synchronized(this) {
             if (sig != evSig) {
                 val sports = sportChannels(live).toHashSet()
@@ -127,6 +127,8 @@ object SportWatch {
     }
 
     @Volatile private var lastInput: List<Item>? = null
+    /** Last sources found per game: the Watch page opens with them at once and refreshes in the background. */
+    val lastHits = java.util.concurrent.ConcurrentHashMap<String, List<Hit>>()
 
     /** New provider names arrived: prepare the lookups again for the list the screens last used. */
     fun rewarm() { lastInput?.let { prewarm(it) } }
@@ -156,7 +158,9 @@ object SportWatch {
     var prepVersion by mutableIntStateOf(0)
         private set
     private val worker by lazy { java.util.concurrent.Executors.newSingleThreadExecutor() }
-    private fun sigOf(live: List<Item>) = System.identityHashCode(live) * 31 + live.size
+    private fun sigOf(live: List<Item>) = contentSig(live)
+    /** Same channels = same index, even when the list is a new object (it was rebuilt on every open of a game before). */
+    internal fun contentSig(live: List<Item>): Int = live.size * 31 + (live.firstOrNull()?.id?.hashCode() ?: 0) * 17 + (live.lastOrNull()?.id?.hashCode() ?: 0) + (live.getOrNull(live.size / 2)?.id?.hashCode() ?: 0) * 7 + SportFresh.version * 131
 
     private fun build(live: List<Item>, sig: Int): Prep? = runCatching {
         val m = HashMap<String, MutableList<Item>>()
@@ -285,7 +289,7 @@ object SportWatch {
         // Recalculate when addon results, TV networks or game state change.
         // Otherwise an early empty result can remain cached after a match airs.
         val fullSig = listOf(
-            System.identityHashCode(live), live.size, version,
+            contentSig(live), live.size, version,
             SportAddons.version, SportAddons.cached(g).size,
             fixed?.hashCode() ?: 0, learned.hashCode(), SportLearn.version,
             if (pr != null) 1 else 0,
@@ -449,8 +453,10 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
     // searching state, not the misleading "no matching channel" message.
     val freshVersion = SportFresh.version
     LaunchedEffect(g.key) { SportFresh.awaitRefresh() }
-    val hitsLoading by produceState<List<SportWatch.Hit>?>(null, g.key, g.nets, hub.live, prepVersion, addonVersion, epgVersion, freshVersion) {
-        value = withContext(Dispatchers.Default) {
+    val hitsState = remember(g.key) { mutableStateOf<List<SportWatch.Hit>?>(SportWatch.lastHits[g.key]) }
+    val hitsLoading by hitsState
+    LaunchedEffect(g.key, g.nets, hub.live, prepVersion, addonVersion, epgVersion, freshVersion) {
+        hitsState.value = withContext(Dispatchers.Default) {
             try {
                 SportWatch.prewarm(hub.live)
                 SportWatch.resolve(g, hub.live)
@@ -460,7 +466,7 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
                 AutoReport.issue(ctx, "sports", "source matching failed: " + e.javaClass.simpleName)
                 emptyList()
             }
-        }
+        }.also { SportWatch.lastHits[g.key] = it }
     }
     val hits = hitsLoading.orEmpty()
     val automatic = hits.filter { it.autoEligible }

@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 
 /**
- * The Fof TV mark (official since 15 Nov 2026): a white-to-violet play ribbon on a deep indigo glass tile
+ * The Fof TV mark (since 25 Nov 2026): white FOF with a red bar on a near-black tile
  * (res/drawable/ic_brand_mark.png, drawn from docs/brand/mark.svg; same picture as the app icon). [FofLogo] sets the word mark "fof TV" next to it.
  */
 @Composable
