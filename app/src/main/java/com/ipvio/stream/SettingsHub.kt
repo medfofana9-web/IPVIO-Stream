@@ -1,5 +1,14 @@
 package com.ipvio.stream
 
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.runtime.key
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
@@ -98,6 +107,7 @@ object SettingsNav {
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun SettingsHub(onAdd: () -> Unit, reload: () -> Unit) {
+    if (FofPrefs.cleanLook) { SettingsTwoPane(onAdd, reload); return }
     val ctx = LocalContext.current
     var page by remember { mutableIntStateOf(-1) }
     var last by remember { mutableIntStateOf(FIRST_CARD) }
@@ -153,43 +163,50 @@ fun SettingsHub(onAdd: () -> Unit, reload: () -> Unit) {
                     .border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(dpx(18))).padding(dpx(26)),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-            when (page) {
-                0 -> GeneralPage(ctx)
-                1 -> RegionPage(ctx)
-                2 -> ViewPage(ctx)
-                3 -> { DesignPage(ctx); SectionTitle("Ansicht"); ViewPage(ctx) }
-                4 -> MenuPage(ctx)
-                5 -> PlayerPage(ctx)
-                6 -> AudioPage(ctx)
-                7 -> FilterPage(ctx) { page = 9 }
-                8 -> LivePage(ctx)
-                9 -> PlaylistPage(ctx, onAdd, reload)
-                10 -> ProfilesPage(ctx) { page = -1 }
-                11 -> ApiKeysPage(ctx)
-                12 -> ParentalPage(ctx) { page = -1 }
-                13 -> StoragePage(ctx)
-                14 -> DiagPage(ctx, reload)
-                16 -> BoomerPage(ctx) { page = -1 }
-                17 -> { HomeLayoutPage(ctx); SectionTitle("Menü"); MenuPage(ctx) }
-                15 -> ListImportPage(ctx)
-                18 -> StremioPage(ctx)
-                19 -> FofSportsPage(ctx)
-                20 -> AccountPage(ctx)
-                22 -> DonateSection(ctx)
-                else -> AboutPage(ctx)   // 21
-            }
-            // Every setting page ends with a way back to the defaults
-            if (page in 0..8 || page == 17) {
-                SectionTitle("Zurücksetzen")
-                ConfirmPill("Alle Einstellungen zurücksetzen") {
-                    AppSettings.resetAll(ctx); General.resetAll(ctx)
-                    SidebarPrefs.set(ctx, SidebarPrefs.LEFT, false); BrowsePrefs.set(ctx, true); CatPrefs.set(ctx, true)
-                }
-                Hint("Setzt Ansicht, Menü, Player, Ton und Start auf die Standardwerte. Playlists, Favoriten und Verlauf bleiben erhalten. Das Design hat einen eigenen Knopf.")
-            }
+            SettingsPageBody(page, ctx, onAdd, reload) { page = it }
             Spacer(Modifier.height(8.dp).bringIntoViewRequester(endReq))
             }
         }
+    }
+}
+
+
+/** The content of one settings page (shared by the card hub and the two-pane clean look). */
+@Composable
+internal fun SettingsPageBody(page: Int, ctx: Context, onAdd: () -> Unit, reload: () -> Unit, setPage: (Int) -> Unit) {
+    when (page) {
+        0 -> GeneralPage(ctx)
+        1 -> RegionPage(ctx)
+        2 -> ViewPage(ctx)
+        3 -> { DesignPage(ctx); SectionTitle("Ansicht"); ViewPage(ctx) }
+        4 -> MenuPage(ctx)
+        5 -> PlayerPage(ctx)
+        6 -> AudioPage(ctx)
+        7 -> FilterPage(ctx) { setPage(9) }
+        8 -> LivePage(ctx)
+        9 -> PlaylistPage(ctx, onAdd, reload)
+        10 -> ProfilesPage(ctx) { setPage(-1) }
+        11 -> ApiKeysPage(ctx)
+        12 -> ParentalPage(ctx) { setPage(-1) }
+        13 -> StoragePage(ctx)
+        14 -> DiagPage(ctx, reload)
+        16 -> BoomerPage(ctx) { setPage(-1) }
+        17 -> { HomeLayoutPage(ctx); SectionTitle("Menü"); MenuPage(ctx) }
+        15 -> ListImportPage(ctx)
+        18 -> StremioPage(ctx)
+        19 -> FofSportsPage(ctx)
+        20 -> AccountPage(ctx)
+        22 -> DonateSection(ctx)
+        else -> AboutPage(ctx)   // 21
+    }
+    // Every setting page ends with a way back to the defaults
+    if (page in 0..8 || page == 17) {
+        SectionTitle("Zurücksetzen")
+        ConfirmPill("Alle Einstellungen zurücksetzen") {
+            AppSettings.resetAll(ctx); General.resetAll(ctx)
+            SidebarPrefs.set(ctx, SidebarPrefs.LEFT, false); BrowsePrefs.set(ctx, true); CatPrefs.set(ctx, true)
+        }
+        Hint("Setzt Ansicht, Menü, Player, Ton und Start auf die Standardwerte. Playlists, Favoriten und Verlauf bleiben erhalten. Das Design hat einen eigenen Knopf.")
     }
 }
 
@@ -247,6 +264,11 @@ internal fun Hint(text: String) {
 
 @Composable
 internal fun SectionTitle(text: String) {
+    if (FofPrefs.cleanLook) {
+        Text(Lang.tr(text).uppercase(), raw = true, color = Color(0xFF8A8F99), fontSize = spx(14), fontWeight = FontWeight.ExtraBold,
+            letterSpacing = 1.6.sp, modifier = Modifier.padding(top = 14.dp, start = 6.dp))
+        return
+    }
     Text(text, color = Color.White, fontSize = spx(22), fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
 }
 
@@ -302,23 +324,24 @@ internal fun ToggleRow(title: String, desc: String?, checked: Boolean, onChange:
     var f by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(DS.RadiusM)
     Row(
-        Modifier.fillMaxWidth().widthIn(max = 760.dp).glass(shape, 1, f)
+        Modifier.fillMaxWidth().then(cleanRow(shape, f))
             .onFocusChanged { f = it.isFocused }
             .clickable { onChange(!checked) }
             .padding(horizontal = 18.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        val clean = FofPrefs.cleanLook
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-            if (desc != null) Text(desc, color = Muted, fontSize = 13.sp, lineHeight = 17.sp)
+            Text(title, color = if (clean && f) Color.Black else Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            if (desc != null) Text(desc, color = if (clean && f) Color(0xFF555555) else Muted, fontSize = 13.sp, lineHeight = 17.sp)
         }
         Box(
             Modifier.width(54.dp).height(30.dp).clip(RoundedCornerShape(50))
-                .background(if (checked) Accent1 else Color(0x44FFFFFF)).padding(3.dp)
+                .background(if (checked) (if (clean) Color(0xFFE50914) else Accent1) else if (clean) Color(if (f) 0xFFC9CCD2 else 0xFF3A3F4B) else Color(0x44FFFFFF)).padding(3.dp)
         ) {
             Box(Modifier.align(if (checked) Alignment.CenterEnd else Alignment.CenterStart).size(24.dp).clip(CircleShape).background(Color.White))
         }
-        Text(if (checked) "An" else "Aus", color = if (checked) Accent2 else Muted, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(30.dp))
+        if (!clean) Text(if (checked) "An" else "Aus", color = if (checked) Accent2 else Muted, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(30.dp))
     }
 }
 
@@ -343,19 +366,26 @@ internal fun SelectRow(label: String, value: String, options: List<String>, sele
     val shape = RoundedCornerShape(DS.RadiusM)
     Box {
         Row(
-            Modifier.fillMaxWidth().widthIn(max = 760.dp).glass(shape, 1, f)
+            Modifier.fillMaxWidth().then(cleanRow(shape, f))
                 .onFocusChanged { f = it.isFocused }
                 .clickable { open = true }
                 .padding(horizontal = 18.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(label, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), maxLines = 1)
-            Text(value, color = if (active) Accent2 else DS.TextSoft, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 380.dp))
-            AppIcon(AIcon.Caret, Muted, size = 18.dp)
+            val ink = FofPrefs.cleanLook && f
+            Text(label, color = if (ink) Color.Black else Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), maxLines = 1)
+            Text(value, color = if (ink) Color(0xFF555555) else if (active) Accent2 else DS.TextSoft, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 380.dp))
+            AppIcon(AIcon.Caret, if (ink) Color(0xFF555555) else Muted, size = 18.dp)
         }
         if (open) OptionPopup(options, selected, { open = false }) { onPick(it); open = false }
     }
 }
+
+/** Row surface: flat dark row with a white focus in the clean look, the glass row otherwise. */
+@Composable
+private fun cleanRow(shape: androidx.compose.ui.graphics.Shape, f: Boolean): Modifier =
+    if (FofPrefs.cleanLook) Modifier.clip(RoundedCornerShape(12.dp)).background(if (f) Color.White else Color(0xFF151A26))
+    else Modifier.widthIn(max = 760.dp).glass(shape, 1, f)
 
 /** Number pad for the PIN: arrow keys + OK or directly the digit keys of the remote. */
 @Composable
@@ -1432,3 +1462,101 @@ private fun UpdateSection(ctx: Context) {
     Field(url, { url = it; AppUpdate.setUrl(ctx, it) }, "Eigene Update-Adresse (leer = GitHub)")
 }
 
+
+/** Icon color per settings page in the clean look (index into CATS). */
+private fun catColor(i: Int): Color = Color(when (i) {
+    5 -> 0xFFE50914; 6 -> 0xFF7C4DFF; 8 -> 0xFF1E88E5; 19 -> 0xFF2E9D5B
+    3 -> 0xFFE0559A; 17 -> 0xFFF08C2B; 16 -> 0xFF00A3A3
+    9 -> 0xFF1E88E5; 7 -> 0xFF8E6CF0; 15 -> 0xFFF08C2B; 18 -> 0xFF7C4DFF; 11 -> 0xFFC9A227
+    10 -> 0xFF2E9D5B; 12 -> 0xFFE50914; 20 -> 0xFF1E88E5
+    0 -> 0xFF6B7280; 1 -> 0xFF1E88E5; 13 -> 0xFFC9A227; 14 -> 0xFF2E9D5B
+    22 -> 0xFFE0559A
+    else -> 0xFF6B7280
+})
+
+/**
+ * Settings, clean look (Option A): every section as a list on the left, the chosen page on the right.
+ * Resting on an entry shows its page; OK or Right moves into the page; Back returns to the list.
+ */
+@Composable
+private fun SettingsTwoPane(onAdd: () -> Unit, reload: () -> Unit) {
+    val ctx = LocalContext.current
+    var sel by remember { mutableIntStateOf(FIRST_CARD) }
+    var hover by remember { mutableIntStateOf(-1) }
+    var inPage by remember { mutableStateOf(false) }
+    val navFocus = remember { List(CATS.size) { if (it == FIRST_CARD) ContentFocus.req else FocusRequester() } }
+    val fm = LocalFocusManager.current
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(SettingsNav.openPage) {
+        val p = SettingsNav.openPage
+        if (p >= 0) {
+            SettingsNav.openPage = -1; sel = hostOf(p)
+            kotlinx.coroutines.delay(60)
+            runCatching { navFocus[sel].requestFocus() }
+            fm.moveFocus(FocusDirection.Right)
+        }
+    }
+    // Resting on an entry for a moment opens its page (no recomposition of heavy pages while scrolling the list)
+    LaunchedEffect(hover) { if (hover >= 0 && hover != sel) { kotlinx.coroutines.delay(220); sel = hover } }
+    BackHandler(enabled = inPage) { runCatching { navFocus[sel].requestFocus() } }
+    val h = LocalConfiguration.current.screenHeightDp.dp - dpx(96)
+    Row(Modifier.fillMaxWidth().height(h)) {
+        Column(
+            Modifier.width(dpx(400)).fillMaxHeight().background(Color(0xFF0F1218))
+                .verticalScroll(rememberScrollState()).padding(start = DS.PageX, end = dpx(20), top = dpx(10), bottom = dpx(40)),
+            verticalArrangement = Arrangement.spacedBy(dpx(2))
+        ) {
+            Text("Einstellungen", color = Color.White, fontSize = spx(34), fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(start = dpx(12), bottom = dpx(4)))
+            SECTIONS.forEach { (label, ids) ->
+                Text(Lang.tr(label).uppercase(), raw = true, color = Color(0xFF777B85), fontSize = spx(13), fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 1.6.sp, modifier = Modifier.padding(start = dpx(12), top = dpx(14), bottom = dpx(4)))
+                ids.forEach { idx ->
+                    NavEntry(CATS[idx], catColor(idx), idx == sel, Modifier.focusRequester(navFocus[idx]),
+                        onFocus = { hover = idx }) {
+                        sel = idx; hover = idx
+                        scope.launch { kotlinx.coroutines.delay(50); fm.moveFocus(FocusDirection.Right) }
+                    }
+                }
+            }
+        }
+        key(sel) {
+            Column(
+                Modifier.weight(1f).fillMaxHeight().onFocusChanged { inPage = it.hasFocus }
+                    .verticalScroll(rememberScrollState()).padding(start = dpx(56), end = DS.PageX, top = dpx(14), bottom = dpx(60)),
+                verticalArrangement = Arrangement.spacedBy(dpx(10))
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(18)), modifier = Modifier.padding(bottom = dpx(6))) {
+                    Box(Modifier.size(dpx(56)).clip(RoundedCornerShape(dpx(14))).background(catColor(sel)), contentAlignment = Alignment.Center) {
+                        AppIcon(CATS[sel].icon, Color.White, size = dpx(30))
+                    }
+                    Column {
+                        Text(CATS[sel].title, color = Color.White, fontSize = spx(34), fontWeight = FontWeight.ExtraBold)
+                        Text(CATS[sel].sub, color = Color(0xFF9A9EA8), fontSize = spx(17))
+                    }
+                }
+                SettingsPageBody(sel, ctx, onAdd, reload) { p -> if (p < 0) runCatching { navFocus[sel].requestFocus() } else sel = p }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NavEntry(cat: Cat, color: Color, current: Boolean, modifier: Modifier, onFocus: () -> Unit, onClick: () -> Unit) {
+    var f by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(dpx(12))
+    Row(
+        modifier.fillMaxWidth().clip(shape)
+            .background(if (f) Color.White else if (current) Color(0x1FFFFFFF) else Color.Transparent)
+            .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
+            .trackFocus()
+            .clickable(onClick = onClick)
+            .padding(horizontal = dpx(12), vertical = dpx(8)),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(14))
+    ) {
+        Box(Modifier.size(dpx(34)).clip(RoundedCornerShape(dpx(9))).background(color), contentAlignment = Alignment.Center) {
+            AppIcon(cat.icon, Color.White, size = dpx(19))
+        }
+        Text(cat.title, color = if (f) Color.Black else if (current) Color.White else Color(0xFFD0D3D9), fontSize = spx(19),
+            fontWeight = if (f || current) FontWeight.Bold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
