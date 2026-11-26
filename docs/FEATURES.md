@@ -30,6 +30,7 @@ Feature status at version 1.3 (commit `b65e838`, tag `V1.3`). Source: refactorin
 | Voice search, reminders, screen-edge calibration | present | `VoiceSearch.kt:8`, `Live.kt:71, 192`, `FitCalibration.kt:35` |
 | Updates via GitHub Releases | present | verified by Android signature, no hash check (`AppUpdate.kt:20-34`, `Round17Logic.kt:14-45`) |
 | 10 languages | present | `I18nCore.kt:9` |
+| Online subtitles (OpenSubtitles via its Stremio addon) | present (device test pending) | when the stream has none in the subtitle language; up to 3 as "Online 1–3" (`OnlineSubs.kt`, `PlayerScreen.kt`) |
 | Google Drive backup | removed in 1.2, planned for 1.4 (LiveSync) | `DriveSync.kt` is empty. Old code: tag `V1.1` (`DriveSync.kt`, `TransferUi.kt`). See [GOOGLE_DRIVE.md](GOOGLE_DRIVE.md) |
 | Licence system | not in the repository | removed on purpose when the project became open source (audit section 14) |
 | IMDb dataset import | removed | only clean-up of old files remains (`General.kt:208-212`); IMDb values come through OMDb |

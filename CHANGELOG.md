@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased – Subtitles from the internet
+
+- Movies and episodes whose stream has no subtitles in your subtitle language get them from OpenSubtitles (free
+  Stremio addon, no account) shortly after playback starts, following Settings > Subtitles (always on, or only for a
+  foreign audio track; nothing when off or turned off by hand for the title). Up to three are added as "Online 1–3" in
+  Audio & Subtitles, so another one can be picked when the first is out of sync. Only the IMDb id, season and episode
+  are sent; the files are kept in the app's cache. The stream reopens at the same spot once (a moment of buffering).
+
 ## Unreleased – Resume a movie from an addon source
 
 - "Resume" on a movie's page (and Continue watching for provider movies) played the addon link saved last time. Those

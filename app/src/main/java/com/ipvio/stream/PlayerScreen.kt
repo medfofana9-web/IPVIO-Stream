@@ -1192,6 +1192,55 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             if (!openStream(player, playUrl, if (cur.startMs > 0) cur.startMs else 0L)) { msg = PlayerLogic.MSG_FORMAT; buffering = false }
         }
     }
+    // Online subtitles: once per stream, shortly after it plays, when subtitles are wanted and the stream has none in
+    // the wanted language. Found by IMDb id on OpenSubtitles (OnlineSubs); added as up to 3 local files, listed in
+    // Audio & Subtitles as "Online 1–3". The stream is opened again at the same spot (a moment of buffering).
+    var onlineSubsFor by remember { mutableStateOf("") }
+    LaunchedEffect(cur.url, readyOnce) {
+        if (!readyOnce || cur.live || cur.archive != null || onlineSubsFor == cur.url) return@LaunchedEffect
+        onlineSubsFor = cur.url
+        val forUrl = cur.url
+        delay(1_500)
+        runCatching {
+            if (AppSettings.subMode == TrackLogic.SUB_OFF) return@runCatching
+            val mem = TrackMemory.get(ctx, cur.itemId)
+            if (mem != null && mem.second == null) return@runCatching   // subtitles turned off by hand for this title
+            val want = TrackLogic.norm(mem?.second ?: AppSettings.subLangEffective()) ?: return@runCatching
+            fun langOf(type: Int): List<String?> = player.currentTracks.groups.filter { it.type == type }
+                .flatMap { g -> (0 until g.length).map { TrackLogic.guess(g.getTrackFormat(it).language, g.getTrackFormat(it).label) } }
+            if (want in langOf(C.TRACK_TYPE_TEXT)) return@runCatching
+            val audio = player.currentTracks.groups.firstOrNull { it.type == C.TRACK_TYPE_AUDIO && it.isSelected }
+                ?.let { g -> (0 until g.length).firstOrNull { g.isTrackSelected(it) }?.let { TrackLogic.guess(g.getTrackFormat(it).language, g.getTrackFormat(it).label) } }
+            if (mem == null && !TrackLogic.subsWanted(AppSettings.subMode, audio, want, AppSettings.audioLang)) return@runCatching
+            val series = cur.season > 0 || cur.episode > 0
+            val imdb = (if (NowSources.owns(cur.itemId, cur.season, cur.episode)) NowSources.imdb else null)
+                ?: cur.itemId.removePrefix("stremio:").substringBefore(':').takeIf { StremioLogic.isImdb(it) }
+                ?: Stremio.imdbFor(Item("probe", if (series) Kind.SERIES else Kind.MOVIE,
+                    cur.title.replace(Regex("\\s+S\\d+\\s*E\\d+\\s*$"), ""), null, "", null, ""), null)
+                ?: return@runCatching
+            val subs = OnlineSubs.find(imdb, series, cur.season, cur.episode, want)
+            val files = subs.mapNotNull { OnlineSubs.file(ctx, it) }
+            if (files.isEmpty() || cur.url != forUrl || player.currentMediaItem == null) return@runCatching
+            val configs = files.mapIndexed { i, f ->
+                MediaItem.SubtitleConfiguration.Builder(android.net.Uri.fromFile(f))
+                    .setMimeType(androidx.media3.common.MimeTypes.APPLICATION_SUBRIP).setLanguage(want)
+                    .setLabel("Online " + (i + 1)).setSelectionFlags(if (i == 0) C.SELECTION_FLAG_DEFAULT else 0).build()
+            }
+            val item = player.currentMediaItem!!.buildUpon().setSubtitleConfigurations(configs).build()
+            val at = player.currentPosition.coerceAtLeast(0L)
+            val go = player.playWhenReady
+            // Not a stall: the short buffering of reopening must not count against the source
+            lastSeekT = System.currentTimeMillis()
+            StreamHeaders.begin(resolvedUrl.ifEmpty { cur.url })
+            player.setMediaItem(item, at)
+            player.prepare()
+            player.playWhenReady = go
+            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false).setPreferredTextLanguages(want).build()
+            ReportCtx.crumb("online subs " + files.size)
+            notice = "Subtitles added from OpenSubtitles (Audio & Subtitles: Online 1–" + files.size + ")"
+        }
+    }
     // Prefer another mapped game feed quickly when the first one never starts.
     // Regular live TV and streams already playing are unaffected.
     LaunchedEffect(cur.url) {

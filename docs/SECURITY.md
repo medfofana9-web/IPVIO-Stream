@@ -57,6 +57,12 @@ Source: project note `t002_stand.md`.
 - `BootReceiver` is exported (`AndroidManifest.xml:39-71`).
 - Permissions include `SYSTEM_ALERT_WINDOW`, `REQUEST_INSTALL_PACKAGES`, `SCHEDULE_EXACT_ALARM`, `FOREGROUND_SERVICE_DATA_SYNC` (`AndroidManifest.xml:11-18`).
 
+- Online subtitles (`OnlineSubs.kt`): requests to `opensubtitles-v3.strem.io` carry only the IMDb id, season and
+  episode; files (max 2 MB, SRT check) are saved in the cache and played as local files, so stream headers are never sent
+  to the subtitle host.
+- Problem reports (`AutoReport`, `ReportCtx`, `FrameStats`): screen and step names, numbers, class/method/line, settings
+  switches; addresses only as their shape (`live xtream ts`), links replaced by `<link>`.
+
 ## 6. Verified baseline
 
 - The release APK for version 1.3 was built without API keys (audit section 2).
