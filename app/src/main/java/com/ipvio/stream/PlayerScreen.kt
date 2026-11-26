@@ -1570,7 +1570,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             modifier = if (dualSplit) Modifier.align(Alignment.CenterStart).fillMaxHeight().fillMaxWidth(0.5f) else videoMod
         )
         if (liveSports && scoreDlg) ScoreOverlayDialog { scoreDlg = false }
-        if (showMiniScores && !scoreDlg) MiniScoreOverlay()
+        // The small score box in the bottom right is gone (the game switcher shows the scores)
         second?.let { s2 ->
             SecondStream(
                 s2, dualSplit, audioOnSecond,
