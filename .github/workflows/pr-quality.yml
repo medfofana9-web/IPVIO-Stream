@@ -24,6 +24,8 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v4
+      - name: Compose state created on the main thread (tools/check_compose_state.py)
+        run: python3 tools/check_compose_state.py
       - name: Unit tests
         run: |
           chmod +x gradlew

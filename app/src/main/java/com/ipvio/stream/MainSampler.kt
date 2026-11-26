@@ -23,6 +23,16 @@ object MainSampler {
             I18nCore.onMiss = { t -> if (german.containsMatchIn(t)) Log.w("FofUntranslated", t.take(160)) }
         }
         if (!BuildConfig.VERSION_NAME.endsWith("-test")) return
+        // Test builds: Compose state written from a background thread (allowed, but the kind of code that crashed the
+        // welcome screen, #63); logged once per place as "FofState" for the soak and playback tests
+        val seenState = java.util.Collections.synchronizedSet(HashSet<String>())
+        androidx.compose.runtime.snapshots.Snapshot.registerGlobalWriteObserver {
+            if (Looper.myLooper() != Looper.getMainLooper()) {
+                val f = Thread.currentThread().stackTrace.firstOrNull { e -> e.className.startsWith("com.ipvio.stream") && !e.className.contains("MainSampler") }
+                val at = f?.let { it.className.substringAfterLast('.') + "." + it.methodName + ":" + it.lineNumber } ?: "?"
+                if (seenState.add(at)) Log.w("FofState", "state written off the main thread at " + at + " (" + Thread.currentThread().name + ")")
+            }
+        }
         val r = object : BroadcastReceiver() {
             override fun onReceive(ctx: Context, i: Intent) { run(i.getIntExtra("ms", 10_000), i.getStringExtra("tag") ?: "run") }
         }

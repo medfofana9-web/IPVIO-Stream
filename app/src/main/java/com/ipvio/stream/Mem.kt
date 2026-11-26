@@ -130,6 +130,16 @@ object CrashLog {
                 else -> return
             }
             val mb = e.pss / 1024
+            // Closed for memory while the app was in the background (another app or the TV's own screensaver was in
+            // front): normal Android behaviour, not a crash. No "closed unexpectedly" notice; a light "memory:" report
+            // keeps the numbers for the soak test comparison (auto-report 1.3.279: importance 400 = cached).
+            if (e.reason == android.app.ApplicationExitInfo.REASON_LOW_MEMORY &&
+                e.importance > android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE) {
+                AutoReport.issue(app, "memory", "closed by Android in the background",
+                    "memory $mb MB · rss " + e.rss / 1024 + " MB · importance " + e.importance + " · " +
+                        (ReportCtx.snapshotBefore(app, e.timestamp)?.let { "before: $it" } ?: "no snapshot"))
+                return
+            }
             // What was going on just before (the snapshot [ReportCtx] saves every 30 s): a low-memory close has no stack
             val details = listOfNotNull("rss " + e.rss / 1024 + " MB", "importance " + e.importance,
                 ReportCtx.snapshotBefore(app, e.timestamp)?.let { "before: $it" },

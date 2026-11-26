@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased – More checks before an update reaches every TV (T-012)
+
+- Closed by Android for memory while Fof TV was in the background (the TV's own screensaver or another app in front)
+  is normal and no longer shows "Fof TV closed unexpectedly"; it is still recorded for the memory test.
+- Emulator tests now also cover episodes, live channels (a dropping connection, quick zapping) and an hour of use with
+  memory measured; a build reaches every TV only after these, the playback test and the speed test passed.
+- One-tap rollback of the TV app (GitHub Actions), and instant alerts for crashes, freezes and streams that do not start.
+
 ## Unreleased – Playback safety net (T-011)
 
 - A source that did not start (or, when resuming, cannot jump to the spot) is tried after the others for 6 hours; Play

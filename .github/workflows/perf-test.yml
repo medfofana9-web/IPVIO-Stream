@@ -3,14 +3,22 @@ name: Performance test
 # Fof TV: measures frame times while the remote is pressed through Home, Movies and Sports on an Android emulator
 # with a generated playlist (4,000 movies, 24,000 channels). The emulator renders on the CPU (swiftshader), so the
 # numbers are slower than a Fire TV in absolute terms; they are for comparing builds and finding spikes.
+# Also on every push to main and auto-fix that changes the app: promote.yml only promotes a build whose app commit passed,
+# and a run fails when Home got slower than the last passing run (.github/scripts/perf_compare.py).
 on:
   workflow_dispatch:
   push:
-    branches: [perf-test]
+    branches: [perf-test, main, auto-fix]
+    paths: [ 'app/**', '.github/workflows/perf-test.yml', '.github/scripts/perf_compare.py' ]
 
 # contents: write only to store the screenshots on the branch perf-shots (the log drops long lines)
 permissions:
   contents: write
+  actions: read
+
+concurrency:
+  group: perf-test-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   perf:
@@ -288,6 +296,12 @@ jobs:
           } | tee checks.txt
           echo "== sports and search timings"; grep -E "sports:|search:|first poster|profile picked" marks.txt | sed 's/^.*FofProfile: //' || true
           grep -q RUNNING alive.txt && ! grep -q NOT-RUNNING alive.txt && ! grep -q "CHECK FAIL" checks.txt
+      - name: Home not slower than the last passing run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          python3 .github/scripts/perf_compare.py gfx_home.txt | tee -a checks.txt
       - name: Key rotation signing works (throwaway keys)
         if: always()
         run: |

@@ -1,5 +1,6 @@
 """Promotion gate (promote.yml): a build reaches every TV only when
-  1. the playback scenarios (playback-test.yml) passed on its commit, and
+  1. the playback scenarios (playback-test.yml), the soak test (soak-test.yml) and the performance test (perf-test.yml)
+     passed on the last commit of that build that changed the app, and
   2. the early-channel TVs running it reported no new crash, freeze, forced close or stream that did not start, and at
      most 2 playback errors (Supabase fof_reports, version = the build).
 Prints the reasons and exits 1 when the build must wait; opens or updates one "[auto] promotion held" issue so the
@@ -29,6 +30,9 @@ def blocking(kind):
         return "freeze"
     if k.startswith("Closed by Android: app not responding") or k.startswith("Freeze"):
         return "app not responding"
+    # Closed for memory while in use (closes in the background are reported as "memory:" and do not count)
+    if k.startswith("Closed by Android"):
+        return "closed by Android while in use"
     if k.startswith("reliability: playback error"):
         return "playback error"
     if re.match(r"^[A-Z]\w*(Exception|Error)\b", k):
@@ -38,10 +42,17 @@ def blocking(kind):
 
 reasons = []
 sha = json.loads(gh("api", f"repos/{REPO}/commits/{TAG}").stdout or "{}").get("sha", "")
-runs = json.loads(gh("api", f"repos/{REPO}/actions/workflows/playback-test.yml/runs?head_sha={sha}&per_page=10").stdout or "{}").get("workflow_runs", [])
-if not any(r.get("conclusion") == "success" for r in runs):
-    state = ", ".join(sorted({(r.get("conclusion") or r.get("status") or "?") for r in runs})) or "not run"
-    reasons.append(f"playback scenarios have not passed on {sha[:7]} ({state})")
+# The checks run on commits that change the app; a later commit that changes only the Mac/iPhone apps or docs builds the
+# same TV app, so the last commit at or before the release that touched app/ is the one that must have passed
+hist = json.loads(gh("api", f"repos/{REPO}/commits?sha={sha}&path=app&per_page=1").stdout or "[]")
+app_sha = hist[0]["sha"] if hist else sha
+CHECKS = [("playback-test.yml", "playback scenarios"), ("soak-test.yml", "one-hour soak test (app stays open, memory stable)"),
+          ("perf-test.yml", "performance test (Home not slower)")]
+for wf, what in CHECKS:
+    runs = json.loads(gh("api", f"repos/{REPO}/actions/workflows/{wf}/runs?head_sha={app_sha}&per_page=10").stdout or "{}").get("workflow_runs", [])
+    if not any(r.get("conclusion") == "success" for r in runs):
+        state = ", ".join(sorted({(r.get("conclusion") or r.get("status") or "?") for r in runs})) or "not run"
+        reasons.append(f"{what} has not passed on {app_sha[:7]} ({state})")
 
 if KEY:
     q = urllib.parse.urlencode({"select": "kind,device,happened_at", "version": "eq." + VERSION, "limit": "500"})

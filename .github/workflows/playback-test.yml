@@ -6,11 +6,12 @@ name: Playback test
 # path as Continue watching; every one must show a picture near that spot. Live: a channel plays, a channel whose
 # connection keeps dropping keeps playing, and quick Up/Down zapping ends on a playing channel
 # (.github/scripts/playback_check.py).
-# Runs on every push to main and auto-fix; promote.yml only promotes a build whose commit passed.
+# Runs on every push to main and auto-fix that changes the app; promote.yml only promotes a build whose app commit passed.
 # Emulator timings only; they do not stand in for an onn 4K or a Fire TV Stick.
 on:
   push:
     branches: [ main, auto-fix ]
+    paths: [ 'app/**', '.github/scripts/playback_*', '.github/workflows/playback-test.yml' ]
   workflow_dispatch:
 
 permissions:
@@ -18,7 +19,7 @@ permissions:
 
 concurrency:
   group: playback-test-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   scenarios:

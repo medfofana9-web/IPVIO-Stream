@@ -72,9 +72,8 @@ class MainActivity : ComponentActivity() {
         // Create the Compose states of these objects on the main thread before the account sync can touch them first on a
         // background thread: a state created there after the welcome screen's snapshot crashed it ("Reading a state that
         // was created after the snapshot was taken", auto-report #63, ProfileAvatars.version read in FofWelcome).
-        runCatching { ProfileAvatars.version + AccountCloud.pins.size }
-        // Same for the states the report threads read (frame metrics thread, freeze watch)
-        runCatching { Ambient.on; Lite.on; Look.motion; FofPrefs.cleanLook }
+        // Same for the states the report threads read (frame metrics thread, freeze watch): see StateWarmUp
+        StateWarmUp.run()
         ReportCtx.initDisplay(this)
         // Real frame times on this TV (summaries go to the account's problem list)
         FrameStats.install(this)

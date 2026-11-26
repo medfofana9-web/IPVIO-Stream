@@ -89,12 +89,30 @@ Four layers, so a source problem is caught before a viewer meets it:
    playback scenarios and the early-channel TVs reported no crash, freeze, forced close or stream that did not start
    (`.github/scripts/promote_gate.py`); otherwise it opens "[auto] promotion held".
 
+Added in T-012 (1.3.283):
+
+5. **Episodes and live TV** in the playback scenarios: two episodes resumed with a failing first source, a live
+   channel, a live connection that drops every 15 s, and quick Up/Down zapping (`playback_fixture.py` `LIVE_SCEN`).
+6. **Soak test** – `.github/workflows/soak-test.yml`: about an hour of normal use (tabs, a live channel, a resumed movie,
+   the screensaver) with memory measured after every round; fails when the app closes or memory keeps growing
+   (`soak_steps.sh`, `soak_check.py`). Test builds also log Compose state written off the main thread (`FofState`).
+7. **Performance gate** – `perf-test.yml` also runs on app changes to `main`/`auto-fix` and fails when Home is slower than
+   the last passing run (`perf_compare.py`). `promote.yml` needs playback, soak and performance tests passed on the last
+   commit that changed `app/`.
+8. **Compose state check** – `tools/check_compose_state.py` in `pr-quality.yml`: a new `object` holding Compose state
+   must be created at start (`StateWarmUp.kt`); existing ones are in `tools/compose_state_baseline.txt`.
+9. **Rollback** – `.github/workflows/rollback.yml` (Actions → "Roll back the TV app" → Run workflow): puts `app/` back
+   to the latest release every TV has (or a chosen tag) and releases it as a new version, with the checks started.
+10. **Alerts** – `tools/auto_reports.py` mentions the owner on issues with crashes, freezes, forced closes in use,
+    streams that did not start and broken add-ons (GitHub e-mail / app push). Background memory closes are reported as
+    `memory:` and are not alerts.
+
 Rule for changes to the player, Resume, sources or addons: add or extend a scenario in `playback_fixture.py` or a case in
 `StartWatchLogicTest` for the behaviour changed, and do not push to `main` before `playback-test.yml` passed on
 `auto-fix`.
 
-Not covered: real addons' content, debrid torrents (never opened by the checks), live TV channels, series episodes in
-the emulator scenarios (movies only), real TV hardware and Wi-Fi.
+Not covered: real addons' content, debrid torrents (never opened by the checks), "Next episode" (the fixture shows
+have no episode list), sports failover (separate job `sports-start` in `launch-test.yml`), real TV hardware and Wi-Fi.
 
 ## What to try on the TV after an update
 

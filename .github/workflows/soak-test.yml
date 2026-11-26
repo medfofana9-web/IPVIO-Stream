@@ -1,0 +1,98 @@
+name: Soak test
+
+# About an hour of normal use on an Android TV emulator (Home, Movies, TV Shows, Sports, a live channel, a resumed movie,
+# the screensaver), memory measured after every round (.github/scripts/soak_steps.sh). Fails when the app closes or its
+# memory keeps growing (.github/scripts/soak_check.py). Runs on every push to main that changes the app, and by hand.
+on:
+  push:
+    branches: [ main, auto-fix ]
+    paths: [ 'app/**', '.github/scripts/soak_*', '.github/scripts/playback_fixture.py', '.github/workflows/soak-test.yml' ]
+  workflow_dispatch:
+    inputs:
+      rounds:
+        description: 'Rounds (about 7 minutes each)'
+        default: '8'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: soak-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  soak:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    env:
+      FOF_R8: "1"
+      FOF_VERSION_CODE: 999999
+      FOF_VERSION_NAME: 9.9.9-test
+      ROUNDS: ${{ github.event.inputs.rounds || '8' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build release APK (test name, throwaway key)
+        run: |
+          chmod +x gradlew
+          keytool -genkeypair -keystore "$RUNNER_TEMP/test.jks" -storetype PKCS12 -alias t -keyalg RSA -keysize 2048 -validity 2 -storepass testpass -dname CN=test >/dev/null 2>&1
+          printf 'storeFile=%s\nstorePassword=testpass\nkeyAlias=t\nkeyPassword=testpass\n' "$RUNNER_TEMP/test.jks" > keystore.properties
+          ./gradlew --no-daemon assembleRelease
+          cp app/build/outputs/apk/release/*.apk app.apk
+      - name: Fixture
+        run: |
+          mkdir -p srv
+          which ffmpeg >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg >/dev/null)
+          ffmpeg -loglevel error -f lavfi -i testsrc2=size=640x360:rate=25 -f lavfi -i sine=frequency=440 -t 180 \
+            -c:v libx264 -preset veryfast -b:v 800k -pix_fmt yuv420p -c:a aac -movflags +faststart srv/movie.mp4
+          ffmpeg -loglevel error -f lavfi -i testsrc2=size=640x360:rate=25 -f lavfi -i sine=frequency=330 -t 180 \
+            -c:v libx264 -preset veryfast -b:v 800k -g 25 -pix_fmt yuv420p -c:a aac -f mpegts srv/live.ts
+          python3 .github/scripts/playback_fixture.py m3u > srv/test.m3u
+          (cd srv && nohup python3 -m http.server 8000 >/dev/null 2>&1 &)
+          nohup python3 .github/scripts/playback_fixture.py > fixture.log 2>&1 &
+          sleep 2
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: An hour of use
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86
+          target: android-tv
+          profile: tv_1080p
+          disable-animations: true
+          ram-size: 2048M
+          heap-size: 256M
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          script: |
+            adb wait-for-device
+            adb install -r app.apk
+            adb logcat -c
+            adb shell am start -W -n com.fof.tv/com.ipvio.stream.MainActivity --es fof_test_playlist http://10.0.2.2:8000/test.m3u
+            sleep 45
+            adb shell input keyevent 23; sleep 3; adb shell input keyevent 4; sleep 2
+            adb shell input keyevent 20; sleep 1; adb shell input keyevent 23; sleep 3
+            adb shell input keyevent 23; sleep 20
+            bash .github/scripts/soak_steps.sh
+            adb logcat -d > logcat.txt
+      - name: Check
+        if: always()
+        run: |
+          grep -n -A25 "FATAL EXCEPTION" logcat.txt | grep -A25 "com.fof.tv" | head -60 || true
+          grep -E "FofFreeze|FofState|FofCheck" logcat.txt | tail -40 || true
+          python3 .github/scripts/soak_check.py mem.txt logcat.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: soak-test
+          path: |
+            mem.txt
+            logcat.txt
+            s_idle_*.png

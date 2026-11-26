@@ -1,0 +1,71 @@
+name: Roll back the TV app
+
+# One tap (Actions > "Roll back the TV app" > Run workflow, also in the GitHub phone app): the TV app's code (app/)
+# goes back to a version that worked, by default the one every TV has (the latest non-early release), and a new,
+# higher version is released from it, so TVs on the early channel update back within about 10 minutes. Mac, iPhone and
+# workflow files are not touched. Undo by fixing the problem and pushing again.
+on:
+  workflow_dispatch:
+    inputs:
+      to:
+        description: 'Version tag to go back to (empty = the latest release every TV has, e.g. v1.3.279)'
+        default: ''
+      reason:
+        description: 'Why (goes into CHANGELOG.md)'
+        default: 'a problem on the early channel'
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: rollback
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TO: ${{ github.event.inputs.to }}
+      REASON: ${{ github.event.inputs.reason }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Restore app/ from the good version
+        run: |
+          set -euo pipefail
+          if [ -z "$TO" ]; then TO=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name); fi
+          if ! [[ "$TO" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "::error::Not a version tag: $TO"; exit 1; fi
+          git fetch --tags --force origin
+          git rev-parse --verify "$TO^{commit}" >/dev/null || { echo "::error::Tag $TO not found"; exit 1; }
+          git rm -r -q --cached app || true
+          rm -rf app
+          git checkout "$TO" -- app
+          if git diff --cached --quiet; then echo "app/ already matches $TO, nothing to roll back"; exit 0; fi
+          REASON_CLEAN=$(printf '%s' "$REASON" | tr -d '\r' | head -c 200)
+          python3 - "$TO" "$REASON_CLEAN" <<'PY'
+          import sys
+          to, reason = sys.argv[1], sys.argv[2]
+          p = "CHANGELOG.md"
+          s = open(p).read()
+          entry = f"## Unreleased – Rolled back to {to}\n\n- The TV app is back to the code of {to} because of {reason}. The newer changes return with the fix.\n\n"
+          s = s.replace("# Changelog\n\n", "# Changelog\n\n" + entry, 1)
+          open(p, "w").write(s)
+          PY
+          git add -A app CHANGELOG.md
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Roll back the TV app to $TO ($REASON_CLEAN)"
+          git push origin HEAD:main
+          echo "ROLLED=1" >> "$GITHUB_ENV"
+          echo "Rolled app/ back to $TO"
+      # A push made with this workflow's token starts no other workflow: start the release and the checks by hand
+      - name: Release it and run the checks
+        if: env.ROLLED == '1'
+        run: |
+          gh workflow run release.yml -R "$GITHUB_REPOSITORY" --ref main
+          gh workflow run playback-test.yml -R "$GITHUB_REPOSITORY" --ref main
+          gh workflow run soak-test.yml -R "$GITHUB_REPOSITORY" --ref main
+          echo "Release started: the early channel gets the rolled-back build in about 10 minutes."

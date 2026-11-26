@@ -263,6 +263,20 @@ def parse_versions(body):
     return out
 
 
+OWNER = REPO.split("/")[0]
+
+
+def urgent(name):
+    """Problems the owner hears about at once (a GitHub mention: e-mail and the GitHub app's push): crashes, freezes,
+    forced closes while in use, streams that did not start, add-ons that stopped working. Slow screens and background
+    memory closes wait for the daily fix run."""
+    if name.startswith(("perf:", "lag:", "start:", "idle-draw:", "memory:", "reliability: slow")):
+        return False
+    return (name.startswith(("stream:", "freeze:", "addon:", "Freeze", "Closed by Android", "Native crash",
+                             "reliability: playback error"))
+            or re.match(r"^[A-Z]\w*(Exception|Error)\b", name) is not None)
+
+
 def render(r):
     head = f"- {r['happened_at']} · {r.get('version', '')} · {r.get('device', '')} · profile {r.get('profile', '')}\n  `{r['name'][:400]}`"
     det = [d for d in (r["details"] or "").split(" · ") if d.strip() and not d.startswith("raw:")]
@@ -285,6 +299,8 @@ for k, rs in groups.items():
     text = f"{len(rs)} report(s) in the last {HOURS} h ({versions_line(vers)[15:]}):\n\n" + "\n\n".join(render(r) for r in rs[:12])
     if len(rs) > 12:
         text += f"\n\n…and {len(rs) - 12} more."
+    if any(urgent(r["name"]) for r in rs):
+        text = f"@{OWNER} heads-up: a TV reported this in the last hour.\n\n" + text
     text = text[:60000]
     if DRY:
         print("=" * 80, "\n", title, "\n", text[:3000])
