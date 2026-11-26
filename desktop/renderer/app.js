@@ -126,6 +126,7 @@ let lastSave = 0;
 function saveResume(force, posS, durS) {   // posS/durS: from the iPhone's VLC player (the web player is idle then)
   const it = cur, D = durS != null ? durS : V.duration, P = posS != null ? posS : V.currentTime;
   if (!it || it.live || !it.req || !isFinite(D) || D < 60) return;
+  presenceBeat(it, P, D);
   const now = Date.now(); if (!force && now - lastSave < 30000) return; lastSave = now;
   const pos = Math.round(P * 1000), dur = Math.round(D * 1000);
   if (pos < 20000) return;
@@ -294,10 +295,13 @@ function renderShell(tab) {
   const p = acct.profile;
   $('#app').innerHTML = `<div class="shell"><nav class="rail"><img class="mark" src="mark.png">
     ${NAV.map(([k, l]) => `<a data-k="${k}" class="${k === tab ? 'on' : ''}">${ICONS[k]}<span>${l}</span></a>`).join('')}
+    <a class="shr" id="shr"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg><span></span></a>
     <a class="me" id="me" title="Switch profile"><div class="av">${avatarHtml(p, 0)}</div><span>${esc(p.name)}</span></a></nav>
     <main class="page" id="page"></main></div>`;
   document.querySelectorAll('.rail a[data-k]').forEach(a => a.onclick = () => go(a.dataset.k));
   $('#me').onclick = () => { acct.profile = null; store.del('profile'); showWho(); };
+  const shr = () => { const on = sharing(), a = $('#shr'); a.classList.toggle('off', !on); a.title = on ? 'Sharing what you watch with your other profiles. Click to stop.' : 'Not sharing what you watch. Click to share.'; $('span', a).textContent = on ? 'Sharing' : 'Private'; };
+  shr(); $('#shr').onclick = () => { const on = !sharing(); store.set(shareKey(), on); if (!on && acct.profile) sb('/rest/v1/fof_presence?profile_id=eq.' + acct.profile.id, { method: 'DELETE' }).catch(() => {}); shr(); toast(on ? 'Others on your account can see what you watch' : 'What you watch is private now'); };
   castButton();
   go(tab);
 }
@@ -442,6 +446,49 @@ async function newEpisodes() {
 // Checked every hour too, so the notification comes while the app is open
 setInterval(() => { if (acct.watch.length) newEpisodes(); }, 60 * 60 * 1000);
 
+// ------------------------------------------------------------------ Watching now: what the other profiles are playing (table fof_presence)
+let presAt = 0;
+const shareKey = () => 'shareWatching:' + (acct.profile ? acct.profile.id : '');
+const sharing = () => store.get(shareKey(), true);
+function presenceBeat(it, P, D) {
+  const now = Date.now(); if (now - presAt < 25000 || !acct.profile || !sharing() || P < 5 || P > D * 0.95) return; presAt = now;
+  const tt = it.req && ttOf('stremio:' + it.req.id);
+  sb('/rest/v1/fof_presence?on_conflict=profile_id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: {
+    profile_id: acct.profile.id, name: String(acct.profile.name || '').slice(0, 40), item_id: ('stremio:' + it.req.id).slice(0, 300), title: String(it.req.name || '').slice(0, 200),
+    season: it.req.season || 0, ep: it.req.episode || 0, pos_ms: Math.round(P * 1000), dur_ms: Math.round(D * 1000), img: tt ? bgOf(tt) : '',
+    device: NATIVE ? 'iPhone' : 'Mac', updated_at: new Date().toISOString() } }).catch(() => {});
+}
+async function presenceOthers() {
+  if (!acct.profile) return [];
+  const since = new Date(Date.now() - 75000).toISOString();
+  try { return ((await sb('/rest/v1/fof_presence?select=*&updated_at=gt.' + encodeURIComponent(since) + '&order=updated_at.desc')) || []).filter(r => r.profile_id !== acct.profile.id); }
+  catch (e) { return []; }
+}
+async function drawWatchNow() {
+  const box = $('#watchnow'); if (!box) return;
+  const w = (await presenceOthers())[0];
+  if (!$('#watchnow')) return;
+  if (!w) { box.innerHTML = ''; return; }
+  const tt = ttOf(w.item_id), img = w.img || (tt ? bgOf(tt) : '');
+  const left = w.dur_ms > w.pos_ms ? Math.round((w.dur_ms - w.pos_ms) / 60000) : 0, pr = w.dur_ms ? Math.min(100, Math.round(w.pos_ms * 100 / w.dur_ms)) : 0;
+  const ini = esc(String(w.name || '?').slice(0, 1).toUpperCase());
+  box.innerHTML = `<div class="wnb"><span class="wnav">${ini}</span><div class="wnart" style="${img ? `background-image:url('${esc(img)}')` : ''}"><i style="width:${pr}%"></i></div>
+    <div class="wntx"><small><b class="wndot"></b>${esc(w.name)} is watching now${w.device ? ' · ' + esc(w.device) : ''}</small><h3>${esc(w.title)}</h3><span>${[w.season || w.ep ? `S${w.season} E${w.ep}` : '', left ? left + ' min left' : ''].filter(Boolean).join(' · ')}</span></div>
+    ${tt ? `<button class="btn primary" id="wnjoin">&#x25B6;&nbsp; Join ${esc(w.name)}</button>` : '<span class="wnna">Opens on the TV</span>'}</div>`;
+  const j = $('#wnjoin'); if (j) j.onclick = () => openTitle(w.season || w.ep ? 'series' : 'movie', tt);
+}
+(function wnStyle() {
+  const st = document.createElement('style');
+  st.textContent = `#watchnow:empty{display:none}.wnb{display:flex;align-items:center;gap:22px;margin:14px 48px 6px;padding:16px 22px;border-radius:18px;background:rgba(20,26,38,.8);border:1px solid #ffffff14}
+.wnav{width:64px;height:64px;border-radius:50%;background:#d0527a;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:900;flex:none}
+.wnart{width:190px;height:107px;border-radius:12px;background:#2a2440 center/cover;position:relative;overflow:hidden;flex:none}.wnart i{position:absolute;left:0;bottom:0;height:4px;background:#E50914}
+.wntx{flex:1;min-width:0}.wntx small{color:#ccc;font-size:14px;display:flex;align-items:center;gap:8px}.wndot{width:10px;height:10px;border-radius:50%;background:#E50914;display:inline-block}
+@media (max-width:700px){.rail .shr{display:none!important}}.rail .shr{color:#9a9a9a}.rail .shr.off{color:#555}.rail .shr.off svg{opacity:.5}
+.wntx h3{margin:3px 0;font-size:28px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wntx span{color:#bbb;font-size:15px}.wnna{color:#999;font-size:14px}
+@media (max-width:600px){.wnb{margin:10px 14px;gap:12px;padding:12px;flex-wrap:wrap}.wnav{width:44px;height:44px;font-size:18px}.wnart{width:120px;height:68px}.wntx h3{font-size:19px}.wnb .btn{width:100%}}`;
+  document.head.appendChild(st);
+})();
+
 async function renderHome(pg) {
   pg.innerHTML = '<div class="spin"></div>';
   const [mv, sr] = await Promise.all([catalog('movie'), catalog('series')]);
@@ -450,7 +497,7 @@ async function renderHome(pg) {
   let idx = 0;
   const top = [...mv.slice(0, 5), ...sr.slice(0, 5)].sort(() => 0.5 - Math.random()).slice(0, 10);
   const genreRows = [['Action', 'movie', 'Action'], ['Laugh Out Loud', 'movie', 'Comedy'], ['Binge-worthy Crime', 'series', 'Crime'], ['Sci-Fi & Fantasy', 'movie', 'Sci-Fi'], ['Edge-of-Your-Seat Thrillers', 'movie', 'Thriller'], ['Family Movie Night', 'movie', 'Family'], ['Drama Series', 'series', 'Drama'], ['Animation', 'movie', 'Animation']];
-  pg.innerHTML = `${bbHtml()}${continueRow()}
+  pg.innerHTML = `${bbHtml()}<div id="watchnow"></div>${continueRow()}
     ${rowHtml('Top Movies & Shows Today', top.map(m => cardHtml(m, m.type)).join(''))}
     ${rowHtml('Popular Movies', mv.slice(0, 30).map(m => cardHtml(m, 'movie')).join(''), 'movie')}
     ${rowHtml('Popular TV Shows', sr.slice(0, 30).map(m => cardHtml(m, 'series')).join(''), 'series')}
@@ -458,6 +505,7 @@ async function renderHome(pg) {
   newEpisodes().then(l => { if (l.length && $('#newrow')) { $('#newrow').innerHTML = rowHtml('New Episodes This Week', l.map(x => cardHtml(x.meta, 'series')).join('')); wireRows($('#newrow')); } });
   if (acct.mylist.length) myListItems(30).then(l => { if (l.length && $('#mylistrow')) { $('#mylistrow').innerHTML = rowHtml('My List', l.map(m => cardHtml(m, m.type)).join('')); wireRows($('#mylistrow')); } });
   bbWire(pg, featured[0]);
+  drawWatchNow(); clearInterval(renderHome.wn); renderHome.wn = setInterval(() => { if (current === 'home') drawWatchNow(); else clearInterval(renderHome.wn); }, 30000);
   const drawHero = () => {
     const m = featured[idx]; if (!m || !$('#herobox')) return;
     $('#herobox').innerHTML = heroHtml(m, m.type, idx, featured.length);
