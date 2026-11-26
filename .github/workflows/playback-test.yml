@@ -76,6 +76,8 @@ jobs:
             adb shell am start -W -n com.fof.tv/com.ipvio.stream.MainActivity --es fof_test_playlist http://10.0.2.2:8000/test.m3u
             sleep 45
             adb shell input keyevent 23; sleep 3; adb shell input keyevent 4; sleep 2
+            adb shell input keyevent 20; sleep 1; adb shell input keyevent 23; sleep 3
+            adb shell input keyevent 23; sleep 20
             adb exec-out screencap -p > p_home.png
             bash scenarios.sh
             (adb shell pidof com.fof.tv > /dev/null && echo RUNNING || echo NOT-RUNNING) | tee alive.txt
@@ -86,6 +88,13 @@ jobs:
           grep -n -A25 "FATAL EXCEPTION" logcat.txt | grep -A25 "com.fof.tv" | head -60 || true
           grep -E "FofPlay|FofCheck|PlaybackException" logcat.txt | tail -80 || true
           tail -40 fixture.log || true
+          # Screens in the log (artifacts are not always reachable): IMG-BEGIN <name> <base64 jpeg> IMG-END
+          for f in p_home.png p_tt9000001.png p_tt9000005.png; do
+            if [ -s "$f" ]; then
+              ffmpeg -loglevel error -y -i "$f" -vf scale=640:-1 -q:v 8 "${f%.png}.jpg"
+              echo "IMG-BEGIN ${f%.png}"; base64 -w 0 "${f%.png}.jpg"; echo; echo "IMG-END"
+            fi
+          done
           python3 .github/scripts/playback_check.py fixture.json logcat.txt
           grep -q RUNNING alive.txt && ! grep -q NOT-RUNNING alive.txt
       - uses: actions/upload-artifact@v4
