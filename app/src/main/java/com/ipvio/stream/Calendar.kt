@@ -72,15 +72,43 @@ object CalendarData {
 
     fun clear() { cache = null }
 
+    private fun imdbOf(i: Item): String? = i.id.removePrefix("stremio:").takeIf { i.id.startsWith("stremio:") && StremioLogic.isImdb(it) }
+
+    /** Episodes of a show from Cinemeta (free, no key); only catalog titles (stremio:tt...). */
+    private fun cinemetaShow(s: Item, from: LocalDate, to: LocalDate): List<Entry> {
+        val tt = imdbOf(s) ?: return emptyList()
+        val m = json("https://v3-cinemeta.strem.io/meta/series/$tt.json")?.optJSONObject("meta") ?: return emptyList()
+        val vs = m.optJSONArray("videos") ?: return emptyList()
+        val bg = m.optString("background").takeIf { it.startsWith("http") }
+        return (0 until vs.length()).mapNotNull { i ->
+            val v = vs.getJSONObject(i)
+            val se = v.optInt("season"); if (se <= 0) return@mapNotNull null
+            val d = runCatching { java.time.OffsetDateTime.parse(v.optString("released")).atZoneSameInstant(ZoneId.systemDefault()).toLocalDate() }.getOrNull() ?: return@mapNotNull null
+            if (d < from || d > to) return@mapNotNull null
+            Entry(d, 0, s.title, "S$se · E${v.optInt("episode")}", 0, v.optString("thumbnail").takeIf { it.startsWith("http") } ?: bg, s)
+        }
+    }
+
+    /** A followed movie's release date from Cinemeta. */
+    private fun cinemetaMovie(mv: Item, from: LocalDate, to: LocalDate): Entry? {
+        val tt = imdbOf(mv) ?: return null
+        val m = json("https://v3-cinemeta.strem.io/meta/movie/$tt.json")?.optJSONObject("meta") ?: return null
+        val d = runCatching { java.time.OffsetDateTime.parse(m.optString("released")).atZoneSameInstant(ZoneId.systemDefault()).toLocalDate() }.getOrNull() ?: return null
+        if (d < from || d > to) return null
+        return Entry(d, 0, mv.title, "Movie", 1, m.optString("background").takeIf { it.startsWith("http") }, mv)
+    }
+
     /** My calendar: this and next month for your shows, upcoming movies, your teams' next 7 days. */
     suspend fun mine(ctx: android.content.Context, shows: List<Item>, movies: List<Item>): List<Entry> = withContext(Dispatchers.IO) {
         cache?.let { if (System.currentTimeMillis() - it.first < 6 * 3600_000L) return@withContext it.second }
-        if (!MetaRepo.enabled()) return@withContext emptyList()
+        val hasKey = MetaRepo.enabled()   // without a TMDB key: games still show, shows/movies use Cinemeta's dates
         val key = Config.TMDB_KEY
         val out = ArrayList<Entry>()
+        val from = LocalDate.now().minusDays(45); val to = LocalDate.now().plusDays(75)
         coroutineScope {
             val showJobs = shows.distinctBy { it.id }.take(30).map { s -> async {
-                val m = MetaRepo.basic(ctx, s) ?: return@async emptyList<Entry>()
+                if (!hasKey) return@async cinemetaShow(s, from, to)
+                val m = MetaRepo.basic(ctx, s) ?: return@async cinemetaShow(s, from, to)
                 val tv = json("https://api.themoviedb.org/3/tv/${m.tmdbId}?api_key=$key&language=en-US") ?: return@async emptyList()
                 val season = (tv.optJSONObject("next_episode_to_air") ?: tv.optJSONObject("last_episode_to_air"))?.optInt("season_number") ?: return@async emptyList()
                 val se = json("https://api.themoviedb.org/3/tv/${m.tmdbId}/season/$season?api_key=$key&language=en-US") ?: return@async emptyList()
@@ -93,7 +121,10 @@ object CalendarData {
                         0, img(e.optString("still_path")) ?: m.backdrop, s)
                 }
             } }
+            // Followed movies: their own release date (any key)
+            val followedMovies = movies.distinctBy { it.id }.take(30).map { mv -> async { cinemetaMovie(mv, from, to.plusDays(300)) } }
             val movieJob = async {
+                if (!hasKey) return@async emptyList<Entry>()
                 val up = json("https://api.themoviedb.org/3/movie/upcoming?api_key=$key&language=en-US&region=US")?.optJSONArray("results")
                 (0 until (up?.length() ?: 0)).mapNotNull { i ->
                     val o = up!!.getJSONObject(i)
@@ -111,7 +142,8 @@ object CalendarData {
                         g.away.short + " at " + g.home.short, g.league, 2, null, null, g)
                 }
             }
-            out += showJobs.awaitAll().flatten(); out += movieJob.await(); out += gameJob.await()
+            out += showJobs.awaitAll().flatten(); out += followedMovies.awaitAll().filterNotNull()
+            out += movieJob.await().filter { e -> out.none { it.kind == 1 && it.title.equals(e.title, true) } }; out += gameJob.await()
         }
         val r = out.sortedWith(compareBy({ it.day }, { it.sec }))
         if (r.isNotEmpty()) cache = System.currentTimeMillis() to r
