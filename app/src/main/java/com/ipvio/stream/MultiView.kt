@@ -17,6 +17,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -121,8 +124,14 @@ fun MultiViewScreen(live: List<Item>, start: List<Item>? = null, onExit: ((Item?
         }
     }
     Dialog(onDismissRequest = { if (full >= 0) full = -1 else close() }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        Column(Modifier.fillMaxSize().background(Color.Black).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        // Clean 2×2 (Nuvio look): the pictures edge to edge with thin gaps; the bar shows for a few seconds after any key
+        var barTick by remember { mutableIntStateOf(0) }
+        var showBar by remember { mutableStateOf(true) }
+        LaunchedEffect(barTick) { showBar = true; kotlinx.coroutines.delay(4_000); showBar = false }
+        Column(Modifier.fillMaxSize().background(Color.Black)
+            .onPreviewKeyEvent { if (it.type == androidx.compose.ui.input.key.KeyEventType.KeyDown) barTick++; false },
+            verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (showBar || picking >= 0) Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Mehrfachansicht", color = Color.White, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
                 SmallPill(MultiViewLogic.LAYOUT_NAMES[layout], icon = AIcon.Grid) {
                     // Layouts with four tiles only where the device can decode four videos
@@ -143,37 +152,37 @@ fun MultiViewScreen(live: List<Item>, start: List<Item>? = null, onExit: ((Item?
                 var f by remember { mutableStateOf(false) }
                 Box(
                     m.onFocusChanged { f = it.isFocused }
-                        .border(if (f) 4.dp else 0.dp, if (f) Color.White else Color.Transparent, RoundedCornerShape(10.dp))
+                        .border(if (f) 4.dp else 0.dp, if (f) Color.White else Color.Transparent)
                         .combinedClickable(onClick = { if (item != null) audio = i else pickAt(minOf(i, slots.size)) }, onLongClick = { if (item != null) menuFor = i else pickAt(minOf(i, slots.size)) })
                 ) {
                     if (item != null) androidx.compose.runtime.key(item.id) {
                         SecondStream(item, split = false, audioOn = audio == i, modifier = Modifier.fillMaxSize(), small = full != i,
                             onFailed = { nextChannel(i, item) })
                     }
-                    if (item != null && audio == i) Box(Modifier.align(Alignment.TopEnd).padding(10.dp).background(Color(0xCC000000), RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 4.dp)) {
-                        Text(raw = true, text = "🔊", fontSize = 14.sp, color = Color.White)
+                    if (item != null && audio == i) Box(Modifier.align(Alignment.TopEnd).padding(12.dp).background(Color(0xFFE50914), RoundedCornerShape(6.dp)).padding(horizontal = 10.dp, vertical = 4.dp)) {
+                        Text(raw = true, text = "♪ SOUND", fontSize = 14.sp, color = Color.White, fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraBold)
                     }
-                    if (item != null) TileScore(item, live, Modifier.align(Alignment.TopStart).padding(10.dp))
+                    if (item != null) TileScore(item, live, Modifier.align(Alignment.BottomStart).padding(14.dp))
                     else Text("OK = pick a channel", color = Color(0xFFA0A6B8), fontSize = 16.sp, modifier = Modifier.align(Alignment.Center))
                 }
             }
             if (full >= 0) Box(Modifier.weight(1f).fillMaxWidth()) { tile(full, Modifier.fillMaxSize()) }
             else when (layout) {
-                MultiViewLogic.QUAD -> Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MultiViewLogic.QUAD -> Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         tile(0, Modifier.weight(1f).fillMaxSize()); tile(1, Modifier.weight(1f).fillMaxSize())
                     }
-                    Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         tile(2, Modifier.weight(1f).fillMaxSize()); tile(3, Modifier.weight(1f).fillMaxSize())
                     }
                 }
                 MultiViewLogic.BIG3 -> Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     tile(0, Modifier.weight(2f).fillMaxWidth())
-                    Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         tile(1, Modifier.weight(1f).fillMaxSize()); tile(2, Modifier.weight(1f).fillMaxSize()); tile(3, Modifier.weight(1f).fillMaxSize())
                     }
                 }
-                else -> Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                else -> Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     tile(0, Modifier.weight(if (layout == MultiViewLogic.GRID) 1f else 2f).fillMaxSize())
                     tile(1, Modifier.weight(1f).fillMaxSize())
                 }
