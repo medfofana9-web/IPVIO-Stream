@@ -302,7 +302,7 @@ function renderShell(tab) {
   go(tab);
 }
 function go(tab, arg) {
-  current = tab;
+  current = tab; setGlow(null);
   document.querySelectorAll('.rail a[data-k]').forEach(a => a.classList.toggle('on', a.dataset.k === tab));
   const pg = $('#page'); pg.scrollTop = 0;
   if (tab === 'home') renderHome(pg);
@@ -1032,6 +1032,79 @@ function spPanel(g) {
     $('#spch').textContent = c.name; startPreview($('#spv').parentNode, c);
   }, 1200);
 }
+// ------------------------------------------------------------------ pinned channels on the Sports page (ESPN and NBA TV to start)
+const pinList = () => store.get('sportPins', ['name:ESPN', 'name:NBA TV']);
+const pinSave = l => store.set('sportPins', l);
+const pinBase = t => String(t || '').toLowerCase().replace(/^\s*[a-z]{2,3}\s*[:|\-]\s*/, '').replace(/[\[(].*?[\])]/g, ' ')
+  .replace(/\b(fhd|uhd|hd|sd|4k|hevc|h265|1080p?|720p?|50fps|60fps)\b/g, ' ').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+const pinScore = t => { t = t.toLowerCase(); let s = 0; if (/^\s*(us|usa)\s*[:|\-]/.test(t)) s += 2; if (/\b(fhd|1080)/.test(t)) s += 1; else if (/\bhd\b/.test(t)) s += .5; if (/\b(backup|raw|plus|alt)\b/.test(t)) s -= 1; return s; };
+function pinResolve(p) {
+  const chans = (live && live.chans) || [];
+  if (p.startsWith('url:')) return chans.find(c => c.url === p.slice(4)) || null;
+  const want = pinBase(p.slice(5));
+  return chans.filter(c => pinBase(c.name) === want).sort((a, b) => pinScore(b.name) - pinScore(a.name))[0] || null;
+}
+const pinLabel = (p, c) => p.startsWith('name:') ? p.slice(5) : (c ? c.name : 'Channel');
+const pinCol = n => /espn/i.test(n) ? '#c8102e' : /nba/i.test(n) ? '#1d428a' : /nfl/i.test(n) ? '#013369' : /fox/i.test(n) ? '#003f7d' : '#2a3142';
+function pinPanel(x, el) {
+  const p = $('#spp'); if (!p) return;
+  stopPreview(); renderSports.sel = null;
+  $('#sg').querySelectorAll('.spc,.pinc').forEach(e => e.classList.toggle('sel', e === el));
+  const col = pinCol(x.c ? x.c.name : x.p); setGlow(col, col);
+  p.innerHTML = `<div class="spbig"><div class="spbg"><div style="background:linear-gradient(160deg,${col},#0c1018)">${x.c && x.c.logo ? `<img src="${esc(x.c.logo)}">` : ''}</div></div><div class="lg" id="spv"></div>
+    <div class="spsc"><div><div class="spr">${esc(pinLabel(x.p, x.c))}</div></div><div class="spw"><b>Pinned channel</b></div></div></div>
+    <div class="spinfo"><div><small>CHANNEL</small>${esc(x.c ? x.c.name : 'Not in your playlist')}</div><div><small>PINNED</small>Click to watch · &#x2715; to unpin</div>${x.c ? '<button class="btn primary" id="spwatch">&#x25B6;&nbsp; Watch</button>' : ''}</div>`;
+  if (x.c) {
+    $('#spwatch').onclick = () => { stopPreview(); play({ url: x.c.url, title: x.c.name, live: true }); };
+    if (HOVER && !WEB) setTimeout(() => { if ($('#spv') && el.classList.contains('sel')) startPreview($('#spv').parentNode, x.c); }, 900);
+  }
+}
+function pinPicker(done) {
+  const bg = document.createElement('div'); bg.className = 'sheet-bg';
+  const chans = ((live && live.chans) || []).filter(c => /sport|espn|nba|nfl|nhl|mlb|fox|tnt|tbs|dazn|bein|sky/i.test(c.name + ' ' + (c.cat || '')));
+  bg.innerHTML = `<div class="sheet"><button class="sx" title="Close">&#x2715;</button><h2>Pin a channel</h2><input class="pinq" placeholder="Search channels" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid #333;background:#141a26;color:#fff;font-size:15px;margin:8px 0 12px"><div class="chlist"></div></div>`;
+  document.body.appendChild(bg);
+  const close = () => bg.remove();
+  bg.onclick = e => { if (e.target === bg || e.target.closest('.sx')) close(); };
+  const draw = q => {
+    const l = (q ? ((live && live.chans) || []).filter(c => c.name.toLowerCase().includes(q.toLowerCase())) : chans).slice(0, 80);
+    $('.chlist', bg).innerHTML = l.map((c, i) => `<div class="src" data-i="${i}">${c.logo ? `<img loading="lazy" src="${esc(c.logo)}" onerror="this.style.visibility='hidden'">` : ''}<div class="nm2"><b>${esc(c.name)}</b></div></div>`).join('') || '<div class="sub">No channels match.</div>';
+    bg.querySelectorAll('.src').forEach(el => el.onclick = () => { const c = l[+el.dataset.i]; const ps = pinList(); if (!ps.includes('url:' + c.url)) pinSave(ps.concat('url:' + c.url)); close(); done(); });
+  };
+  $('.pinq', bg).oninput = e => draw(e.target.value.trim());
+  draw('');
+}
+
+// ------------------------------------------------------------------ background glow (Option A): the colors of what is selected
+const glowCache = {};
+function glowDark(hex, k) {
+  const m = String(hex || '').replace('#', '').match(/^([0-9a-f]{6})$/i); if (!m) return null;
+  const n = parseInt(m[1], 16); const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  return `rgb(${Math.round(r * k)},${Math.round(g * k)},${Math.round(b * k)})`;
+}
+function setGlow(a, b) {
+  const s = document.body.style;
+  if (!a) { s.removeProperty('--g1'); s.removeProperty('--g2'); return; }
+  s.setProperty('--g1', glowDark(a, .62) || a); s.setProperty('--g2', glowDark(b || a, .45) || b || a);
+}
+// Mood color of an artwork: read at 16×16, colorful pixels count more; deep tone (no bright tint behind text)
+function glowArt(url) {
+  if (!url) return setGlow(null);
+  if (glowCache[url] !== undefined) return glowCache[url] ? setGlow(glowCache[url]) : setGlow(null);
+  const im = new Image(); im.crossOrigin = 'anonymous';
+  im.onload = () => {
+    try {
+      const c = document.createElement('canvas'); c.width = c.height = 16; const x = c.getContext('2d'); x.drawImage(im, 0, 0, 16, 16);
+      const d = x.getImageData(0, 0, 16, 16).data; let r = 0, g = 0, b = 0, w = 0;
+      for (let i = 0; i < d.length; i += 4) { const mx = Math.max(d[i], d[i + 1], d[i + 2]), mn = Math.min(d[i], d[i + 1], d[i + 2]); const sat = mx ? (mx - mn) / mx : 0; const wt = .05 + sat * sat * mx / 255; r += d[i] * wt; g += d[i + 1] * wt; b += d[i + 2] * wt; w += wt; }
+      const hex = '#' + [r / w, g / w, b / w].map(v => Math.round(Math.min(255, v * 1.1)).toString(16).padStart(2, '0')).join('');
+      glowCache[url] = hex; setGlow(hex);
+    } catch (e) { glowCache[url] = ''; setGlow(null); }
+  };
+  im.onerror = () => { glowCache[url] = ''; setGlow(null); };
+  im.src = url;
+}
+
 async function renderSports(pg) {
   if (acct.playlist) loadLive().catch(() => {});
   pg.innerHTML = `<div class="sports"><h1>Sports</h1><div class="chips">${[['all', 'All']].concat(LEAGUES.map(l => [l[0], l[1]])).map(([k, l]) => `<button data-k="${k}" class="${k === sportPick ? 'on' : ''}">${l}</button>`).join('')}</div><div id="sg"><div class="spin"></div></div></div>`;
@@ -1043,7 +1116,11 @@ async function renderSports(pg) {
   const mine = all.filter(g => g.state !== 'post' && (followed(teamKey(g, g.home)) || followed(teamKey(g, g.away))));
   const groups = [['Your Teams', mine], ['Live Now', all.filter(g => g.state === 'in' && !mine.includes(g))], ['Coming Up', all.filter(g => g.state === 'pre' && !mine.includes(g)).sort((a, b) => new Date(a.date) - new Date(b.date))], ['Final', all.filter(g => g.state === 'post')]];
   let n = 0; const idx = [];
-  const listHtml = groups.filter(([, l]) => l.length).map(([h, l]) => `<h3 class="spsec">${h === 'Live Now' ? '<i></i>' : ''}${h.toUpperCase()}<small>${l.length} ${l.length === 1 ? 'game' : 'games'}</small></h3>${l.map(g => { idx.push(g); return spCard(g, n++); }).join('')}`).join('');
+  // Pins need the channel list: never hold the games back for it, draw again once it is there
+  if (!live.loaded && acct.playlist && !renderSports.wait) { renderSports.wait = 1; loadLive().then(() => { renderSports.wait = 0; if (current === 'sports') renderSports(pg); }).catch(() => { renderSports.wait = 0; }); }
+  const pins = pinList().map(p => ({ p, c: pinResolve(p) }));
+  const pinHtml = `<h3 class="spsec">YOUR CHANNELS</h3>${pins.map((x, i) => `<div class="pinc" data-p="${i}" tabindex="0"><span class="pinlg" style="background:${pinCol(x.c ? x.c.name : x.p)}">${x.c && x.c.logo ? `<img src="${esc(x.c.logo)}" onerror="this.remove()">` : ''}<b>${esc(pinLabel(x.p, x.c))}</b></span><div class="pinnm"><b>${esc(pinLabel(x.p, x.c))}</b><small>${x.c ? esc(x.c.name) : live.loaded ? 'Not in your playlist' : 'Finding channel…'}</small></div><button class="pinx" title="Unpin">&#x2715;</button></div>`).join('')}<button class="pinadd">+ Pin a channel</button>`;
+  const listHtml = pinHtml + groups.filter(([, l]) => l.length).map(([h, l]) => `<h3 class="spsec">${h === 'Live Now' ? '<i></i>' : ''}${h.toUpperCase()}<small>${l.length} ${l.length === 1 ? 'game' : 'games'}</small></h3>${l.map(g => { idx.push(g); return spCard(g, n++); }).join('')}`).join('');
   if (!listHtml) { $('#sg').innerHTML = '<div class="empty" style="padding:30px 0">No games today in this league.</div>'; return; }
   // Split view (same as the TV): games on the left, the selected one large on the right
   const keep = renderSports.sel;
@@ -1051,12 +1128,21 @@ async function renderSports(pg) {
   const pick = i => {
     const g = idx[i]; if (!g) return; renderSports.sel = g.id;
     $('#sg').querySelectorAll('.spc').forEach(el => el.classList.toggle('sel', +el.dataset.g === i));
-    spPanel(g);
+    spPanel(g); setGlow(teamCol(g.home.color), teamCol(g.away.color));
   };
   $('#sg').querySelectorAll('.spc').forEach(el => {
     el.onclick = () => { stopPreview(); watchGame(idx[+el.dataset.g]); };   // hover (Mac) shows it on the right, a click watches
     if (HOVER) el.onmouseenter = () => { clearTimeout(renderSports.h); renderSports.h = setTimeout(() => pick(+el.dataset.g), 250); };
   });
+  $('#sg').querySelectorAll('.pinc').forEach(el => {
+    const x = pins[+el.dataset.p];
+    el.onclick = e => {
+      if (e.target.closest('.pinx')) { e.stopPropagation(); pinSave(pinList().filter(p => p !== x.p)); renderSports(pg); return; }
+      if (x.c) { stopPreview(); play({ url: x.c.url, title: x.c.name, live: true, zap: pins.map(y => y.c).filter(Boolean), zi: 0 }); }
+    };
+    if (HOVER) el.onmouseenter = () => { clearTimeout(renderSports.h); renderSports.h = setTimeout(() => pinPanel(x, el), 250); };
+  });
+  $('.pinadd', $('#sg')).onclick = () => pinPicker(() => renderSports(pg));
   pick(Math.max(0, idx.findIndex(g => g.id === keep)));
   clearTimeout(renderSports.t); renderSports.t = setTimeout(() => { if (current === 'sports') renderSports(pg); }, 60000);
 }
@@ -1819,6 +1905,7 @@ function bbShow(m) {
   const b = $('#bb'); if (!b || !m) return;
   const tt = ttOf(m.id);
   $('.bbbg', b).style.backgroundImage = `url('${esc(m.background || (tt ? bgOf(tt) : ''))}')`;
+  glowArt(m.background || (tt ? bgOf(tt) : ''));
   $('.bbk', b).textContent = m.type === 'series' ? 'SERIES' : 'MOVIE';
   $('.bbt', b).innerHTML = tt ? `<img src="${esc(logoOf(tt))}" alt="${esc(m.name)}" onerror="this.outerHTML='${esc(m.name).replace(/'/g, '&#39;')}'">` : esc(m.name);
   $('.bbm', b).innerHTML = [m.genres && m.genres[0], m.runtime, m.releaseInfo || m.year].filter(Boolean).map(esc).join(' &bull; ') + (m.imdbRating ? ` <span class="imdb">IMDb</span> ${esc(m.imdbRating)}` : '');
@@ -1834,6 +1921,20 @@ function bbWire(pg, first) {
   pg.addEventListener('mouseover', e => { if (e.target.closest && e.target.closest('.card.nv')) on(e.target); });
   pg.addEventListener('focusin', e => { if (e.target.closest && e.target.closest('.card.nv')) on(e.target); });
 }
+(function glowStyle() {
+  const st = document.createElement('style');
+  st.textContent = `@property --g1{syntax:'<color>';inherits:true;initial-value:#3a0b12}@property --g2{syntax:'<color>';inherits:true;initial-value:#161a2a}
+body{--g1:#3a0b12;--g2:#161a2a;background:radial-gradient(ellipse 65% 75% at 82% 0%,var(--g1),transparent 70%),radial-gradient(ellipse 55% 60% at 4% 104%,var(--g2),transparent 70%),#0b0c10!important;transition:--g1 .9s,--g2 .9s}
+.rail{background:rgba(0,0,0,.35)!important}
+.pinc{display:flex;align-items:center;gap:14px;padding:10px 12px;border-radius:14px;background:#141a26;cursor:pointer;outline:3px solid transparent;flex:none;position:relative}
+.pinc.sel,.pinc:hover{outline-color:#fff}.pinlg{width:86px;height:52px;border-radius:9px;flex:none;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.pinlg img{max-width:70px;max-height:40px;object-fit:contain}.pinlg img+b{display:none}.pinlg b{font-size:14px;font-weight:900;text-transform:uppercase}
+.pinnm{flex:1;min-width:0}.pinnm b{display:block;font-size:17px}.pinnm small{display:block;color:#aaa;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pinx{flex:none;width:30px;height:30px;border-radius:50%;border:0;background:#ffffff14;color:#bbb;cursor:pointer;opacity:0}.pinc:hover .pinx{opacity:1}
+.pinadd{flex:none;height:40px;border-radius:12px;border:1px dashed #ffffff33;background:none;color:#aaa;font-size:14px;cursor:pointer;margin-bottom:6px}.pinadd:hover{background:#fff;color:#000}
+@media (hover:none){.pinx{opacity:1}}`;
+  document.head.appendChild(st);
+})();
 (function wlStyle() {
   const st = document.createElement('style');
   st.textContent = `.sheet.wl{width:min(860px,96vw)}
