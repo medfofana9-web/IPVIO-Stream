@@ -299,7 +299,8 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
             HubEmpty(AIcon.Live, "Live-Ergebnisse sind aus", "Ergebnisse, Tabellen und Spielpläne kommen von ESPN (inoffizielle Quelle). Schalte sie ein, um den Sports Hub zu nutzen.",
                 "Einschalten") { General.setSportLive(ctx, true) }
         } else when (tab) {
-            0 -> HubOverview(feed, hub) { retry++ }
+            // Clean look (Nuvio style): the split view – games on the left, the selected game large on the right
+            0 -> if (FofPrefs.cleanLook && feed.games.isNotEmpty()) SportSplit(feed.games, hub) else HubOverview(feed, hub) { retry++ }
             1 -> HubLive(feed, hub, sport, sportReq) { sport = it; HubMemory.sport = it }
             2 -> HubSchedule(hub, sport) { sport = it; HubMemory.sport = it }
             3 -> HubLeagues(hub)
