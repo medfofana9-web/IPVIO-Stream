@@ -31,7 +31,7 @@ class Round17Test {
 
     // T227
     @Test fun menue_verlaufVorhanden() {
-        assertEquals(11, MenuLogic.COUNT)
+        assertEquals(12, MenuLogic.COUNT)
         assertTrue(MenuLogic.VERLAUF in MenuLogic.parseOrder(null))
         assertEquals(MenuLogic.COUNT, MenuLogic.parseOrder("0,1,2,3,4,5").size)
         assertFalse(MenuLogic.VERLAUF in MenuLogic.parseHidden(MenuLogic.DEFAULT_HIDDEN))

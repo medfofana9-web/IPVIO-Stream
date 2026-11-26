@@ -133,17 +133,17 @@ http://h/x
     }
 
     // ---------------------------------------------------------------- Menu
-    @Test fun menue_standard() = assertEquals(listOf(0, 3, 1, 2, 10, 6, 7, 8, 9, 4, 5), MenuLogic.parseOrder(null))
+    @Test fun menue_standard() = assertEquals(listOf(0, 3, 1, 2, 10, 11, 6, 7, 8, 9, 4, 5), MenuLogic.parseOrder(null))
 
     @Test fun menue_alteReihenfolge_neueBereicheVorEinstellungen() {
-        assertEquals(listOf(0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 5), MenuLogic.parseOrder("0,1,2,3,4,5"))
-        assertEquals(listOf(6, 7, 8, 9, 10, 5, 0, 1, 2, 3, 4), MenuLogic.parseOrder("5,0,1,2,3,4"))
-        assertEquals(listOf(0, 4, 1, 2, 3, 6, 7, 8, 9, 10, 5), MenuLogic.parseOrder("0,4,1,2,3,6,5"))
+        assertEquals(listOf(0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 5), MenuLogic.parseOrder("0,1,2,3,4,5"))
+        assertEquals(listOf(6, 7, 8, 9, 10, 11, 5, 0, 1, 2, 3, 4), MenuLogic.parseOrder("5,0,1,2,3,4"))
+        assertEquals(listOf(0, 4, 1, 2, 3, 6, 7, 8, 9, 10, 11, 5), MenuLogic.parseOrder("0,4,1,2,3,6,5"))
     }
 
     @Test fun menue_kaputteWerteWerdenRepariert() {
-        val o = MenuLogic.parseOrder("11,3,3,x,-1,2")
-        assertEquals(listOf(3, 2, 0, 1, 4, 6, 7, 8, 9, 10, 5), o)
+        val o = MenuLogic.parseOrder("12,3,3,x,-1,2")
+        assertEquals(listOf(3, 2, 0, 1, 4, 6, 7, 8, 9, 10, 11, 5), o)
         assertEquals(MenuLogic.COUNT, o.toSet().size)
     }
 
@@ -151,13 +151,13 @@ http://h/x
         assertEquals(listOf(1, 2, 6), MenuLogic.parseHidden("0,1,2,5,6,19"))
         assertEquals(emptyList<Int>(), MenuLogic.toggle(emptyList(), 0))
         assertEquals(emptyList<Int>(), MenuLogic.toggle(emptyList(), 5))
-        val all = MenuLogic.visible(MenuLogic.DEFAULT_ORDER, listOf(1, 2, 3, 4, 6, 7, 8, 9, 10))
+        val all = MenuLogic.visible(MenuLogic.DEFAULT_ORDER, listOf(1, 2, 3, 4, 6, 7, 8, 9, 10, 11))
         assertEquals(listOf(0, 5), all)
     }
 
     @Test fun menue_verschiebenUndGrenzen() {
         val o = MenuLogic.DEFAULT_ORDER
-        assertEquals(listOf(3, 0, 1, 2, 10, 6, 7, 8, 9, 4, 5), MenuLogic.move(o, 0, 1))
+        assertEquals(listOf(3, 0, 1, 2, 10, 11, 6, 7, 8, 9, 4, 5), MenuLogic.move(o, 0, 1))
         assertEquals(o, MenuLogic.move(o, 0, -1))
         assertEquals(o, MenuLogic.move(o, 5, 1))
         assertEquals(o, MenuLogic.move(o, 99, 1))

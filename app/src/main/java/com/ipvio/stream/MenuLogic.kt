@@ -5,7 +5,7 @@ package com.ipvio.stream
  * Guarantees: every area occurs exactly once, "Start" (0) and "Settings" (5) can never be hidden.
  */
 object MenuLogic {
-    const val COUNT = 11
+    const val COUNT = 12
     const val HOME = 0
     const val SEARCH = 4
     const val SETTINGS = 5
@@ -17,8 +17,10 @@ object MenuLogic {
     const val VERLAUF = 9
     /** Round 20: Sports – running and upcoming sports shows, sports channels. */
     const val SPORT = 10
+    /** Fof TV: Calendar – new episodes of your shows, new movies and your teams' games by day. */
+    const val CALENDAR = 11
     /** As in the draft: Home, Live TV, movies, series, EPG, favorites, "Meine Liste", (search), settings. */
-    val DEFAULT_ORDER = listOf(0, 3, 1, 2, SPORT, EPG, FAVS, MYLIST, VERLAUF, SEARCH, 5)
+    val DEFAULT_ORDER = listOf(0, 3, 1, 2, SPORT, CALENDAR, EPG, FAVS, MYLIST, VERLAUF, SEARCH, 5)
     /**
      * Fof TV: Search is shown in the sidebar (it finds movies, shows, games, teams and channels).
      * EPG (round 14, user's wish): also hidden – the TV guide is reachable via Live TV.
@@ -26,7 +28,7 @@ object MenuLogic {
      */
     const val DEFAULT_HIDDEN = "6"
     /** Mac look (one-time switch): the Mac app's menu order; TV guide, Favorites and History hidden. */
-    val MAC_ORDER = listOf(SEARCH, HOME, 2, 1, SPORT, 3, MYLIST, FAVS, VERLAUF, EPG, SETTINGS)
+    val MAC_ORDER = listOf(SEARCH, HOME, 2, 1, SPORT, CALENDAR, 3, MYLIST, FAVS, VERLAUF, EPG, SETTINGS)
     const val MAC_HIDDEN = "6,7,9"
 
     fun parseOrder(raw: String?): List<Int> {

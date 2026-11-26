@@ -132,6 +132,11 @@ fun MenuIcon(id: Int, color: Color, modifier: Modifier = Modifier) {
                 drawArc(color, 200f, 140f, false, topLeft = Offset(.14f * s, .02f * s), size = Size(.72f * s, .5f * s), style = sw)
                 drawArc(color, 20f, 140f, false, topLeft = Offset(.14f * s, .48f * s), size = Size(.72f * s, .5f * s), style = sw)
             }
+            11 -> { // Calendar: page with rings and a row of days
+                rect(.14f, .22f, .72f, .64f, .08f)
+                line(.14f, .42f, .86f, .42f)
+                line(.34f, .12f, .34f, .3f); line(.66f, .12f, .66f, .3f)
+            }
             else -> {
                 for (y in listOf(.26f, .5f, .74f)) line(.12f, y, .88f, y)
             }

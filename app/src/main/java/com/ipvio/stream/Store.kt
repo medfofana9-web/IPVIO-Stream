@@ -38,7 +38,7 @@ object SubStyle {
     val EDGES = listOf("Kein", "Schatten", "Kontur")
 }
 
-val MENU_LABELS = listOf("Home", "Filme", "Serien", "Live TV", "Suche", "Einstellungen", "EPG", "Favoriten", "Meine Liste", "Verlauf", "Sport")
+val MENU_LABELS = listOf("Home", "Filme", "Serien", "Live TV", "Suche", "Einstellungen", "EPG", "Favoriten", "Meine Liste", "Verlauf", "Sport", "Calendar")
 
 object AppSettings {
     var ipvioFilter by mutableStateOf(false)

@@ -356,7 +356,7 @@ private fun AppContent() {
     val states = listOf(
         rememberLazyListState(), rememberLazyListState(), rememberLazyListState(),
         rememberLazyListState(), rememberLazyListState(), rememberLazyListState(), rememberLazyListState(),
-        rememberLazyListState(), rememberLazyListState(), rememberLazyListState(), rememberLazyListState()
+        rememberLazyListState(), rememberLazyListState(), rememberLazyListState(), rememberLazyListState(), rememberLazyListState()
     )
 
     // New app version on GitHub? Check silently once a day; a find appears in the bell at the top right.
