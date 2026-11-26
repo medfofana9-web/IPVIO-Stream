@@ -1157,6 +1157,37 @@ function glowArt(url) {
   im.src = url;
 }
 
+// ------------------------------------------------------------------ phone second screen (Option B): the game on the TV, a remote, other games
+function tvRemoteHtml(idx) {
+  if (!castTV || castTV.dlna) return '';
+  const g = idx.find(x => x.id === store.get('castGame', ''));
+  return `<div class="tvr"><div class="tvr-top" style="${g ? `background:linear-gradient(90deg,${teamCol(g.away.color)},${teamCol(g.home.color)})` : ''}">
+    ${g ? `<b>${esc(g.away.short)}</b><div class="tvr-mid"><span id="tvr-sc">${esc((g.away.score || 0) + ' – ' + (g.home.score || 0))}</span><small id="tvr-dt">${esc(g.state === 'post' ? 'Final' : g.detail)}</small></div><b>${esc(g.home.short)}</b>`
+      : `<div class="tvr-mid"><small>Tap “Watch on TV” on any game</small></div>`}</div>
+    <div class="tvr-on">● Playing on ${esc(castTV.name)}</div>
+    <div class="tvr-btns"><button data-c="pause">&#x23EF; Pause</button><button data-c="skip" data-v="-10">&#x21BA; 10s</button><button data-c="vol" data-v="-1">Vol &#x2212;</button><button data-c="vol" data-v="1">Vol +</button></div>
+    <div class="tvr-h">OTHER GAMES · TAP TO SWITCH THE TV</div></div>`;
+}
+function tvRemoteWire() {
+  document.querySelectorAll('.tvr [data-c]').forEach(b => b.onclick = () => castSend({ t: 'ctl', c: b.dataset.c, v: b.dataset.v || '' }));
+}
+async function tvWatchGame(g) {
+  try { await loadLive(); } catch (e) {}
+  const list = gameChannels(g), c = list[0];
+  if (!c) return watchGame(g);   // no sure channel: the sources sheet lets you pick
+  store.set('castGame', g.id);
+  if (await castLive({ url: c.url, title: c.name, zap: list, zi: 0 })) renderSports($('#page'));
+}
+(function tvrStyle() {
+  const st = document.createElement('style');
+  st.textContent = `.tvr{margin:0 0 14px}.tvr-top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;border-radius:18px;background:#141a26}
+.tvr-top b{font-size:16px;flex:1}.tvr-top b:last-child{text-align:right}.tvr-mid{display:flex;flex-direction:column;align-items:center}.tvr-mid span{font-size:28px;font-weight:900}.tvr-mid small{font-size:12px;color:#eee}
+.tvr-on{font-size:12px;color:#7be39a;margin:8px 2px}.tvr-btns{display:flex;gap:8px}.tvr-btns button{flex:1;height:44px;border-radius:14px;border:0;background:#ffffff14;color:#fff;font-weight:800;font-size:14px;cursor:pointer}.tvr-btns button:first-child{background:#fff;color:#000}
+.tvr-h{font-size:11px;letter-spacing:1px;color:#888;font-weight:800;margin:14px 2px 0}
+.spc{position:relative}.tvgo{position:absolute;right:10px;bottom:10px;z-index:2;border:0;border-radius:12px;background:#fff;color:#000;font-weight:800;font-size:12px;padding:7px 11px;cursor:pointer}`;
+  document.head.appendChild(st);
+})();
+
 async function renderSports(pg) {
   if (acct.playlist) loadLive().catch(() => {});
   pg.innerHTML = `<div class="sports"><h1>Sports</h1><div class="chips">${[['all', 'All']].concat(LEAGUES.map(l => [l[0], l[1]])).map(([k, l]) => `<button data-k="${k}" class="${k === sportPick ? 'on' : ''}">${l}</button>`).join('')}</div><div id="sg"><div class="spin"></div></div></div>`;
@@ -1176,12 +1207,19 @@ async function renderSports(pg) {
   if (!listHtml) { $('#sg').innerHTML = '<div class="empty" style="padding:30px 0">No games today in this league.</div>'; return; }
   // Split view (same as the TV): games on the left, the selected one large on the right
   const keep = renderSports.sel;
-  $('#sg').innerHTML = `<div class="spsplit"><div class="splist">${listHtml}</div><div class="sppanel" id="spp"></div></div>`;
+  $('#sg').innerHTML = tvRemoteHtml(idx) + `<div class="spsplit"><div class="splist">${listHtml}</div><div class="sppanel" id="spp"></div></div>`;
+  tvRemoteWire(idx);
   const pick = i => {
     const g = idx[i]; if (!g) return; renderSports.sel = g.id;
     $('#sg').querySelectorAll('.spc').forEach(el => el.classList.toggle('sel', +el.dataset.g === i));
     spPanel(g); setGlow(teamCol(g.home.color), teamCol(g.away.color));
   };
+  if (castTV && !castTV.dlna) $('#sg').querySelectorAll('.spc').forEach(el => {
+    const g = idx[+el.dataset.g]; if (!g || g.state === 'post') return;
+    const b = document.createElement('button'); b.className = 'tvgo'; b.textContent = 'Watch on TV';
+    b.onclick = ev => { ev.stopPropagation(); tvWatchGame(g); };
+    el.appendChild(b);
+  });
   $('#sg').querySelectorAll('.spc').forEach(el => {
     el.onclick = () => { stopPreview(); watchGame(idx[+el.dataset.g]); };   // hover (Mac) shows it on the right, a click watches
     if (HOVER) el.onmouseenter = () => { clearTimeout(renderSports.h); renderSports.h = setTimeout(() => pick(+el.dataset.g), 250); };
@@ -1206,6 +1244,7 @@ async function renderSports(pg) {
     L.forEach((g, i) => {
       const f = fresh[g.id]; if (!f) return;
       Object.assign(g.home, { score: f.home.score }); Object.assign(g.away, { score: f.away.score }); g.detail = f.detail; g.state = f.state;
+      if (store.get('castGame', '') === g.id && $('#tvr-sc')) $('#tvr-sc').textContent = `${f.away.score || 0} – ${f.home.score || 0}`, $('#tvr-dt') && ($('#tvr-dt').textContent = f.state === 'post' ? 'Final' : f.detail);
       const el = $('#sg') && $('#sg').querySelector(`.spc[data-g="${i}"]`); if (!el) return;
       const bs = el.querySelectorAll('.spt b'); if (bs[0]) bs[0].textContent = f.away.score || '0'; if (bs[1]) bs[1].textContent = f.home.score || '0';
       const w = el.querySelector('.sps b'); if (w) w.textContent = f.state === 'post' ? 'Final' : f.detail;
@@ -1295,7 +1334,7 @@ async function watchGame(g) {
   $('.sheet', bg).innerHTML = `<button class="sx" title="Close">&#x2715;</button><small class="kick">${esc(g.league || 'Watch')}</small><div class="wh">${side(g.away, '135deg')}${mid}${side(g.home, '225deg')}</div>` +
     (list.length ? `<div class="wl-h">Sources <small>${list.length} found · best first</small></div><div class="chlist">${list.map((c, i) => `<div class="src" data-i="${i}" tabindex="0"><span class="wl-lg">${c.logo ? `<img loading="lazy" src="${esc(c.logo)}" onerror="this.remove()">` : ''}</span><div class="nm2"><b>${esc(c.name)}</b><small>${why(c)}</small></div><span class="wl-cs">${i === 0 ? '<span class="wl-c best">BEST PICK</span>' : ''}${c.last ? '<span class="wl-c ok">&#x2713; Worked before</span>' : '<span class="wl-c">Available</span>'}</span></div>`).join('')}</div>`
       : '<div class="sub">No channel in your playlist matches this game. Try the league\'s category in Live TV.</div>');
-  bg.querySelectorAll('.src').forEach(el => el.onclick = () => { close(); const i = +el.dataset.i; const pk = store.get('gamePick', {}); lastK.forEach(k => pk[k] = list[i].url); store.set('gamePick', pk); play({ url: list[i].url, title: list[i].name, sub: `${g.away.short} at ${g.home.short}`, live: true, zap: list, zi: i }); });
+  bg.querySelectorAll('.src').forEach(el => el.onclick = () => { close(); const i = +el.dataset.i; if (castTV) store.set('castGame', g.id); const pk = store.get('gamePick', {}); lastK.forEach(k => pk[k] = list[i].url); store.set('gamePick', pk); play({ url: list[i].url, title: list[i].name, sub: `${g.away.short} at ${g.home.short}`, live: true, zap: list, zi: i }); });
   // Follow a team (its games first, a score bar while you watch something else, a notification when they start),
   // Add to Calendar for later games, and a second game in the corner of the player
   const tools = document.createElement('div'); tools.className = 'gtools';

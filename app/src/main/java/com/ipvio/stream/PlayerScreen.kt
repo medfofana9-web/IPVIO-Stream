@@ -846,7 +846,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 val nx = epList[epIdx + 1]
                 if (System.currentTimeMillis() - interact > 90 * 60_000L) { player.pause(); stillAsk = nx } else playEpisode(nx)
             }
-            else if (!cur.live && !hasNext && WatchParty.state == null && cur.archive == null) postPlay = true
+            else if (!cur.live && !hasNext && (WatchParty.state == null || Presence.autoParty && WatchParty.members.isEmpty()) && cur.archive == null) postPlay = true
         }
     })
 
@@ -1605,6 +1605,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
 
         // ---------------------------------------------------------------- Watch Together
         WatchPartyOverlay(Modifier.align(Alignment.BottomStart))
+        if (!cur.live) RecapCard(seriesItem, cur.itemId, cur.season, cur.episode, Modifier.align(Alignment.BottomStart))
         if (partyPanel) WatchPartyPanel(Modifier.align(Alignment.Center), start = {
             WatchParty.start(ctx, cur.itemId, cur.title, if (cur.live) Kind.LIVE else if (cur.season > 0 || cur.episode > 0) Kind.SERIES else Kind.MOVIE,
                 cur.season, cur.episode, cur.live && cur.archive == null, player.currentPosition, player.isPlaying)

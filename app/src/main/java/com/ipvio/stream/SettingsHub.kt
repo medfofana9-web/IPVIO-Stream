@@ -722,6 +722,8 @@ private fun PlayerPage(ctx: Context) {
     SportPrefs.init(ctx)
     var hs by remember { mutableStateOf(SportPrefs.hideScores) }
     ToggleRow("Hide sports scores", "Scores stay hidden on game cards, in the player and in alerts.", hs) { hs = it; SportPrefs.setHideScores(ctx, it) }
+    var recapOn by remember { mutableStateOf(Recap.on(ctx)) }
+    ToggleRow("Previously on", "When you come back to a show after a day or more, a short summary of the last episode shows while the next one starts.", recapOn) { recapOn = it; Recap.set(ctx, it) }
     SectionTitle("Intro and Next Episode")
     ToggleRow("Show Skip Intro", "Show Skip Intro for series with confirmed or manually marked intro times.", AppSettings.skipIntro) {
         AppSettings.setPlayer(ctx, it, AppSettings.showInfo, AppSettings.seekStep)

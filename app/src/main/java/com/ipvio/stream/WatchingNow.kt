@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import kotlinx.coroutines.launch
 
 /** Option A: banner at the top of Home while another profile is watching – who, what, where, and Join. */
 @Composable
@@ -69,7 +70,14 @@ internal fun WatchingNowBanner(w: Presence.Now, byId: Map<String, Item>, onResum
         if (item != null) {
             // The playlist's own address for this episode, so resuming does not go to the add-ons first
             val u = if (item.kind == Kind.SERIES) item.episodes.firstOrNull { it.season == w.season && it.num == w.ep }?.url.orEmpty() else item.url
-            BannerButton("▶ Join " + w.name, true) { onResume(Entry(item.id, w.title, u, w.posMs, w.durMs, System.currentTimeMillis(), w.season, w.ep), item) }
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            val scope = androidx.compose.runtime.rememberCoroutineScope()
+            // Join = enter her quiet watch party: the title opens here and pause / seek follow each other
+            BannerButton("▶ Join " + w.name, true) {
+                val resume = { onResume(Entry(item.id, w.title, u, w.posMs, w.durMs, System.currentTimeMillis(), w.season, w.ep), item) }
+                if (w.party.isBlank()) resume()
+                else scope.launch { if (WatchParty.join(ctx, w.party) != null) resume() }
+            }
             BannerButton("Watch from start", false) { onResume(Entry(item.id, w.title, u, 0L, w.durMs, System.currentTimeMillis(), w.season, w.ep), item) }
         } else Text(raw = true, text = "Not in your playlist", color = Color(0xFF999999), fontSize = spx(16))
     }

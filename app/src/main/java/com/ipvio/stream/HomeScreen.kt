@@ -628,6 +628,7 @@ fun HomeScreen(
                                 Presence.others.firstOrNull()?.let { w ->
                                     if (FofPrefs.cleanLook) item(key = "watchnow") { WatchingNowBanner(w, byId, onResume) }
                                 }
+                                if (FofPrefs.cleanLook) item(key = "tonight") { TonightForUs(byId, onResume) }
                                 // Nuvio look: room at the top for the selected title (info and picture), rows start below it
                                 if (FofPrefs.cleanLook) item(key = "nvspace") { Spacer(Modifier.height(dpx(300))) }
                             }

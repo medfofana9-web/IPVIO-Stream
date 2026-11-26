@@ -81,7 +81,13 @@ fun WatchPartyOverlay(modifier: Modifier) {
                 Text(m.name + "  " + m.body, color = Color.White, fontSize = 18.sp, raw = true)
             }
         }
-        Box(Modifier.clip(RoundedCornerShape(50)).background(Color(0x99111218)).padding(horizontal = 14.dp, vertical = 6.dp)) {
+        // Joined from "Watching now" (or someone joined this TV's quiet party): who you watch with, in sync
+        val others = (if (s.host) WatchParty.members.toList() else listOf(s.hostName) + WatchParty.members).filter { it.isNotBlank() && it != Profiles.activeName() }.distinct()
+        if (others.isNotEmpty()) Row(Modifier.clip(RoundedCornerShape(50)).background(Color(0xAA000000)).padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Watching with " + others.joinToString(", "), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, raw = true)
+            Text("● in sync", color = Color(0xFF7BE39A), fontSize = 14.sp, raw = true)
+        } else if (!(s.host && Presence.autoParty)) Box(Modifier.clip(RoundedCornerShape(50)).background(Color(0x99111218)).padding(horizontal = 14.dp, vertical = 6.dp)) {
             Text("Watch party " + s.code + "  ·  " + (WatchParty.members.size + 1) + " watching", color = Color(0xCCFFFFFF), fontSize = 14.sp, raw = true)
         }
     }

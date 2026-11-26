@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit
  */
 object WatchParty {
     class State(val code: String, val host: Boolean, val itemId: String, val title: String, val kind: String, val season: Int, val ep: Int,
-                val live: Boolean, val playing: Boolean, val posMs: Long, val ended: Boolean)
+                val live: Boolean, val playing: Boolean, val posMs: Long, val ended: Boolean, val hostName: String = "")
     class Msg(val name: String, val body: String, val at: Long)
 
     var state by mutableStateOf<State?>(null)
@@ -94,7 +94,7 @@ object WatchParty {
     }
 
     private fun parse(o: JSONObject, host: Boolean) = State(o.optString("code"), host, o.optString("item_id"), o.optString("title"), o.optString("kind"),
-        o.optInt("season"), o.optInt("ep"), o.optBoolean("live"), o.optBoolean("playing"), o.optLong("pos_ms"), o.optBoolean("ended"))
+        o.optInt("season"), o.optInt("ep"), o.optBoolean("live"), o.optBoolean("playing"), o.optLong("pos_ms"), o.optBoolean("ended"), o.optString("host_name"))
 
     private fun load(c: Context, code: String): State? = runCatching {
         val r = req(c, "GET", "/rest/v1/fof_parties?select=*&code=eq.$code")
@@ -111,7 +111,7 @@ object WatchParty {
     /** Leaves (a guest) or ends the party (the host). */
     fun leave(c: Context) {
         val s = state ?: return
-        state = null; members.clear(); messages.clear()
+        state = null; members.clear(); messages.clear(); Presence.autoParty = false
         runCatching { ws?.close(1000, null) }; ws = null
         scope.launch {
             runCatching {

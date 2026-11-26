@@ -19,10 +19,12 @@ import org.json.JSONObject
  */
 object Presence {
     data class Now(val profileId: String, val name: String, val avatar: String, val itemId: String, val title: String,
-                   val season: Int, val ep: Int, val posMs: Long, val durMs: Long, val img: String, val device: String, val at: Long)
+                   val season: Int, val ep: Int, val posMs: Long, val durMs: Long, val img: String, val device: String, val at: Long, val party: String = "")
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     @Volatile private var lastBeat = 0L
+    /** The quiet watch party this TV opened for what it plays, so another profile's Join follows it in sync. */
+    @Volatile var autoParty = false
     var others by mutableStateOf<List<Now>>(emptyList())
         private set
 
@@ -43,12 +45,20 @@ object Presence {
             runCatching {
                 val cid = AccountCloud.cloudId(app, Profiles.active) ?: return@runCatching
                 val t = FofAccount.tokenFor(app) ?: return@runCatching
+                // Quiet party for Join (in sync): one per title or episode, only opened by this TV, ended when it changes
+                val ps = WatchParty.state
+                if (ps != null && ps.host && autoParty && (ps.itemId != e.itemId || ps.season != e.season || ps.ep != e.ep)) { WatchParty.leave(app); autoParty = false }
+                if (WatchParty.state == null) {
+                    val kind = if (e.season > 0 || e.ep > 0) Kind.SERIES else Kind.MOVIE
+                    if (WatchParty.start(app, e.itemId, e.title, kind, e.season, e.ep, false, e.pos, true) != null) autoParty = true
+                }
+                val party = WatchParty.state?.takeIf { it.host }?.code.orEmpty()
                 val p = Profiles.list.firstOrNull { it.id == Profiles.active }
                 val body = JSONObject().put("profile_id", cid)
                     .put("name", (p?.let { Profiles.displayName(it) } ?: "").take(40)).put("avatar", "")
                     .put("item_id", e.itemId.take(300)).put("title", PresenceLogic.cleanTitle(e.title).take(200))
                     .put("season", e.season).put("ep", e.ep).put("pos_ms", e.pos).put("dur_ms", e.dur)
-                    .put("device", AccountCloud.deviceName(app).take(60)).put("updated_at", PresenceLogic.iso(now))
+                    .put("device", AccountCloud.deviceName(app).take(60)).put("party", party).put("updated_at", PresenceLogic.iso(now))
                 FofAccount.call("POST", "/rest/v1/fof_presence?on_conflict=profile_id", body.toString(), t, "resolution=merge-duplicates,return=minimal")
             }
         }
@@ -79,7 +89,7 @@ object Presence {
             val a = JSONArray(res)
             others = (0 until a.length()).mapNotNull { a.optJSONObject(it) }.filter { it.optString("profile_id") != mine }.map { o ->
                 Now(o.optString("profile_id"), o.optString("name"), o.optString("avatar"), o.optString("item_id"), o.optString("title"),
-                    o.optInt("season"), o.optInt("ep"), o.optLong("pos_ms"), o.optLong("dur_ms"), o.optString("img"), o.optString("device"), 0L)
+                    o.optInt("season"), o.optInt("ep"), o.optLong("pos_ms"), o.optLong("dur_ms"), o.optString("img"), o.optString("device"), 0L, o.optString("party"))
             }
         }
     }
