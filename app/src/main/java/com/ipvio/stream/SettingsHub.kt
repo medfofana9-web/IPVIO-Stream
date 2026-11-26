@@ -1407,6 +1407,7 @@ private fun UpdateSection(ctx: Context) {
     Hint("Die Schlüssel bleiben nur auf diesem Gerät. Nach dem Eintragen die App einmal neu starten, damit alle Bereiche die Infos laden. Intro- und Abspann-Zeiten kommen von TheIntroDB und brauchen keinen Schlüssel.")
     // Buttons last: text below the last focusable element was cut off at the bottom of the page
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        PillButton("Report lag") { LagReport.send(ctx) }
         PillButton(if (busy) "Bitte warten …" else "Jetzt nach Update suchen") {
             if (busy) return@PillButton
             busy = true; status = "Suche …"

@@ -31,6 +31,9 @@ def worth(kind):
 
 
 def key(kind):
+    # "Report lag" (double Menu on the TV): every report lands in one issue, each report a comment
+    if kind.startswith("lag:"):
+        return "lag: reports from the TV (double Menu)"
     # One issue per problem: numbers that change every time (frame counts, ms) stay out of the title
     if kind.startswith("perf:"):
         parts = kind.split()

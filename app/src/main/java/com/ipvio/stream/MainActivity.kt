@@ -58,6 +58,8 @@ class MainActivity : ComponentActivity() {
             if (event.action == android.view.KeyEvent.ACTION_UP) AppNav.onNowSignal++
             return true
         }
+        // Menu (☰) twice quickly: send a lag report of what this TV measured right now (LagReport)
+        if (event.keyCode == android.view.KeyEvent.KEYCODE_MENU && event.action == android.view.KeyEvent.ACTION_UP && LagReport.onMenuUp(this)) return true
         if (event.keyCode == android.view.KeyEvent.KEYCODE_ESCAPE) {
             if (event.action == android.view.KeyEvent.ACTION_UP) onBackPressedDispatcher.onBackPressed()
             return true

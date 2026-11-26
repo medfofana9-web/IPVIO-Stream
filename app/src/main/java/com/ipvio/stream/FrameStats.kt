@@ -88,6 +88,15 @@ object FrameStats {
         send(c, lines.map { "perf: " + it })
     }
 
+    /** "Report lag" (double Menu): what was measured since the last summary, every screen, without clearing it. */
+    fun snapshot(): List<String> = synchronized(agg) {
+        agg.filter { it.value.frames >= 10 }.map { (k, a) -> line(k, a.frames, a.slow, a.frozen, a.worst, a.ph, a.hist) }
+    }
+    fun currentScreen(): String = screen()
+
+    /** Sends ready-made report lines (used by [LagReport]). */
+    fun sendLines(c: Context, lines: List<String>) = send(c, lines)
+
     enum class Incident(val label: String) {
         SLOW_START("slow playback start"),
         PLAYBACK_ERROR("playback error"),
