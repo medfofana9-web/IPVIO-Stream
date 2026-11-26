@@ -1,7 +1,6 @@
 name: Fof TV for Mac
 
-# Builds the Mac app (desktop/) as a .zip (Mac runners are not available on this account; electron-builder
-# packages the Mac app on Linux) and publishes it as a GitHub release "mac-<version>-<run>".
+# Builds the Mac app (desktop/) on a Mac runner, signs it ad hoc, and publishes a .dmg and a .zip and publishes it as a GitHub release "mac-<version>-<run>".
 # Never a prerelease and never "latest": the TV updater and promote.yml only look at the Android releases.
 on:
   push:
@@ -14,8 +13,10 @@ permissions:
 
 jobs:
   mac:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # A Mac runner, so the app can be signed (ad hoc). An unsigned Apple-silicon app is reported as "damaged" by
+    # macOS; a signed one only asks once ("Open Anyway").
+    runs-on: macos-15
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -27,14 +28,29 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: |
           npm install --no-audit --no-fund
-          npx electron-builder --mac zip --x64 --arm64 --publish never
-          ls -la dist
+          npx electron-builder --mac dir --x64 --arm64 --publish never
+          ls dist
+      - name: Sign (ad hoc), zip and make .dmg
+        working-directory: desktop/dist
+        run: |
+          V=$(node -p "require('../package.json').version")
+          for pair in "mac:x64" "mac-arm64:arm64"; do
+            d=${pair%%:*}; a=${pair##*:}
+            APP="$d/Fof TV.app"
+            xattr -cr "$APP"
+            codesign --force --deep --sign - "$APP"
+            codesign --verify --deep --strict "$APP" && echo "signed $a"
+            ditto -c -k --keepParent "$APP" "FofTV-$V-$a.zip"
+            rm -rf "dmg-$a" && mkdir "dmg-$a" && cp -R "$APP" "dmg-$a/" && ln -s /Applications "dmg-$a/Applications"
+            hdiutil create -volname "Fof TV" -srcfolder "dmg-$a" -ov -format UDZO "FofTV-$V-$a.dmg"
+          done
+          ls -la *.zip *.dmg
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           V=$(node -p "require('./desktop/package.json').version")
           TAG="mac-$V-${{ github.run_number }}"
-          gh release create "$TAG" desktop/dist/*.zip -R "${{ github.repository }}" --latest=false \
+          gh release create "$TAG" desktop/dist/*.zip desktop/dist/*.dmg -R "${{ github.repository }}" --latest=false \
             --title "Fof TV for Mac $V (build ${{ github.run_number }})" \
-            --notes "Fof TV for Mac. Intel Macs: FofTV-$V-x64.zip. Apple silicon (M1 and newer): FofTV-$V-arm64.zip. Double-click the zip, drag Fof TV to Applications. First start: right-click Fof TV → Open → Open (the app is not signed with an Apple developer certificate yet)."
+            --notes "Fof TV for Mac. Apple silicon (M1 and newer): FofTV-$V-arm64.dmg. Intel Macs: FofTV-$V-x64.dmg. Open the .dmg and drag Fof TV to Applications (Replace). First start: right-click Fof TV, Open; if macOS still refuses, System Settings > Privacy & Security > Open Anyway."
