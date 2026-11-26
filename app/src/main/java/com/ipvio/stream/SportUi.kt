@@ -226,9 +226,10 @@ internal fun HubSectionTitle(text: String, raw: Boolean = false, action: String?
 
 /** Calm surface for grouped content (match summary, key events, current position …). */
 @Composable
-internal fun HubPanel(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+internal fun HubPanel(modifier: Modifier = Modifier, plain: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
     Column(
-        modifier.clip(RoundedCornerShape(DS.RadiusM)).background(Tok.Card).border(1.dp, Tok.Line, RoundedCornerShape(DS.RadiusM)).padding(dpx(16)),
+        if (plain) modifier.padding(vertical = dpx(6))
+        else modifier.clip(RoundedCornerShape(DS.RadiusM)).background(Tok.Card).border(1.dp, Tok.Line, RoundedCornerShape(DS.RadiusM)).padding(dpx(16)),
         verticalArrangement = Arrangement.spacedBy(dpx(8)), content = content
     )
 }

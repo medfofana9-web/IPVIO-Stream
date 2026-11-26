@@ -378,7 +378,11 @@ object SportWatch {
      */
     fun channels(g: SportData.Game, live0: List<Item>): List<Item> {
         val live = SportFresh.apply(live0)
-        val hits = resolve(g, live).filter { it.autoEligible }
+        return ranked(g, resolve(g, live).filter { it.autoEligible }).map { it.ch }
+    }
+
+    /** Best source first: working links, guide/event evidence, the game's own network, then how well a feed played before. */
+    fun ranked(g: SportData.Game, hits: List<Hit>): List<Hit> {
         val c = SportSession.appCtx()
         return hits.sortedWith(compareBy<Hit>(
             { if (DeadLinks.isDead(it.ch.url)) 1 else 0 },
@@ -387,7 +391,7 @@ object SportWatch {
             { netRank(g, it) },
             { prio(it.why) },
             { if (c != null) -FeedScore.score(c, it.ch.id) else 0 }
-        )).map { it.ch }
+        ))
     }
 
     /** Start from a matched feed immediately. If there is none, let either refresh supply one. */
@@ -459,7 +463,7 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
         hitsState.value = withContext(Dispatchers.Default) {
             try {
                 SportWatch.prewarm(hub.live)
-                SportWatch.resolve(g, hub.live)
+                SportWatch.ranked(g, SportWatch.resolve(g, hub.live))
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -499,8 +503,10 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
     var pick by remember { mutableStateOf(false) }
     val first = remember { FocusRequester() }
     HubPageFrame("Live ansehen", g.groupName, { hub.nav.pop() }, first, rawTitle = false) {
-        HubPanel(Modifier.fillMaxWidth()) {
-            MatchHeader(g, 90)
+        val clean = FofPrefs.cleanLook
+        if (clean) WatchHeader(g)
+        HubPanel(Modifier.fillMaxWidth(), plain = clean) {
+            if (!clean) MatchHeader(g, 90)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(12))) {
                 if (automatic.isNotEmpty() && g.state != 2) HeroButton("Live ansehen", AIcon.Play, true, Modifier, 46) { hub.watch(g) }
                 // Finished game: play it from the provider's archive (catch-up) on the matched channel, when the provider offers it
@@ -527,14 +533,16 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
                     val on = GameDay.has(g)
                     FilterPill(if (on) "Auto-tune on" else "Auto-tune at start", on, Modifier.trackFocus(), aicon = AIcon.Bell) { GameDay.toggle(ctx, g) }
                 }
-                FilterPill("Choose an IPTV channel", false, Modifier.focusRequester(first), aicon = AIcon.Edit) { pick = true }
-                if (g.state != 2) FilterPill("Retry sources", false, Modifier.trackFocus(), aicon = AIcon.Refresh) { retry++ }
+                FilterPill(if (clean) "Choose a channel" else "Choose an IPTV channel", false, Modifier.focusRequester(first), aicon = AIcon.Edit) { pick = true }
+                if (g.state != 2) FilterPill(if (clean) "Find more" else "Retry sources", false, Modifier.trackFocus(), aicon = AIcon.Refresh) { retry++ }
                 if (SportFix.map.containsKey(SportFix.key(g))) FilterPill("Automatisch zuordnen", false, Modifier.trackFocus(), aicon = AIcon.Refresh) { SportFix.set(ctx, g, null) }
                 FilterPill("Mehr Infos", false, Modifier.trackFocus(), aicon = AIcon.Info) { hub.nav.open(HubPage.Match(g)) }
             }
         }
         val reports = SportAddons.report(g)
-        Text(
+        if (clean) {
+            if (!searching && hits.isNotEmpty()) SourcesTitle(hits.size)
+        } else Text(
             "IPTV: " + when {
                 hub.live.isEmpty() -> "no channels loaded"
                 hitsLoading == null -> "checking guide and channel names"
@@ -548,8 +556,9 @@ internal fun WatchPage(g0: SportData.Game, hub: HubCtx) {
             AIcon.Live, "Choose a source",
             "The guide and add-ons haven’t confirmed a feed for this event. Retry sources or choose an IPTV channel."
         ) else LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(bottom = dpx(30)), verticalArrangement = Arrangement.spacedBy(dpx(4))) {
-            itemsIndexed(hits, key = { _, h -> h.ch.id }) { _, h ->
-                FRow({ hub.watchOn(g, h.ch, automatic.map { it.ch }) }) {
+            itemsIndexed(hits, key = { _, h -> h.ch.id }) { i, h ->
+                if (clean) SourceRow(h, best = i == 0 && h.autoEligible) { hub.watchOn(g, h.ch, automatic.map { it.ch }) }
+                else FRow({ hub.watchOn(g, h.ch, automatic.map { it.ch }) }) {
                     TeamLogo(h.ch.logo, h.ch.title.take(2), dpx(44))
                     Column(Modifier.weight(1f)) {
                         Text(raw = true, text = h.ch.title, color = Tok.TextHi, fontSize = spx(18), fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
