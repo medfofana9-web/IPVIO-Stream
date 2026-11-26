@@ -528,6 +528,7 @@ fun HomeScreen(
     LaunchedEffect(bbOnState) { snapshotFlow { bbOnState.value }.collect { Billboard.active = it } }
     LaunchedEffect(inSidebar) { if (inSidebar) Billboard.cardFocus = false }
     LaunchedEffect(tab) { Billboard.cardFocus = false; AppGlow.reset() }
+    LaunchedEffect(tab == 0) { while (tab == 0) { Presence.refresh(ctx); kotlinx.coroutines.delay(30_000) } }
     val bbItemState = remember { mutableStateOf<Item?>(Billboard.focused) }
     // 17c: switch only after a short dwell (no big images are loaded while browsing quickly)
     // snapshotFlow instead of LaunchedEffect(Billboard.focused): reading the focused title here recomposed the whole home screen
@@ -623,6 +624,10 @@ fun HomeScreen(
                             if (ready.isNotEmpty() && HomeLayout.shown("hero") && !FofPrefs.cleanLook) item(key = "hero") { Hero(ready.toList(), heroH, true, onOpen, heroPlay, header, { heroScroll(states[0]) }) { scope.launch { states[0].animateScrollToItem(0) } } }
                             else {
                                 item(key = "top") { header(Modifier) }
+                                // Watching now: what the other profiles are playing (Join starts it here at the same spot)
+                                Presence.others.firstOrNull()?.let { w ->
+                                    if (FofPrefs.cleanLook) item(key = "watchnow") { WatchingNowBanner(w, byId, onResume) }
+                                }
                                 // Nuvio look: room at the top for the selected title (info and picture), rows start below it
                                 if (FofPrefs.cleanLook) item(key = "nvspace") { Spacer(Modifier.height(dpx(300))) }
                             }

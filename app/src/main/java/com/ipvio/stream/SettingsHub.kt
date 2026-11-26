@@ -1311,6 +1311,10 @@ private fun PlaylistPage(ctx: Context, onAdd: () -> Unit, reload: () -> Unit) {
 
 @Composable
 private fun ProfilesPage(ctx: Context, onExit: () -> Unit) {
+    var share by remember(Profiles.active) { mutableStateOf(Presence.sharing(ctx)) }
+    ToggleRow("Share what I'm watching", "Other profiles on your account see what this profile is playing on their Home screen and can join.", share) {
+        share = it; Presence.setSharing(ctx, it)
+    }
     var editing by remember { mutableIntStateOf(-1) }
     var name by remember { mutableStateOf("") }
     Profiles.init(ctx)

@@ -520,6 +520,7 @@ object WatchStore {
      */
     fun save(c: Context, e: Entry, next: Entry? = null) {
         val fin = ResumeLogic.finished(e.pos, e.dur)
+        if (!fin && e.pos > 5000) Presence.beat(c, e)
         val old = entries.firstOrNull { it.itemId == e.itemId }
         val what = e.title.take(40) + " #" + e.itemId.takeLast(4) + " " + (e.pos / 1000) + "s/" + (e.dur / 1000) + "s"
         if (!ResumeLogic.shouldSave(old != null, old?.season ?: 0, old?.ep ?: 0, e.season, e.ep, e.pos, fin)) {
