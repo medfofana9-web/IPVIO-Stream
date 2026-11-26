@@ -1130,8 +1130,13 @@ async function watchGame(g) {
   if (li > 0) list.unshift(list.splice(li, 1)[0]);
   if (li >= 0) list[0].last = true;
   if (!document.body.contains(bg)) return;
-  $('.sheet', bg).innerHTML = head + `<div class="sub">${esc(g.detail)}${g.nets.length ? ' · On ' + esc(g.nets.join(', ')) : ''}</div>` +
-    (list.length ? `<div class="chlist">${list.map((c, i) => `<div class="src" data-i="${i}">${c.logo ? `<img loading="lazy" src="${esc(c.logo)}" onerror="this.style.visibility='hidden'">` : ''}<div class="nm2"><b>${esc(c.name)}</b><small>${c.last ? 'Your pick last time · ' : ''}${c.sc >= 12 ? 'This game' : c.sc >= 9 ? 'Team channel' : 'National broadcast'}</small></div></div>`).join('')}</div>`
+  const live = g.state === 'in', pre = g.state === 'pre';
+  const side = (t, dir) => `<div class="wh-t" style="background:linear-gradient(${dir},${teamCol(t.color)},${teamCol(t.color)}33)"><span class="wh-lg">${t.logo ? `<img src="${esc(t.logo)}" onerror="this.style.visibility='hidden'">` : esc(t.abbr || '')}</span><b>${esc(t.short || t.name)}</b><small>${esc(t.record || '')}</small></div>`;
+  const mid = `<div class="wh-m">${live ? '<span class="live">LIVE</span>' : ''}<b>${pre ? esc(new Date(g.date).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })) : esc((g.away.score || '0') + ' – ' + (g.home.score || '0'))}</b><small>${esc([live ? g.detail : g.state === 'post' ? 'Final' : new Date(g.date).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }), g.nets.length ? 'On ' + g.nets.join(', ') : ''].filter(Boolean).join(' · '))}</small></div>`;
+  const why = c => c.sc >= 12 ? 'This game' : c.sc >= 9 ? 'Team channel' : 'National broadcast';
+  $('.sheet', bg).classList.add('wl');
+  $('.sheet', bg).innerHTML = `<button class="sx" title="Close">&#x2715;</button><small class="kick">${esc(g.league || 'Watch')}</small><div class="wh">${side(g.away, '135deg')}${mid}${side(g.home, '225deg')}</div>` +
+    (list.length ? `<div class="wl-h">Sources <small>${list.length} found · best first</small></div><div class="chlist">${list.map((c, i) => `<div class="src" data-i="${i}" tabindex="0"><span class="wl-lg">${c.logo ? `<img loading="lazy" src="${esc(c.logo)}" onerror="this.remove()">` : ''}</span><div class="nm2"><b>${esc(c.name)}</b><small>${why(c)}</small></div><span class="wl-cs">${i === 0 ? '<span class="wl-c best">BEST PICK</span>' : ''}${c.last ? '<span class="wl-c ok">&#x2713; Worked before</span>' : '<span class="wl-c">Available</span>'}</span></div>`).join('')}</div>`
       : '<div class="sub">No channel in your playlist matches this game. Try the league\'s category in Live TV.</div>');
   bg.querySelectorAll('.src').forEach(el => el.onclick = () => { close(); const i = +el.dataset.i; const pk = store.get('gamePick', {}); lastK.forEach(k => pk[k] = list[i].url); store.set('gamePick', pk); play({ url: list[i].url, title: list[i].name, sub: `${g.away.short} at ${g.home.short}`, live: true, zap: list, zi: i }); });
   // Follow a team (its games first, a score bar while you watch something else, a notification when they start),
@@ -1829,6 +1834,27 @@ function bbWire(pg, first) {
   pg.addEventListener('mouseover', e => { if (e.target.closest && e.target.closest('.card.nv')) on(e.target); });
   pg.addEventListener('focusin', e => { if (e.target.closest && e.target.closest('.card.nv')) on(e.target); });
 }
+(function wlStyle() {
+  const st = document.createElement('style');
+  st.textContent = `.sheet.wl{width:min(860px,96vw)}
+.wh{display:flex;border-radius:16px;overflow:hidden;margin:8px 0 18px;min-height:150px}
+.wh-t{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:16px 8px;min-width:0}
+.wh-t b{font-size:19px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}.wh-t small{color:#ddd;font-size:13px}
+.wh-lg{width:64px;height:64px;border-radius:50%;background:#0005;display:flex;align-items:center;justify-content:center;font-weight:900}.wh-lg img{width:46px;height:46px;object-fit:contain}
+.wh-m{width:34%;max-width:240px;background:#0d1119;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:10px;text-align:center}
+.wh-m .live{position:static;margin:0}.wl-cs{display:flex;gap:8px;flex:none}
+.wh-m b{font-size:40px;font-weight:900;white-space:nowrap}.wh-m small{color:#ccc;font-size:13px}
+.wl-h{font-size:19px;font-weight:800;margin:0 0 10px}.wl-h small{font-size:13px;color:#999;font-weight:500;margin-left:6px}
+.sheet.wl .chlist{display:flex;flex-direction:column;gap:8px}
+.sheet.wl .src{display:flex;align-items:center;gap:14px;padding:11px 14px;border-radius:12px;background:#141a26;border:2px solid transparent;cursor:pointer}
+.sheet.wl .src:hover,.sheet.wl .src:focus{background:#ffffff14;border-color:#fff;outline:none}
+.wl-lg{width:54px;height:34px;flex:none;border-radius:7px;background:#232a38;display:flex;align-items:center;justify-content:center}.wl-lg img{max-width:46px;max-height:28px;object-fit:contain}
+.sheet.wl .nm2{flex:1;min-width:0}.sheet.wl .nm2 b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wl-c{flex:none;font-size:12px;font-weight:700;padding:4px 9px;border-radius:11px;background:#ffffff18;color:#ccc;white-space:nowrap}
+.wl-c.ok{background:#1e5a32;color:#7be39a}.wl-c.best{background:#E50914;color:#fff}
+@media (max-width:600px){.wh{min-height:120px}.wh-m{width:38%}.wh-m b{font-size:24px}.sheet.wl .src{flex-wrap:wrap}.wl-cs{width:100%;padding-left:64px}.wh-lg{width:48px;height:48px}.wh-lg img{width:34px;height:34px}.wh-t b{font-size:15px}.sheet.wl .src{gap:10px;padding:10px}}`;
+  document.head.appendChild(st);
+})();
 (function nvStyle() {
   const st = document.createElement('style');
   st.textContent = `
