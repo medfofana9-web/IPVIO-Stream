@@ -1928,7 +1928,14 @@ async function calData() {
   const favs = new Set(acct.favTeams || []);
   const from = Date.now() - 45 * 864e5, to = Date.now() + 75 * 864e5;
   await Promise.all(ids.map(async tt => {
-    const m = await metaOf('series', tt); if (!m || !m.videos) return;
+    const m = await metaOf('series', tt);
+    if (!m || !m.videos) {   // a followed movie: its release date
+      const mv = await metaOf('movie', tt); if (!mv) return;
+      (cal.kind = cal.kind || {})[tt] = 'movie';
+      const t = Date.parse(mv.released || ''); if (!(t > from && t < to + 300 * 864e5)) return;
+      out.push({ day: dkey(new Date(t)), t, kind: 1, title: mv.name, sub: 'Movie · out ' + new Date(t).toLocaleDateString([], { month: 'short', day: 'numeric' }), img: mv.background || mv.poster, open: () => openTitle('movie', mv.id) });
+      return;
+    }
     for (const v of m.videos) {
       const t = Date.parse(v.released || ''); if (!(t > from && t < to) || !v.season) continue;
       out.push({ day: dkey(new Date(t)), t, kind: 0, title: m.name, sub: 'S' + v.season + ' · E' + v.episode, img: v.thumbnail || m.background, open: () => openTitle('series', m.id) });
@@ -1959,12 +1966,14 @@ function followRailHtml() {
   const teams = acct.favTeams || [], shows = calFollowShows();
   const ini = n => esc(String(n).replace(/[^A-Za-z0-9 ]/g, '').split(' ').filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase());
   const col = n => ['#1D428A', '#C8102E', '#2E9D5B', '#F08C2B', '#7C4DFF', '#00A3A3', '#552583'][[...String(n)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 0) % 7];
+  const isMovie = id => { const c = (acct.catItems || {})[id]; return (c && c.s === false) || ((cal.kind || {})[ttOf(id)] === 'movie'); };
+  const sh = shows.filter(id => !isMovie(id)), mv = shows.filter(isMovie);
   const tRow = k => { const t = (acct.teamInfo || {})[k], nm = t ? t.name : teamCase(k); return `<div class="fr" title="${esc(nm)}"><i style="background:${col(nm)}">${t && t.logo ? `<img src="${esc(t.logo)}" onerror="this.remove()">` : ini(nm)}</i><b>${esc(nm)}</b><button class="fx" data-ut="${esc(k)}" title="Unfollow">&#x2715;</button></div>`; };
   const sRow = id => { const tt = ttOf(id), c = (acct.catItems || {})[id], nm = (c && c.t) || (cal.names && cal.names[tt]) || 'Show'; return `<div class="fr s" title="${esc(nm)}"><i style="background:${col(nm)}"><img src="${esc(posterOfId(tt))}" onerror="this.remove()"></i><b data-nm="${esc(tt)}">${esc(nm)}</b><button class="fx" data-us="${esc(id)}" title="Unfollow">&#x2715;</button></div>`; };
-  return `<aside class="frail"><h3>Following</h3><button class="fadd fadd1">+ Follow</button><div class="fh">TEAMS</div>${teams.length ? teams.map(tRow).join('') : '<div class="fn">No teams yet</div>'}<div class="fh">SHOWS</div>${shows.length ? shows.map(sRow).join('') : '<div class="fn">No shows yet</div>'}<button class="fadd">+ Follow a team or show</button></aside>`;
+  return `<aside class="frail"><h3>Following</h3><button class="fadd fadd1">+ Follow</button><div class="fh">TEAMS</div>${teams.length ? teams.map(tRow).join('') : '<div class="fn">No teams yet</div>'}<div class="fh">SHOWS</div>${sh.length ? sh.map(sRow).join('') : '<div class="fn">No shows yet</div>'}<div class="fh">MOVIES</div>${mv.length ? mv.map(sRow).join('') : '<div class="fn">No movies yet</div>'}<button class="fadd">+ Follow a team, show or movie</button></aside>`;
 }
 function followRailWire(box, changed) {
-  box.querySelectorAll('[data-nm]').forEach(async el => { if (el.textContent !== 'Show') return; const m = await metaOf('series', el.dataset.nm); if (m) { (cal.names = cal.names || {})[el.dataset.nm] = m.name; el.textContent = m.name; el.parentNode.title = m.name; } });
+  box.querySelectorAll('[data-nm]').forEach(async el => { if (el.textContent !== 'Show') return; const m = (await metaOf('series', el.dataset.nm)) || (await metaOf('movie', el.dataset.nm)); if (m) { (cal.names = cal.names || {})[el.dataset.nm] = m.name; el.textContent = m.name; el.parentNode.title = m.name; } });
   box.querySelectorAll('[data-ut]').forEach(b => b.onclick = e => { e.stopPropagation(); followTeam(b.dataset.ut, null).then(changed); });
   box.querySelectorAll('[data-us]').forEach(b => b.onclick = e => { e.stopPropagation(); followShow(b.dataset.us, null).then(changed); });
   box.querySelectorAll('.fadd').forEach(b => b.onclick = () => followPicker(changed));
@@ -1982,7 +1991,7 @@ function followShow(id, meta) {
     }
     if (on && meta) {   // so the TV knows the title too
       let a = []; try { a = JSON.parse(strOf(files, 'fof_catalog_items', 'a') || '[]'); } catch (e) {}
-      if (!a.some(o => o.i === id)) { a.unshift({ i: id, t: meta.name, s: true, p: meta.poster || '' }); setStr(files, 'fof_catalog_items', 'a', JSON.stringify(a.slice(0, 400))); }
+      if (!a.some(o => o.i === id)) { a.unshift({ i: id, t: meta.name, s: meta.type !== 'movie', p: meta.poster || '' }); setStr(files, 'fof_catalog_items', 'a', JSON.stringify(a.slice(0, 400))); }
     }
   }).then(ok => { if (!ok) toast('Could not save to your account.'); return on; });
 }
@@ -2011,7 +2020,7 @@ async function allTeams() {
 }
 function followPicker(changed) {
   const bg = document.createElement('div'); bg.className = 'sheet-bg'; let tab = 0, dirty = false, q = '', seq = 0;
-  bg.innerHTML = `<div class="sheet fpk"><button class="sx" title="Close">&#x2715;</button><h2>Follow a team or show</h2><div class="ftabs"><button data-t="0" class="on">Teams</button><button data-t="1">Shows</button></div><input class="pinq" placeholder="Search teams" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid #333;background:#141a26;color:#fff;font-size:15px;margin:0 0 12px"><div class="chlist"><div class="sub">Loading…</div></div></div>`;
+  bg.innerHTML = `<div class="sheet fpk"><button class="sx" title="Close">&#x2715;</button><h2>Follow a team, show or movie</h2><div class="ftabs"><button data-t="0" class="on">Teams</button><button data-t="1">Shows</button><button data-t="2">Movies</button></div><input class="pinq" placeholder="Search teams" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid #333;background:#141a26;color:#fff;font-size:15px;margin:0 0 12px"><div class="chlist"><div class="sub">Loading…</div></div></div>`;
   document.body.appendChild(bg);
   const close = () => { bg.remove(); if (dirty) changed(); };
   bg.onclick = e => { if (e.target === bg || e.target.closest('.sx')) close(); };
@@ -2024,8 +2033,10 @@ function followPicker(changed) {
       const n = q.toLowerCase(); l = (n ? all.filter(t => t.name.toLowerCase().includes(n) || t.league.toLowerCase().includes(n)) : all).slice(0, 120);
       list.innerHTML = l.map((t, i) => row(t.logo, t.name, t.league, (acct.favTeams || []).includes(favKey(t.name)), i)).join('') || '<div class="sub">No teams match.</div>';
     } else {
-      if (q.length > 1) { const j = await getJson(`${CM}/catalog/series/top/search=${encodeURIComponent(q)}.json`, 3600 * 1000).catch(() => null); if (my !== seq) return; l = ((j && j.metas) || []).slice(0, 40).map(m => ({ id: 'stremio:' + m.id, meta: m })); }
-      else l = await Promise.all(acct.mylist.filter(id => ttOf(id)).slice(0, 60).map(async id => ({ id, meta: await metaOf('series', ttOf(id)) }))).then(a => a.filter(x => x.meta && x.meta.type !== 'movie'));
+      const ty = tab === 1 ? 'series' : 'movie';
+      if (q.length > 1) { const j = await getJson(`${CM}/catalog/${ty}/top/search=${encodeURIComponent(q)}.json`, 3600 * 1000).catch(() => null); if (my !== seq) return; l = ((j && j.metas) || []).slice(0, 40).map(m => ({ id: 'stremio:' + m.id, meta: Object.assign({ type: ty }, m) })); }
+      else if (tab === 1) l = await Promise.all(acct.mylist.filter(id => ttOf(id)).slice(0, 60).map(async id => ({ id, meta: await metaOf('series', ttOf(id)) }))).then(a => a.filter(x => x.meta && x.meta.type !== 'movie'));
+      else { const j = await getJson(`${CM}/catalog/movie/top.json`, 6 * 3600 * 1000).catch(() => null); if (my !== seq) return; l = ((j && j.metas) || []).slice(0, 40).map(m => ({ id: 'stremio:' + m.id, meta: Object.assign({ type: 'movie' }, m) })); }
       if (my !== seq) return;
       const fs = calFollowShows();
       list.innerHTML = l.map((x, i) => row(x.meta.poster, x.meta.name, x.meta.releaseInfo || '', fs.includes(x.id), i)).join('') || '<div class="sub">Type a show name to search.</div>';
@@ -2036,7 +2047,7 @@ function followPicker(changed) {
       const st = $('.st', el); st.className = 'st' + (on ? ' on' : ''); st.innerHTML = on ? '&#x2713; Following' : '+ Follow';
     });
   };
-  bg.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { tab = +b.dataset.t; bg.querySelectorAll('[data-t]').forEach(x => x.classList.toggle('on', x === b)); $('.pinq', bg).placeholder = tab ? 'Search shows' : 'Search teams'; draw(); });
+  bg.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { tab = +b.dataset.t; bg.querySelectorAll('[data-t]').forEach(x => x.classList.toggle('on', x === b)); $('.pinq', bg).placeholder = ['Search teams', 'Search shows', 'Search movies'][tab]; draw(); });
   let tm; $('.pinq', bg).oninput = e => { q = e.target.value.trim(); clearTimeout(tm); tm = setTimeout(draw, 250); };
   draw();
 }
@@ -2078,18 +2089,18 @@ async function renderCalendar(pg) {
   const all = await calData();
   if (current !== 'calendar' || !$('#calbody')) return;
   const draw = () => {
-    const list = all.filter(e => cal.filter === 0 || (cal.filter === 1 && e.kind === 0) || (cal.filter === 2 && e.kind === 2));
+    const list = all.filter(e => cal.filter === 0 || (cal.filter === 1 && e.kind !== 2) || (cal.filter === 2 && e.kind === 2));
     const today = dkey(new Date()), sel = dkey(cal.day);
     const btn = (k, i, t, cls = '') => `<button data-${k}="${i}" class="${cls}${cal[k] === i ? ' on' : ''}">${t}</button>`;
     let h = `<div class="calbar">${['My calendar', 'Airing today', 'Following'].map((t, i) => btn('tab', i, t)).join('')}<span class="sp"></span>${cal.tab === 0 ? ['List', 'Week', 'Month'].map((t, i) => btn('view', i, t, 'v')).join('') : ''}</div>`;
-    if (cal.tab !== 2) h += `<div class="calbar">${['All', 'Shows', 'Sports'].map((t, i) => btn('filter', i, t)).join('')}</div>`;
+    if (cal.tab !== 2) h += `<div class="calbar">${['All', 'Shows & movies', 'Sports'].map((t, i) => btn('filter', i, t)).join('')}</div>`;
     const byDay = {}; list.forEach(e => (byDay[e.day] = byDay[e.day] || []).push(e));
     const dayName = d => (dkey(d) === today ? 'Today · ' : '') + d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
     const rowOf = l => `<div class="calrow">${l.map(calCard).join('')}</div>`;
     if (cal.tab === 1) h += `<div class="calh">Airing today</div>` + rowOf(byDay[today] || []) + ((byDay[today] || []).length ? '' : '<div class="empty">Nothing from your list or the big games today.</div>');
     else if (cal.tab === 2) {
-      const next = {}; list.filter(e => e.kind === 0 && e.day >= today).forEach(e => { if (!next[e.title]) next[e.title] = e; });
-      h += `<div class="calh">Coming back<small>${Object.keys(next).length} with a date</small></div>` + rowOf(Object.values(next));
+      const next = {}; list.filter(e => e.kind !== 2 && e.day >= today).forEach(e => { if (!next[e.title]) next[e.title] = e; });
+      h += `<div class="calh">Coming up<small>${Object.keys(next).length} with a date</small></div>` + rowOf(Object.values(next));
     } else if (cal.view === 0) {
       Object.keys(byDay).filter(k => k >= today).sort().slice(0, 21).forEach(k => { h += `<div class="calh">${dayName(new Date(k + 'T12:00'))}<small>${byDay[k].length}</small></div>` + rowOf(byDay[k]); });
     } else {

@@ -163,7 +163,7 @@ internal fun CalendarScreen(all: List<Item>, onOpen: (Item) -> Unit) {
     val open: (CalendarData.Entry) -> Unit = { e -> e.item?.let(onOpen) ?: e.game?.let { g -> openInHub(HubPage.Match(g)) } }
 
     Row(Modifier.fillMaxSize()) {
-    FollowRail(mineItems.filter { it.kind == Kind.SERIES }) { picking = true }
+    FollowRail(mineItems) { picking = true }
     LazyColumn(Modifier.weight(1f).fillMaxHeight(), contentPadding = PaddingValues(start = dpx(40), end = DS.PageX, top = dpx(36), bottom = dpx(80)),
         verticalArrangement = Arrangement.spacedBy(dpx(16))) {
         item(key = "head") {

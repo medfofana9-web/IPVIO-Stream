@@ -115,11 +115,13 @@ internal fun FollowRail(shows: List<Item>, onAdd: () -> Unit) {
                 CalFollow.dirty = true
             }
         }
-        RailHead("SHOWS")
-        if (shows.isEmpty()) RailNote("No shows yet")
-        shows.forEach { s ->
-            val m = rememberMeta(s)
-            RailRow(s.title, m?.poster?.let { cardPoster(it) } ?: s.logo, false) { CalFollow.toggleShow(ctx, s) }
+        listOf("SHOWS" to shows.filter { it.kind == Kind.SERIES }, "MOVIES" to shows.filter { it.kind == Kind.MOVIE }).forEach { (head, l) ->
+            RailHead(head)
+            if (l.isEmpty()) RailNote(if (head == "SHOWS") "No shows yet" else "No movies yet")
+            l.forEach { s ->
+                val m = rememberMeta(s)
+                RailRow(s.title, m?.poster?.let { cardPoster(it) } ?: s.logo, false) { CalFollow.toggleShow(ctx, s) }
+            }
         }
         Box(Modifier.padding(top = dpx(14))) { RailAdd(onAdd) }
     }
@@ -162,7 +164,7 @@ private fun RailAdd(onClick: () -> Unit) {
         Modifier.fillMaxWidth().clip(shape).background(if (f) Color.White else Color.Transparent).border(2.dp, if (f) Color.White else Color(0x33FFFFFF), shape)
             .onFocusChanged { f = it.isFocused }.trackFocus().clickable(onClick = onClick).padding(vertical = dpx(12)),
         contentAlignment = Alignment.Center
-    ) { Text(raw = true, text = "+ Follow a team or show", color = if (f) Color.Black else Color(0xFFAAAAAA), fontSize = spx(16), fontWeight = FontWeight.SemiBold) }
+    ) { Text(raw = true, text = "+ Follow a team, show or movie", color = if (f) Color.Black else Color(0xFFAAAAAA), fontSize = spx(16), fontWeight = FontWeight.SemiBold) }
 }
 
 /** Pick teams (from your sports leagues) and shows (from the catalog and your playlist), with search. */
@@ -180,18 +182,20 @@ internal fun FollowPicker(all: List<Item>, onClose: () -> Unit) {
         value = runCatching { loadTeams(names) }.getOrDefault(emptyList())
     }
     val shows = remember(all) { (all.filter { it.kind == Kind.SERIES } + CatalogItems.all().filter { it.kind == Kind.SERIES }).distinctBy { it.title.lowercase() } }
+    val movies = remember(all) { (all.filter { it.kind == Kind.MOVIE } + CatalogItems.all().filter { it.kind == Kind.MOVIE }).distinctBy { it.title.lowercase() } }
     androidx.compose.ui.window.Dialog(onDismissRequest = onClose, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
             Modifier.width(dpx(760)).clip(RoundedCornerShape(dpx(20))).background(Color(0xFF10141C)).padding(dpx(22)),
             verticalArrangement = Arrangement.spacedBy(dpx(12))
         ) {
-            Text(raw = true, text = "Follow a team or show", color = Color.White, fontSize = spx(26), fontWeight = FontWeight.ExtraBold)
+            Text(raw = true, text = "Follow a team, show or movie", color = Color.White, fontSize = spx(26), fontWeight = FontWeight.ExtraBold)
             Row(horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
                 PickTab("Teams", tab == 0, Modifier.focusRequester(first)) { tab = 0 }
                 PickTab("Shows", tab == 1, Modifier) { tab = 1 }
+                PickTab("Movies", tab == 2, Modifier) { tab = 2 }
                 PickTab("Done", false, Modifier) { onClose() }
             }
-            Field(q, { q = it.take(40) }, if (tab == 0) "Search teams" else "Search shows")
+            Field(q, { q = it.take(40) }, when (tab) { 0 -> "Search teams"; 1 -> "Search shows"; else -> "Search movies" })
             val needle = q.trim().lowercase()
             LazyColumn(Modifier.height(dpx(480)).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(dpx(4))) {
                 if (tab == 0) {
@@ -202,7 +206,7 @@ internal fun FollowPicker(all: List<Item>, onClose: () -> Unit) {
                         PickRow(p.team.name, p.league, p.team.logo, on, true) { CalFollow.toggleTeam(ctx, p.team, SportData.league(p.league)) }
                     } }
                 } else {
-                    val l = shows.filter { needle.isEmpty() || it.title.lowercase().contains(needle) }.take(150)
+                    val l = (if (tab == 1) shows else movies).filter { needle.isEmpty() || it.title.lowercase().contains(needle) }.take(150)
                     l.forEach { s -> item(key = "s" + s.id) {
                         PickRow(s.title, s.year?.toString().orEmpty(), s.logo, CalFollow.isShow(ctx, s.id), false) { CalFollow.toggleShow(ctx, s) }
                     } }
