@@ -74,6 +74,10 @@ class MainActivity : ComponentActivity() {
         FreezeWatch.install(this)
         // Load settings early so colors and size are right in the very first frame.
         Profiles.init(this)
+        // Create the Compose states of these objects on the main thread before the account sync can touch them first on a
+        // background thread: a state created there after the welcome screen's snapshot crashed it ("Reading a state that
+        // was created after the snapshot was taken", auto-report #63, ProfileAvatars.version read in FofWelcome).
+        runCatching { ProfileAvatars.version + AccountCloud.pins.size }
         val pick = Profiles.needsPicker(this)
         if (!pick) AppSettings.init(this)
         General.init(this)

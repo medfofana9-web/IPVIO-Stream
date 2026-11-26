@@ -71,7 +71,14 @@ object SportWatch {
     var version by mutableIntStateOf(0)
         private set
 
-    fun setSlots(s: List<SportLogic.Slot>) { slots = s.sortedBy { it.prog.start }; version++ }
+    // Callers sort off the main thread; sorting the whole 48 h guide here froze Sports on a Fire TV (auto-reports #64-#66,
+    // TimSort with boxed Long compares inside setSlots). An already sorted list is only checked, in one pass.
+    fun setSlots(s: List<SportLogic.Slot>) { slots = if (sortedByStart(s)) s else s.sortedBy { it.prog.start }; version++ }
+
+    fun sortedByStart(s: List<SportLogic.Slot>): Boolean {
+        for (k in 1 until s.size) if (s[k - 1].prog.start > s[k].prog.start) return false
+        return true
+    }
 
     /** Guide slots that start between [lo] and [hi] (slots are sorted by start, so this stays fast with a 30-hour guide). */
     private fun slotsBetween(lo: Long, hi: Long): List<SportLogic.Slot> {

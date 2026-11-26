@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased – Welcome screen crash and Sports freeze from the auto-reports
+
+- Fixed a crash on the welcome (profile) screen on the onn 4K (auto-report #63): the account sync could create the
+  profile-picture state on a background thread while the screen was drawn. That state is now created at app start.
+- Sports no longer sorts the whole TV guide on the main thread once a minute (Fire TV freezes in Sports, auto-reports
+  #64–#66); the guide shows are sorted in the background.
+
 ## Unreleased – Freeze and screensaver fixes from the onn 4K reports
 
 - Backup fonts (Turkish, Greek, Cyrillic, Arabic letters, flag emoji) load in the background at start: the first draw

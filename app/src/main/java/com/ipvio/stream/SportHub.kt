@@ -263,6 +263,7 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
             Busy.quiet()
             val s = withContext(Dispatchers.Default) {
                 SportLogic.matchSlots(live, { Xmltv.forChannel(it.tvgId) }, System.currentTimeMillis() / 1000, SportPlan.HORIZON_SEC)
+                    .sortedBy { it.prog.start }
             }
             SportWatch.setSlots(s)
             delay(60_000)
