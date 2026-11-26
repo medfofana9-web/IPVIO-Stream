@@ -70,6 +70,32 @@ Process: push to `perf-test` first; only a passing run goes to `main` (which rel
 Not covered by the test TV (needs the real TV): playing real streams, the provider's real channel names for game
 matching, live ESPN games at the moment of the run.
 
+## Playback safety net (T-011, since 1.3.282)
+
+Four layers, so a source problem is caught before a viewer meets it:
+
+1. **Playback scenarios on an emulator** – `.github/workflows/playback-test.yml` (every push to `main` and `auto-fix`).
+   `.github/scripts/playback_fixture.py` serves two fixture addons ("Dragon Fixture", "HD Fixture") and media that
+   misbehaves like real sources: no range requests and slow (DragonStreams on Resume), HTTP 403 (expired link), headers
+   then nothing (hanging), an addon that answers after 9 s, a remembered source that fails before the other addon
+   answered. Each scenario resumes a movie at 1:00 through the Continue watching path (test-build broadcast
+   `com.fof.tv.TAB --es resume`); `playback_check.py` fails the run unless every one shows a picture near 1:00.
+2. **Rules as tested logic** – `StartWatchLogic` (when to give up on a source, what comes next) with
+   `StartWatchLogicTest`; `SourceHealthLogic`, `SourceCheckLogic` with their tests.
+3. **On the TV** – `SourceHealth` puts sources that did not start (or cannot seek, when resuming) after the others for
+   6 h; `SourceCheck` checks Continue watching sources in the background every 15 minutes and every addon once a day
+   (reported as `addon: …`).
+4. **Release gate** – `promote.yml` moves a build from the early channel to every TV only when its commit passed the
+   playback scenarios and the early-channel TVs reported no crash, freeze, forced close or stream that did not start
+   (`.github/scripts/promote_gate.py`); otherwise it opens "[auto] promotion held".
+
+Rule for changes to the player, Resume, sources or addons: add or extend a scenario in `playback_fixture.py` or a case in
+`StartWatchLogicTest` for the behaviour changed, and do not push to `main` before `playback-test.yml` passed on
+`auto-fix`.
+
+Not covered: real addons' content, debrid torrents (never opened by the checks), live TV channels, series episodes in
+the emulator scenarios (movies only), real TV hardware and Wi-Fi.
+
 ## What to try on the TV after an update
 
 1. Start the app: posters on Home quickly; Settings → Diagnostics → Speed or the phone page → App health.

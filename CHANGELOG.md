@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased – Playback safety net (T-011)
+
+- A source that did not start (or, when resuming, cannot jump to the spot) is tried after the others for 6 hours; Play
+  no longer starts it first just because it played before.
+- In the background (only while nothing plays) the TV checks the sources of Continue watching every 15 minutes, so
+  Resume starts one that works and starts at once, and checks every addon once a day ("addon: …" report when an addon
+  finds nothing, its links do not open, or it cannot seek). Only addon links are opened, never the provider or debrid.
+- New emulator test of misbehaving sources on every change; a build reaches every TV only after that test passed and the
+  early-channel TVs reported no crash, freeze or stream that did not start.
+
 ## Unreleased – A movie whose first source does not start keeps trying the addons
 
 - Resume (and Play) with one-click starts the source that played before at once, often the provider's own copy, before

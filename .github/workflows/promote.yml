@@ -15,6 +15,8 @@ on:
 
 permissions:
   contents: write
+  actions: read
+  issues: write
 
 jobs:
   promote:
@@ -22,7 +24,9 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       NOW: ${{ inputs.now }}
+      FOF_SUPABASE_SERVICE_KEY: ${{ secrets.FOF_SUPABASE_SERVICE_KEY }}
     steps:
+      - uses: actions/checkout@v4
       - name: Promote
         run: |
           set -euo pipefail
@@ -40,6 +44,9 @@ jobs:
               exit 0
             fi
           fi
+          # Playback scenarios passed on this commit and no new crash/freeze/stream problem from the early channel
+          # (.github/scripts/promote_gate.py). A hand promotion ("now") skips only the 24-hour wait, not this gate.
+          if ! python3 .github/scripts/promote_gate.py "$TAG"; then echo "$TAG held on the early channel"; exit 0; fi
           PUB=$(gh api "repos/${{ github.repository }}/releases/tags/$TAG" --jq .published_at)
           if [ -n "$LATEST" ] && [ "$PUB" \< "$LATEST" ]; then echo "$TAG is older than the latest release"; exit 0; fi
           # Verify the exact installer before exposing this release to the stable Downloader link.

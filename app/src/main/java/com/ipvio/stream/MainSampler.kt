@@ -7,6 +7,7 @@ import android.content.IntentFilter
 import android.os.Build
 import android.os.Looper
 import android.util.Log
+import kotlinx.coroutines.launch
 
 /**
  * Test builds only (version name ends with "-test"): samples the main thread's stack every few milliseconds for a given
@@ -33,6 +34,24 @@ object MainSampler {
                 i.getIntExtra("hubtab", -1).takeIf { it >= 0 }?.let { HubMemory.tab = it }
                 // Search journey: type a query as if entered on the keyboard
                 i.getStringExtra("q")?.let { SearchState.query = it }
+                // Playback scenarios (playback-test.yml): add a fixture addon; remember a source as "played before";
+                // resume a movie at a spot through the same path as Continue watching ("tt…|Title|year|ms")
+                i.getStringExtra("addon")?.let { u ->
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                        Log.i("FofPlay", "addon " + u + ": " + (Stremio.add(ctx.applicationContext, u) ?: "added"))
+                    }
+                }
+                i.getStringExtra("good")?.split('|', limit = 2)?.takeIf { it.size == 2 }?.let { (id, key) ->
+                    SourceMemory.played(ctx.applicationContext, SourceMemory.contentId(id, false, 0, 0), key)
+                }
+                i.getStringExtra("resume")?.split('|')?.takeIf { it.size == 4 }?.let { p ->
+                    val item = Item("stremio:" + p[0], Kind.MOVIE, p[1], p[2].toIntOrNull(), "", null, "Stremio")
+                    Log.i("FofPlay", "scenario " + p[0] + " resume at " + p[3] + " ms")
+                    AppNav.autoStream = item.id
+                    AppNav.autoResume = Triple(0, 0, p[3].toLongOrNull() ?: 0L)
+                    AppNav.autoResumeId = item.id
+                    OpenTitle.req = item
+                }
             }
         }
         if (Build.VERSION.SDK_INT >= 33) {
