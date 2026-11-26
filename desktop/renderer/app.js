@@ -1177,6 +1177,15 @@ const TV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" str
 @media (max-width: 820px), (hover: none) and (pointer: coarse){#castbar{bottom:calc(76px + env(safe-area-inset-bottom));left:10px;right:10px;transform:none;max-width:none;flex-wrap:wrap;justify-content:space-between;gap:2px;padding:10px 8px}#castbar .nm{flex-basis:100%;max-width:none;margin:0 6px 4px}#castbar .nm b{display:inline;margin-right:6px}#castbar button{min-width:34px;padding:0 4px;font-size:14px}}`;
   document.head.appendChild(st);
 })();
+// Phone: hide the floating TV button while scrolling down through a page, bring it back on the way up
+if (matchMedia('(max-width: 820px), (hover: none) and (pointer: coarse)').matches) {
+  let lastY = 0;
+  document.addEventListener('scroll', e => {
+    const el = e.target, b = $('#castbtn'); if (!b || !el || el.scrollTop == null || !el.classList || !el.classList.contains('page')) return;
+    const y = el.scrollTop; if (Math.abs(y - lastY) < 8) return;
+    b.classList.toggle('away', y > 40 && y > lastY); lastY = y;
+  }, true);
+}
 function castButton() {
   if (!$('#castbtn')) { const b = document.createElement('button'); b.id = 'castbtn'; b.title = 'Play on TV'; b.innerHTML = TV_ICON; b.onclick = castPick; document.body.appendChild(b); }
   $('#castbtn').classList.toggle('on', !!castTV);

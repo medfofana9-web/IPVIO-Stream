@@ -13,7 +13,7 @@
   /* Menu: a tab bar at the bottom instead of the side rail */
   .shell { flex-direction: column; }
   .rail, .rail:hover { position: fixed; left: 0; right: 0; bottom: 0; top: auto; width: 100%; height: calc(62px + env(safe-area-inset-bottom)); z-index: 40;
-    flex-direction: row; justify-content: space-around; align-items: flex-start; padding: 6px 4px env(safe-area-inset-bottom); border-right: 0; border-top: 1px solid #1a1a1a; background: rgba(0,0,0,.94); }
+    flex-direction: row; justify-content: space-around; align-items: flex-start; padding: 6px 4px env(safe-area-inset-bottom); border-right: 0; border-top: 1px solid #1a1a1a; background: #000; }
   .rail .mark, .rail .me { display: none; }
   .rail a { flex: 1; flex-direction: column; justify-content: center; gap: 3px; height: 50px; padding: 0; margin: 0; border-radius: 8px; font-size: 10px; }
   .rail a span { opacity: 1; font-size: 10px; white-space: nowrap; }
@@ -92,7 +92,20 @@
   /* Sports, search, downloads */
   .sports, .search { padding: 18px 14px 30px !important; }
   .sports h1, .search h1 { font-size: 30px !important; }
-  .games { grid-template-columns: 1fr !important; }
+  .games { grid-template-columns: minmax(0, 1fr) !important; }
+  .game { min-width: 0; overflow: hidden; }
+  .game .top > span:not(.net):not(.live) { flex: none; }
+  .game .top .net { min-width: 0; flex: 1 1 0; text-align: right; }
+  .sports .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-right: -14px; padding-right: 14px; }
+  .sports .chips::-webkit-scrollbar { display: none; }
+  .sports .chips button { flex: none; }
+  .page { overflow-x: hidden; }
+  /* Solid strip behind the clock and the Dynamic Island, so scrolled content never runs under them */
+  body::before { content: ''; position: fixed; left: 0; right: 0; top: 0; height: env(safe-area-inset-top); background: #000; z-index: 44; pointer-events: none; }
+  /* Play on TV button: out of the way while scrolling down, back when scrolling up */
+  #castbtn { transition: opacity .2s, transform .2s; }
+  #castbtn.away { opacity: 0; transform: translateY(-10px); pointer-events: none; }
+  #toast { bottom: calc(84px + env(safe-area-inset-bottom)); max-width: calc(100% - 32px); text-align: center; }
   .search .q input { font-size: 20px; }
   .grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
   .handoff { left: 10px; right: 10px; bottom: calc(72px + env(safe-area-inset-bottom)); max-width: none; }
