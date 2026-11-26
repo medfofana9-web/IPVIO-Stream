@@ -260,6 +260,7 @@ const ICONS = {
   movies: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 3v18M17 3v18M3 8h4M3 16h4M17 8h4M17 16h4"/></svg>',
   sports: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>',
   mylist: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>',
+  calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
   live: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19 5a10 10 0 0 1 0 14M5 19A10 10 0 0 1 5 5"/></svg>',
   downloads: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>'
 };
@@ -267,7 +268,7 @@ const ICONS = {
 const WEB = !window.fof && !NATIVE;
 const HERE = NATIVE ? 'iPhone' : WEB ? 'phone' : 'Mac';
 const DL = window.fof && window.fof.downloads;
-const NAV = [['search', 'Search'], ['home', 'Home'], ['shows', 'TV Shows'], ['movies', 'Movies'], ['sports', 'Sports'], ['live', 'Live TV'], ['mylist', 'My List'], ...(DL ? [['downloads', 'Downloads']] : [])];
+const NAV = [['search', 'Search'], ['home', 'Home'], ['shows', 'TV Shows'], ['movies', 'Movies'], ['sports', 'Sports'], ['calendar', 'Calendar'], ['live', 'Live TV'], ['mylist', 'My List'], ...(DL ? [['downloads', 'Downloads']] : [])];
 let current = 'home';
 const navStack = [];
 
@@ -291,6 +292,7 @@ function go(tab, arg) {
   else if (tab === 'shows') renderCategory(pg, 'series');
   else if (tab === 'live') renderLive(pg);
   else if (tab === 'sports') renderSports(pg);
+  else if (tab === 'calendar') renderCalendar(pg);
   else if (tab === 'mylist') renderMyList(pg);
   else if (tab === 'search') renderSearch(pg);
   else if (tab === 'downloads') renderDownloads(pg);
@@ -1607,3 +1609,109 @@ async function start() {
   showWho();
 }
 start();
+
+// ------------------------------------------------------------------ Calendar (same as the TV): your shows' new episodes
+// (My List, dates from the catalog), and big games of the next 7 days on national TV. Month, week or list.
+const cal = { tab: 0, filter: 0, view: 2, day: null, data: null };
+const dkey = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+async function calData() {
+  if (cal.data && Date.now() - cal.data.t < 30 * 60 * 1000) return cal.data.l;
+  const out = [];
+  const ids = acct.mylist.map(ttOf).filter(Boolean).slice(0, 40);
+  const from = Date.now() - 45 * 864e5, to = Date.now() + 75 * 864e5;
+  await Promise.all(ids.map(async tt => {
+    const m = await metaOf('series', tt); if (!m || !m.videos) return;
+    for (const v of m.videos) {
+      const t = Date.parse(v.released || ''); if (!(t > from && t < to) || !v.season) continue;
+      out.push({ day: dkey(new Date(t)), t, kind: 0, title: m.name, sub: 'S' + v.season + ' · E' + v.episode, img: v.thumbnail || m.background, open: () => openTitle('series', m.id) });
+    }
+  }));
+  const days = [...Array(7)].map((_, i) => { const d = new Date(Date.now() + i * 864e5); return d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0'); });
+  await Promise.all(LEAGUES.slice(0, 6).flatMap(l => days.map(async ds => {
+    const j = await getJson(`https://site.api.espn.com/apis/site/v2/sports/${l[2]}/scoreboard?dates=${ds}`, 30 * 60 * 1000).catch(() => null);
+    for (const e of (j && j.events) || []) {
+      const c = (e.competitions || [])[0] || {}; const nets = (c.broadcasts || []).flatMap(b => b.names || []);
+      if (!nets.length) continue;
+      const side = h => ((c.competitors || []).find(k => k.homeAway === h) || {}).team || {};
+      const a = side('away'), hm = side('home'), t = Date.parse(e.date);
+      out.push({ day: dkey(new Date(t)), t, kind: 2, title: (a.shortDisplayName || '') + ' at ' + (hm.shortDisplayName || ''), sub: l[1] + ' · ' + nets.join(' · '),
+        colors: ['#' + (a.color || '2a3142'), '#' + (hm.color || '2a3142')], open: () => go('sports') });
+    }
+  })));
+  out.sort((x, y) => x.t - y.t);
+  cal.data = { t: Date.now(), l: out };
+  return out;
+}
+function calCard(e) {
+  const tm = e.kind === 2 ? new Date(e.t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+  const bg = e.kind === 2 ? `background:linear-gradient(90deg,${e.colors[0]},${e.colors[1]})` : (e.img ? `background:#1a2030 url('${esc(e.img)}') center/cover` : 'background:#1a2030');
+  return `<div class="calcard" tabindex="0" style="${bg}">${tm ? `<span class="calt">${tm}</span>` : ''}<div class="calb"><b>${esc(e.title)}</b><small>${esc(e.sub)}</small></div></div>`;
+}
+async function renderCalendar(pg) {
+  if (!$('#calstyle')) { const st = document.createElement('style'); st.id = 'calstyle'; st.textContent = `
+.calp{padding:40px 56px 60px}.calp h1{font-size:40px;margin:0}.calp .tz{color:#999;font-size:15px;margin-left:12px}
+.calbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:18px 0 10px}.calbar button{padding:8px 16px;border-radius:20px;background:#1a2030;color:#ccc;font-weight:600;font-size:15px}
+.calbar button.on{background:#fff;color:#000}.calbar .v.on{background:#4d8bff;color:#fff}.calbar .sp{flex:1}
+.calrow{display:flex;gap:14px;overflow-x:auto;padding:6px 0 14px;scrollbar-width:none}.calrow::-webkit-scrollbar{display:none}
+.calcard{flex:none;width:280px;aspect-ratio:16/9;border-radius:12px;position:relative;overflow:hidden;cursor:pointer;outline:3px solid transparent}.calcard:hover,.calcard:focus{outline-color:#fff}
+.calcard:after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,#000d)}.calb{position:absolute;left:12px;right:12px;bottom:10px;z-index:1}
+.calb b{display:block;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.calb small{color:#ddd;font-size:12px}.calt{position:absolute;left:10px;top:8px;z-index:1;background:#0009;border-radius:5px;padding:2px 7px;font-size:12px;font-weight:800}
+.calh{font-size:22px;font-weight:800;margin:14px 0 6px}.calh small{color:#999;font-size:14px;font-weight:500;margin-left:8px}
+.calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}.calgrid .dn{color:#999;font-size:12px}
+.calday{height:76px;border-radius:10px;background:#151a25 center/cover;position:relative;cursor:pointer;outline:3px solid transparent;overflow:hidden}.calday.sel{outline-color:#4d8bff}.calday:hover{outline-color:#fff}
+.calday:after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,#0006,#000b)}.calday .n{position:absolute;left:8px;top:4px;font-weight:800;z-index:1}.calday .f{opacity:.4}
+.calday .x{position:absolute;left:8px;right:8px;bottom:5px;z-index:1;font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width: 820px){.calp{padding:20px 14px 30px}.calp h1{font-size:30px}.calday{height:54px}.calday .x{display:none}.calcard{width:220px}}`; document.head.appendChild(st); }
+  if (!cal.day) cal.day = new Date();
+  pg.innerHTML = '<div class="calp"><div style="display:flex;align-items:baseline"><h1>Calendar</h1><span class="tz">Times in your time zone</span></div><div id="calbody"><div class="spin"></div></div></div>';
+  const all = await calData();
+  if (current !== 'calendar' || !$('#calbody')) return;
+  const draw = () => {
+    const list = all.filter(e => cal.filter === 0 || (cal.filter === 1 && e.kind === 0) || (cal.filter === 2 && e.kind === 2));
+    const today = dkey(new Date()), sel = dkey(cal.day);
+    const btn = (k, i, t, cls = '') => `<button data-${k}="${i}" class="${cls}${cal[k] === i ? ' on' : ''}">${t}</button>`;
+    let h = `<div class="calbar">${['My calendar', 'Airing today', 'Following'].map((t, i) => btn('tab', i, t)).join('')}<span class="sp"></span>${cal.tab === 0 ? ['List', 'Week', 'Month'].map((t, i) => btn('view', i, t, 'v')).join('') : ''}</div>`;
+    if (cal.tab !== 2) h += `<div class="calbar">${['All', 'Shows', 'Sports'].map((t, i) => btn('filter', i, t)).join('')}</div>`;
+    const byDay = {}; list.forEach(e => (byDay[e.day] = byDay[e.day] || []).push(e));
+    const dayName = d => (dkey(d) === today ? 'Today · ' : '') + d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+    const rowOf = l => `<div class="calrow">${l.map(calCard).join('')}</div>`;
+    if (cal.tab === 1) h += `<div class="calh">Airing today</div>` + rowOf(byDay[today] || []) + ((byDay[today] || []).length ? '' : '<div class="empty">Nothing from your list or the big games today.</div>');
+    else if (cal.tab === 2) {
+      const next = {}; list.filter(e => e.kind === 0 && e.day >= today).forEach(e => { if (!next[e.title]) next[e.title] = e; });
+      h += `<div class="calh">Coming back<small>${Object.keys(next).length} with a date</small></div>` + rowOf(Object.values(next));
+    } else if (cal.view === 0) {
+      Object.keys(byDay).filter(k => k >= today).sort().slice(0, 21).forEach(k => { h += `<div class="calh">${dayName(new Date(k + 'T12:00'))}<small>${byDay[k].length}</small></div>` + rowOf(byDay[k]); });
+    } else {
+      const sl = byDay[sel] || [];
+      h += `<div class="calh">${dayName(cal.day)}<small>${sl.length ? sl.length + ' on this day' : 'Nothing this day'}</small></div>` + (sl.length ? rowOf(sl) : '');
+      const d0 = new Date(cal.day); if (cal.view === 2) d0.setDate(1); d0.setDate(d0.getDate() - d0.getDay());
+      h += `<div class="calbar"><b style="font-size:18px">${cal.day.toLocaleDateString([], { month: 'long', year: 'numeric' })}</b><span class="sp"></span><button data-nav="-1">‹ Previous</button><button data-nav="0">Today</button><button data-nav="1">Next ›</button></div>`;
+      h += '<div class="calgrid">' + ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(x => `<div class="dn">${x}</div>`).join('');
+      for (let i = 0; i < (cal.view === 1 ? 7 : 42); i++) {
+        const d = new Date(d0); d.setDate(d0.getDate() + i); const k = dkey(d), l = byDay[k] || [], f = l[0];
+        const bg = f ? (f.kind === 2 ? `background:linear-gradient(90deg,${f.colors[0]},${f.colors[1]})` : (f.img ? `background-image:url('${esc(f.img)}')` : '')) : '';
+        h += `<div class="calday${k === sel ? ' sel' : ''}" data-d="${k}" style="${bg}"><span class="n${cal.view === 2 && d.getMonth() !== cal.day.getMonth() ? ' f' : ''}">${d.getDate()}</span>${f ? `<span class="x">${esc(f.title)}${l.length > 1 ? ' +' + (l.length - 1) : ''}</span>` : ''}</div>`;
+      }
+      h += '</div>';
+    }
+    const box = $('#calbody'); box.innerHTML = h;
+    box.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { cal.tab = +b.dataset.tab; draw(); });
+    box.querySelectorAll('[data-view]').forEach(b => b.onclick = () => { cal.view = +b.dataset.view; draw(); });
+    box.querySelectorAll('[data-filter]').forEach(b => b.onclick = () => { cal.filter = +b.dataset.filter; draw(); });
+    box.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { cal.day = new Date(b.dataset.d + 'T12:00'); draw(); });
+    box.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => {
+      const n = +b.dataset.nav, d = new Date(cal.day);
+      if (n === 0) cal.day = new Date(); else if (cal.view === 1) { d.setDate(d.getDate() + 7 * n); cal.day = d; } else { d.setDate(1); d.setMonth(d.getMonth() + n); cal.day = d; }
+      draw();
+    });
+    // Cards: the same order as drawn
+    const shown = [...box.querySelectorAll('.calcard')]; let i = 0;
+    const flat = [];
+    if (cal.tab === 1) flat.push(...(byDay[today] || []));
+    else if (cal.tab === 2) { const seen = {}; list.filter(e => e.kind === 0 && e.day >= today).forEach(e => { if (!seen[e.title]) { seen[e.title] = 1; flat.push(e); } }); }
+    else if (cal.view === 0) Object.keys(byDay).filter(k => k >= today).sort().slice(0, 21).forEach(k => flat.push(...byDay[k]));
+    else flat.push(...(byDay[sel] || []));
+    shown.forEach(el => { const e = flat[i++]; if (e) el.onclick = e.open; });
+  };
+  draw();
+}
