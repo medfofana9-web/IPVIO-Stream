@@ -744,7 +744,7 @@ fun HomeScreen(
                                         contentPadding = PaddingValues(start = RowPadX, end = RowPadX, top = dpx(8), bottom = dpx(8)),
                                         horizontalArrangement = Arrangement.spacedBy(dpx(12))
                                     ) {
-                                        androidx.compose.foundation.lazy.itemsIndexed(gSpecs) { i, sp -> PillButton(sp.title, raw = true) { pickGenre(i) } }
+                                        items(gSpecs.size) { i -> PillButton(gSpecs[i].title, raw = true) { pickGenre(i) } }
                                     }
                                 }
                             }
