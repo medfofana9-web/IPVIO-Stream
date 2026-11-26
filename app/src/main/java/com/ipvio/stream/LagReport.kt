@@ -36,7 +36,15 @@ object LagReport {
         val lines = listOf(head) + FrameStats.snapshot().map { "lag: frames " + it }
         if (!FofAccount.signedIn) { toast(app, "Sign in to your Fof TV account to send reports"); return }
         FrameStats.sendLines(app, lines)
-        toast(app, "Thanks – sent what this TV measured. It will be looked at and fixed.")
+        toast(app, "Measuring for 20 seconds – keep scrolling and clicking where it feels slow")
+        // Then where the time went on this TV: the busiest app code while you kept using it
+        val screen = FrameStats.currentScreen()
+        MainSampler.sample(20_000) { busy, appTop, appAll, topFrame ->
+            val out = listOf("lag: busy " + busy + "% of the time on " + screen + " (main thread, 20 s)") +
+                appTop.map { "lag: hot " + it } + appAll.map { "lag: stack " + it } + topFrame.map { "lag: top " + it }
+            FrameStats.sendLines(app, out)
+            android.os.Handler(android.os.Looper.getMainLooper()).post { toast(app, "Thanks – sent. It will be looked at and fixed.") }
+        }
     }
 
     private fun toast(c: Context, t: String) = runCatching { Toast.makeText(c.applicationContext, t, Toast.LENGTH_LONG).show() }

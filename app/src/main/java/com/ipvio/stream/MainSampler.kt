@@ -71,6 +71,31 @@ object MainSampler {
 
     private fun key(e: StackTraceElement) = e.className.substringAfterLast('.') + "." + e.methodName + (if (e.lineNumber > 0) ":" + e.lineNumber else "")
 
+    /**
+     * Report lag (release builds too): samples the main thread every 20 ms for [ms] while you keep using the TV and
+     * hands back the busiest app code (where the time goes on this very TV). Observational only, low priority.
+     */
+    fun sample(ms: Int, done: (busyPct: Int, appTop: List<String>, appAll: List<String>, topFrame: List<String>) -> Unit) = Thread {
+        val main = Looper.getMainLooper().thread
+        val self = HashMap<String, Int>(); val appTop = HashMap<String, Int>(); val appAll = HashMap<String, Int>()
+        var busy = 0; var idle = 0
+        val end = System.currentTimeMillis() + ms
+        while (System.currentTimeMillis() < end) {
+            val st = main.stackTrace
+            if (st.isNotEmpty()) {
+                if (st[0].methodName == "nativePollOnce") idle++ else {
+                    busy++
+                    self.merge(key(st[0]), 1, Int::plus)
+                    st.firstOrNull { it.className.startsWith("com.ipvio.stream") }?.let { appTop.merge(key(it), 1, Int::plus) }
+                    st.filter { it.className.startsWith("com.ipvio.stream") }.map { key(it) }.distinct().forEach { appAll.merge(it, 1, Int::plus) }
+                }
+            }
+            Thread.sleep(20)
+        }
+        fun top(m: Map<String, Int>, n: Int) = m.entries.sortedByDescending { it.value }.take(n).map { "${it.value}x ${it.key}" }
+        done(busy * 100 / (busy + idle).coerceAtLeast(1), top(appTop, 15), top(appAll, 15), top(self, 8))
+    }.apply { isDaemon = true; priority = Thread.MIN_PRIORITY }.start()
+
     fun run(ms: Int, tag: String) = Thread {
         val main = Looper.getMainLooper().thread
         val self = HashMap<String, Int>()
