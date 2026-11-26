@@ -732,9 +732,22 @@ fun HomeScreen(
                             val gSpecs = Catalog.genres(kind)
                             val catName = if (isM) "Movies" else "TV Shows"
                             val pickGenre: (Int) -> Unit = { i -> gSpecs.getOrNull(i)?.let { sp -> scope.launch { onBrowse(BrowseReq(catName + " · " + sp.title, Catalog.items(sp, 4), SORT_PLAYLIST)) } } }
-                            if (ready.isNotEmpty()) item(key = "hero$tab") { Hero(ready.toList(), heroH, false, onOpen, heroPlay, header, { heroScroll(states[tab]) },
+                            if (ready.isNotEmpty() && !FofPrefs.cleanLook) item(key = "hero$tab") { Hero(ready.toList(), heroH, false, onOpen, heroPlay, header, { heroScroll(states[tab]) },
                                 category = catName, genres = gSpecs.map { it.title }, onGenre = pickGenre, links = navTabs) { scope.launch { states[tab].animateScrollToItem(0) } } }
                             else item(key = "top$tab") { headerTabs(Modifier) }
+                            // Clean look (Nuvio style): room for the selected title at the top, then the genres as buttons
+                            if (FofPrefs.cleanLook) {
+                                item(key = "nvspace$tab") { Spacer(Modifier.height(dpx(260))) }
+                                if (gSpecs.isNotEmpty()) item(key = "gen$tab") {
+                                    androidx.compose.foundation.lazy.LazyRow(
+                                        Modifier.fillMaxWidth().onFocusChanged { if (it.hasFocus) Billboard.cardFocus = false },
+                                        contentPadding = PaddingValues(start = RowPadX, end = RowPadX, top = dpx(8), bottom = dpx(8)),
+                                        horizontalArrangement = Arrangement.spacedBy(dpx(12))
+                                    ) {
+                                        androidx.compose.foundation.lazy.itemsIndexed(gSpecs) { i, sp -> PillButton(sp.title, raw = true) { pickGenre(i) } }
+                                    }
+                                }
+                            }
                             // Netflix category order: Continue Watching, Top 10 of this kind, My List, a spotlight row, then genres
                             val rl = resumeK
                             if (rl.isNotEmpty()) item(key = "res$tab") { ResumeRow(rl, cardW, onResume, onOpen) }

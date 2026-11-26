@@ -290,7 +290,9 @@ fun RowTitle(
         // Same as the Mac app: plain light-grey title, the "Show all" link right after it (no side marker)
         Text(title, color = Color(0xFFE5E5E5), fontSize = spx(DS.SectionTitleSp + 2), fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f, fill = false), raw = raw)
-        if (onAll != null) {
+        // Clean look (Nuvio style): no "Show all" stop above the row (one less focus stop and scroll per row); a "See all"
+        // card at the end of the row opens the whole category instead
+        if (onAll != null && !FofPrefs.cleanLook) {
             var f by remember { mutableStateOf(false) }
             val shape = RoundedCornerShape(50)
             val scope = rememberCoroutineScope()
@@ -720,6 +722,16 @@ fun CardRow(
                     // overlay 3: the preview opens over its neighbors (the row itself never re-lays-out while it animates)
                     else -> RowPosterCard(it, g.poster, track.restoreFocus(it.id).then(fr), overlay0 = 3, expand = true) { onOpen(it) }
                 }
+            }
+            if (FofPrefs.cleanLook && onAll != null && !live) item(key = "seeall") {
+                val shape = RoundedCornerShape(dpx(14))
+                var f by remember { mutableStateOf(false) }
+                Box(
+                    Modifier.width(g.land).aspectRatio(16f / 9f).clip(shape).background(Color(0xFF1A1E28))
+                        .then(if (f) Modifier.border(3.dp, Color.White, shape) else Modifier)
+                        .onFocusChanged { f = it.isFocused }.clickable { onAll() },
+                    contentAlignment = Alignment.Center
+                ) { Text("See all", color = Color.White, fontSize = spx(24), fontWeight = FontWeight.Bold) }
             }
         }
         }

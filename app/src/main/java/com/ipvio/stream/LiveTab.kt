@@ -189,6 +189,7 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
     // Round 17b: the selected channel determines the background and the big display on the right ("What is on now")
     // Kept as State and read only in FocusedBackdrop / FocusedNowPanel (see there)
     val focusedState = remember { mutableStateOf<Item?>(null) }
+    val chanState2 = androidx.compose.foundation.lazy.rememberLazyListState()
     var lastRepeat by remember { mutableStateOf(0L) }
     // 17c: switch only after a short dwell (no loading of logo and program while paging quickly)
     var focusTarget by remember { mutableStateOf<Item?>(null) }
@@ -383,7 +384,19 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
                         curList != null -> "In All Channels or a category, hold OK on a channel and choose Add to list."
                         else -> "No channels in this category. Select another category on the left."
                     }
-                ) else androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                ) else if (FofPrefs.cleanLook && sel != "SEARCH" && addList == null) {
+                    // Clean look (Nuvio style): channels as a list on the left, the selected one playing large on the right
+                    val chOpen: (Item) -> Unit = { ch ->
+                            if (addList != null) {
+                                val has = ch.id in addList.ids
+                                if (has) ChannelLists.remove(ctx, addList.id, ch.id) else ChannelLists.add(ctx, addList.id, ch.id)
+                                Toast.makeText(ctx, (if (has) Lang.tr("Entfernt: ") else Lang.tr("Hinzugefügt: ")) + ch.title, Toast.LENGTH_SHORT).show()
+                            } else if (sel == "REC") onPlayNow(ch)   // Recording: play like a movie (seekable)
+                            else { ZapContext.list = list; ZapContext.key = sel; LiveMemory.setSel(ctx, sel); onOpen(ch) }
+                    }
+                    LiveSplit(list, chanState2, firstChan, restoreId, restoreReq, curList, { newList(it) }, { focusTarget = it }, focusedState,
+                        variantsOf, { v -> ZapContext.list = list; ZapContext.key = sel; LiveMemory.setSel(ctx, sel); onOpen(v) }, chOpen)
+                } else androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
                     columns = androidx.compose.foundation.lazy.grid.GridCells.Adaptive(dpx(if (sel == "SEARCH") 400 else 230)),
                     state = chanState,
                     // Held Down/Up key: at most ~9 steps per second, so a weak box is not flooded with scroll animations and rebinds
@@ -722,4 +735,44 @@ internal fun channelMark(title: String): String {
     val t = title.replace(Regex("^\\s*(\\[[^\\]]{1,6}\\]|\\|?[A-Z]{2,3}\\s*[:|\\-]\\|?)\\s*"), "")
         .replace(Regex("(?i)\\s*\\b(FHD|UHD|HD|SD|4K|HEVC|H265|RAW|\\(.*?\\))\\s*$"), "").trim()
     return t.ifBlank { title }.take(28)
+}
+
+/**
+ * Live TV, clean look (Nuvio style): the category's channels as a list (logo, what is on now and next, progress) and the
+ * selected channel large on the right. It plays there muted once the highlight rests on it for a moment (720p at most,
+ * its own slim player); OK stops the preview first (many providers allow one stream at a time), then opens the channel.
+ */
+@Composable
+private fun LiveSplit(
+    list: List<Item>, state: androidx.compose.foundation.lazy.LazyListState, firstChan: FocusRequester, restoreId: String?, restoreReq: FocusRequester,
+    curList: ChList?, onNewList: (String) -> Unit, onFocus: (Item) -> Unit, focusedState: State<Item?>,
+    variantsOf: Map<String, List<Item>>, onVariant: (Item) -> Unit, onOpenCh: (Item) -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    var preview by remember { mutableStateOf<Item?>(null) }
+    val shown = focusedState.value ?: list.firstOrNull()
+    LaunchedEffect(shown?.id) {
+        preview = null
+        val ch = shown ?: return@LaunchedEffect
+        kotlinx.coroutines.delay(1_200)
+        if (ch.kind == Kind.LIVE) preview = ch
+    }
+    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(dpx(26))) {
+        LazyColumn(Modifier.width(dpx(520)).fillMaxHeight(), state = state, verticalArrangement = Arrangement.spacedBy(dpx(10)),
+            contentPadding = PaddingValues(top = dpx(6), bottom = dpx(40))) {
+            itemsIndexed(list, key = if (curList != null) { ix, ch -> ch.id + "#" + ix } else null, contentType = { _, _ -> "line" }) { i, ch ->
+                ChannelLine(
+                    ch, (if (i == 0) Modifier.focusRequester(firstChan) else Modifier).then(if (ch.id == restoreId) Modifier.focusRequester(restoreReq) else Modifier),
+                    curList, onNewList = { onNewList(ch.id) }, onFocus = { onFocus(ch) }, variants = variantsOf[ch.id].orEmpty(), onVariant = onVariant
+                ) { preview = null; scope.launch { kotlinx.coroutines.delay(250); onOpenCh(ch) } }
+            }
+        }
+        Column(Modifier.weight(1f).fillMaxHeight().padding(end = dpx(20)), verticalArrangement = Arrangement.spacedBy(dpx(16))) {
+            Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(dpx(16))).background(Color(0xFF0C1018)), contentAlignment = Alignment.Center) {
+                shown?.logo?.let { AsyncImage(it, null, Modifier.size(dpx(180)), contentScale = ContentScale.Fit) }
+                preview?.let { ch -> androidx.compose.runtime.key(ch.id) { SecondStream(ch, split = true, audioOn = false, modifier = Modifier.fillMaxSize()) { preview = null } } }
+            }
+            Box(Modifier.fillMaxWidth().weight(1f)) { LiveNowPanel(shown) }
+        }
+    }
 }
