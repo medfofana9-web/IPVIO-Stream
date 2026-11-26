@@ -88,6 +88,11 @@ internal fun SportSplit(games0: List<SportData.Game>, hub: HubCtx) {
         preview = null
         scope.launch { delay(250); if (g.state != 1) hub.open(g) else if (best) hub.watch(g) else hub.nav.open(HubPage.Watch(g)) }
     }
+    LaunchedEffect(shown?.key, selCh?.id) {
+        val pc = selCh
+        if (pc != null) AppGlow.set(pinColor(pc.title), pinColor(pc.title))
+        else shown?.let { AppGlow.set(splitColor(it.home), splitColor(it.away)) }
+    }
     // The channel index is built as soon as the page opens, so the sources list and the preview come up at once
     LaunchedEffect(hub.live) { withContext(Dispatchers.Default) { runCatching { SportWatch.prewarm(hub.live) } } }
     if (games.isEmpty()) { HubLoading("Loading games…"); return }

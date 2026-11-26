@@ -527,7 +527,7 @@ fun HomeScreen(
     // Read only in effects and in BillboardLayer: reading it here would recompose the whole home screen
     LaunchedEffect(bbOnState) { snapshotFlow { bbOnState.value }.collect { Billboard.active = it } }
     LaunchedEffect(inSidebar) { if (inSidebar) Billboard.cardFocus = false }
-    LaunchedEffect(tab) { Billboard.cardFocus = false }
+    LaunchedEffect(tab) { Billboard.cardFocus = false; AppGlow.reset() }
     val bbItemState = remember { mutableStateOf<Item?>(Billboard.focused) }
     // 17c: switch only after a short dwell (no big images are loaded while browsing quickly)
     // snapshotFlow instead of LaunchedEffect(Billboard.focused): reading the focused title here recomposed the whole home screen
