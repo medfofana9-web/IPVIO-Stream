@@ -1366,14 +1366,19 @@ async function watchGame(g) {
 }
 
 // ------------------------------------------------------------------ game day: followed teams, score bar, notifications
-const teamKey = (g, t) => g.lk + ':' + (t.abbr || t.short);
-const followed = k => store.get('teams', []).includes(k);
-function toggleFollow(k) { const l = store.get('teams', []); store.set('teams', l.includes(k) ? l.filter(x => x !== k) : l.concat(k)); toast(l.includes(k) ? 'Unfollowed' : 'Following – you get a notification when their games start', 2400); pollTeams(); }
+// Followed teams: the account's favorite teams (synced with the TVs and the Calendar)
+const teamKey = (g, t) => favKey(t.name);
+const followed = k => (acct.favTeams || []).includes(k);
+function toggleFollow(k) {
+  const was = followed(k);
+  followTeam(k, null).then(() => { cal.data = null; pollTeams(); });
+  acct.favTeams = was ? (acct.favTeams || []).filter(x => x !== k) : (acct.favTeams || []).concat(k);
+  toast(was ? 'Unfollowed' : 'Following – you get a notification when their games start', 2400);
+}
 let teamGames = [];
 async function pollTeams() {
-  const ts = store.get('teams', []); if (!ts.length) { teamGames = []; drawScoreBar(); return; }
-  const lks = [...new Set(ts.map(k => k.split(':')[0]))];
-  const lists = await Promise.all(LEAGUES.filter(l => lks.includes(l[0])).map(l => scoreboard(l[2]).then(gs => gs.map(g => Object.assign(g, { league: l[1], lk: l[0] })))));
+  const ts = acct.favTeams || []; if (!ts.length) { teamGames = []; drawScoreBar(); return; }
+  const lists = await Promise.all(LEAGUES.map(l => scoreboard(l[2]).then(gs => gs.map(g => Object.assign(g, { league: l[1], lk: l[0] })))));
   const mine = lists.flat().filter(g => followed(teamKey(g, g.home)) || followed(teamKey(g, g.away)));
   const prev = new Map(teamGames.map(g => [g.id, g.state]));
   const told = store.get('startTold', []);
@@ -1956,13 +1961,13 @@ function followRailHtml() {
   const col = n => ['#1D428A', '#C8102E', '#2E9D5B', '#F08C2B', '#7C4DFF', '#00A3A3', '#552583'][[...String(n)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 0) % 7];
   const tRow = k => { const t = (acct.teamInfo || {})[k], nm = t ? t.name : teamCase(k); return `<div class="fr" title="${esc(nm)}"><i style="background:${col(nm)}">${t && t.logo ? `<img src="${esc(t.logo)}" onerror="this.remove()">` : ini(nm)}</i><b>${esc(nm)}</b><button class="fx" data-ut="${esc(k)}" title="Unfollow">&#x2715;</button></div>`; };
   const sRow = id => { const tt = ttOf(id), c = (acct.catItems || {})[id], nm = (c && c.t) || (cal.names && cal.names[tt]) || 'Show'; return `<div class="fr s" title="${esc(nm)}"><i style="background:${col(nm)}"><img src="${esc(posterOfId(tt))}" onerror="this.remove()"></i><b data-nm="${esc(tt)}">${esc(nm)}</b><button class="fx" data-us="${esc(id)}" title="Unfollow">&#x2715;</button></div>`; };
-  return `<aside class="frail"><h3>Following</h3><div class="fh">TEAMS</div>${teams.length ? teams.map(tRow).join('') : '<div class="fn">No teams yet</div>'}<div class="fh">SHOWS</div>${shows.length ? shows.map(sRow).join('') : '<div class="fn">No shows yet</div>'}<button class="fadd">+ Follow a team or show</button></aside>`;
+  return `<aside class="frail"><h3>Following</h3><button class="fadd fadd1">+ Follow</button><div class="fh">TEAMS</div>${teams.length ? teams.map(tRow).join('') : '<div class="fn">No teams yet</div>'}<div class="fh">SHOWS</div>${shows.length ? shows.map(sRow).join('') : '<div class="fn">No shows yet</div>'}<button class="fadd">+ Follow a team or show</button></aside>`;
 }
 function followRailWire(box, changed) {
   box.querySelectorAll('[data-nm]').forEach(async el => { if (el.textContent !== 'Show') return; const m = await metaOf('series', el.dataset.nm); if (m) { (cal.names = cal.names || {})[el.dataset.nm] = m.name; el.textContent = m.name; el.parentNode.title = m.name; } });
   box.querySelectorAll('[data-ut]').forEach(b => b.onclick = e => { e.stopPropagation(); followTeam(b.dataset.ut, null).then(changed); });
   box.querySelectorAll('[data-us]').forEach(b => b.onclick = e => { e.stopPropagation(); followShow(b.dataset.us, null).then(changed); });
-  const add = $('.fadd', box); if (add) add.onclick = () => followPicker(changed);
+  box.querySelectorAll('.fadd').forEach(b => b.onclick = () => followPicker(changed));
 }
 function followShow(id, meta) {
   const on = !calFollowShows().includes(id);
@@ -1971,6 +1976,10 @@ function followShow(id, meta) {
     let l = raw == null ? (strOf(files, 'ipvio_lib', 'watch') || '').split('\n').filter(x => ttOf(x)) : raw.split('\n').filter(Boolean);
     l = l.filter(x => x !== id); if (on) l.push(id);
     setStr(files, 'fof_calendar', 'shows', l.join('\n'));
+    if (on) {   // a followed show is a favorite everywhere (same list as the TV's Favorites)
+      const fv = (strOf(files, 'ipvio_lib', 'favs') || '').split('\n').filter(Boolean);
+      if (!fv.includes(id)) { setStr(files, 'ipvio_lib', 'favs', [id, ...fv].join('\n')); editMark(files, 'ipvio_lib', 'favs_edits', id, true); }
+    }
     if (on && meta) {   // so the TV knows the title too
       let a = []; try { a = JSON.parse(strOf(files, 'fof_catalog_items', 'a') || '[]'); } catch (e) {}
       if (!a.some(o => o.i === id)) { a.unshift({ i: id, t: meta.name, s: true, p: meta.poster || '' }); setStr(files, 'fof_catalog_items', 'a', JSON.stringify(a.slice(0, 400))); }
@@ -2058,11 +2067,11 @@ async function renderCalendar(pg) {
 .fr.s i{border-radius:6px;width:24px;height:34px}.fr.s i img{width:24px;height:34px;object-fit:cover}
 .fr b{flex:1;min-width:0;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fr .fx{opacity:0;border:0;background:none;color:#999;cursor:pointer;font-size:15px}.fr:hover .fx{opacity:1}
 .fadd{width:100%;margin-top:14px;padding:10px;border-radius:12px;border:1px dashed #ffffff33;background:none;color:#aaa;font-size:14px;cursor:pointer}.fadd:hover{background:#fff;color:#000}
-.calday.fv:before{content:'';position:absolute;right:7px;top:7px;width:8px;height:8px;border-radius:50%;background:#ffd34d;z-index:2}
+.fadd1{display:none}.calday.fv:before{content:'';position:absolute;right:7px;top:7px;width:8px;height:8px;border-radius:50%;background:#ffd34d;z-index:2}
 .fpk .ftabs{display:flex;gap:8px;margin:6px 0 10px}.fpk .ftabs button{padding:8px 16px;border-radius:20px;background:#1a2030;color:#ccc;font-weight:600;border:0;cursor:pointer}.fpk .ftabs button.on{background:#fff;color:#000}
 .fpk .src .st{margin-left:auto;font-size:13px;font-weight:700;color:#aaa;flex:none}.fpk .src .st.on{color:#7be39a}
 @media (max-width: 820px){.calwrap{display:block}.frail{position:static;display:flex;align-items:center;gap:8px;overflow-x:auto;padding:8px 10px;margin:0 0 4px;scrollbar-width:none}.frail::-webkit-scrollbar{display:none}
-.frail h3,.frail .fh,.frail .fn{display:none}.fr{flex:none;background:#1a2030;border-radius:20px;padding:4px 12px 4px 4px}.fr b{max-width:120px}.fr .fx{display:none}.fadd{flex:none;width:auto;margin:0;padding:7px 14px;border-radius:20px}}
+.frail h3,.frail .fh,.frail .fn{display:none}.fr{flex:none;background:#1a2030;border-radius:20px;padding:4px 12px 4px 4px}.fr b{max-width:120px}.fr .fx{display:none}.fadd{flex:none;width:auto;margin:0;padding:7px 14px;border-radius:20px}.fadd:last-child{display:none}.fadd1{display:block;background:#fff;color:#000;border:0;font-weight:700}}
 @media (max-width: 820px){.calp{padding:20px 14px 30px}.calp h1{font-size:30px}.calday{height:54px}.calday .x{display:none}.calcard{width:220px}}`; document.head.appendChild(st); }
   if (!cal.day) cal.day = new Date();
   pg.innerHTML = '<div class="calp"><div style="display:flex;align-items:baseline"><h1>Calendar</h1><span class="tz">Times in your time zone</span></div><div id="calbody"><div class="spin"></div></div></div>';

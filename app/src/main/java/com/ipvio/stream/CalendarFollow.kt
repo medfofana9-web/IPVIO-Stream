@@ -65,7 +65,10 @@ object CalFollow {
 
     fun toggleShow(c: Context, item: Item) {
         val l = shows(c).toMutableList()
-        if (!l.remove(item.id)) { l.add(item.id); CatalogItems.put(c, item) }
+        if (!l.remove(item.id)) {
+            l.add(item.id); CatalogItems.put(c, item)
+            Library.init(c); if (!Library.isFav(item.id)) Library.toggleFav(c, item.id)   // tracked as a favorite app-wide
+        }
         prefs(c).edit().putString("shows", l.joinToString("\n")).apply()
         CloudSync.kick(c)
         dirty = true; version++
