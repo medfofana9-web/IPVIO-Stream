@@ -85,16 +85,18 @@ private val CATS = listOf(
  */
 private val SECTIONS = listOf(
     "Wiedergabe" to listOf(5, 6, 8, 19),
-    "Aussehen" to listOf(3, 17, 16),
-    "Inhalte" to listOf(9, 7, 15, 18, 11),
-    "Personen & Schutz" to listOf(10, 12, 20),
-    "System" to listOf(0, 1, 13, 14),
-    "Mehr" to listOf(21, 22)
+    "Aussehen" to listOf(17),
+    "Inhalte" to listOf(9, 18),
+    "Personen & Schutz" to listOf(10, 20),
+    "System" to listOf(0, 21)
 )
+// Nov 2026 cleanup: Donate (22), Boomer Mode (16), Import lists (15) and Design and color (3) are no longer in the
+// menu; Language (1) and Storage (13) live in General, Diagnostics (14) and API keys (11) in About, Genres (7) in
+// Playlists, Parental controls (12) in Profiles, View (2) and Menu (4) in Customize home. Saved data is untouched.
 private val FIRST_CARD = SECTIONS.first().second.first()
 
 /** Pages without their own tile live inside another page: View (2) inside Design (3), Menu (4) inside Customize home (17). */
-private fun hostOf(page: Int): Int = when (page) { 2 -> 3; 4 -> 17; else -> page }
+private fun hostOf(page: Int): Int = when (page) { 2, 3, 4, 16 -> 17; 1, 13 -> 0; 11, 14, 15, 22 -> 21; 7 -> 9; 12 -> 10; else -> page }
 
 /** Open a settings page directly (e.g. profile circle at the top with only one profile: page "Profiles"). */
 object SettingsNav {
@@ -175,7 +177,7 @@ fun SettingsHub(onAdd: () -> Unit, reload: () -> Unit) {
 @Composable
 internal fun SettingsPageBody(page: Int, ctx: Context, onAdd: () -> Unit, reload: () -> Unit, setPage: (Int) -> Unit) {
     when (page) {
-        0 -> GeneralPage(ctx)
+        0 -> { GeneralPage(ctx); RegionPage(ctx); StoragePage(ctx) }
         1 -> RegionPage(ctx)
         2 -> ViewPage(ctx)
         3 -> { DesignPage(ctx); SectionTitle("Ansicht"); ViewPage(ctx) }
@@ -184,20 +186,20 @@ internal fun SettingsPageBody(page: Int, ctx: Context, onAdd: () -> Unit, reload
         6 -> AudioPage(ctx)
         7 -> FilterPage(ctx) { setPage(9) }
         8 -> LivePage(ctx)
-        9 -> PlaylistPage(ctx, onAdd, reload)
-        10 -> ProfilesPage(ctx) { setPage(-1) }
+        9 -> { PlaylistPage(ctx, onAdd, reload); SectionTitle("Genres & Kategorien"); FilterPage(ctx) { setPage(9) } }
+        10 -> { ProfilesPage(ctx) { setPage(-1) }; SectionTitle("Jugendschutz"); ParentalPage(ctx) { setPage(-1) } }
         11 -> ApiKeysPage(ctx)
         12 -> ParentalPage(ctx) { setPage(-1) }
         13 -> StoragePage(ctx)
         14 -> DiagPage(ctx, reload)
         16 -> BoomerPage(ctx) { setPage(-1) }
-        17 -> { HomeLayoutPage(ctx); SectionTitle("Menü"); MenuPage(ctx) }
+        17 -> { HomeLayoutPage(ctx); SectionTitle("Menü"); MenuPage(ctx); SectionTitle("Ansicht"); ViewPage(ctx) }
         15 -> ListImportPage(ctx)
         18 -> StremioPage(ctx)
         19 -> FofSportsPage(ctx)
         20 -> AccountPage(ctx)
         22 -> DonateSection(ctx)
-        else -> AboutPage(ctx)   // 21
+        else -> { AboutPage(ctx); SectionTitle("Advanced"); DiagPage(ctx, reload); SectionTitle("API-Schlüssel"); ApiKeysPage(ctx) }   // 21
     }
     // Every setting page ends with a way back to the defaults
     if (page in 0..8 || page == 17) {
