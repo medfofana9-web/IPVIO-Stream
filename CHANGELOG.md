@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased – Resume a movie from an addon source
+
+- "Resume" on a movie's page (and Continue watching for provider movies) played the addon link saved last time. Those
+  links expire, so it showed "Connection interrupted – retrying (1/3)…(3/3)", "Trying another copy" and fell back to the
+  title page. Resume now asks the addons for a fresh link (the source picker starts the best verified one) and continues
+  at the saved spot; a movie saved from the playlist still uses the playlist's current address.
+
 ## Unreleased – More detailed automatic problem reports (T-010)
 
 - Freezes and crashes carry the raw code location; the hourly report job turns it back into source lines with the

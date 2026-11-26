@@ -510,6 +510,20 @@ internal object ResumeFreshLogic {
     fun fromCurrentPlaylist(savedUrl: String, episode: Episode): Boolean =
         savedUrl.isNotBlank() &&
             (episode.url == savedUrl || episode.variants.any { it.url == savedUrl })
+
+    /**
+     * Movie Resume: the playlist's current address when the saved one is the playlist's; "" = ask the addons for a fresh
+     * link (an addon/debrid link saved last time expires: resuming it failed with "Connection interrupted – retrying
+     * (1/3)…(3/3)" and fell back to the title page).
+     */
+    fun movieUrl(savedUrl: String, playlistUrl: String, addonsWithStreams: Boolean): String = when {
+        playlistUrl.isNotBlank() && (!addonsWithStreams || savedUrl.isBlank() || host(savedUrl) == host(playlistUrl)) -> playlistUrl
+        addonsWithStreams -> ""
+        else -> savedUrl
+    }
+
+    // Providers change the address of a movie on refresh, not the server: same host = saved from the playlist
+    private fun host(u: String) = u.substringAfter("://", "").substringBefore('/').substringAfterLast('@').lowercase()
 }
 
 object WatchStore {
@@ -583,6 +597,11 @@ object WatchStore {
      * An empty URL is intentional; the caller opens the fresh addon source picker.
      */
     suspend fun targetFresh(c: Context, item0: Item, e: Entry): Pair<String, String> {
+        if (item0.kind == Kind.MOVIE) {
+            Stremio.ensure(c)
+            val url = ResumeFreshLogic.movieUrl(e.url, item0.url, Stremio.addons.any { it.streams })
+            return e.title to url.takeUnless { DeadLinks.isDead(it) }.orEmpty()
+        }
         if (item0.kind != Kind.SERIES) return target(c, item0, e)
         val item = if (LazySeries.isStub(item0))
             kotlinx.coroutines.withTimeoutOrNull(12_000L) { LazySeries.load(c, item0) }
