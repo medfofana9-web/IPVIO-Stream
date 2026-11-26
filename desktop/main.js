@@ -237,6 +237,12 @@ function setupDownloads() {
   });
   // AirPlay: Chrome's video engine cannot AirPlay, Apple's QuickTime Player can. The stream opens there and its
   // AirPlay button lists the same TVs as the iPhone (Fire TV, Samsung, Apple TV). http(s) links only.
+  // Smart TVs on the Wi-Fi (Samsung, LG, Sony…): the TV plays the stream itself (dlna.js)
+  const dlna = require('./dlna');
+  ipcMain.handle('tvs', () => dlna.discover().then(l => l.map(d => ({ id: d.id, name: d.name, maker: d.maker, model: d.model }))).catch(() => []));
+  ipcMain.handle('tvplay', (e, a) => dlna.play(String(a.id), String(a.url), String(a.title || ''), +a.start || 0).catch(err => ({ ok: false, err: String(err.message || err) })));
+  ipcMain.handle('tvctl', (e, a) => dlna.control(String(a.id), String(a.c), a.v).then(() => ({ ok: true })).catch(err => ({ ok: false, err: String(err.message || err) })));
+  ipcMain.handle('tvpos', (e, id) => dlna.position(String(id)).catch(() => null));
   ipcMain.handle('airplay', async (e, url) => {
     url = String(url || '');
     if (!/^https?:\/\/[^\s"']+$/.test(url) || process.platform !== 'darwin') return { ok: false, err: 'not supported here' };

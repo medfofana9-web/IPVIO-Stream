@@ -1217,6 +1217,7 @@ async function castPick(onPicked) {
   sh.innerHTML = `<button class="sx" title="Close">&#x2715;</button><small class="kick">Play on TV</small><h2>Choose a TV</h2>` +
     (canAir ? `<div class="tvpick" data-air="1"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 17H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-1"/><path d="M12 15l5 6H7z" fill="currentColor"/></svg><div><b>AirPlay TVs</b><small>Med's Fire TV, Samsung and any other AirPlay TV</small></div></div>` : '') +
     (shown.length ? `<div class="sub" style="margin-top:14px">With Fof TV on the TV (Fof TV has to be open there)</div>` + shown.map(d => { const i = tvs.indexOf(d); return `<div class="tvpick" data-i="${i}">${TV_ICON}<div style="flex:1"><b>${esc(d.name || d.kind)}</b><small>${esc(d.kind)}${tvOld(d) ? ' · update Fof TV on this TV first' : ''}${castTV && castTV.id === d.id ? ' · connected' : ''}</small></div><button class="hidetv" data-h="${i}" title="Hide this TV" style="color:#888;font-size:13px;padding:6px 8px">Hide</button></div>`; }).join('') : '') +
+    (window.fof && window.fof.smartTv ? `<div class="sub" style="margin-top:14px">Smart TVs on your Wi-Fi (the TV plays it itself, even with this app closed)</div><div id="smarttvs"><div class="sub" style="opacity:.7">Looking for TVs…</div></div>` : '') +
     (castTV ? `<div class="tvpick" data-i="-1"><span style="width:22px;text-align:center">&#x2715;</span><div><b>Play on this ${esc(HERE)}</b></div></div>` : '') +
     (hidden.length ? `<div class="sub" style="margin-top:14px"><a href="#" id="unhide" style="color:#aaa">Show hidden TVs (${hidden.length})</a></div>` : '') +
     (!shown.length && !canAir ? `<div class="sub">No TV is signed in to your account yet. Sign in to Fof TV on the TV (Settings › Account), then try again.</div>` : '');
@@ -1226,8 +1227,19 @@ async function castPick(onPicked) {
     if (castTV && castTV.id === d.id) { castTV = null; store.del('castTV'); castButton(); }
     shut(); castPick(onPicked);
   });
+  if (window.fof && window.fof.smartTv) window.fof.smartTv.find().then(list => {
+    const box = $('#smarttvs', sh); if (!box) return;
+    box.innerHTML = list.length ? list.map((d, i) => `<div class="tvpick" data-s="${i}">${TV_ICON}<div><b>${esc(d.name)}</b><small>${esc([d.maker, d.model].filter(Boolean).join(' '))}${castTV && castTV.id === d.id ? ' · connected' : ''}</small></div></div>`).join('')
+      : '<div class="sub" style="opacity:.7">No smart TV answered. Is it on and on the same Wi-Fi?</div>';
+    box.querySelectorAll('[data-s]').forEach(el => el.onclick = () => {
+      const d = list[+el.dataset.s]; shut();
+      castTV = { id: d.id, name: d.name, dlna: true }; store.set('castTV', castTV); castButton();
+      if (onPicked) return onPicked();
+      toast('Connected to ' + d.name + '. Press Play on anything.', 2600);
+    });
+  });
   const un = $('#unhide', sh); if (un) un.onclick = ev => { ev.preventDefault(); store.del('hiddenTVs'); shut(); castPick(onPicked); };
-  sh.querySelectorAll('.tvpick').forEach(el => el.onclick = () => {
+  sh.querySelectorAll('.tvpick:not([data-s])').forEach(el => el.onclick = () => {
     shut();
     if (el.dataset.air) {
       // AirPlay goes through the player (it hands the stream to Apple's player / QuickTime)
@@ -1245,6 +1257,13 @@ async function castPick(onPicked) {
 }
 async function castSend(cmd) {
   if (!castTV) return false;
+  if (castTV.dlna) {
+    const tv = window.fof && window.fof.smartTv; if (!tv) { toast('Smart TVs work from the Mac app'); return false; }
+    if (cmd.t === 'ctl') { const r = await tv.control(castTV.id, cmd.c, cmd.v); if (r && !r.ok) toast('TV: ' + r.err); return !!(r && r.ok); }
+    const r = await tv.play(castTV.id, cmd.url, cmd.title, cmd.pos || 0);
+    if (r && r.ok === false) { toast(castTV.name + ' could not play it: ' + String(r.err || '').slice(0, 80), 6000); return false; }
+    return true;
+  }
   try {
     const r = await rpc('fof_cast_send', { p_to: castTV.id, p_cmd: cmd });
     if (r && r.err) { toast(r.err); return false; }
@@ -1258,6 +1277,16 @@ async function castTitle(req) {
   const tt = String(req.id).split(':')[0];
   if (!/^tt\d+$/.test(tt)) { toast('This title can only play here.'); return false; }
   const label = req.type === 'series' ? `${req.name} S${req.season} E${req.episode}` : req.name;
+  // Smart TV: it needs the stream itself, so this device picks the source (best first) and hands over the link
+  if (castTV.dlna) {
+    toast('Finding the best source for ' + label + '…', 3000);
+    let list = []; try { list = await streamsFor(Object.assign({}, req, { id: tt })); } catch (e) {}
+    for (const src of list.slice(0, 3)) {
+      if (await castSend({ url: src.url, title: label, pos: Math.max(0, Math.round((req.start || 0) / 1000)) })) { toast('Playing ' + label + ' on ' + castTV.name, 3000); return true; }
+    }
+    if (!list.length) toast('No source found for ' + label, 4000);
+    return false;
+  }
   if (await castSend({ t: 'play', id: 'stremio:' + tt, kind: req.type === 'series' ? 'series' : 'movie', title: req.name || '', s: req.season || 0, e: req.episode || 0, pos: Math.max(0, Math.round(req.start || 0)) })) {
     toast('Starting ' + label + ' on ' + castTV.name, 3000); return true;
   }
@@ -1266,7 +1295,7 @@ async function castTitle(req) {
 async function castLive(item) {
   if (item.zap && item.zap.length) castZap = { list: item.zap, i: item.zi || 0 };
   const m = /\/live\/[^/]+\/[^/]+\/(\d+)(\.\w+)?(\?|$)/.exec(item.url || '');
-  if (await castSend({ t: 'live', sid: m ? m[1] : '', name: item.title || '' })) { toast('Switching ' + castTV.name + ' to ' + (item.title || 'the channel'), 2600); return true; }
+  if (await castSend({ t: 'live', sid: m ? m[1] : '', name: item.title || '', url: item.url, title: item.title || '' })) { toast('Switching ' + castTV.name + ' to ' + (item.title || 'the channel'), 2600); return true; }
   return false;
 }
 
