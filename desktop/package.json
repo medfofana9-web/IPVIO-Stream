@@ -1,7 +1,7 @@
 {
   "name": "fof-tv-desktop",
   "productName": "Fof TV",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Fof TV for Mac - your Fof TV account, profiles, addons and playlist on the desktop",
   "main": "main.js",
   "private": true,
@@ -55,5 +55,5 @@
     "publish": null
   },
   "repository": "https://github.com/medfofana9-web/IPVIO-Stream",
-  "shell": 8
+  "shell": 9
 }

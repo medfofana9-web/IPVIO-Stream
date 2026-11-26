@@ -75,15 +75,63 @@ const secs = t => { const m = /(\d+):(\d+):(\d+)/.exec(t || ''); return m ? +m[1
 
 async function dev(id) { return found.get(id) || describe(id).then(d => { if (d) found.set(id, d); return d; }); }
 
-async function play(id, url, title, start) {
-  const d = await dev(id); if (!d) throw new Error('TV not found on the Wi-Fi');
-  const mime = mimeOf(url);
-  const didl = `<DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/"><item id="0" parentID="-1" restricted="1"><dc:title>${esc(title || 'Fof TV')}</dc:title><upnp:class>object.item.videoItem</upnp:class><res protocolInfo="http-get:*:${mime}:*">${esc(url)}</res></item></DIDL-Lite>`;
+// Relay: some providers refuse a TV's own player (no "VLC" user agent, no HEAD request) -> the TV answers
+// "Resource not found". Then the Mac fetches the stream and passes it on to the TV over the Wi-Fi (the Mac has to stay
+// awake for that title). Range requests are passed through, so seeking works for movies.
+const http = require('http'), https = require('https');
+let relay = null; const relayed = new Map(); let nextId = 1;
+function lanIp() { const os = require('os'); for (const l of Object.values(os.networkInterfaces())) for (const i of l || []) if (i.family === 'IPv4' && !i.internal && /^(10|172|192)\./.test(i.address)) return i.address; return '127.0.0.1'; }
+function relayStart() {
+  if (relay) return Promise.resolve(relay);
+  return new Promise(res => {
+    const srv = http.createServer((req, out) => {
+      const m = /^\/r\/(\d+)/.exec(req.url || ''); const src = m && relayed.get(+m[1]);
+      if (!src) { out.writeHead(404); return out.end(); }
+      const get = (u, hops) => {
+        const lib = u.startsWith('https') ? https : http;
+        const up = lib.request(u, { method: req.method === 'HEAD' ? 'GET' : 'GET', headers: Object.assign({ 'User-Agent': 'VLC/3.0.21 LibVLC/3.0.21', Accept: '*/*' }, req.headers.range ? { Range: req.headers.range } : {}) }, r => {
+          if (r.statusCode >= 300 && r.statusCode < 400 && r.headers.location && hops < 5) { r.resume(); return get(new URL(r.headers.location, u).toString(), hops + 1); }
+          const h = { 'Content-Type': src.mime, 'Accept-Ranges': 'bytes', 'transferMode.dlna.org': 'Streaming', 'contentFeatures.dlna.org': 'DLNA.ORG_OP=01;DLNA.ORG_FLAGS=01700000000000000000000000000000' };
+          for (const k of ['content-length', 'content-range']) if (r.headers[k]) h[k] = r.headers[k];
+          out.writeHead(r.statusCode === 206 ? 206 : 200, h);
+          if (req.method === 'HEAD') { r.destroy(); return out.end(); }
+          r.pipe(out);
+          out.on('close', () => r.destroy());
+        });
+        up.on('error', () => { try { out.writeHead(502); out.end(); } catch (e) {} });
+        out.on('close', () => up.destroy());
+        up.end();
+      };
+      get(src.url, 0);
+    });
+    srv.listen(0, '0.0.0.0', () => { relay = { port: srv.address().port }; res(relay); });
+  });
+}
+async function relayUrl(url) {
+  const r = await relayStart(); const id = nextId++;
+  relayed.set(id, { url, mime: mimeOf(url) });
+  if (relayed.size > 20) relayed.delete([...relayed.keys()][0]);
+  return `http://${lanIp()}:${r.port}/r/${id}`;
+}
+
+async function playOne(d, url, title, mime) {
+  const didl = `<DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/"><item id="0" parentID="-1" restricted="1"><dc:title>${esc(title || 'Fof TV')}</dc:title><upnp:class>object.item.videoItem</upnp:class><res protocolInfo="http-get:*:${mime}:DLNA.ORG_OP=01;DLNA.ORG_FLAGS=01700000000000000000000000000000">${esc(url)}</res></item></DIDL-Lite>`;
   try { await soap(d.av, 'AVTransport', 'Stop', { InstanceID: 0 }); } catch (e) {}
   await soap(d.av, 'AVTransport', 'SetAVTransportURI', { InstanceID: 0, CurrentURI: url, CurrentURIMetaData: didl });
   await soap(d.av, 'AVTransport', 'Play', { InstanceID: 0, Speed: 1 });
-  if (start > 5) setTimeout(() => soap(d.av, 'AVTransport', 'Seek', { InstanceID: 0, Unit: 'REL_TIME', Target: hms(start) }).catch(() => {}), 4000);
-  return { ok: true };
+}
+
+async function play(id, url, title, start) {
+  const d = await dev(id); if (!d) throw new Error('TV not found on the Wi-Fi');
+  const live = /\/live\/[^/]+\/[^/]+\/\d+\.ts(\?|$)/.test(url);
+  const tries = [[url, mimeOf(url)]];
+  if (live) tries.push([url.replace(/\.ts(\?|$)/, '.m3u8$1'), 'application/vnd.apple.mpegurl']);
+  let last = null;
+  for (const [u, mime] of tries) { try { await playOne(d, u, title, mime); last = null; break; } catch (e) { last = e; } }
+  let relayed = false;
+  if (last) { await playOne(d, await relayUrl(url), title, mimeOf(url)); relayed = true; }
+  if (start > 5 && !live) setTimeout(() => soap(d.av, 'AVTransport', 'Seek', { InstanceID: 0, Unit: 'REL_TIME', Target: hms(start) }).catch(() => {}), 4000);
+  return { ok: true, relayed };
 }
 
 async function control(id, c, v) {

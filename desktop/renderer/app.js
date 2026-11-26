@@ -1262,6 +1262,7 @@ async function castSend(cmd) {
     if (cmd.t === 'ctl') { const r = await tv.control(castTV.id, cmd.c, cmd.v); if (r && !r.ok) toast('TV: ' + r.err); return !!(r && r.ok); }
     const r = await tv.play(castTV.id, cmd.url, cmd.title, cmd.pos || 0);
     if (r && r.ok === false) { toast(castTV.name + ' could not play it: ' + String(r.err || '').slice(0, 80), 6000); return false; }
+    if (r && r.relayed) setTimeout(() => toast('Playing through this Mac – keep it awake while you watch this one', 6000), 3200);
     return true;
   }
   try {
