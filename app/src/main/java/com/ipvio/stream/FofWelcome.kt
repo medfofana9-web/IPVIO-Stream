@@ -63,7 +63,27 @@ fun FofWelcome(onPick: (Int) -> Unit) {
     FofAccount.init(ctx)
     // The account's profiles and their PIN state (new profiles from other TVs appear here)
     LaunchedEffect(FofAccount.signedInState) { if (FofAccount.signedInState) AccountCloud.refreshPins(ctx) }
-    Box(Modifier.fillMaxSize().background(Color(0xFF141414))) {
+    val wall by produceState(emptyList<String>()) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                Net.base.newCall(okhttp3.Request.Builder().url("https://v3-cinemeta.strem.io/catalog/movie/top.json").build()).execute().use { r ->
+                    val a = org.json.JSONObject(r.body!!.string()).getJSONArray("metas")
+                    (0 until minOf(a.length(), 24)).mapNotNull { i -> a.getJSONObject(i).optString("id").takeIf { it.startsWith("tt") } }
+                        .map { "https://images.metahub.space/background/medium/$it/img" }
+                }
+            }.getOrDefault(emptyList())
+        }
+    }
+    Box(Modifier.fillMaxSize().background(Color(0xFF0B0D12))) {
+        if (wall.isNotEmpty() && !Lite.on) Column(
+            Modifier.fillMaxSize().graphicsLayer { rotationZ = -6f; scaleX = 1.25f; scaleY = 1.25f; alpha = 0.3f },
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            wall.chunked(6).forEach { row -> Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                row.forEach { u -> coil.compose.AsyncImage(u, null, Modifier.weight(1f).aspectRatio(16f / 9f).clip(RoundedCornerShape(12.dp)), contentScale = androidx.compose.ui.layout.ContentScale.Crop) }
+            } }
+        }
+        Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x8C0B0D12), Color(0xFF0B0D12)), radius = 1500f)))
         // Top bar: Fof TV mark on the left, greeting and time on the right
         Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(horizontal = 56.dp, vertical = 36.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("FOF TV", color = Color(0xFFE60023), fontSize = 40.sp, fontWeight = FontWeight.Black, letterSpacing = (-0.5).sp, raw = true)
@@ -71,7 +91,7 @@ fun FofWelcome(onPick: (Int) -> Unit) {
         }
         Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(if (manage) "Manage Profiles" else "Who's watching?", color = Color.White,
-                fontSize = 58.sp, fontWeight = FontWeight.Medium, raw = true)
+                fontSize = 58.sp, fontWeight = FontWeight.Bold, raw = true)
             // The account this TV is signed in to, as a quiet line under the title
             Spacer(Modifier.height(8.dp))
             // Not signed in: say plainly what is missing (this TV shows nothing from the account until it signs in)
@@ -103,6 +123,7 @@ fun FofWelcome(onPick: (Int) -> Unit) {
                                     nm, av, Parental.profileLocked(ctx, p.id) || pinned, manage, big,
                                     if (i == focusIdx) Modifier.focusRequester(first) else Modifier,
                                     kids = Parental.isKids(ctx, p.id),
+                                    cont = remember(p.id) { lastWatched(ctx, p.id) },
                                     onLong = {}
                                 ) { if (manage) options = p.id else onPick(p.id) }
                             }
@@ -230,18 +251,19 @@ fun FofWelcome(onPick: (Int) -> Unit) {
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun ProfileTile(name: String, avatar: ProfileAvatars.Preset, locked: Boolean, manage: Boolean, small: Boolean, modifier: Modifier, kids: Boolean = false, onLong: () -> Unit = {}, onClick: () -> Unit) {
+private fun ProfileTile(name: String, avatar: ProfileAvatars.Preset, locked: Boolean, manage: Boolean, small: Boolean, modifier: Modifier, kids: Boolean = false, cont: String? = null, onLong: () -> Unit = {}, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     val s by animateFloatAsState(if (f) 1.08f else 1f, androidx.compose.animation.core.tween(160), label = "pt")
     // Avatar tile (as on Netflix): focus = white frame and a slight lift; the others are dimmed a little
-    val shape = RoundedCornerShape(6.dp)
+    // Round picture; the selected one gets a white ring
+    val shape = CircleShape
     Column(
-        modifier.onFocusChanged { f = it.isFocused }.combinedClickable(onClick = onClick, onLongClick = onLong).graphicsLayer { scaleX = s; scaleY = s },
+        modifier.width(if (small) 190.dp else 250.dp).onFocusChanged { f = it.isFocused }.combinedClickable(onClick = onClick, onLongClick = onLong).graphicsLayer { scaleX = s; scaleY = s },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(Modifier.size(if (small) 136.dp else 180.dp)) {
+        Box(Modifier.size(if (small) 150.dp else 200.dp)) {
             Box(Modifier.fillMaxSize().clip(shape)
-                .border(if (f) 4.dp else 0.dp, if (f) Color.White else Color.Transparent, shape)) {
+                .border(if (f) 5.dp else 0.dp, if (f) Color.White else Color.Transparent, shape)) {
                 FofAvatar(avatar, Modifier.fillMaxSize(), letterSize = if (small) 56.sp else 76.sp)
 
             }
@@ -261,6 +283,9 @@ private fun ProfileTile(name: String, avatar: ProfileAvatars.Preset, locked: Boo
             AppIcon(AIcon.Lock, Color(0xFFD4A017), size = 15.dp)
             Text("PIN", color = Color(0xFF808080), fontSize = 16.sp, raw = true)
         }
+        // What this profile was last watching (same as the Mac and phone)
+        if (cont != null && !manage) Text("Continue: $cont", color = Color(0xFF9A9A9A), fontSize = 14.sp, maxLines = 2, raw = true,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
     }
 }
 
@@ -273,8 +298,8 @@ private fun AddTile(small: Boolean, modifier: Modifier = Modifier, onClick: () -
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            Modifier.size(if (small) 136.dp else 180.dp).clip(RoundedCornerShape(6.dp))
-                .border(if (f) 4.dp else 0.dp, if (f) Color.White else Color.Transparent, RoundedCornerShape(6.dp)),
+            Modifier.size(if (small) 150.dp else 200.dp).clip(CircleShape)
+                .border(if (f) 5.dp else 2.dp, if (f) Color.White else Color(0x40FFFFFF), CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Box(Modifier.size(if (small) 76.dp else 100.dp).clip(CircleShape).background(if (f) Color.White else Color(0xFF808080)), contentAlignment = Alignment.Center) {
@@ -373,3 +398,14 @@ internal fun PickerBackdrop() {
         Box(Modifier.alpha(0.85f)) { HeroTitle(pick, full, 52, 340.dp, 110.dp) }
     }
 }
+
+/** Last thing a profile watched (its own Continue Watching store), as "Show · S4 E10"; null when nothing. */
+private fun lastWatched(ctx: android.content.Context, id: Int): String? = runCatching {
+    val raw = ctx.applicationContext.getSharedPreferences(Profiles.scopedName("ipvio_watch", id), android.content.Context.MODE_PRIVATE).getString("e", null) ?: return null
+    val a = org.json.JSONArray(raw)
+    var best: org.json.JSONObject? = null
+    for (i in 0 until a.length()) { val o = a.getJSONObject(i); if (best == null || o.optLong("ts") > best.optLong("ts")) best = o }
+    val b = best ?: return null
+    val t = b.optString("t").replace(Regex("\\s*S\\d+\\s*E\\d+\\s*$", RegexOption.IGNORE_CASE), "").trim()
+    if (t.isBlank()) null else t + (if (b.optInt("s") > 0 || b.optInt("e") > 0) " · S${b.optInt("s")} E${b.optInt("e")}" else "")
+}.getOrNull()

@@ -167,12 +167,30 @@ function showSignIn(err) {
 }
 
 function showWho() {
-  $('#app').innerHTML = `<div class="center who"><div class="wordmark">FOF TV</div><h1>Who's watching?</h1>
-    <div class="tiles">${acct.profiles.map((p, i) => `<button class="tile" data-i="${i}"><div class="av">${avatarHtml(p, i)}</div>${esc(p.name || 'Profile')}${acct.pins[p.id] && acct.pins[p.id].pin_set ? '<div class="lock">&#x1F512; PIN</div>' : ''}</button>`).join('')}</div>
-    <button class="btn-outline" id="so">Sign Out</button></div>`;
+  // Welcome (same as the TV): round profile pictures over a dim wall of pictures from the catalog, and under each
+  // profile what it was last watching
+  const lockOf = p => acct.pins[p.id] && acct.pins[p.id].pin_set;
+  $('#app').innerHTML = `<div class="center who wv"><div class="wwall" id="wwall"></div><div class="wshade"></div><div class="wordmark">FOF TV</div><h1>Who's watching?</h1>
+    <div class="tiles">${acct.profiles.map((p, i) => `<button class="tile" data-i="${i}"><div class="av">${avatarHtml(p, i)}</div><span class="wn">${esc(p.name || 'Profile')}</span>${lockOf(p) ? '<div class="lock">&#x1F512; PIN</div>' : ''}<div class="wc" data-p="${esc(p.id)}"></div></button>`).join('')}</div>
+    <button class="wso" id="so">Sign out</button></div>`;
   document.querySelectorAll('.tile').forEach(b => b.onclick = () => pickProfile(acct.profiles[+b.dataset.i]));
   $('#so').onclick = signOut;
   const f = $('.tile'); if (f) f.focus();
+  catalog('movie').then(l => {
+    const w = $('#wwall'); if (!w) return;
+    w.innerHTML = l.filter(m => ttOf(m.id)).slice(0, 24).map(m => `<div style="background-image:url('${esc(bgOf(ttOf(m.id)))}')"></div>`).join('');
+  }).catch(() => {});
+  const ids = acct.profiles.map(p => p.id).filter(Boolean);
+  if (ids.length) sb('/rest/v1/fof_profile_data?select=profile_id,w:data->files->ipvio_watch->e&profile_id=in.(' + ids.join(',') + ')').then(rows => {
+    for (const r of rows || []) {
+      try {
+        const v = r.w && r.w[0] === 's' ? JSON.parse(r.w[1]) : [];
+        const last = v.sort((x, y) => (y.ts || 0) - (x.ts || 0))[0]; if (!last) continue;
+        const el = document.querySelector(`.wc[data-p="${r.profile_id}"]`); if (!el) continue;
+        el.textContent = 'Continue: ' + String(last.t || '').replace(/\s*S\d+\s*E\d+\s*$/i, '') + (last.s || last.e ? ` · S${last.s} E${last.e}` : '');
+      } catch (e) {}
+    }
+  }).catch(() => {});
 }
 
 async function pickProfile(p) {
@@ -1861,5 +1879,21 @@ function bbWire(pg, first) {
 .nvgen{padding:40px 14px 0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.nvgen button{flex:none}.nvgen .nvname{font-size:22px;flex:none}
 .spsplit{flex-direction:column-reverse}.splist{width:100%;max-height:none}.sppanel{position:static;width:100%}.spr{font-size:20px}.spr b{font-size:24px}.spinfo{flex-wrap:wrap}.spinfo>div{flex:1 1 100%}
 .chgrid.lvsplit{flex-direction:column-reverse}.lvlist{width:100%;max-height:none}.lvon b{font-size:20px}}`;
+  document.head.appendChild(st);
+})();
+
+(function whoStyle() {
+  const st = document.createElement('style');
+  st.textContent = `
+.wv{overflow:hidden;background:#0b0d12}.wwall{position:absolute;inset:-80px;display:grid;grid-template-columns:repeat(6,1fr);gap:18px;transform:rotate(-6deg);opacity:.32;filter:blur(2px)}
+.wwall div{aspect-ratio:16/9;border-radius:14px;background:#1a1e28 center/cover}
+.wshade{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(11,13,18,.55),#0b0d12 78%)}
+.wv h1,.wv .tiles,.wv .wso{position:relative;z-index:1}.wv .wordmark{z-index:1}.wv h1{font-weight:800;font-size:56px}
+.wv .tiles{gap:70px}.wv .tile .av{width:210px;height:210px;border-radius:50%;font-size:88px;outline:none;box-shadow:0 0 0 0 #fff;transition:transform .15s,box-shadow .15s}
+.wv .tile:hover .av,.wv .tile:focus-visible .av{box-shadow:0 0 0 6px #fff,0 0 60px rgba(255,255,255,.3);transform:scale(1.05)}
+.wv .tile{width:260px;color:#aaa}.wv .tile:hover,.wv .tile:focus-visible{color:#fff}.wv .wn{font-size:26px;font-weight:600}
+.wv .wc{font-size:14px;color:#9a9a9a;max-width:260px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:18px;margin-top:-6px;text-align:center}
+.wso{margin-top:60px;color:#888;font-size:16px;letter-spacing:3px;text-transform:uppercase}.wso:hover{color:#fff}
+@media (max-width: 820px), (hover: none) and (pointer: coarse){.wv .tiles{gap:26px}.wv .tile{width:150px}.wv .tile .av{width:130px;height:130px;font-size:56px}.wv h1{font-size:32px}.wwall{grid-template-columns:repeat(3,1fr)}.wv .wc{max-width:150px;font-size:12px}}`;
   document.head.appendChild(st);
 })();
