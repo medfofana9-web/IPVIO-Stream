@@ -270,6 +270,9 @@ fun SearchScreen(
         }
         return true
     }
+    // Remember what was searched: after a short pause with results, and when leaving Search
+    LaunchedEffect(q, hasResults) { if (q.trim().length >= 3 && hasResults) { delay(3000); AppSettings.addSearch(ctx, q) } }
+    DisposableEffect(Unit) { onDispose { SearchState.query.trim().takeIf { it.length >= 3 }?.let { AppSettings.addSearch(ctx, it) } } }
     // Back: in the search field (keyboard already closed) first to the recent searches or hits, otherwise into the sidebar
     BackHandler(enabled = !inSidebar) {
         // Back from the results returns to the keyboard (where the search is typed); from the keyboard to the menu
@@ -315,16 +318,7 @@ fun SearchScreen(
                         event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight && browseResults()
                     }, raw = true) { browseResults() }
                 }
-                // Below the keyboard: suggestions while typing, recent searches before
-                val recent = if (q.isEmpty()) AppSettings.searchHistory.toList().take(6) else emptyList()
-                if (recent.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    recent.forEachIndexed { i, term ->
-                        // OK searches again, long OK / menu key removes just this entry
-                        MiniChip(term, false, (if (i == 0) Modifier.focusRequester(firstHistory) else Modifier)
-                            .menuKeys(onMenu = { AppSettings.removeSearch(ctx, term) }, onLong = { AppSettings.removeSearch(ctx, term) }), raw = true) { SearchState.query = term }
-                    }
-                    MiniChip("Verlauf löschen", false) { AppSettings.clearSearch(ctx) }
-                }
+                // Below the keyboard: word suggestions while typing (remembered searches are on the right, above the results)
                 if (sugg.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     sugg.forEachIndexed { i, w ->
                         MiniChip(w.replaceFirstChar { it.uppercase() }, false, if (i == 0) Modifier.focusRequester(firstSugg) else Modifier, raw = true) {
@@ -335,11 +329,25 @@ fun SearchScreen(
             }
             // Right: info panel of the highlighted title on top, the hits below
             Column(Modifier.weight(1f).fillMaxHeight()) {
-                if (q.length < 2 && top.isNotEmpty()) Text("Top searches", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(start = 24.dp, top = 22.dp, bottom = 4.dp), raw = true)
-                if (q.length >= 2) Row(Modifier.padding(start = 24.dp, top = 18.dp, bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Remembered searches (kept until removed, synced): OK searches again, the small x removes one
+                val recent = AppSettings.searchHistory.toList().take(12)
+                if (recent.isNotEmpty()) {
+                    Text("Recent searches", color = Color(0xFF8A8F99), fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp,
+                        modifier = Modifier.padding(start = 24.dp, top = 18.dp, bottom = 6.dp), raw = true)
+                    LazyRow(contentPadding = PaddingValues(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(recent.size, key = { "r" + recent[it] }) { i ->
+                            val term = recent[i]
+                            RecentChip(term, if (i == 0) Modifier.focusRequester(firstHistory) else Modifier,
+                                onClick = { SearchState.query = term; AppSettings.addSearch(ctx, term) },
+                                onRemove = { AppSettings.removeSearch(ctx, term) })
+                        }
+                    }
+                }
+                if (q.length >= 2) Row(Modifier.padding(start = 24.dp, top = 14.dp, bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("All", "Movies", "TV Shows", "Live TV").forEachIndexed { i, n -> MiniChip(n, fl == i, raw = true) { SearchState.filter = i } }
                 }
+                if (q.length < 2 && top.isNotEmpty()) Text("Popular now", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(start = 24.dp, top = 18.dp, bottom = 4.dp), raw = true)
                 val preview = focusItem?.takeIf {
                     when (fl) {
                         1 -> it.kind == Kind.MOVIE
@@ -348,7 +356,7 @@ fun SearchScreen(
                         else -> true
                     }
                 } ?: topRes.firstOrNull() ?: rm.firstOrNull() ?: rs.firstOrNull() ?: rl.firstOrNull()
-                if (q.length >= 2 && preview != null) {
+                if (false && q.length >= 2 && preview != null) {   // option B: no info panel, results only
                     SearchInfoPanel(
                         preview,
                         Modifier.fillMaxWidth().padding(start = 24.dp, end = DS.PageX)
@@ -396,9 +404,10 @@ fun SearchScreen(
                     }
                     val report: (Item) -> Unit = { focusItem = it }
                     if (sg.any { it.state == 1 }) item(key = "games") { SearchGameRow(sg, fr("games"), onGame) }
-                    if (topRes.isNotEmpty()) item(key = "cmm") { ResultTitle("Top results"); SearchGrid(topRes, cardW, fr("cmm"), openS) }
-                    if (moreM.isNotEmpty()) item(key = "cmm2") { SearchTitleRow("Movies", moreM, cardW, null, report, openS) }
-                    if (moreS.isNotEmpty()) item(key = "cms2") { SearchTitleRow("TV Shows", moreS, cardW, null, report, openS) }
+                    // Option B: tidy rows by type, shows then movies, best match first in each
+                    val showsFirst = cmS.isNotEmpty() && (cmM.isEmpty() || both.firstOrNull()?.kind == Kind.SERIES)
+                    if (cmS.isNotEmpty()) item(key = "cmm") { SearchTitleRow("TV Shows", cmS, cardW, if (showsFirst) fr("cmm") else null, report, openS) }
+                    if (cmM.isNotEmpty()) item(key = "cmm2") { SearchTitleRow("Movies", cmM, cardW, if (!showsFirst) fr("cmm") else null, report, openS) }
                     if (per != null) item(key = "person") { SearchTitleRow(per.first, per.second, cardW, fr("person"), report, openS) }
                     if (sg.isNotEmpty() && sg.none { it.state == 1 }) item(key = "games") { SearchGameRow(sg, fr("games"), onGame) }
                     if (st.isNotEmpty() || sl.isNotEmpty()) item(key = "teams") {
@@ -703,6 +712,27 @@ private fun SearchInfoPanel(item: Item?, modifier: Modifier) {
                 if (body.isNotBlank()) Text(raw = true, text = body, color = Color(0xFFD5D8E2), fontSize = 15.sp, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             }
         }
+    }
+}
+
+/** A remembered search: the term (OK searches again) and a small x next to it (removes it). */
+@Composable
+private fun RecentChip(term: String, modifier: Modifier, onClick: () -> Unit, onRemove: () -> Unit) {
+    var f by remember { mutableStateOf(false) }
+    var fx by remember { mutableStateOf(false) }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier.height(34.dp).clip(RoundedCornerShape(topStart = 50.dp, bottomStart = 50.dp))
+                .background(if (f) DS.FocusFill else Color(0xFF1B2030))
+                .onFocusChanged { f = it.isFocused }.clickable(onClick = onClick).padding(start = 14.dp, end = 10.dp),
+            contentAlignment = Alignment.Center
+        ) { Text(term, color = if (f) DS.FocusInk else Color(0xFFDDDDDD), fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, raw = true) }
+        Box(
+            Modifier.height(34.dp).width(32.dp).clip(RoundedCornerShape(topEnd = 50.dp, bottomEnd = 50.dp))
+                .background(if (fx) Color(0xFFC8102E) else Color(0xFF1B2030))
+                .onFocusChanged { fx = it.isFocused }.clickable(onClick = onRemove),
+            contentAlignment = Alignment.Center
+        ) { Text("✕", color = if (fx) Color.White else Color(0xFF888888), fontSize = 13.sp, fontWeight = FontWeight.Bold, raw = true) }
     }
 }
 

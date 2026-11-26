@@ -90,6 +90,7 @@ function readProfile(files) {
   // Calendar "Following": shows picked there (none picked yet = My List) and favorite teams (same store as the TV's Sports)
   const cs = strOf(files, 'fof_calendar', 'shows'); acct.calShows = cs == null ? null : cs.split('\n').filter(Boolean);
   acct.favTeams = (strOf(files, 'ipvio_sportfavs', 'k') || '').split('|').filter(Boolean);
+  acct.searches = (strOf(files, 'fof_search', 'hist') || strOf(files, 'ipvio_settings', 'search_hist') || '').split('\n').filter(Boolean);
   acct.teamInfo = {}; (strOf(files, 'ipvio_sporthub', 't') || '').split('\n').forEach(l => { const x = l.split('\t'); if (x.length >= 6) acct.teamInfo[x[0]] = { name: x[1], short: x[2], logo: x[3], path: x[4], id: x[5] }; });
   acct.catItems = {}; try { JSON.parse(strOf(files, 'fof_catalog_items', 'a') || '[]').forEach(o => acct.catItems[o.i] = o); } catch (e) {}
 }
@@ -1422,27 +1423,56 @@ function stopCorner() { if (!corner) return; try { corner.h && corner.h.destroy(
 
 // ------------------------------------------------------------------ search
 function renderSearch(pg) {
-  pg.innerHTML = `<div class="search"><div class="q">${ICONS.search.replace('<svg', '<svg width="30" height="30"')}<input id="sq" placeholder="Search movies, TV shows, channels"></div><div class="grid" id="sr"></div></div>`;
-  const inp = $('#sq'); inp.focus();
-  let t;
-  inp.oninput = () => { clearTimeout(t); t = setTimeout(() => runSearch(inp.value.trim()), 350); };
+  pg.innerHTML = `<div class="search"><div class="q">${ICONS.search.replace('<svg', '<svg width="30" height="30"')}<input id="sq" placeholder="Search movies, TV shows, channels"></div><div id="srec"></div><div class="grid" id="sr"></div></div>`;
+  const inp = $('#sq'); if (!matchMedia('(hover: none)').matches) inp.focus();
+  let t, keep;
+  inp.oninput = () => { clearTimeout(t); clearTimeout(keep); const v = inp.value.trim(); t = setTimeout(() => runSearch(v), 350); if (v.length >= 3) keep = setTimeout(() => rememberSearch(v), 3000); };
+  inp.onkeydown = e => { if (e.key === 'Enter' && inp.value.trim().length >= 2) { rememberSearch(inp.value.trim()); inp.blur(); } };
+  drawRecent();
   runSearch('');
 }
+// Remembered searches: kept until removed, synced with the account (same list as the TVs: fof_search)
+function searchList() { return acct.searches || []; }
+function drawRecent() {
+  const box = $('#srec'); if (!box) return;
+  const l = searchList().slice(0, 15);
+  box.innerHTML = l.length ? `<div class="rch">${l.map((x, i) => `<span class="rc"><button data-rq="${i}">${esc(x)}</button><button class="rx" data-rx="${i}" aria-label="Remove">&#x2715;</button></span>`).join('')}</div>` : '';
+  box.querySelectorAll('[data-rq]').forEach(b => b.onclick = () => { const v = l[+b.dataset.rq]; $('#sq').value = v; runSearch(v); rememberSearch(v); });
+  box.querySelectorAll('[data-rx]').forEach(b => b.onclick = () => forgetSearch(l[+b.dataset.rx]));
+}
+function setSearches(fn) {
+  acct.searches = fn(searchList().slice()); drawRecent();
+  saveProfile(files => { const cur = (strOf(files, 'fof_search', 'hist') || '').split('\n').filter(Boolean); setStr(files, 'fof_search', 'hist', fn(cur).join('\n')); });
+}
+function rememberSearch(q) {
+  q = String(q || '').trim(); if (q.length < 2) return;
+  setSearches(l => { l = l.filter(x => x.toLowerCase() !== q.toLowerCase()); if (l[0] && (q.toLowerCase().startsWith(l[0].toLowerCase()) || l[0].toLowerCase().startsWith(q.toLowerCase()))) l.shift(); l.unshift(q); return l.slice(0, 60); });
+}
+function forgetSearch(q) { setSearches(l => l.filter(x => x.toLowerCase() !== q.toLowerCase())); }
+(function srchStyle() {
+  const st = document.createElement('style');
+  st.textContent = `#srec .rch{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 14px}.rc{display:inline-flex;border-radius:20px;overflow:hidden;background:#1b2030}
+.rc button{border:0;background:none;color:#ddd;font-size:14px;padding:7px 4px 7px 14px;cursor:pointer}.rc .rx{padding:7px 12px 7px 8px;color:#888;font-size:12px}.rc .rx:hover{color:#fff;background:#c8102e}.rc button:not(.rx):hover{color:#fff}
+@media (max-width: 820px){#srec .rch{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:2px -14px 12px;padding:0 14px}#srec .rch::-webkit-scrollbar{display:none}.rc{flex:none}}`;
+  document.head.appendChild(st);
+})();
 async function runSearch(q) {
   const box = $('#sr'); if (!box) return;
   if (!live.loaded && acct.playlist) loadLive().catch(() => {});
   if (q.length < 2) {
     const l = await catalog('movie');
-    box.innerHTML = `<h4>Top Searches</h4>` + l.slice(0, 18).map(m => cardHtml(m, 'movie', { poster: true })).join(''); wireRows(box); return;
+    box.innerHTML = `<h4>Popular now</h4>` + l.slice(0, 18).map(m => cardHtml(m, 'movie', { poster: true })).join(''); wireRows(box); return;
   }
   const [mv, sr] = await Promise.all([catalog('movie', 'search=' + encodeURIComponent(q)), catalog('series', 'search=' + encodeURIComponent(q))]);
   if (($('#sq') || {}).value?.trim() !== q) return;
   const ch = live.loaded ? live.chans.filter(c => (' ' + foldName(c.name) + ' ').includes(foldName(q))).slice(0, 24) : [];
-  box.innerHTML = (ch.length ? '<h4>Live TV</h4>' + ch.map((c, i) => `<div class="ch" data-ci="${i}"><div class="live">LIVE</div><div class="lg">${c.logo ? `<img src="${esc(c.logo)}" onerror="this.remove()">` : `<b>${esc(c.name.slice(0, 2))}</b>`}</div><div class="nm">${esc(c.name)}</div></div>`).join('') : '') +
-    (mv.length ? '<h4>Movies</h4>' + mv.slice(0, 24).map(m => cardHtml(m, 'movie', { poster: true })).join('') : '') +
-    (sr.length ? '<h4>TV Shows</h4>' + sr.slice(0, 24).map(m => cardHtml(m, 'series', { poster: true })).join('') : '') ||
-    `<div class="empty" style="grid-column:1/-1;padding:20px 0">No results for "${esc(q)}".</div>`;
+  const liveH = ch.length ? '<h4>Live TV</h4>' + ch.map((c, i) => `<div class="ch" data-ci="${i}"><div class="live">LIVE</div><div class="lg">${c.logo ? `<img src="${esc(c.logo)}" onerror="this.remove()">` : `<b>${esc(c.name.slice(0, 2))}</b>`}</div><div class="nm">${esc(c.name)}</div></div>`).join('') : '';
+  box.innerHTML = (
+    (sr.length ? '<h4>TV Shows</h4>' + sr.slice(0, 24).map(m => cardHtml(m, 'series', { poster: true })).join('') : '') +
+    (mv.length ? '<h4>Movies</h4>' + mv.slice(0, 24).map(m => cardHtml(m, 'movie', { poster: true })).join('') : '') ||
+    '') + liveH || `<div class="empty" style="grid-column:1/-1;padding:20px 0">No results for "${esc(q)}".</div>`;
   wireRows(box);
+  box.querySelectorAll('.card,[data-ci]').forEach(el => el.addEventListener('click', () => rememberSearch(q), true));
   box.querySelectorAll('[data-ci]').forEach(el => el.onclick = () => { const c = ch[+el.dataset.ci]; play({ url: c.url, title: c.name, sub: 'Live TV', live: true, zap: ch, zi: +el.dataset.ci }); });
 }
 

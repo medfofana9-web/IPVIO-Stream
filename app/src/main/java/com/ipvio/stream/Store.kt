@@ -153,7 +153,7 @@ object AppSettings {
             p.edit().putInt("menu_ver", 4).putString("menu_order", menuOrder.joinToString(",")).putString("menu_hidden", menuHidden.joinToString(",")).apply()
         }
         searchHistory.clear()
-        searchHistory.addAll((p.getString("search_hist", "") ?: "").split("\n").filter { it.isNotBlank() })
+        searchHistory.addAll(loadSearches(c, p))
         if (p.getInt("look_ver", 1) < 2) {
             // One-time: set company colors (IPVIO green on navy) as the new default design. A custom color is kept.
             p.edit().putInt("look_accent", 0).putInt("look_bg", 0).putInt("look_ver", 2).commit()
@@ -239,8 +239,21 @@ object AppSettings {
         prefs(c).edit().clear().apply()
         init(c)
         searchHistory.clear(); searchHistory.addAll(hist)
-        if (hist.isNotEmpty()) prefs(c).edit().putString("search_hist", hist.joinToString("\n")).apply()
     }
+
+    /** Remembered searches live in their own synced store "fof_search" (taken over once from the old "search_hist"). */
+    private fun searchPrefs(c: Context) = Profiles.sp(c, "fof_search")
+    private fun loadSearches(c: Context, old: android.content.SharedPreferences): List<String> {
+        val sp = searchPrefs(c)
+        val raw = sp.getString("hist", null) ?: (old.getString("search_hist", "") ?: "").also { if (it.isNotBlank()) sp.edit().putString("hist", it).apply() }
+        return raw.split("\n").filter { it.isNotBlank() }
+    }
+    private fun saveSearches(c: Context) {
+        searchPrefs(c).edit().putString("hist", searchHistory.joinToString("\n")).apply()
+        CloudSync.kick(c)
+    }
+    /** After a sync brought another device's searches. */
+    fun reloadSearches(c: Context) { searchHistory.clear(); searchHistory.addAll(loadSearches(c, prefs(c))) }
 
     fun set(c: Context, v: Boolean) {
         ipvioFilter = v
@@ -363,20 +376,23 @@ object AppSettings {
         val t = q.trim()
         if (t.length < 2) return
         searchHistory.removeAll { it.equals(t, true) }
+        // "sur" then "survivor": the longer search replaces the half-typed one just before it
+        searchHistory.firstOrNull()?.let { last -> if (t.startsWith(last, true) || last.startsWith(t, true)) searchHistory.removeAt(0) }
         searchHistory.add(0, t)
-        while (searchHistory.size > 10) searchHistory.removeAt(searchHistory.lastIndex)
-        prefs(c).edit().putString("search_hist", searchHistory.joinToString("\n")).apply()
+        while (searchHistory.size > 60) searchHistory.removeAt(searchHistory.lastIndex)
+        saveSearches(c)
     }
 
     /** Removes one entry from the search history. */
     fun removeSearch(c: Context, q: String) {
         searchHistory.removeAll { it.equals(q, true) }
-        prefs(c).edit().putString("search_hist", searchHistory.joinToString("\n")).apply()
+        saveSearches(c)
     }
 
     fun clearSearch(c: Context) {
         searchHistory.clear()
         prefs(c).edit().remove("search_hist").apply()
+        saveSearches(c)
     }
 }
 
