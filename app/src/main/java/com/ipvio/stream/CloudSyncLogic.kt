@@ -24,6 +24,12 @@ object SyncLogic {
         "ipvio_sportleagues", // leagues on/off
         "ipvio_tracks",       // audio and subtitle language chosen per title
         "fof_intro_marks_v1", // exact episode intro/recap markers
+        "fof_sport",          // pinned channels on Sports, hide scores
+        "ipvio_sportalerts",  // sports alerts and the score window
+        "fof_gameday",        // close-game alerts and game reminders
+        "fof_share",          // share what I'm watching
+        "fof_recap",          // Previously on
+        "fof_flags",          // clean look, spoiler settings
         AVATAR,               // the profile's avatar (not a file: written through ProfileAvatars)
         NAME,                 // the profile's name (shown on every TV)
         KIDS                  // kids profile: adult content hidden (the PIN itself stays on the server)

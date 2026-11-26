@@ -84,6 +84,9 @@ function readProfile(files) {
   try { const w = strOf(files, 'ipvio_watch', 'e'); if (w) acct.watch = JSON.parse(w).map(o => ({ id: o.i, title: o.t, url: o.u, pos: o.p, dur: o.d, ts: o.ts, s: o.s || 0, e: o.e || 0, next: !!o.n })); } catch (e) {}
   acct.watch.sort((a, b) => (b.ts || 0) - (a.ts || 0));
   try { acct.mylist = (strOf(files, 'ipvio_lib', 'watch') || '').split('\n').filter(Boolean); } catch (e) {}
+  // Synced with the TVs: pinned Sports channels and "Share what I'm watching"
+  const pins = strOf(files, 'fof_sport', 'pins'); acct.sportPins = pins == null ? null : pins.split('\n').filter(Boolean);
+  const sh = files && files.fof_share && files.fof_share.watching; acct.shareW = sh && sh[0] === 'b' ? !!sh[1] : null;
 }
 async function loadWatch(pid) {
   try {
@@ -301,7 +304,7 @@ function renderShell(tab) {
   document.querySelectorAll('.rail a[data-k]').forEach(a => a.onclick = () => go(a.dataset.k));
   $('#me').onclick = () => { acct.profile = null; store.del('profile'); showWho(); };
   const shr = () => { const on = sharing(), a = $('#shr'); a.classList.toggle('off', !on); a.title = on ? 'Sharing what you watch with your other profiles. Click to stop.' : 'Not sharing what you watch. Click to share.'; $('span', a).textContent = on ? 'Sharing' : 'Private'; };
-  shr(); $('#shr').onclick = () => { const on = !sharing(); store.set(shareKey(), on); if (!on && acct.profile) sb('/rest/v1/fof_presence?profile_id=eq.' + acct.profile.id, { method: 'DELETE' }).catch(() => {}); shr(); toast(on ? 'Others on your account can see what you watch' : 'What you watch is private now'); };
+  shr(); $('#shr').onclick = () => { const on = !sharing(); store.set(shareKey(), on); acct.shareW = on; saveProfile(files => { (files.fof_share = files.fof_share || {}).watching = ['b', on]; }).catch(() => {}); if (!on && acct.profile) sb('/rest/v1/fof_presence?profile_id=eq.' + acct.profile.id, { method: 'DELETE' }).catch(() => {}); shr(); toast(on ? 'Others on your account can see what you watch' : 'What you watch is private now'); };
   castButton();
   go(tab);
 }
@@ -449,7 +452,7 @@ setInterval(() => { if (acct.watch.length) newEpisodes(); }, 60 * 60 * 1000);
 // ------------------------------------------------------------------ Watching now: what the other profiles are playing (table fof_presence)
 let presAt = 0;
 const shareKey = () => 'shareWatching:' + (acct.profile ? acct.profile.id : '');
-const sharing = () => store.get(shareKey(), true);
+const sharing = () => acct.shareW != null ? acct.shareW : store.get(shareKey(), true);
 function presenceBeat(it, P, D) {
   const now = Date.now(); if (now - presAt < 25000 || !acct.profile || !sharing() || P < 5 || P > D * 0.95) return; presAt = now;
   const tt = it.req && ttOf('stremio:' + it.req.id);
@@ -1085,18 +1088,19 @@ function spPanel(g) {
   }, 1200);
 }
 // ------------------------------------------------------------------ pinned channels on the Sports page (ESPN and NBA TV to start)
-const pinList = () => store.get('sportPins', ['name:ESPN', 'name:NBA TV']);
-const pinSave = l => store.set('sportPins', l);
+const pinList = () => acct.sportPins || store.get('sportPins', ['name:ESPN', 'name:NBA TV']);
+const pinSave = l => { acct.sportPins = l; store.set('sportPins', l); saveProfile(files => setStr(files, 'fof_sport', 'pins', l.join('\n'))).catch(() => {}); };
 const pinBase = t => String(t || '').toLowerCase().replace(/^\s*[a-z]{2,3}\s*[:|\-]\s*/, '').replace(/[\[(].*?[\])]/g, ' ')
   .replace(/\b(fhd|uhd|hd|sd|4k|hevc|h265|1080p?|720p?|50fps|60fps)\b/g, ' ').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 const pinScore = t => { t = t.toLowerCase(); let s = 0; if (/^\s*(us|usa)\s*[:|\-]/.test(t)) s += 2; if (/\b(fhd|1080)/.test(t)) s += 1; else if (/\bhd\b/.test(t)) s += .5; if (/\b(backup|raw|plus|alt)\b/.test(t)) s -= 1; return s; };
 function pinResolve(p) {
   const chans = (live && live.chans) || [];
   if (p.startsWith('url:')) return chans.find(c => c.url === p.slice(4)) || null;
+  if (p.startsWith('id:')) return null;   // a TV's own channel id: that TV only
   const want = pinBase(p.slice(5));
   return chans.filter(c => pinBase(c.name) === want).sort((a, b) => pinScore(b.name) - pinScore(a.name))[0] || null;
 }
-const pinLabel = (p, c) => p.startsWith('name:') ? p.slice(5) : (c ? c.name : 'Channel');
+const pinLabel = (p, c) => p.startsWith('name:') ? (p.slice(5) === p.slice(5).toLowerCase() ? p.slice(5).toUpperCase() : p.slice(5)) : (c ? c.name : 'Channel');
 const pinCol = n => /espn/i.test(n) ? '#c8102e' : /nba/i.test(n) ? '#1d428a' : /nfl/i.test(n) ? '#013369' : /fox/i.test(n) ? '#003f7d' : '#2a3142';
 function pinPanel(x, el) {
   const p = $('#spp'); if (!p) return;
@@ -1121,7 +1125,7 @@ function pinPicker(done) {
   const draw = q => {
     const l = (q ? ((live && live.chans) || []).filter(c => c.name.toLowerCase().includes(q.toLowerCase())) : chans).slice(0, 80);
     $('.chlist', bg).innerHTML = l.map((c, i) => `<div class="src" data-i="${i}">${c.logo ? `<img loading="lazy" src="${esc(c.logo)}" onerror="this.style.visibility='hidden'">` : ''}<div class="nm2"><b>${esc(c.name)}</b></div></div>`).join('') || '<div class="sub">No channels match.</div>';
-    bg.querySelectorAll('.src').forEach(el => el.onclick = () => { const c = l[+el.dataset.i]; const ps = pinList(); if (!ps.includes('url:' + c.url)) pinSave(ps.concat('url:' + c.url)); close(); done(); });
+    bg.querySelectorAll('.src').forEach(el => el.onclick = () => { const c = l[+el.dataset.i]; const ps = pinList(), pin = 'name:' + pinBase(c.name); if (!ps.some(x => x.toLowerCase() === pin)) pinSave(ps.concat(pin)); close(); done(); });
   };
   $('.pinq', bg).oninput = e => draw(e.target.value.trim());
   draw('');

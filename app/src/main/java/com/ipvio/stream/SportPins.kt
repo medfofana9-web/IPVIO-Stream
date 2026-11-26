@@ -27,7 +27,8 @@ object SportPins {
         version++
     }
 
-    fun add(c: Context, ch: Item) { val l = list(c); if (l.none { it == "id:" + ch.id }) save(c, l + ("id:" + ch.id)) }
+    /** Saved by name, so the pin finds the same channel on the Mac, the phone and other TVs (their channel ids differ). */
+    fun add(c: Context, ch: Item) { val pin = "name:" + base(ch.title); val l = list(c); if (l.none { it.equals(pin, true) }) save(c, l + pin) }
     fun remove(c: Context, pin: String) = save(c, list(c).filter { it != pin })
 
     /** Base name of a channel: no country prefix, no quality tags ("US: ESPN FHD" -> "espn"). */
@@ -51,6 +52,7 @@ object SportPins {
     /** The playlist channel for one pin, or null when the playlist has none. */
     fun resolve(pin: String, live: List<Item>): Item? = when {
         pin.startsWith("id:") -> live.firstOrNull { it.id == pin.removePrefix("id:") }
+        pin.startsWith("url:") -> live.firstOrNull { it.url == pin.removePrefix("url:") }
         pin.startsWith("name:") -> {
             val want = base(pin.removePrefix("name:"))
             live.filter { base(it.title) == want }.maxByOrNull { score(it.title) }
@@ -59,5 +61,5 @@ object SportPins {
     }
 
     fun label(pin: String, ch: Item?): String =
-        if (pin.startsWith("name:")) pin.removePrefix("name:") else ch?.title ?: "Channel"
+        if (pin.startsWith("name:")) pin.removePrefix("name:").let { n -> if (n == n.lowercase()) n.uppercase() else n } else ch?.title ?: "Channel"
 }
