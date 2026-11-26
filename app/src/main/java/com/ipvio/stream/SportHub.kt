@@ -94,7 +94,36 @@ class HubCtx(val nav: HubNav, val live: List<Item>, private val onPlay: (Item, L
     var scopeApp: kotlinx.coroutines.CoroutineScope? = null
     private var watchJob: kotlinx.coroutines.Job? = null
     private var pendingGame: String? = null
-    fun chans(g: SportData.Game): List<Item> = SportWatch.channels(g, live)
+    /**
+     * Channels of a game. Off the main thread: computed now. On the main thread (game rows ask while they are drawn) the
+     * last result is returned at once and a fresh one is computed in the background, at most every 30 s per game; rows
+     * redraw when it changes. Matching a 24,000-entry guide for every row while drawing froze Sports for 10 s and closed
+     * the app on the performance test (FofFreeze at SportHub.chans < LazyDsl, 26 Nov 2026).
+     */
+    fun chans(g: SportData.Game): List<Item> {
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            return SportWatch.channels(g, live).also { known[g.key] = it; knownAt[g.key] = System.currentTimeMillis() }
+        }
+        @Suppress("UNUSED_VARIABLE") val v = chanVersion   // read: the row redraws when a background result arrives
+        val have = known[g.key]
+        val now = System.currentTimeMillis()
+        if (now - (knownAt[g.key] ?: 0L) > 30_000L && pending.add(g.key)) {
+            chanScope.launch {
+                val r = runCatching { SportWatch.channels(g, live) }.getOrDefault(have ?: emptyList())
+                knownAt[g.key] = System.currentTimeMillis()
+                val changed = known[g.key]?.map { it.id } != r.map { it.id }
+                known[g.key] = r
+                pending.remove(g.key)
+                if (changed) kotlinx.coroutines.withContext(Dispatchers.Main) { chanVersion++ }
+            }
+        }
+        return have ?: emptyList()
+    }
+    private val known = java.util.concurrent.ConcurrentHashMap<String, List<Item>>()
+    private val knownAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private val pending = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    private var chanVersion by mutableIntStateOf(0)
+    private val chanScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.Default)
     /** Remember the open pages (Match Center, Watch Live …): Back from the player returns to exactly there. */
     fun play(ch: Item, list: List<Item>) { HubMemory.keep = nav.stack.toList(); nav.clear(); onPlay(ch, list) }
     /** Watch Live: start the best channel directly, otherwise show the Watch Live page (assign by hand). */

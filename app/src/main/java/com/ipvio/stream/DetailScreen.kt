@@ -103,7 +103,10 @@ fun DetailScreen(
             failed = false
             // Never an endless spinner: after 15 s the retry screen shows
             val r = kotlinx.coroutines.withTimeoutOrNull(15_000) { runCatching { LazySeries.load(ctx, item) }.getOrNull() }
-            if (r != null) full = r else failed = true
+            // Resuming a saved episode (Continue watching) needs no episode list: when the list cannot be loaded (Cinemeta
+            // down or slow), the page opens anyway and the sources of the saved episode are looked up
+            val resumeEp = AppNav.autoStream == item.id && AppNav.autoResume?.let { it.first > 0 && it.second > 0 } == true
+            if (r != null) full = r else if (resumeEp) full = item else failed = true
         }
         BackHandler(enabled = !embedded, onBack = onBack)
         val retry = remember { FocusRequester() }

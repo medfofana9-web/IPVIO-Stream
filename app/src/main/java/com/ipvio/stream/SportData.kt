@@ -569,8 +569,21 @@ object SportData {
 
     fun has(text: String, key: String) = (" $text ").contains(" $key ")
 
+    // Results of [matches] per game and text: the guide is matched again every minute with the same titles
+    private val matchMemo = object : LinkedHashMap<String, Boolean>(4096, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Boolean>?) = size > 40_000
+    }
+
     /** A team matchup needs both names. A field event needs its specific event title. */
     fun matches(g: Game, text: String): Boolean {
+        val k = g.key + "\u0000" + g.home.name + "\u0000" + g.away.name + "\u0000" + g.title + "\u0000" + text
+        synchronized(matchMemo) { matchMemo[k] }?.let { return it }
+        val r = matchesNow(g, text)
+        synchronized(matchMemo) { matchMemo[k] = r }
+        return r
+    }
+
+    private fun matchesNow(g: Game, text: String): Boolean {
         val n = normCached(text)
         if (g.solo) {
             val event = normCached(g.title)
@@ -630,7 +643,13 @@ object SportData {
 
     private val genericEventTitles = setOf("formula 1", "formula one", "grand prix", "pga tour", "lpga tour", "ufc fight night")
 
-    private fun eventKeys(team: Team): List<String> {
+    private val eventKeysMemo = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
+
+    private fun eventKeys(team: Team): List<String> = eventKeysMemo.getOrPut(team.name + "\u0000" + team.short) { eventKeysNow(team) }.also {
+        if (eventKeysMemo.size > 5_000) eventKeysMemo.clear()
+    }
+
+    private fun eventKeysNow(team: Team): List<String> {
         val full = normCached(team.name)
         val short = normCached(team.short)
         val first = full.substringBefore(' ')

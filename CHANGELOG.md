@@ -7,6 +7,11 @@
 - Emulator tests now also cover episodes, live channels (a dropping connection, quick zapping) and an hour of use with
   memory measured; a build reaches every TV only after these, the playback test and the speed test passed.
 - One-tap rollback of the TV app (GitHub Actions), and instant alerts for crashes, freezes and streams that do not start.
+- Found by the new speed test: Sports froze for over 10 s and the app closed, because every game row matched the whole TV
+  guide while it was drawn. Rows now show the last result at once and refresh it in the background; guide matches are
+  remembered between the minute-by-minute refreshes.
+- Resuming an episode no longer stops at "Could not load episodes" when the episode list cannot be loaded: the sources
+  of the saved episode are looked up anyway.
 
 ## Unreleased – Playback safety net (T-011)
 
