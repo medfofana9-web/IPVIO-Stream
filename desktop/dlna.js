@@ -80,6 +80,16 @@ async function dev(id) { return found.get(id) || describe(id).then(d => { if (d)
 // awake for that title). Range requests are passed through, so seeking works for movies.
 const http = require('http'), https = require('https');
 let relay = null; const relayed = new Map(); let nextId = 1;
+// Keep-alive upstream connections: the TV sends many Range requests while it starts a video.
+const kaHttp = new http.Agent({ keepAlive: true, maxSockets: 8 }), kaHttps = new https.Agent({ keepAlive: true, maxSockets: 8 });
+// Activity, so the app can stay awake while a TV is pulling a stream through this Mac.
+let openConns = 0, lastData = 0;
+const busy = () => openConns > 0 || Date.now() - lastData < 90000;
+// Hosts the TV could not play directly: next time go straight to the relay (saves 10-20 s of failed tries).
+const hostsFile = (() => { try { return require('path').join(require('electron').app.getPath('userData'), 'relay-hosts.json'); } catch (e) { return null; } })();
+const relayHosts = new Set((() => { try { return JSON.parse(require('fs').readFileSync(hostsFile, 'utf8')); } catch (e) { return []; } })());
+const saveHosts = () => { try { require('fs').writeFileSync(hostsFile, JSON.stringify([...relayHosts])); } catch (e) {} };
+const hostOf = u => { try { return new URL(u).host; } catch (e) { return ''; } };
 function lanIp() { const os = require('os'); for (const l of Object.values(os.networkInterfaces())) for (const i of l || []) if (i.family === 'IPv4' && !i.internal && /^(10|172|192)\./.test(i.address)) return i.address; return '127.0.0.1'; }
 function relayStart() {
   if (relay) return Promise.resolve(relay);
@@ -87,14 +97,18 @@ function relayStart() {
     const srv = http.createServer((req, out) => {
       const m = /^\/r\/(\d+)/.exec(req.url || ''); const src = m && relayed.get(+m[1]);
       if (!src) { out.writeHead(404); return out.end(); }
+      openConns++; let done = false; const fin = () => { if (!done) { done = true; openConns--; lastData = Date.now(); } };
+      out.on('close', fin);
       const get = (u, hops) => {
         const lib = u.startsWith('https') ? https : http;
-        const up = lib.request(u, { method: req.method === 'HEAD' ? 'GET' : 'GET', headers: Object.assign({ 'User-Agent': 'VLC/3.0.21 LibVLC/3.0.21', Accept: '*/*' }, req.headers.range ? { Range: req.headers.range } : {}) }, r => {
+        const up = lib.request(u, { agent: u.startsWith('https') ? kaHttps : kaHttp, method: req.method === 'HEAD' ? 'GET' : 'GET', headers: Object.assign({ 'User-Agent': 'VLC/3.0.21 LibVLC/3.0.21', Accept: '*/*' }, req.headers.range ? { Range: req.headers.range } : {}) }, r => {
           if (r.statusCode >= 300 && r.statusCode < 400 && r.headers.location && hops < 5) { r.resume(); return get(new URL(r.headers.location, u).toString(), hops + 1); }
+          if (r.statusCode < 300 && !src.live) src.final = u; // later Range requests skip the redirects (not for live: tokens expire)
           const h = { 'Content-Type': src.mime, 'Accept-Ranges': 'bytes', 'transferMode.dlna.org': 'Streaming', 'contentFeatures.dlna.org': 'DLNA.ORG_OP=01;DLNA.ORG_FLAGS=01700000000000000000000000000000' };
           for (const k of ['content-length', 'content-range']) if (r.headers[k]) h[k] = r.headers[k];
           out.writeHead(r.statusCode === 206 ? 206 : 200, h);
           if (req.method === 'HEAD') { r.destroy(); return out.end(); }
+          r.on('data', () => { lastData = Date.now(); });
           r.pipe(out);
           out.on('close', () => r.destroy());
         });
@@ -102,14 +116,14 @@ function relayStart() {
         out.on('close', () => up.destroy());
         up.end();
       };
-      get(src.url, 0);
+      get(src.final || src.url, 0);
     });
     srv.listen(0, '0.0.0.0', () => { relay = { port: srv.address().port }; res(relay); });
   });
 }
 async function relayUrl(url) {
   const r = await relayStart(); const id = nextId++;
-  relayed.set(id, { url, mime: mimeOf(url) });
+  relayed.set(id, { url, mime: mimeOf(url), live: /\/live\//.test(url) });
   if (relayed.size > 20) relayed.delete([...relayed.keys()][0]);
   return `http://${lanIp()}:${r.port}/r/${id}`;
 }
@@ -121,16 +135,28 @@ async function playOne(d, url, title, mime) {
   await soap(d.av, 'AVTransport', 'Play', { InstanceID: 0, Speed: 1 });
 }
 
+// Seek once the TV is actually playing (a fixed delay either seeks too early and is ignored, or makes the start slow).
+async function seekWhenPlaying(d, start) {
+  for (let i = 0; i < 40; i++) {
+    await new Promise(r => setTimeout(r, 750));
+    let st = ''; try { st = tag(await soap(d.av, 'AVTransport', 'GetTransportInfo', { InstanceID: 0 }), 'CurrentTransportState'); } catch (e) {}
+    if (st === 'PLAYING') { try { await soap(d.av, 'AVTransport', 'Seek', { InstanceID: 0, Unit: 'REL_TIME', Target: hms(start) }); } catch (e) {} return; }
+  }
+}
+
 async function play(id, url, title, start) {
   const d = await dev(id); if (!d) throw new Error('TV not found on the Wi-Fi');
   const live = /\/live\/[^/]+\/[^/]+\/\d+\.ts(\?|$)/.test(url);
-  const tries = [[url, mimeOf(url)]];
-  if (live) tries.push([url.replace(/\.ts(\?|$)/, '.m3u8$1'), 'application/vnd.apple.mpegurl']);
-  let last = null;
-  for (const [u, mime] of tries) { try { await playOne(d, u, title, mime); last = null; break; } catch (e) { last = e; } }
-  let relayed = false;
-  if (last) { await playOne(d, await relayUrl(url), title, mimeOf(url)); relayed = true; }
-  if (start > 5 && !live) setTimeout(() => soap(d.av, 'AVTransport', 'Seek', { InstanceID: 0, Unit: 'REL_TIME', Target: hms(start) }).catch(() => {}), 4000);
+  const host = hostOf(url);
+  let relayed = relayHosts.has(host), last = null;
+  if (!relayed) {
+    const tries = [[url, mimeOf(url)]];
+    if (live) tries.push([url.replace(/\.ts(\?|$)/, '.m3u8$1'), 'application/vnd.apple.mpegurl']);
+    for (const [u, mime] of tries) { try { await playOne(d, u, title, mime); last = null; break; } catch (e) { last = e; } }
+    if (last) { relayHosts.add(host); saveHosts(); relayed = true; }
+  }
+  if (relayed) await playOne(d, await relayUrl(url), title, mimeOf(url));
+  if (start > 5 && !live) seekWhenPlaying(d, start);
   return { ok: true, relayed };
 }
 
@@ -157,4 +183,4 @@ async function position(id) {
   return { pos: secs(tag(x, 'RelTime')), dur: secs(tag(x, 'TrackDuration')) };
 }
 
-module.exports = { discover: discoverAll, play, control, position };
+module.exports = { discover: discoverAll, play, control, position, busy };

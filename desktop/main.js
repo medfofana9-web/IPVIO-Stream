@@ -7,7 +7,7 @@
 //
 // Streams from IPTV providers are often plain http and send no CORS headers, so web security is off for this
 // private player window (it only loads the app's own files).
-const { app, BrowserWindow, Menu, shell, session, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, shell, session, dialog, ipcMain, powerSaveBlocker } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -139,7 +139,7 @@ async function checkShell(manual) {
 }
 // Quitting with a new app waiting: install it on the way out
 app.on('before-quit', e => {
-  if (!shellReady || shellReady.installing) return;
+  if (!shellReady || shellReady.installing || (relayBusy() && !quitOk)) return;
   shellReady.installing = true;
   const target = appBundle();
   if (target) { e.preventDefault(); if (!installShell(shellReady.app)) app.exit(0); }
@@ -269,4 +269,23 @@ function setupDownloads() {
   ipcMain.on('download-show', (e, key) => { const d = downloads.find(x => x.key === key); if (d) shell.showItemInFolder(d.file); });
 }
 
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+app.on('window-all-closed', () => { if (process.platform !== 'darwin' && !relayBusy()) app.quit(); });
+
+// A smart TV pulling a stream through this Mac: keep the app from being napped or the Mac idle-sleeping, and don't
+// let Cmd+Q cut the TV off by accident.
+const relayBusy = () => { try { return require('./dlna').busy(); } catch (e) { return false; } };
+let awake = null;
+setInterval(() => {
+  const b = relayBusy();
+  if (b && awake === null) awake = powerSaveBlocker.start('prevent-app-suspension');
+  else if (!b && awake !== null) { powerSaveBlocker.stop(awake); awake = null; }
+}, 5000);
+let quitOk = false;
+app.on('before-quit', e => {
+  if (quitOk || !relayBusy()) return;
+  e.preventDefault();
+  const r = dialog.showMessageBoxSync({ type: 'question', buttons: ['Keep playing', 'Quit'], defaultId: 0, cancelId: 0,
+    message: 'Your TV is playing through this Mac', detail: 'Quitting stops it on the TV. Keep playing closes the window and keeps it going.' });
+  if (r === 1) { quitOk = true; app.quit(); }
+  else BrowserWindow.getAllWindows().forEach(w => w.close());
+});
