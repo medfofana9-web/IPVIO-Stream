@@ -1405,6 +1405,19 @@ V.onplay = () => { $('#pl-play').innerHTML = '&#10074;&#10074;'; msg(''); };
 V.onpause = () => { $('#pl-play').innerHTML = '&#x25B6;'; poke(); };
 V.onwaiting = () => { clearTimeout(V.wt); V.wt = setTimeout(() => { if (V.readyState < 3 && cur) msg('Loading…'); }, 1500); };
 V.onplaying = () => { clearTimeout(V.wt); msg(''); starting(false); };
+// No sound: Chrome plays the picture of some MKV files but cannot decode their audio (AC3, E-AC3, DTS) and stays
+// silent. A few seconds in, if no audio has been decoded, move on to the next source from the same spot.
+V.addEventListener('playing', () => {
+  const it = cur; clearTimeout(V.sndT);
+  if (!it || it.live || NATIVE || V.webkitAudioDecodedByteCount == null) return;
+  V.sndT = setTimeout(() => {
+    if (cur !== it || V.paused || V.muted || V.currentTime < 3 || V.webkitAudioDecodedByteCount > 0) return;
+    if (it.list && it.idx + 1 < it.list.length && !it.noFallback) {
+      toast('No sound on this source – switching to the next one', 3500);
+      const n = it.idx + 1; play(Object.assign({}, it, { url: it.list[n].url, idx: n, start: Math.round(V.currentTime * 1000) }));
+    } else toast('This source has no sound here. Try another one in Sources.', 4500);
+  }, 5000);
+});
 $('#pl-play').onclick = () => V.paused ? V.play() : V.pause();
 $('#pl-rw').onclick = () => { V.currentTime = Math.max(0, V.currentTime - 10); };
 $('#pl-ff').onclick = () => { V.currentTime = V.currentTime + 10; };
