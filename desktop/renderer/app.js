@@ -792,8 +792,48 @@ async function loadLive() {
   }
   const counts = {}; live.chans.forEach(c => counts[c.cat] = (counts[c.cat] || 0) + 1);
   live.cats = live.cats.filter(c => counts[c.id]).map(c => Object.assign(c, { n: counts[c.id] }));
+  // "My categories" (account setting, also used by every TV): only those show here
+  live.catsAll = live.cats;
+  try { const r = await sb('/rest/v1/fof_account_config?select=settings'); live.keep = ((r && r[0] && r[0].settings && r[0].settings.live_cats) || []).filter(Boolean); } catch (e) { live.keep = []; }
+  if (live.keep.length) { const k = new Set(live.keep); const f = live.cats.filter(c => k.has(c.name)); if (f.length) live.cats = f; }
   live.loaded = true;
 }
+// "My categories": pick the provider categories this household uses. Saved in the account, so every TV reads only
+// these (small TVs cannot hold a full provider list) and the Live TV list here shows only these.
+function myCategories(pg) {
+  const all = live.catsAll || live.cats, chosen = new Set(live.keep || []);
+  const SUGGEST = /sport|espn|nba|wnba|nfl|ncaa|college|premier|epl|bundesliga|champions|uefa|la ?liga|serie a|ligue 1|mls|soccer|football|fox|abc|cbs|nbc|news|local|entertainment/i;
+  const bg = document.createElement('div'); bg.className = 'sheet-bg'; bg.style.zIndex = 95;
+  const draw = f => {
+    const list = all.filter(c => !f || foldName(c.name).includes(foldName(f)));
+    $('#mcl', bg).innerHTML = list.map(c => `<label class="mcrow" style="display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid #1f1f1f;cursor:pointer"><input type="checkbox" data-n="${esc(c.name)}" ${chosen.has(c.name) ? 'checked' : ''} style="width:20px;height:20px;accent-color:#E50914"><span style="flex:1">${esc(c.name)}</span><small style="color:#888">${c.n || ''}</small></label>`).join('');
+    bg.querySelectorAll('#mcl input').forEach(i => i.onchange = () => { if (i.checked) chosen.add(i.dataset.n); else chosen.delete(i.dataset.n); $('#mcn', bg).textContent = chosen.size ? chosen.size + ' chosen' : 'All categories'; });
+  };
+  bg.innerHTML = `<div class="sheet" style="display:flex;flex-direction:column"><button class="sx" title="Close">&#x2715;</button><small class="kick">Live TV</small><h2>My categories</h2>
+    <div class="sub">Every TV on your account loads only these, so it starts fast and fits small TVs. Nothing chosen = all.</div>
+    <div style="display:flex;gap:8px;margin:10px 0"><input id="mcf" placeholder="Find a category" style="flex:1;height:38px;background:#1a1a1a;border:1px solid #333;border-radius:6px;color:#fff;padding:0 12px">
+    <button class="btn" id="mcs" style="height:38px;padding:0 12px;font-size:14px">Suggested</button><button class="btn" id="mcc" style="height:38px;padding:0 12px;font-size:14px">Clear</button></div>
+    <div id="mcl" style="flex:1;overflow-y:auto;min-height:200px"></div>
+    <div style="display:flex;align-items:center;gap:12px;padding-top:12px"><span id="mcn" style="flex:1;color:#aaa">${chosen.size ? chosen.size + ' chosen' : 'All categories'}</span><button class="btn primary" id="mcsave" style="height:42px;padding:0 20px">Save</button></div></div>`;
+  document.body.appendChild(bg); requestAnimationFrame(() => bg.classList.add('on'));
+  bg.onclick = e => { if (e.target === bg || e.target.closest('.sx')) bg.remove(); };
+  draw('');
+  $('#mcf', bg).oninput = e => draw(e.target.value);
+  $('#mcs', bg).onclick = () => { all.forEach(c => { if (SUGGEST.test(c.name)) chosen.add(c.name); }); draw($('#mcf', bg).value); $('#mcn', bg).textContent = chosen.size + ' chosen'; };
+  $('#mcc', bg).onclick = () => { chosen.clear(); draw($('#mcf', bg).value); $('#mcn', bg).textContent = 'All categories'; };
+  $('#mcsave', bg).onclick = async () => {
+    const b = $('#mcsave', bg); b.disabled = true; b.textContent = 'Saving…';
+    try {
+      const r = await sb('/rest/v1/fof_account_config?select=settings');
+      const settings = Object.assign({}, (r && r[0] && r[0].settings) || {}, { live_cats: [...chosen].sort() });
+      await sb('/rest/v1/fof_account_config?on_conflict=account_id', { method: 'POST', body: { settings }, headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } });
+      live.keep = [...chosen]; live.loaded = false; bg.remove();
+      toast(chosen.size ? 'Saved. Your TVs load only these ' + chosen.size + ' categories from their next start.' : 'Saved. Your TVs load all categories again.', 5000);
+      renderLive(pg);
+    } catch (e) { b.disabled = false; b.textContent = 'Save'; toast('Not saved: ' + String(e.message || e).slice(0, 80), 5000); }
+  };
+}
+
 // Guide: what is on now and next for each channel (Xtream short EPG, titles are base64), cached 10 minutes
 const epg = new Map();
 const b64 = t => { try { return decodeURIComponent(escape(atob(t || ''))); } catch (e) { return t || ''; } };
@@ -832,8 +872,9 @@ async function renderLive(pg) {
   }
   if (current !== 'live') return;
   if (!live.cat) live.cat = (live.cats.find(c => /sport/i.test(c.name)) || live.cats[0] || {}).id;
-  pg.innerHTML = `<div class="livepage"><div class="cats"><input id="lf" placeholder="Find a category"><div class="viewsw"><button id="vg" class="${store.get('liveView', 'grid') === 'grid' ? 'on' : ''}">Channels</button><button id="vl" class="${store.get('liveView', 'grid') === 'guide' ? 'on' : ''}">Guide</button></div><div id="cl"></div></div><div class="chgrid ${store.get('liveView', 'grid') === 'guide' ? 'guide' : ''}" id="cg"></div></div>`;
+  pg.innerHTML = `<div class="livepage"><div class="cats"><input id="lf" placeholder="Find a category"><div class="viewsw"><button id="vg" class="${store.get('liveView', 'grid') === 'grid' ? 'on' : ''}">Channels</button><button id="vl" class="${store.get('liveView', 'grid') === 'guide' ? 'on' : ''}">Guide</button></div><button id="mycats" class="mycats" title="Choose which categories your TVs load">&#x2699;&#xFE0E; My categories${live.keep && live.keep.length ? ' (' + live.keep.length + ')' : ''}</button><div id="cl"></div></div><div class="chgrid ${store.get('liveView', 'grid') === 'guide' ? 'guide' : ''}" id="cg"></div></div>`;
   $('#vg').onclick = () => { store.set('liveView', 'grid'); renderLive(pg); };
+  $('#mycats').onclick = () => myCategories(pg);
   $('#vl').onclick = () => { store.set('liveView', 'guide'); renderLive(pg); };
   const drawCats = f => {
     $('#cl').innerHTML = live.cats.filter(c => !f || foldName(c.name).includes(foldName(f))).map(c => `<button data-c="${esc(c.id)}" class="${c.id === live.cat ? 'on' : ''}">${esc(c.name)}<span>${c.n}</span></button>`).join('');

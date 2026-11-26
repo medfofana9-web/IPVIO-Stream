@@ -326,11 +326,16 @@ object AccountCloud {
     private fun settings(c: Context) {
         val o = JSONArray(ok(req(c, "GET", "/rest/v1/fof_account_config?select=settings"))).optJSONObject(0)?.optJSONObject("settings")
         pinAlways = o?.optBoolean("pin_always") ?: false
+        // "My categories": read again from the server when the choice changed (next start or playlist load)
+        val arr = o?.optJSONArray("live_cats")
+        val cats = if (arr == null) emptySet() else (0 until arr.length()).map { arr.optString(it) }.filter { it.isNotBlank() }.toSet()
+        if (LiveCats.set(c, cats)) runCatching { PlaylistStore.categoriesChanged(c) }
     }
 
     suspend fun setPinAlways(c: Context, v: Boolean): String? = withContext(Dispatchers.IO) {
         runCatching {
-            val body = JSONObject().put("settings", JSONObject().put("pin_always", v)).toString()
+            val cur = runCatching { JSONArray(ok(req(c, "GET", "/rest/v1/fof_account_config?select=settings"))).optJSONObject(0)?.optJSONObject("settings") }.getOrNull() ?: JSONObject()
+            val body = JSONObject().put("settings", cur.put("pin_always", v)).toString()
             val r = req(c, "POST", "/rest/v1/fof_account_config?on_conflict=account_id", body, "resolution=merge-duplicates,return=minimal")
             if (r.first in 200..299) { pinAlways = v; null } else "Not saved (${r.first})."
         }.getOrElse { "No connection to the account." }

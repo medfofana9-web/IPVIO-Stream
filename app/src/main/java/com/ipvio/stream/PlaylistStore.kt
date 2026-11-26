@@ -450,6 +450,15 @@ object PlaylistStore {
 
     private fun key(url: String) = url.trim().hashCode()
     private fun cacheFile(c: Context, url: String) = File(c.filesDir, "pl_" + key(url) + ".bin")
+
+    /**
+     * "My categories" changed in the account: the read list of this playlist is dropped, so the next start reads the
+     * already downloaded playlist again with the new choice (no new download).
+     */
+    fun categoriesChanged(c: Context) {
+        val u = primaryUrl ?: return
+        runCatching { cacheFile(c, u).delete() }
+    }
     private fun gzFile(c: Context, url: String) = File(c.filesDir, "pl_" + key(url) + ".m3u.gz")
     private fun rawFile(c: Context, url: String) = File(c.filesDir, "pl_" + key(url) + ".m3u")
     private fun partFile(c: Context, url: String) = File(c.filesDir, "pl_" + key(url) + ".part")
@@ -790,7 +799,7 @@ object PlaylistStore {
             }
         }
         phase = "Titel werden eingelesen …"
-        M3uParser.liveOnly = !FofPrefs.vodStored(c)
+        M3uParser.liveOnly = !FofPrefs.vodStored(c); M3uParser.keepGroups = LiveCats.get(c)
         val parsed = readFile(src, gz, cs, teeTo) { r -> M3uParser.parseStream(r, hidden, guard()) }
         return Built(parsed, hidden)
     }
@@ -826,7 +835,9 @@ object PlaylistStore {
         langCounts = counts
         langBytes = bytes
         shownHidden = hidden
-        primaryItems = items; primaryUrl = u; primaryEpg = epg; primaryOrder = order
+        val cats = LiveCats.get(c)
+        primaryItems = if (cats.isEmpty()) items else items.filter { LiveCats.keep(it.kind, it.group, cats) }
+        primaryUrl = u; primaryEpg = epg; primaryOrder = order
         MainSampler.mark("playlist: ready (" + items.size + " titles)")
         rebuild(c)
     }
@@ -1004,7 +1015,7 @@ object PlaylistStore {
      * stored whole list, read in again ([allowGz]).
      */
     private suspend fun fromLocal(c: Context, u: String, allowGz: Boolean, ask: Boolean): Local {
-        M3uParser.liveOnly = !FofPrefs.vodStored(c)
+        M3uParser.liveOnly = !FofPrefs.vodStored(c); M3uParser.keepGroups = LiveCats.get(c)
         val hidden = LangFilter.hidden
         val head = readHeader(c, u)
         if (head != null) {
@@ -1062,7 +1073,7 @@ object PlaylistStore {
     ): Boolean {
         if (!loadLock.tryLock()) return rawChannels.isNotEmpty()
         try {
-            M3uParser.liveOnly = !FofPrefs.vodStored(c)
+            M3uParser.liveOnly = !FofPrefs.vodStored(c); M3uParser.keepGroups = LiveCats.get(c)
             return loadInner(c, url, save, skipNetworkWhenCached, ask, resumed)
         } finally {
             loading = false   // also on cancel: otherwise the loading state (and the screen keep-awake) would stay stuck

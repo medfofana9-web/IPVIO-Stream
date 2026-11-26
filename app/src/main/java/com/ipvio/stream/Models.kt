@@ -171,6 +171,8 @@ object M3uParser {
      * series are skipped while reading: 290,000 titles nobody opens no longer cost start time, memory and search time.
      */
     @Volatile var liveOnly = false
+    /** "My categories" from the account ([LiveCats]): live channels of other categories are skipped while reading. */
+    @Volatile var keepGroups: Set<String> = emptySet()
 
     /** Language of an entry; the category is examined only once per name. */
     private class LangOf(private val pool: StringPool) {
@@ -440,6 +442,7 @@ object M3uParser {
         entries(lines, check, onHeader = { header = it; headCu = CatchupLogic.fromInfo(it, "") }) { e ->
             val kd = classify(e, st, langOf) ?: return@entries
             if (liveOnly && kd.kind != Kind.LIVE) return@entries
+            if (!LiveCats.keep(kd.kind, e.group, keepGroups)) return@entries
             if (kd.lang in hidden) return@entries
             val group = pool.of(e.group)
             val q = quality(e.name, e.group)
