@@ -108,9 +108,12 @@ public class FofNativePlugin: CAPPlugin, CAPBridgedPlugin {
         guard let s = call.getString("url"), let url = URL(string: s) else { call.reject("bad url"); return }
         call.keepAlive = false
         DispatchQueue.main.async {
+            var vcRef: VlcPlayerViewController?
             let vc = VlcPlayerViewController(url: url, title: call.getString("title") ?? "", start: call.getDouble("start") ?? 0) { pos, dur, ended, failed in
-                call.resolve(["position": pos, "duration": dur, "ended": ended, "failed": failed])
+                call.resolve(["position": pos, "duration": dur, "ended": ended, "failed": failed, "tv": vcRef?.toTv ?? false])
+                vcRef = nil
             }
+            vcRef = vc
             vc.modalPresentationStyle = .fullScreen
             self.bridge?.viewController?.present(vc, animated: true)
         }
@@ -132,6 +135,7 @@ public class FofNativePlugin: CAPPlugin, CAPBridgedPlugin {
 final class VlcPlayerViewController: UIViewController, VLCMediaPlayerDelegate {
     private let url: URL, titleText: String, start: Double
     private let done: (Double, Double, Bool, Bool) -> Void
+    var toTv = false
     private let player = VLCMediaPlayer()
     private let video = UIView(), controls = UIView(), slider = UISlider(), timeLabel = UILabel(), playButton = UIButton(type: .system)
     private let spinner = UIActivityIndicatorView(style: .large)
@@ -152,12 +156,16 @@ final class VlcPlayerViewController: UIViewController, VLCMediaPlayerDelegate {
         super.viewDidLoad()
         view.backgroundColor = .black
         video.frame = view.bounds; video.autoresizingMask = [.flexibleWidth, .flexibleHeight]; video.backgroundColor = .black
+        video.isUserInteractionEnabled = false   // VLC's picture view took every tap, so the controls never came back
         view.addSubview(video)
         spinner.color = .white; spinner.translatesAutoresizingMaskIntoConstraints = false; spinner.startAnimating()
         view.addSubview(spinner)
         NSLayoutConstraint.activate([spinner.centerXAnchor.constraint(equalTo: view.centerXAnchor), spinner.centerYAnchor.constraint(equalTo: view.centerYAnchor)])
         buildControls()
-        view.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(toggleControls)))
+        let tap = UITapGestureRecognizer(target: self, action: #selector(toggleControls)); tap.cancelsTouchesInView = false
+        view.addGestureRecognizer(tap)
+        let down = UISwipeGestureRecognizer(target: self, action: #selector(closeTapped)); down.direction = .down
+        view.addGestureRecognizer(down)   // swipe down closes, like Apple's player
 
         let media = VLCMedia(url: url)
         if start > 5 { media.addOption(":start-time=\(Int(start))") }
@@ -190,6 +198,7 @@ final class VlcPlayerViewController: UIViewController, VLCMediaPlayerDelegate {
         let close = makeButton("xmark", 22, #selector(closeTapped))
         let title = UILabel(); title.text = titleText; title.textColor = .white; title.font = .boldSystemFont(ofSize: 17); title.translatesAutoresizingMaskIntoConstraints = false
         let back = makeButton("gobackward.10", 30, #selector(back10)), fwd = makeButton("goforward.10", 30, #selector(fwd10))
+        let tv = makeButton("tv", 22, #selector(tvTapped))
         playButton.setImage(UIImage(systemName: "pause.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 40, weight: .bold)), for: .normal)
         playButton.tintColor = .white; playButton.addTarget(self, action: #selector(playPause), for: .touchUpInside); playButton.translatesAutoresizingMaskIntoConstraints = false
         slider.minimumTrackTintColor = UIColor(red: 0.9, green: 0.04, blue: 0.08, alpha: 1); slider.maximumTrackTintColor = UIColor(white: 1, alpha: 0.3)
@@ -197,12 +206,13 @@ final class VlcPlayerViewController: UIViewController, VLCMediaPlayerDelegate {
         slider.addTarget(self, action: #selector(slideStart), for: .touchDown)
         slider.addTarget(self, action: #selector(slideEnd), for: [.touchUpInside, .touchUpOutside, .touchCancel])
         timeLabel.textColor = .white; timeLabel.font = .monospacedDigitSystemFont(ofSize: 13, weight: .medium); timeLabel.translatesAutoresizingMaskIntoConstraints = false
-        [close, title, back, playButton, fwd, slider, timeLabel].forEach { controls.addSubview($0) }
+        [close, title, back, playButton, fwd, slider, timeLabel, tv].forEach { controls.addSubview($0) }
         let g = controls.safeAreaLayoutGuide
         NSLayoutConstraint.activate([
             close.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 16), close.topAnchor.constraint(equalTo: g.topAnchor, constant: 12),
             title.leadingAnchor.constraint(equalTo: close.trailingAnchor, constant: 16), title.centerYAnchor.constraint(equalTo: close.centerYAnchor),
-            title.trailingAnchor.constraint(lessThanOrEqualTo: g.trailingAnchor, constant: -16),
+            title.trailingAnchor.constraint(lessThanOrEqualTo: tv.leadingAnchor, constant: -12),
+            tv.trailingAnchor.constraint(equalTo: g.trailingAnchor, constant: -16), tv.centerYAnchor.constraint(equalTo: close.centerYAnchor),
             playButton.centerXAnchor.constraint(equalTo: controls.centerXAnchor), playButton.centerYAnchor.constraint(equalTo: controls.centerYAnchor),
             back.centerYAnchor.constraint(equalTo: playButton.centerYAnchor), back.trailingAnchor.constraint(equalTo: playButton.leadingAnchor, constant: -56),
             fwd.centerYAnchor.constraint(equalTo: playButton.centerYAnchor), fwd.leadingAnchor.constraint(equalTo: playButton.trailingAnchor, constant: 56),
@@ -249,6 +259,7 @@ final class VlcPlayerViewController: UIViewController, VLCMediaPlayerDelegate {
         scheduleHide()
     }
     @objc private func closeTapped() { close(failed: false) }
+    @objc private func tvTapped() { toTv = true; close(failed: false) }
 
     func mediaPlayerStateChanged(_ aNotification: Notification) {
         switch player.state {
@@ -266,6 +277,7 @@ final class VlcPlayerViewController: UIViewController, VLCMediaPlayerDelegate {
         player.delegate = nil
         player.stop()
         UIApplication.shared.isIdleTimerDisabled = false
-        dismiss(animated: true) { self.done(pos, dur, self.ended, failed) }
+        let tv = toTv
+        dismiss(animated: true) { self.done(pos, dur, self.ended, failed); _ = tv }
     }
 }

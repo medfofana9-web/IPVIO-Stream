@@ -1108,6 +1108,11 @@ async function playVlc(item, startS) {
   try {
     const r = await nat.playVlc({ url: item.url, title: item.title || '', sub: item.sub || '', start: startS != null ? startS : (item.start || 0) / 1000 });
     if (r && r.duration > 0) saveResume(true, r.position, r.duration);
+    // TV button in the VLC player: continue this on the TV from the same spot
+    if (r && r.tv && item.req) {
+      const send = () => castTitle(Object.assign({}, item.req, { name: item.req.name || item.title, start: Math.round((r.position || 0) * 1000) }));
+      cur = null; if (castTV) send(); else castPick(send); return;
+    }
     if (r && r.failed) { if (item.list && item.idx + 1 < item.list.length) { toast('Source did not start – trying the next one'); return play(Object.assign({}, item, { url: item.list[item.idx + 1].url, idx: item.idx + 1 })); } toast('This one will not start right now. Try Sources on the title page.', 4000); }
   } catch (e) { toast('Could not open the player: ' + String(e.message || e).slice(0, 60)); }
   cur = null;
@@ -1161,13 +1166,35 @@ async function castPick(onPicked) {
   const seen = new Set(); tvs = tvs.filter(d => { const k = (d.name || d.kind || '').toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
   // Play on TV came with TV version 1.3.220
   const tvOld = d => { const m = /^1\.3\.(\d+)/.exec(d.app_version || ''); return m ? +m[1] < 220 : false; };
+  // TVs hidden on this device (a box you no longer use)
+  const hidden = store.get('hiddenTVs', []);
+  const shown = tvs.filter(d => !hidden.includes((d.name || d.kind || '').toLowerCase()));
+  // AirPlay TVs (Fire TV, Samsung, Apple TV …): this list cannot see them, Apple's AirPlay menu can
+  const canAir = !!((window.fof && window.fof.airplay) || NATIVE);
+  const airBtn = () => $('#pl-airmac') || $('#pl-air');
   const sh = $('.sheet', bg); if (!sh) return;
   sh.innerHTML = `<button class="sx" title="Close">&#x2715;</button><small class="kick">Play on TV</small><h2>Choose a TV</h2>` +
-    (tvs.length ? `<div class="sub">Fof TV has to be open on the TV.</div>` + tvs.map((d, i) => `<div class="tvpick" data-i="${i}">${TV_ICON}<div><b>${esc(d.name || d.kind)}</b><small>${esc(d.kind)}${tvOld(d) ? ' · update Fof TV on this TV first' : ''}${castTV && castTV.id === d.id ? ' · connected' : ''}</small></div></div>`).join('') +
-      (castTV ? `<div class="tvpick" data-i="-1"><span style="width:22px;text-align:center">&#x2715;</span><div><b>Play on this ${esc(HERE)}</b></div></div>` : '')
-    : `<div class="sub">No TV is signed in to your account yet. Sign in to Fof TV on the TV (Settings › Account), then try again.</div>`);
+    (canAir ? `<div class="tvpick" data-air="1"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 17H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-1"/><path d="M12 15l5 6H7z" fill="currentColor"/></svg><div><b>AirPlay TVs</b><small>Med's Fire TV, Samsung and any other AirPlay TV</small></div></div>` : '') +
+    (shown.length ? `<div class="sub" style="margin-top:14px">With Fof TV on the TV (Fof TV has to be open there)</div>` + shown.map(d => { const i = tvs.indexOf(d); return `<div class="tvpick" data-i="${i}">${TV_ICON}<div style="flex:1"><b>${esc(d.name || d.kind)}</b><small>${esc(d.kind)}${tvOld(d) ? ' · update Fof TV on this TV first' : ''}${castTV && castTV.id === d.id ? ' · connected' : ''}</small></div><button class="hidetv" data-h="${i}" title="Hide this TV" style="color:#888;font-size:13px;padding:6px 8px">Hide</button></div>`; }).join('') : '') +
+    (castTV ? `<div class="tvpick" data-i="-1"><span style="width:22px;text-align:center">&#x2715;</span><div><b>Play on this ${esc(HERE)}</b></div></div>` : '') +
+    (hidden.length ? `<div class="sub" style="margin-top:14px"><a href="#" id="unhide" style="color:#aaa">Show hidden TVs (${hidden.length})</a></div>` : '') +
+    (!shown.length && !canAir ? `<div class="sub">No TV is signed in to your account yet. Sign in to Fof TV on the TV (Settings › Account), then try again.</div>` : '');
+  sh.querySelectorAll('.hidetv').forEach(b => b.onclick = ev => {
+    ev.stopPropagation(); const d = tvs[+b.dataset.h], k = (d.name || d.kind || '').toLowerCase();
+    store.set('hiddenTVs', [...new Set([...hidden, k])]);
+    if (castTV && castTV.id === d.id) { castTV = null; store.del('castTV'); castButton(); }
+    shut(); castPick(onPicked);
+  });
+  const un = $('#unhide', sh); if (un) un.onclick = ev => { ev.preventDefault(); store.del('hiddenTVs'); shut(); castPick(onPicked); };
   sh.querySelectorAll('.tvpick').forEach(el => el.onclick = () => {
-    const i = +el.dataset.i; shut();
+    shut();
+    if (el.dataset.air) {
+      // AirPlay goes through the player (it hands the stream to Apple's player / QuickTime)
+      if (castTV) { castTV = null; store.del('castTV'); castButton(); }
+      if (cur && !$('#player').classList.contains('hidden') && airBtn()) return airBtn().click();
+      return toast('Start a channel, game or movie, then press the TV button in the player and pick AirPlay TVs', 4500);
+    }
+    const i = +el.dataset.i;
     castTV = i < 0 ? null : { id: tvs[i].id, name: tvs[i].name || tvs[i].kind };
     if (castTV) store.set('castTV', castTV); else store.del('castTV');
     castButton();
