@@ -101,10 +101,10 @@ internal fun SportSplit(games0: List<SportData.Game>, hub: HubCtx) {
                 if (g != null) {
                     // Behind the video (and instead of it when nothing plays): the two team colors with their logos
                     Row(Modifier.fillMaxSize()) {
-                        Box(Modifier.weight(1f).fillMaxHeight().background(Brush.verticalGradient(listOf(teamColor(g.away), Color(0xFF0C1018)))), contentAlignment = Alignment.Center) {
+                        Box(Modifier.weight(1f).fillMaxHeight().background(Brush.verticalGradient(listOf(splitColor(g.away), Color(0xFF0C1018)))), contentAlignment = Alignment.Center) {
                             TeamLogo(g.away.logo, g.away.abbr, dpx(150))
                         }
-                        Box(Modifier.weight(1f).fillMaxHeight().background(Brush.verticalGradient(listOf(teamColor(g.home), Color(0xFF0C1018)))), contentAlignment = Alignment.Center) {
+                        Box(Modifier.weight(1f).fillMaxHeight().background(Brush.verticalGradient(listOf(splitColor(g.home), Color(0xFF0C1018)))), contentAlignment = Alignment.Center) {
                             TeamLogo(g.home.logo, g.home.abbr, dpx(150))
                         }
                     }
@@ -155,7 +155,7 @@ private fun SplitGameCard(g: SportData.Game, playing: Boolean, onFocus: () -> Un
         }
         Column(Modifier.weight(1f).fillMaxHeight()) {
             for (t in listOf(g.away, g.home)) Row(
-                Modifier.weight(1f).fillMaxWidth().background(Brush.horizontalGradient(listOf(teamColor(t), teamColor(t).copy(alpha = 0.55f)))).padding(horizontal = dpx(12)),
+                Modifier.weight(1f).fillMaxWidth().background(Brush.horizontalGradient(listOf(splitColor(t), splitColor(t).copy(alpha = 0.55f)))).padding(horizontal = dpx(12)),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TeamLogo(t.logo, t.abbr, dpx(28))
@@ -204,7 +204,7 @@ private fun whenText(g: SportData.Game): String = when {
 }
 
 /** ESPN team color ("0b6e7f"), darkened a little so white text stays readable; grey when unknown. */
-private fun teamColor(t: SportData.Team): Color = runCatching {
+private fun splitColor(t: SportData.Team): Color = runCatching {
     val v = t.color!!.removePrefix("#").toLong(16)
     val c = Color((0xFF000000 or v).toInt())
     Color(c.red * 0.8f, c.green * 0.8f, c.blue * 0.8f)
