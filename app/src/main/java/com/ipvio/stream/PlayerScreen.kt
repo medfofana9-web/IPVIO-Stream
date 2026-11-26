@@ -915,6 +915,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         var bufBytes = 0L
         val tick = object : Runnable {
             override fun run() {
+                // Test builds: what the player is doing, for the playback and soak tests (file name only)
+                if (BuildConfig.VERSION_NAME.endsWith("-test")) android.util.Log.i("FofPlay", "tick " + cur.url.substringAfterLast('/') + " state=" + player.playbackState + " pos=" + player.currentPosition / 1000)
                 saveProgress(push = false)
                 WatchParty.tick(ctx, player, cur.itemId, cur.season, cur.episode)
                 val nowT = System.currentTimeMillis()

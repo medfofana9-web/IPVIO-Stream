@@ -42,15 +42,26 @@ object MainSampler {
                     }
                 }
                 i.getStringExtra("good")?.split('|', limit = 2)?.takeIf { it.size == 2 }?.let { (id, key) ->
-                    SourceMemory.played(ctx.applicationContext, SourceMemory.contentId(id, false, 0, 0), key)
+                    val se = id.split(':')
+                    val cid = if (se.size == 3) SourceMemory.contentId(se[0], true, se[1].toIntOrNull() ?: 0, se[2].toIntOrNull() ?: 0)
+                        else SourceMemory.contentId(id, false, 0, 0)
+                    SourceMemory.played(ctx.applicationContext, cid, key)
                 }
-                i.getStringExtra("resume")?.split('|')?.takeIf { it.size == 4 }?.let { p ->
-                    val item = Item("stremio:" + p[0], Kind.MOVIE, p[1], p[2].toIntOrNull(), "", null, "Stremio")
-                    Log.i("FofPlay", "scenario " + p[0] + " resume at " + p[3] + " ms")
+                // "tt…|Title|year|ms" (movie) or "tt…|Title|year|ms|season|episode" (episode)
+                i.getStringExtra("resume")?.split('|')?.takeIf { it.size == 4 || it.size == 6 }?.let { p ->
+                    val ep = if (p.size == 6) (p[4].toIntOrNull() ?: 0) to (p[5].toIntOrNull() ?: 0) else 0 to 0
+                    val item = Item("stremio:" + p[0], if (p.size == 6) Kind.SERIES else Kind.MOVIE, p[1], p[2].toIntOrNull(), "", null, "Stremio")
+                    Log.i("FofPlay", "scenario " + p[0] + (if (p.size == 6) ":" + ep.first + ":" + ep.second else "") + " resume at " + p[3] + " ms")
                     AppNav.autoStream = item.id
-                    AppNav.autoResume = Triple(0, 0, p[3].toLongOrNull() ?: 0L)
+                    AppNav.autoResume = Triple(ep.first, ep.second, p[3].toLongOrNull() ?: 0L)
                     AppNav.autoResumeId = item.id
                     OpenTitle.req = item
+                }
+                // Live channel by its name in the test playlist (same path as a reminder notification)
+                i.getStringExtra("live")?.let { name ->
+                    val ch = PlaylistStore.channels.firstOrNull { it.kind == Kind.LIVE && it.title == name }
+                    Log.i("FofPlay", "scenario live " + name + (if (ch == null) " (not in the playlist)" else ""))
+                    if (ch != null) AppNav.openChannel = ch.id
                 }
             }
         }
