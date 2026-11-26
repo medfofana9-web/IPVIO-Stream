@@ -1930,8 +1930,7 @@ async function calData() {
     }
   }));
   const days = [...Array(7)].map((_, i) => { const d = new Date(Date.now() + i * 864e5); return d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0'); });
-  const favPaths = Object.values(acct.teamInfo || {}).map(t => t.path);
-  const lgs = LEAGUES.filter((l, i) => i < 6 || favPaths.includes(l[2]));
+  const lgs = favs.size ? LEAGUES : [];
   await Promise.all(lgs.flatMap(l => days.map(async ds => {
     const j = await getJson(`https://site.api.espn.com/apis/site/v2/sports/${l[2]}/scoreboard?dates=${ds}`, 30 * 60 * 1000).catch(() => null);
     for (const e of (j && j.events) || []) {
@@ -1939,7 +1938,7 @@ async function calData() {
       const side = h => ((c.competitors || []).find(k => k.homeAway === h) || {}).team || {};
       const a = side('away'), hm = side('home'), t = Date.parse(e.date);
       const fav = favs.has(favKey(a.displayName)) || favs.has(favKey(hm.displayName));
-      if (!nets.length && !fav) continue;
+      if (!fav) continue;   // only games of teams you follow (same as the TV)
       out.push({ day: dkey(new Date(t)), t, kind: 2, fav, title: (a.shortDisplayName || '') + ' at ' + (hm.shortDisplayName || ''), sub: l[1] + (nets.length ? ' · ' + nets.join(' · ') : ''),
         colors: ['#' + (a.color || '2a3142'), '#' + (hm.color || '2a3142')], open: () => go('sports') });
     }
