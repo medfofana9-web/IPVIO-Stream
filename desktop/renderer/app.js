@@ -302,13 +302,18 @@ function openTitle(type, id, play) { navStack.push(current); go('detail', { type
 
 // ------------------------------------------------------------------ home / Movies / TV Shows
 function cardHtml(m, type, opts = {}) {
+  const tt = ttOf(m.id);
+  if (!opts.poster) {
+    const bg = m.background || (tt ? bgOf(tt) : posterOf(m));
+    return `<div class="card nv" data-type="${esc(type || m.type)}" data-id="${esc(m.id)}" title="${esc(m.name)}" tabindex="0">${bg ? `<img loading="lazy" src="${esc(bg)}" onerror="this.remove()">` : ''}<i></i>${tt ? `<img class="nl" loading="lazy" src="${esc(logoOf(tt))}" onload="this.nextElementSibling.remove()" onerror="this.remove()">` : ''}<b class="nt">${esc(m.name)}</b></div>`;
+  }
   const img = posterOf(m);
   return `<div class="card" data-type="${esc(type || m.type)}" data-id="${esc(m.id)}" title="${esc(m.name)}">
     <div class="ph">${esc(m.name)}</div>${img ? `<img loading="lazy" src="${esc(img)}" onerror="this.remove()">` : ''}${opts.top ? '<div class="tag10">TOP<br>10</div>' : ''}</div>`;
 }
 function rowHtml(title, inner, more) {
-  return `<section class="row"><h2>${esc(title)}${more ? `<small data-more="${esc(more)}">See all &#x203A;</small>` : ''}</h2>
-    <div class="strip"><button class="arrow l">&#x2039;</button><div class="track">${inner}</div><button class="arrow r">&#x203A;</button></div></section>`;
+  return `<section class="row"><h2>${esc(title)}</h2>
+    <div class="strip"><button class="arrow l">&#x2039;</button><div class="track">${inner}${more ? `<div class="card nv seeall" data-more="${esc(more)}" tabindex="0">See all</div>` : ''}</div><button class="arrow r">&#x203A;</button></div></section>`;
 }
 function wireRows(root) {
   root.querySelectorAll('.strip').forEach(s => {
@@ -427,15 +432,16 @@ async function renderHome(pg) {
   let idx = 0;
   const top = [...mv.slice(0, 5), ...sr.slice(0, 5)].sort(() => 0.5 - Math.random()).slice(0, 10);
   const genreRows = [['Action', 'movie', 'Action'], ['Laugh Out Loud', 'movie', 'Comedy'], ['Binge-worthy Crime', 'series', 'Crime'], ['Sci-Fi & Fantasy', 'movie', 'Sci-Fi'], ['Edge-of-Your-Seat Thrillers', 'movie', 'Thriller'], ['Family Movie Night', 'movie', 'Family'], ['Drama Series', 'series', 'Drama'], ['Animation', 'movie', 'Animation']];
-  pg.innerHTML = `<div id="herobox"></div>${continueRow()}
-    ${rowHtml('Top 10 Movies & Shows Today', top.map((m, i) => `<div class="top10" data-type="${m.type}" data-id="${m.id}"><div class="num">${i + 1}</div>${cardHtml(m, m.type)}</div>`).join(''))}
+  pg.innerHTML = `${bbHtml()}${continueRow()}
+    ${rowHtml('Top Movies & Shows Today', top.map(m => cardHtml(m, m.type)).join(''))}
     ${rowHtml('Popular Movies', mv.slice(0, 30).map(m => cardHtml(m, 'movie')).join(''), 'movie')}
     ${rowHtml('Popular TV Shows', sr.slice(0, 30).map(m => cardHtml(m, 'series')).join(''), 'series')}
     <div id="mylistrow"></div><div id="newrow"></div><div id="genres"></div><div style="height:60px"></div>`;
   newEpisodes().then(l => { if (l.length && $('#newrow')) { $('#newrow').innerHTML = rowHtml('New Episodes This Week', l.map(x => cardHtml(x.meta, 'series')).join('')); wireRows($('#newrow')); } });
   if (acct.mylist.length) myListItems(30).then(l => { if (l.length && $('#mylistrow')) { $('#mylistrow').innerHTML = rowHtml('My List', l.map(m => cardHtml(m, m.type)).join('')); wireRows($('#mylistrow')); } });
+  bbWire(pg, featured[0]);
   const drawHero = () => {
-    const m = featured[idx]; if (!m) return;
+    const m = featured[idx]; if (!m || !$('#herobox')) return;
     $('#herobox').innerHTML = heroHtml(m, m.type, idx, featured.length);
     $('#hplay').onclick = () => openTitle(m.type, m.id, true);
     $('#hinfo').onclick = () => openTitle(m.type, m.id);
@@ -468,7 +474,7 @@ async function renderMyList(pg) {
   pg.innerHTML = '<div class="search"><h1 style="font-size:40px;margin:0 0 24px">My List</h1><div class="grid" id="ml"><div class="spin" style="grid-column:1/-1"></div></div></div>';
   const l = await myListItems(120);
   if (current !== 'mylist' || !$('#ml')) return;
-  $('#ml').innerHTML = l.length ? l.map(m => cardHtml(m, m.type)).join('') : '<div class="empty" style="grid-column:1/-1;padding:20px 0">Nothing in My List yet. Add titles with the + My List button on a title page (here or on the TV).</div>';
+  $('#ml').innerHTML = l.length ? l.map(m => cardHtml(m, m.type, { poster: true })).join('') : '<div class="empty" style="grid-column:1/-1;padding:20px 0">Nothing in My List yet. Add titles with the + My List button on a title page (here or on the TV).</div>';
   wireRows($('#ml'));
 }
 
@@ -480,19 +486,17 @@ async function renderCategory(pg, type) {
   const m = top.find(x => x.id && x.id.startsWith('tt')) || top[0];
   const genres = type === 'movie' ? ['Action', 'Comedy', 'Drama', 'Thriller', 'Horror', 'Sci-Fi', 'Romance', 'Animation', 'Documentary', 'Family', 'Crime', 'Adventure']
     : ['Drama', 'Comedy', 'Crime', 'Action', 'Sci-Fi', 'Reality-TV', 'Animation', 'Documentary', 'Mystery', 'Fantasy'];
-  pg.innerHTML = `<div style="position:relative">${m ? heroHtml(m, type, 0, 1) : ''}<div style="position:absolute;top:44px;left:84px;display:flex;align-items:center;gap:26px;z-index:2">
-      <div style="font-size:44px;font-weight:700">${name}</div>
-      <select id="gsel" style="background:rgba(0,0,0,.6);color:#fff;border:1px solid #fff;padding:8px 14px;font-size:16px;border-radius:4px"><option value="">Genres</option>${genres.map(g => `<option>${g}</option>`).join('')}</select></div></div>
-    ${rowHtml(`Top 10 ${name} Today`, top.slice(0, 10).map((x, i) => `<div class="top10" data-type="${type}" data-id="${x.id}"><div class="num">${i + 1}</div>${cardHtml(x, type)}</div>`).join(''))}
+  pg.innerHTML = `${bbHtml()}<div class="nvgen"><span class="nvname">${name}</span>${genres.map(g => `<button data-g="${g}">${g}</button>`).join('')}</div>
+    ${rowHtml(`Top ${name} Today`, top.slice(0, 10).map(x => cardHtml(x, type)).join(''))}
     ${rowHtml('Popular ' + name, top.slice(10, 40).map(x => cardHtml(x, type)).join(''))}<div id="genres"></div><div style="height:60px"></div>`;
-  if (m) { $('#hplay').onclick = () => openTitle(type, m.id, true); $('#hinfo').onclick = () => openTitle(type, m.id); }
+  bbWire(pg, m);
   wireRows(pg);
-  $('#gsel').onchange = async e => {
-    const g = e.target.value; if (!g) return;
+  pg.querySelectorAll('.nvgen [data-g]').forEach(b => b.onclick = async () => {
+    const g = b.dataset.g; pg.querySelectorAll('.nvgen [data-g]').forEach(x => x.classList.toggle('on', x === b));
     const l = await catalog(type, 'genre=' + encodeURIComponent(g));
-    $('#genres').innerHTML = `<section class="search" style="padding-top:20px"><div class="grid"><h4>${esc(name)} · ${esc(g)}</h4>${l.map(x => cardHtml(x, type)).join('')}</div></section>`;
-    wireRows($('#genres')); $('#genres').scrollIntoView();
-  };
+    $('#genres').innerHTML = `<section class="search" style="padding-top:20px"><div class="grid"><h4>${esc(name)} · ${esc(g)}</h4>${l.map(x => cardHtml(x, type, { poster: true })).join('')}</div></section>`;
+    wireRows($('#genres')); $('#genres').scrollIntoView({ behavior: 'smooth' });
+  });
   for (const g of genres.slice(0, 8)) {
     const l = await catalog(type, 'genre=' + encodeURIComponent(g));
     if (!$('#genres') || current !== (type === 'movie' ? 'movies' : 'shows')) return;
@@ -884,6 +888,8 @@ async function renderLive(pg) {
   };
   const drawChans = () => {
     const l = live.chans.filter(c => c.cat === live.cat).slice(0, 600);
+    if (store.get('liveView', 'grid') === 'grid') return drawSplit(l);
+    $('#cg').classList.remove('lvsplit');
     $('#cg').innerHTML = l.map((c, i) => `<div class="ch" data-i="${i}"><div class="live">LIVE</div><div class="lg">${c.logo ? `<img loading="lazy" src="${esc(c.logo)}" onerror="this.outerHTML='<b>${esc(chMark(c.name)).replace(/'/g, '&#39;')}</b>'">` : `<b>${esc(chMark(c.name))}</b>`}</div><div class="nm">${esc(c.name)}</div><div class="epg"></div></div>`).join('');
     fillGuide(l, $('#cg'));
     document.querySelectorAll('#cg .ch').forEach(el => el.onclick = () => { stopPreview(); const c = l[+el.dataset.i]; play({ url: c.url, title: c.name, sub: 'Live TV', live: true, zap: l, zi: +el.dataset.i }); });
@@ -896,6 +902,32 @@ async function renderLive(pg) {
         el.onmouseleave = () => { clearTimeout(previewT); stopPreview(); };
       }
     });
+    $('#cg').scrollTop = 0;
+  };
+  const drawSplit = l => {
+    $('#cg').classList.add('lvsplit');
+    $('#cg').innerHTML = `<div class="lvlist">${l.map((c, i) => `<div class="lvr" data-i="${i}" tabindex="0"><div class="lvlg">${c.logo ? `<img loading="lazy" src="${esc(c.logo)}" onerror="this.outerHTML='<b>${esc(chMark(c.name)).replace(/'/g, '&#39;')}</b>'">` : `<b>${esc(chMark(c.name))}</b>`}</div><div class="lvt"><b>${esc(c.name)}</b><div class="epg"></div></div></div>`).join('')}</div><div class="lvpanel" id="lvp"></div>`;
+    fillGuide(l, $('#cg'));
+    const pick = i => {
+      const c = l[i]; if (!c) return; live.selCh = c.url;
+      $('#cg').querySelectorAll('.lvr').forEach(el => el.classList.toggle('sel', +el.dataset.i === i));
+      stopPreview(); clearTimeout(previewT);
+      $('#lvp').innerHTML = `<div class="lvbig"><div class="lg">${c.logo ? `<img src="${esc(c.logo)}">` : `<b>${esc(chMark(c.name))}</b>`}</div><div class="lvon" id="lvon"><span class="live">LIVE</span><b>${esc(c.name)}</b></div></div><div class="lvnext" id="lvnx"></div><button class="btn primary" id="lvplay">&#x25B6;&nbsp; Watch</button>`;
+      $('#lvplay').onclick = () => { stopPreview(); play({ url: c.url, title: c.name, sub: 'Live TV', live: true, zap: l, zi: i }); };
+      epgOf(c).then(e => {
+        if (live.selCh !== c.url || !$('#lvon')) return;
+        const now = e && e.now, nx = e && e.next;
+        if (now) $('#lvon').innerHTML = `<span class="live">LIVE</span><b>${esc(now.title || c.name)}</b><small>${esc(c.name)} · ${hm(now.start)}–${hm(now.end)}</small>`;
+        $('#lvnx').innerHTML = '<small>UP NEXT</small>' + (nx ? hm(nx.start) + ' · ' + esc(nx.title) : 'No guide data for this channel');
+      }).catch(() => {});
+      if (HOVER) previewT = setTimeout(() => { if (live.selCh === c.url && $('#lvp .lvbig')) startPreview($('#lvp .lvbig'), c); }, 1200);
+    };
+    $('#cg').querySelectorAll('.lvr').forEach(el => {
+      const i = +el.dataset.i;
+      el.onclick = () => { stopPreview(); play({ url: l[i].url, title: l[i].name, sub: 'Live TV', live: true, zap: l, zi: i }); };
+      if (HOVER) el.onmouseenter = () => { clearTimeout(drawSplit.h); drawSplit.h = setTimeout(() => pick(i), 250); };
+    });
+    pick(Math.max(0, l.findIndex(c => c.url === live.selCh)));
     $('#cg').scrollTop = 0;
   };
   $('#lf').oninput = e => drawCats(e.target.value.toLowerCase().trim());
@@ -925,7 +957,7 @@ function startPreview(el, c) {
   h.loadSource(u); h.attachMedia(v);
   h.on(Hls.Events.ERROR, (e, d) => { if (d.fatal) stopPreview(); });
   v.oncanplay = () => { v.play().catch(() => {}); v.classList.add('on'); };
-  $('.lg', el).appendChild(v);
+  ($('.lg', el) || el).appendChild(v);
   preview = { h, v };
 }
 function stopPreview() { if (!preview) return; try { preview.h.destroy(); } catch (e) {} preview.v.remove(); preview = null; }
@@ -944,7 +976,7 @@ async function scoreboard(path) {
   return ((j && j.events) || []).map(e => {
     const c = (e.competitions || [])[0] || {};
     const t = side => { const x = (c.competitors || []).find(k => k.homeAway === side) || {}; const tm = x.team || {};
-      return { name: tm.displayName || '', short: tm.shortDisplayName || tm.name || '', nick: tm.name || '', city: tm.location || '', abbr: tm.abbreviation || '', logo: tm.logo || '', score: x.score, win: x.winner }; };
+      return { name: tm.displayName || '', short: tm.shortDisplayName || tm.name || '', nick: tm.name || '', city: tm.location || '', abbr: tm.abbreviation || '', logo: tm.logo || '', color: tm.color || '', record: ((x.records || [])[0] || {}).summary || '', score: x.score, win: x.winner }; };
     const st = (e.status && e.status.type) || {};
     const nets = [...new Set([...(c.broadcasts || []).flatMap(b => b.names || []), ...((c.geoBroadcasts || []).map(g => g.media && g.media.shortName).filter(Boolean))])];
     return { id: e.id, name: e.name, date: e.date, state: st.state, detail: st.shortDetail || st.detail || '', home: t('home'), away: t('away'), nets, path };
@@ -958,6 +990,30 @@ function gameHtml(g, i) {
   return `<div class="game" data-g="${i}"><div class="top">${live ? '<span class="live">LIVE</span>' : ''}<span>${esc(when)}</span><span class="net">${esc(g.nets.join(' · '))}</span></div>${row(g.away)}${row(g.home)}</div>`;
 }
 
+const HOVER = matchMedia('(hover: hover)').matches;
+const teamCol = c => c ? '#' + String(c).replace('#', '') : '#2a3142';
+function spCard(g, i) {
+  const live = g.state === 'in', post = g.state === 'post';
+  const when = live ? g.detail : post ? 'Final' : new Date(g.date).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+  const row = t => `<div class="spt" style="background:linear-gradient(90deg,${teamCol(t.color)}dd,${teamCol(t.color)}77)">${t.logo ? `<img src="${esc(t.logo)}" onerror="this.style.visibility='hidden'">` : '<span class="nolg"></span>'}<span class="tn">${esc(t.short || t.name)}<small>${esc(t.record || '')}</small></span>${g.state !== 'pre' ? `<b>${esc(t.score || '0')}</b>` : ''}</div>`;
+  return `<div class="spc" data-g="${i}" tabindex="0"><div class="spl">${esc(g.league || '')}</div><div class="spteams">${row(g.away)}${row(g.home)}</div><div class="sps">${live ? '<span class="live">LIVE</span>' : ''}<b>${esc(when)}</b><small>${esc(g.nets.join(' · '))}</small></div></div>`;
+}
+function spPanel(g) {
+  const p = $('#spp'); if (!p) return;
+  stopPreview();
+  const live = g.state === 'in';
+  p.innerHTML = `<div class="spbig"><div class="spbg"><div style="background:linear-gradient(180deg,${teamCol(g.away.color)},#0c1018)">${g.away.logo ? `<img src="${esc(g.away.logo)}">` : ''}</div><div style="background:linear-gradient(180deg,${teamCol(g.home.color)},#0c1018)">${g.home.logo ? `<img src="${esc(g.home.logo)}">` : ''}</div></div><div class="lg" id="spv"></div>
+    <div class="spsc"><div>${[g.away, g.home].map(t => `<div class="spr">${esc(t.short || t.name)}${g.state !== 'pre' ? `<b>${esc(t.score || '0')}</b>` : ''}</div>`).join('')}</div><div class="spw">${live ? '<span class="live">LIVE</span>' : ''}<b>${esc(live ? g.detail : g.state === 'post' ? 'Final' : new Date(g.date).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }))}</b></div></div></div>
+    <div class="spinfo"><div><small>GAME</small>${esc([g.league, g.away.name + ' at ' + g.home.name].filter(Boolean).join(' · '))}</div><div><small>WATCHING ON</small><span id="spch">${esc(g.nets.join(' · ') || '—')}</span></div><button class="btn primary" id="spwatch">&#x25B6;&nbsp; ${live ? 'Watch' : 'Game options'}</button></div>`;
+  $('#spwatch').onclick = () => { stopPreview(); watchGame(g); };
+  // A live game plays muted in the big picture after a moment (Mac only; the phone keeps its data)
+  if (live && HOVER && !WEB) setTimeout(async () => {
+    if (!$('#spv') || renderSports.sel !== g.id) return;
+    try { await loadLive(); } catch (e) { return; }
+    const c = gameChannels(g)[0]; if (!c || renderSports.sel !== g.id || !$('#spv')) return;
+    $('#spch').textContent = c.name; startPreview($('#spv').parentNode, c);
+  }, 1200);
+}
 async function renderSports(pg) {
   pg.innerHTML = `<div class="sports"><h1>Sports</h1><div class="chips">${[['all', 'All']].concat(LEAGUES.map(l => [l[0], l[1]])).map(([k, l]) => `<button data-k="${k}" class="${k === sportPick ? 'on' : ''}">${l}</button>`).join('')}</div><div id="sg"><div class="spin"></div></div></div>`;
   pg.querySelectorAll('.chips button').forEach(b => b.onclick = () => { sportPick = b.dataset.k; store.set('sport', sportPick); renderSports(pg); });
@@ -968,9 +1024,21 @@ async function renderSports(pg) {
   const mine = all.filter(g => g.state !== 'post' && (followed(teamKey(g, g.home)) || followed(teamKey(g, g.away))));
   const groups = [['Your Teams', mine], ['Live Now', all.filter(g => g.state === 'in' && !mine.includes(g))], ['Coming Up', all.filter(g => g.state === 'pre' && !mine.includes(g)).sort((a, b) => new Date(a.date) - new Date(b.date))], ['Final', all.filter(g => g.state === 'post')]];
   let n = 0; const idx = [];
-  $('#sg').innerHTML = groups.filter(([, l]) => l.length).map(([h, l]) => `<h2>${h}</h2><div class="games">${l.map(g => { idx.push(g); return gameHtml(g, n++); }).join('')}</div>`).join('')
-    || '<div class="empty" style="padding:30px 0">No games today in this league.</div>';
-  $('#sg').querySelectorAll('[data-g]').forEach(el => el.onclick = () => watchGame(idx[+el.dataset.g]));
+  const listHtml = groups.filter(([, l]) => l.length).map(([h, l]) => `<h3 class="spsec">${h === 'Live Now' ? '<i></i>' : ''}${h.toUpperCase()}<small>${l.length} ${l.length === 1 ? 'game' : 'games'}</small></h3>${l.map(g => { idx.push(g); return spCard(g, n++); }).join('')}`).join('');
+  if (!listHtml) { $('#sg').innerHTML = '<div class="empty" style="padding:30px 0">No games today in this league.</div>'; return; }
+  // Split view (same as the TV): games on the left, the selected one large on the right
+  const keep = renderSports.sel;
+  $('#sg').innerHTML = `<div class="spsplit"><div class="splist">${listHtml}</div><div class="sppanel" id="spp"></div></div>`;
+  const pick = i => {
+    const g = idx[i]; if (!g) return; renderSports.sel = g.id;
+    $('#sg').querySelectorAll('.spc').forEach(el => el.classList.toggle('sel', +el.dataset.g === i));
+    spPanel(g);
+  };
+  $('#sg').querySelectorAll('.spc').forEach(el => {
+    el.onclick = () => { stopPreview(); watchGame(idx[+el.dataset.g]); };   // hover (Mac) shows it on the right, a click watches
+    if (HOVER) el.onmouseenter = () => { clearTimeout(renderSports.h); renderSports.h = setTimeout(() => pick(+el.dataset.g), 250); };
+  });
+  pick(Math.max(0, idx.findIndex(g => g.id === keep)));
   clearTimeout(renderSports.t); renderSports.t = setTimeout(() => { if (current === 'sports') renderSports(pg); }, 60000);
 }
 
@@ -1126,14 +1194,14 @@ async function runSearch(q) {
   if (!live.loaded && acct.playlist) loadLive().catch(() => {});
   if (q.length < 2) {
     const l = await catalog('movie');
-    box.innerHTML = `<h4>Top Searches</h4>` + l.slice(0, 18).map(m => cardHtml(m, 'movie')).join(''); wireRows(box); return;
+    box.innerHTML = `<h4>Top Searches</h4>` + l.slice(0, 18).map(m => cardHtml(m, 'movie', { poster: true })).join(''); wireRows(box); return;
   }
   const [mv, sr] = await Promise.all([catalog('movie', 'search=' + encodeURIComponent(q)), catalog('series', 'search=' + encodeURIComponent(q))]);
   if (($('#sq') || {}).value?.trim() !== q) return;
   const ch = live.loaded ? live.chans.filter(c => (' ' + foldName(c.name) + ' ').includes(foldName(q))).slice(0, 24) : [];
   box.innerHTML = (ch.length ? '<h4>Live TV</h4>' + ch.map((c, i) => `<div class="ch" data-ci="${i}"><div class="live">LIVE</div><div class="lg">${c.logo ? `<img src="${esc(c.logo)}" onerror="this.remove()">` : `<b>${esc(c.name.slice(0, 2))}</b>`}</div><div class="nm">${esc(c.name)}</div></div>`).join('') : '') +
-    (mv.length ? '<h4>Movies</h4>' + mv.slice(0, 24).map(m => cardHtml(m, 'movie')).join('') : '') +
-    (sr.length ? '<h4>TV Shows</h4>' + sr.slice(0, 24).map(m => cardHtml(m, 'series')).join('') : '') ||
+    (mv.length ? '<h4>Movies</h4>' + mv.slice(0, 24).map(m => cardHtml(m, 'movie', { poster: true })).join('') : '') +
+    (sr.length ? '<h4>TV Shows</h4>' + sr.slice(0, 24).map(m => cardHtml(m, 'series', { poster: true })).join('') : '') ||
     `<div class="empty" style="grid-column:1/-1;padding:20px 0">No results for "${esc(q)}".</div>`;
   wireRows(box);
   box.querySelectorAll('[data-ci]').forEach(el => el.onclick = () => { const c = ch[+el.dataset.ci]; play({ url: c.url, title: c.name, sub: 'Live TV', live: true, zap: ch, zi: +el.dataset.ci }); });
@@ -1462,7 +1530,7 @@ function multiDraw() {
   if (!multi.length) { if (box) { box.querySelectorAll('div[data-u]').forEach(t => { try { t._h && t._h.destroy(); } catch (e) {} }); box.remove(); } const mb = $('#multibar'); if (mb) mb.remove(); return; }
   if (!box) {
     box = document.createElement('div'); box.id = 'multi';
-    box.style.cssText = 'position:fixed;inset:0;z-index:82;background:#000;display:grid;gap:4px;padding:4px';
+    box.style.cssText = 'position:fixed;inset:0;z-index:82;background:#000;display:grid;gap:4px;padding:0';
     document.body.appendChild(box);
   }
   const n = multi.length; box.style.gridTemplateColumns = n === 1 ? '1fr' : '1fr 1fr'; box.style.gridTemplateRows = n <= 2 ? '1fr' : '1fr 1fr';
@@ -1472,14 +1540,14 @@ function multiDraw() {
     let t = [...box.children].find(x => x.dataset.u === m.url);
     if (!t) {
       t = document.createElement('div'); t.dataset.u = m.url;
-      t.style.cssText = 'position:relative;background:#111;overflow:hidden;border-radius:6px;outline:3px solid transparent;cursor:pointer';
+      t.style.cssText = 'position:relative;background:#111;overflow:hidden;outline:4px solid transparent;outline-offset:-4px;cursor:pointer';
       t.innerHTML = `<video muted playsinline style="width:100%;height:100%;object-fit:contain"></video><div style="position:absolute;left:10px;top:8px;right:44px;font-size:13px;font-weight:700;text-shadow:0 1px 3px #000">${esc(m.title)}<span style="display:block;font-weight:500;color:#bbb">${esc(m.sub || '')}</span></div><button class="mx" title="Close" style="position:absolute;right:8px;top:6px;width:30px;height:30px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:15px">&#x2715;</button>`;
       box.appendChild(t);
       const v = $('video', t), xt = /\/live\/[^/]+\/[^/]+\/\d+\.ts(\?|$)/.test(m.url), u = xt ? m.url.replace(/\.ts(\?|$)/, '.m3u8$1') : m.url;
       if (window.Hls && Hls.isSupported() && /m3u8/i.test(u)) { const h = new Hls({ maxBufferLength: 12, enableWorker: true }); h.loadSource(u); h.attachMedia(v); t._h = h; } else v.src = u;
       v.play().catch(() => {});
       $('.mx', t).onclick = e => { e.stopPropagation(); const k = multi.findIndex(x => x.url === m.url); if (k >= 0) multi.splice(k, 1); multiDraw(); };
-      t.onclick = () => box.querySelectorAll('div[data-u]').forEach(o => { const on = o === t; $('video', o).muted = !on; o.style.outlineColor = on ? '#E50914' : 'transparent'; });
+      t.onclick = () => box.querySelectorAll('div[data-u]').forEach(o => { const on = o === t; $('video', o).muted = !on; o.style.outlineColor = on ? '#fff' : 'transparent'; let k = $('.snd', o); if (on && !k) { k = document.createElement('span'); k.className = 'snd'; k.textContent = '♪ SOUND'; k.style.cssText = 'position:absolute;right:48px;top:8px;background:#E50914;color:#fff;font-weight:800;font-size:12px;padding:3px 8px;border-radius:5px'; o.appendChild(k); } else if (!on && k) k.remove(); });
       t.ondblclick = () => { const k = multi.findIndex(x => x.url === m.url); multi.splice(k, 1); multiDraw(); play({ url: m.url, title: m.title, sub: m.sub, live: true }); };
     }
   });
@@ -1569,7 +1637,7 @@ async function endOfTitle() {
   const g = m && (m.genres || [])[0];
   const l = g ? (await catalog(req.type, 'genre=' + encodeURIComponent(g))).filter(x => x.id !== req.id).slice(0, 6) : [];
   if (!l.length) return clear();
-  box.innerHTML = `<div class="morelike"><small>${esc(req.name)}</small><h2>More Like This</h2><div class="mlrow">${l.map(x => cardHtml(x, req.type)).join('')}</div></div>`;
+  box.innerHTML = `<div class="morelike"><small>${esc(req.name)}</small><h2>More Like This</h2><div class="mlrow">${l.map(x => cardHtml(x, req.type, { poster: true })).join('')}</div></div>`;
   box.querySelectorAll('[data-id]').forEach(c => c.onclick = () => { clear(); closePlayer(); openTitle(c.dataset.type, c.dataset.id); });
 }
 $('#pl-seek').onclick = e => { const r = e.currentTarget.getBoundingClientRect(); if (isFinite(V.duration)) V.currentTime = (e.clientX - r.left) / r.width * V.duration; };
@@ -1715,3 +1783,77 @@ async function renderCalendar(pg) {
   };
   draw();
 }
+
+// ------------------------------------------------------------------ Nuvio look (same as the TV): billboard and wide cards
+function bbHtml() { return '<div id="bb" class="bb"><div class="bbbg"></div><div class="bbin"><div class="bbk"></div><h1 class="bbt"></h1><div class="bbm"></div><p class="bbd"></p></div></div>'; }
+function bbShow(m) {
+  const b = $('#bb'); if (!b || !m) return;
+  const tt = ttOf(m.id);
+  $('.bbbg', b).style.backgroundImage = `url('${esc(m.background || (tt ? bgOf(tt) : ''))}')`;
+  $('.bbk', b).textContent = m.type === 'series' ? 'SERIES' : 'MOVIE';
+  $('.bbt', b).innerHTML = tt ? `<img src="${esc(logoOf(tt))}" alt="${esc(m.name)}" onerror="this.outerHTML='${esc(m.name).replace(/'/g, '&#39;')}'">` : esc(m.name);
+  $('.bbm', b).innerHTML = [m.genres && m.genres[0], m.runtime, m.releaseInfo || m.year].filter(Boolean).map(esc).join(' &bull; ') + (m.imdbRating ? ` <span class="imdb">IMDb</span> ${esc(m.imdbRating)}` : '');
+  $('.bbd', b).textContent = m.description || '';
+}
+function bbWire(pg, first) {
+  if (first) bbShow(first);
+  let t = null;
+  const on = async el => {
+    const c = el.closest('[data-id]'); if (!c || !c.dataset.type) return;
+    clearTimeout(t); t = setTimeout(async () => { const m = await metaOf(c.dataset.type, c.dataset.id); if (m) bbShow(Object.assign({ type: c.dataset.type }, m)); }, 220);
+  };
+  pg.addEventListener('mouseover', e => { if (e.target.closest && e.target.closest('.card.nv')) on(e.target); });
+  pg.addEventListener('focusin', e => { if (e.target.closest && e.target.closest('.card.nv')) on(e.target); });
+}
+(function nvStyle() {
+  const st = document.createElement('style');
+  st.textContent = `
+.card.nv{width:300px;aspect-ratio:16/9;border-radius:12px;background:#151a25;position:relative;overflow:hidden;flex:none;outline:3px solid transparent;transition:transform .12s}
+.card.nv>img:first-child{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.card.nv i{position:absolute;inset:0;background:linear-gradient(180deg,transparent 45%,#000c)}
+.card.nv .nl{position:absolute;left:14px;bottom:12px;max-width:62%;max-height:42%;object-fit:contain;object-position:left bottom}
+.card.nv .nt{position:absolute;left:14px;right:14px;bottom:10px;font-size:19px;font-weight:800;text-shadow:0 2px 8px #000a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card.nv:hover,.card.nv:focus{outline-color:#fff;transform:scale(1.04)}
+.card.nv.seeall{display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;cursor:pointer;background:#1a1e28}
+.bb{position:relative;height:min(46vh,460px);margin-bottom:-40px}
+.bbbg{position:absolute;right:0;top:0;width:68%;height:100%;background:center/cover no-repeat;transition:background-image .3s}
+.bbbg:after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,var(--bg,#000) 0%,rgba(0,0,0,.6) 30%,transparent 65%),linear-gradient(0deg,var(--bg,#000),transparent 45%)}
+.bbin{position:absolute;left:56px;top:44px;width:min(640px,55%)}
+.bbk{color:#bbb;font-weight:700;letter-spacing:3px;font-size:14px}
+.bbt{margin:6px 0 10px;font-size:52px;line-height:1.05}.bbt img{max-height:110px;max-width:440px;object-fit:contain;display:block}
+.bbm{color:#ddd;font-size:16px}.imdb{background:#f5c518;color:#000;font-weight:800;padding:1px 6px;border-radius:4px;font-size:12px;margin-left:6px}
+.bbd{color:#ddd;font-size:16px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.nvgen{position:relative;z-index:2;display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:56px 56px 0}
+.nvgen .nvname{font-size:30px;font-weight:800;margin-right:10px}
+.nvgen button{padding:8px 18px;border-radius:20px;border:2px solid #ffffff30;color:#ddd;font-weight:600}.nvgen button:hover,.nvgen button.on{background:#fff;color:#000;border-color:#fff}
+.row{position:relative;z-index:1}
+.spsplit{display:flex;gap:24px;align-items:flex-start}.splist{width:500px;flex:none;display:flex;flex-direction:column;gap:12px;max-height:calc(100vh - 210px);overflow:auto;padding:4px;scrollbar-width:none}
+.spsec{display:flex;align-items:center;gap:8px;font-size:15px;letter-spacing:.5px;margin:10px 0 0}.spsec i{width:9px;height:9px;border-radius:50%;background:#E50914}.spsec small{margin-left:auto;color:#999;font-weight:500}
+.spc{display:flex;border-radius:14px;overflow:hidden;background:#141a26;height:92px;cursor:pointer;outline:3px solid transparent;flex:none}.spc.sel,.spc:hover{outline-color:#5aa0ff}
+.spl{width:52px;display:flex;align-items:center;justify-content:center;background:#0d1119;color:#bbb;font-size:11px;font-weight:800;text-align:center}
+.spteams{flex:1;display:flex;flex-direction:column;min-width:0}.spt{flex:1;display:flex;align-items:center;gap:10px;padding:0 12px}.spt img,.spt .nolg{width:26px;height:26px;object-fit:contain}
+.spt .tn{flex:1;font-weight:700;font-size:17px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.spt small{display:block;font-size:11px;color:#ffffffaa;font-weight:500}.spt b{font-size:22px}
+.sps{width:130px;padding:0 12px;display:flex;flex-direction:column;justify-content:center;background:#10151f;font-size:15px}.sps small{color:#999;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sps .live{align-self:flex-start;position:static}
+.sppanel{flex:1;min-width:0;position:sticky;top:0}.spbig{position:relative;aspect-ratio:16/9;border-radius:16px;overflow:hidden;background:#0c1018}
+.spbg{position:absolute;inset:0;display:flex}.spbg>div{flex:1;display:flex;align-items:center;justify-content:center}.spbg img{width:38%;max-width:180px}
+.spbig .lg{position:absolute;inset:0}.spbig video.pv{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .4s}.spbig video.pv.on{opacity:1}
+.spsc{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:flex-end;padding:60px 24px 18px;background:linear-gradient(0deg,#000d,transparent)}.spsc>div:first-child{flex:1}
+.spr{font-size:30px;font-weight:800}.spr b{margin-left:14px;font-size:36px}.spw{text-align:right;font-size:20px}.spw .live{position:static;display:inline-block}.spw b{display:block}
+.spinfo{display:flex;gap:14px;margin-top:14px;align-items:stretch}.spinfo>div{flex:1;background:#141a26;border-radius:14px;padding:12px 16px;font-size:15px}.spinfo small{display:block;color:#999;font-weight:700;letter-spacing:1px;font-size:11px;margin-bottom:4px}
+.chgrid.lvsplit{display:flex !important;gap:24px;align-items:flex-start;overflow:hidden}
+.lvlist{width:460px;flex:none;display:flex;flex-direction:column;gap:10px;max-height:calc(100vh - 120px);overflow:auto;padding:4px;scrollbar-width:none}
+.lvr{display:flex;gap:12px;align-items:center;background:#141a26;border-radius:12px;padding:10px;cursor:pointer;outline:3px solid transparent;flex:none}.lvr.sel,.lvr:hover{outline-color:#5aa0ff}
+.lvlg{width:96px;height:56px;border-radius:8px;background:#0d1119;display:flex;align-items:center;justify-content:center;flex:none;overflow:hidden}.lvlg img{max-width:84%;max-height:80%;object-fit:contain}
+.lvt{min-width:0;flex:1}.lvt>b{display:block;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lvt .epg{font-size:12px;color:#aaa}
+.lvpanel{flex:1;min-width:0;display:flex;flex-direction:column;gap:14px}.lvbig{position:relative;aspect-ratio:16/9;border-radius:16px;overflow:hidden;background:#0c1018}
+.lvbig .lg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}.lvbig .lg img{max-width:30%;max-height:40%;object-fit:contain}.lvbig video.pv{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .4s}.lvbig video.pv.on{opacity:1}
+.lvon{position:absolute;left:0;right:0;bottom:0;padding:60px 22px 18px;background:linear-gradient(0deg,#000d,transparent)}.lvon b{display:block;font-size:28px;margin-top:6px}.lvon small{color:#ccc;font-size:15px}.lvon .live{position:static;display:inline-block}
+.lvnext{background:#141a26;border-radius:14px;padding:12px 16px;font-size:15px;min-height:20px}.lvnext small{display:block;color:#999;font-weight:700;letter-spacing:1px;font-size:11px;margin-bottom:4px}
+#lvplay,#spwatch{align-self:flex-start}
+@media (max-width: 820px), (hover: none) and (pointer: coarse){
+.card.nv{width:220px}.bb{height:300px;margin-bottom:-30px}.bbbg{width:100%;opacity:.55}.bbin{left:16px;right:16px;top:auto;bottom:50px;width:auto}.bbt{font-size:30px}.bbt img{max-height:64px;max-width:240px}.bbd{-webkit-line-clamp:2;font-size:14px}
+.nvgen{padding:40px 14px 0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.nvgen button{flex:none}.nvgen .nvname{font-size:22px;flex:none}
+.spsplit{flex-direction:column-reverse}.splist{width:100%;max-height:none}.sppanel{position:static;width:100%}.spr{font-size:20px}.spr b{font-size:24px}.spinfo{flex-wrap:wrap}.spinfo>div{flex:1 1 100%}
+.chgrid.lvsplit{flex-direction:column-reverse}.lvlist{width:100%;max-height:none}.lvon b{font-size:20px}}`;
+  document.head.appendChild(st);
+})();
