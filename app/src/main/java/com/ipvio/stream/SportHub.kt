@@ -74,11 +74,11 @@ object SportFeed {
     fun interval(l: SportData.League, games: List<SportData.Game>): Long {
         val now = System.currentTimeMillis() / 1000
         return when {
-            // Live: every 12 s, so scores and the clock stay close to the broadcast
+            // Live: every 3 s (ESPN's own feed moves every few seconds), so scores and the clock match the broadcast
             games.any { it.state == 1 } -> when (l.kind) {
-                SportData.KIND_GOLF, SportData.KIND_CRICKET -> 60_000L
-                SportData.KIND_FIGHT -> 30_000L
-                else -> 8_000L
+                SportData.KIND_GOLF, SportData.KIND_CRICKET -> 30_000L
+                SportData.KIND_FIGHT -> 15_000L
+                else -> 3_000L
             }
             // About to start, or past its start time but not reported live yet (ESPN switches a little late): every 20 s
             games.any { it.state == 0 && it.start - now in -1800..900 } -> 20_000L
@@ -202,8 +202,8 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                 value = SportFeed.State(all, fresh.size, ls.size, fresh.size == ls.size && all.isEmpty() && !SportData.lastOk)
                 dirty = false
             }
-            // Score updates redraw the whole page: wait for a pause in remote presses (at most 3 s late)
-            launch { var held = 0; while (true) { delay(400); if (dirty) { if (Busy.active() && held < 7) held++ else { held = 0; publish() } } } }
+            // Score updates redraw the whole page: wait for a pause in remote presses (at most about 1 s late)
+            launch { var held = 0; while (true) { delay(300); if (dirty) { if (Busy.active() && held < 3) held++ else { held = 0; publish() } } } }
             val sigs = java.util.concurrent.ConcurrentHashMap<String, Int>()
             // Leagues that can have a game on right now (by the saved schedule, or never loaded) and the top leagues are asked
             // first; the rest waits until they answered (at most 4 s), so live games are not queued behind 60 quiet leagues
@@ -221,7 +221,7 @@ fun SportHub(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     if (l.path !in first) withTimeoutOrNull(4_000) { firstDone.await() }
                     var once = l.path in first
                     while (true) {
-                        val r = SportData.fetch(l, SportData.ymd(0, General.zone()), 8_000)
+                        val r = SportData.fetch(l, SportData.ymd(0, General.zone()), 2_500)
                         // Nothing changed in this league (same games, states, scores, clocks): no redraw of the page
                         val sig = r.fold(r.size) { h, x -> 31 * h + (x.key + x.state + x.away.score + x.home.score + x.detail).hashCode() }
                         val changed = sigs.put(l.path, sig) != sig

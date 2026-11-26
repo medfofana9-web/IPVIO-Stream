@@ -1,6 +1,9 @@
 package com.ipvio.stream
 
 import android.content.Context
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -171,6 +174,12 @@ object SportAlerts {
 @Composable
 fun SportAlertHost() {
     val a = SportAlerts.current
+    val cg = a?.game
+    if (a != null && cg != null && (a.title == "Close game" || a.title == "Overtime")) {
+        CloseGameCard(a, cg)
+        if (SportAlerts.preview) MiniScoreOverlay(preview = true)
+        return
+    }
     if (a != null) Box(Modifier.fillMaxSize().padding(top = 28.dp, end = 36.dp), contentAlignment = Alignment.TopEnd) {
         Column(
             Modifier.widthIn(max = 460.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xF21C1C1C))
@@ -296,3 +305,60 @@ private fun MiniTeam(t: SportData.Team, names: Boolean, k: Float, left: Boolean)
 }
 
 private fun Modifier.androidx_size(s: androidx.compose.ui.unit.Dp): Modifier = this.then(Modifier.size(s))
+
+
+/**
+ * Close-game alert (Option A): a card in the top right with both teams in their colors, the score, period and clock,
+ * and what OK and Back do. Closes by itself after 12 s (the red line counts down); Back closes it at once.
+ */
+@Composable
+private fun CloseGameCard(a: SportAlerts.Alert, g0: SportData.Game) {
+    val g = SportFeed.latest[g0.key] ?: g0
+    androidx.activity.compose.BackHandler(enabled = AppNav.playing) { SportAlerts.current = null }
+    val left = androidx.compose.runtime.remember(a) { androidx.compose.animation.core.Animatable(1f) }
+    androidx.compose.runtime.LaunchedEffect(a) { left.animateTo(0f, androidx.compose.animation.core.tween(12_000, easing = androidx.compose.animation.core.LinearEasing)) }
+    val shape = RoundedCornerShape(20.dp)
+    Box(Modifier.fillMaxSize().padding(top = 36.dp, end = 40.dp), contentAlignment = Alignment.TopEnd) {
+        Column(Modifier.width(600.dp).clip(shape).background(Color(0xF210141C)).border(1.dp, Color(0x22FFFFFF), shape)) {
+            androidx.compose.foundation.layout.Row(
+                Modifier.fillMaxWidth().background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(teamColor(g.away).copy(alpha = .9f), teamColor(g.home).copy(alpha = .35f))))
+                    .padding(horizontal = 18.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Box(Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFFE50914)).padding(horizontal = 7.dp, vertical = 2.dp)) {
+                    Text(raw = true, text = a.title.uppercase(), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
+                }
+                Text(raw = true, text = listOf(g.league, g.detail, g.tv.ifBlank { g.nets.joinToString(" · ") }).filter { it.isNotBlank() }.joinToString(" · "),
+                    color = Color(0xFFDDDDDD), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                TeamLogo(g.away.logo, g.away.abbr, 54.dp)
+                Column(Modifier.padding(start = 12.dp).weight(1f)) {
+                    Text(raw = true, text = g.away.short, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (SportFavs.has(g.away)) Text(raw = true, text = "Your team", color = Color(0xFFAAAAAA), fontSize = 12.sp)
+                }
+                if (!SportPrefs.hideScores) {
+                    Text(raw = true, text = g.away.score.orEmpty(), color = Color.White, fontSize = 42.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(raw = true, text = "  –  ", color = Color(0xFF777777), fontSize = 26.sp)
+                    Text(raw = true, text = g.home.score.orEmpty(), color = Color.White, fontSize = 42.sp, fontWeight = FontWeight.ExtraBold)
+                } else Text(raw = true, text = "at", color = Color(0xFF999999), fontSize = 20.sp)
+                Column(Modifier.padding(end = 12.dp).weight(1f), horizontalAlignment = Alignment.End) {
+                    Text(raw = true, text = g.home.short, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (SportFavs.has(g.home)) Text(raw = true, text = "Your team", color = Color(0xFFAAAAAA), fontSize = 12.sp)
+                }
+                TeamLogo(g.home.logo, g.home.abbr, 54.dp)
+            }
+            androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(Modifier.weight(1f).clip(RoundedCornerShape(50)).background(Color.White).padding(vertical = 11.dp), contentAlignment = Alignment.Center) {
+                    Text(raw = true, text = if (AppNav.playing) "OK  ▶ Switch to game" else "Open Sports to watch", color = Color.Black, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                }
+                Box(Modifier.clip(RoundedCornerShape(50)).background(Color(0x1FFFFFFF)).padding(horizontal = 20.dp, vertical = 11.dp), contentAlignment = Alignment.Center) {
+                    Text(raw = true, text = "BACK  Not now", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            Box(Modifier.fillMaxWidth().height(4.dp).background(Color(0x1AFFFFFF))) {
+                Box(Modifier.fillMaxWidth(left.value).height(4.dp).background(Color(0xFFE50914)))
+            }
+        }
+    }
+}

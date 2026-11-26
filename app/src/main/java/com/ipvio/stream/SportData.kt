@@ -455,7 +455,7 @@ object SportData {
     private fun urlFor(l: League, ymd: String?): String = when (l.kind) {
         KIND_CRICKET -> "https://site.web.api.espn.com/apis/v2/scoreboard/header?sport=cricket"
         // The changing last parameter (10-second step) gets a fresh answer past ESPN's edge cache, so live scores never lag
-        KIND_TEAM -> "https://site.api.espn.com/apis/site/v2/sports/${l.path}/scoreboard?dates=$ymd&_=" + System.currentTimeMillis() / 5_000
+        KIND_TEAM -> "https://site.api.espn.com/apis/site/v2/sports/${l.path}/scoreboard?dates=$ymd&_=" + System.currentTimeMillis() / 2_000
         // Tennis, F1, UFC, golf: the scoreboard shows the current events; days are filtered afterwards
         else -> "https://site.api.espn.com/apis/site/v2/sports/${l.path}/scoreboard"
     }
@@ -491,6 +491,7 @@ object SportData {
         if (l.kind == KIND_TEAM) emptyList() else load(l, l.path + "|now", null, maxAgeMs)
     }
 
+    private val diskAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
     private fun load(l: League, key: String, ymd: String?, maxAgeMs: Long): List<Game> {
         val now = System.currentTimeMillis()
         val hit = synchronized(cache) { cache[key] }
@@ -501,7 +502,8 @@ object SportData {
                 if (!r.isSuccessful) { lastOk = false; return hit?.second ?: emptyList() }
                 val body = r.body?.string().orEmpty()
                 val g = parse(body, l)
-                runCatching { diskFile(key)?.writeText(body) }
+                // The saved copy is only for a fast first paint after a restart: once a minute is plenty (live polling is every 3 s)
+                if (now - (diskAt[key] ?: 0L) > 60_000L) { diskAt[key] = now; runCatching { diskFile(key)?.writeText(body) } }
                 synchronized(cache) {
                     if (cache.size > 300) cache.clear()
                     cache[key] = now to g

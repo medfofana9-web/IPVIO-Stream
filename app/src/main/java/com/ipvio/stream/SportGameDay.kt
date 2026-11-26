@@ -105,7 +105,7 @@ object GameDay {
                 val wanted = reminders.map { it.substringBefore('|') }.toSet()
                 val leagues = SportData.LEAGUES.filter { it.kind == SportData.KIND_TEAM && SportLeagues.on(it) &&
                     (it.name in wanted || ((closeAlerts || autoTeams) && it.name in LEAGUES)) }
-                val games = leagues.flatMap { l -> runCatching { SportData.fetch(l, ymd, 40_000) }.getOrDefault(emptyList()) }
+                val games = leagues.flatMap { l -> runCatching { SportData.fetch(l, ymd, 8_000) }.getOrDefault(emptyList()) }
                 withContext(Dispatchers.Main) { SportFeed.put(games) }
                 val now = System.currentTimeMillis() / 1000
                 // My teams with auto-tune on count like a reminder, once per game, only right at the start (not mid-game)
@@ -129,12 +129,13 @@ object GameDay {
                 }
                 // Close games in the last minutes (once per game)
                 // Close-game alerts: NBA only (Fof TV)
-                if (closeAlerts) for (g in games) if (g.league == "NBA" && g.key !in alerted && GameDayLogic.isClose(g)) {
+                if (closeAlerts) for (g in games.sortedByDescending { SportFavs.isFavGame(it) }) if (g.key !in alerted && GameDayLogic.isClose(g)) {
                     alerted.add(g.key)
                     show(SportAlerts.Alert(if (g.statusName.contains("OVERTIME") || g.detail.contains("OT")) "Overtime" else "Close game", line(g), g))
                 }
             }
-            delay(if (reminders.isNotEmpty() || closeAlerts) 45_000L else 120_000L)
+            // Close-game alerts need the score within seconds: every 10 s while a game is live, else every 45 s
+            delay(if (closeAlerts && SportFeed.latest.values.any { it.state == 1 }) 10_000L else if (reminders.isNotEmpty() || closeAlerts) 45_000L else 120_000L)
         }
     }
 }

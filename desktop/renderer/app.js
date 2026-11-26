@@ -1037,8 +1037,12 @@ const LEAGUES = [
 ];
 let sportPick = store.get('sport', 'all');
 
-async function scoreboard(path) {
-  const j = await getJson(`https://site.api.espn.com/apis/site/v2/sports/${path}/scoreboard`, 45 * 1000).catch(() => null);
+async function scoreboard(path, live) {
+  // live: a fresh answer past ESPN's edge cache (2-second step), for the score loop while games are on
+  const u = `https://site.api.espn.com/apis/site/v2/sports/${path}/scoreboard`;
+  // Live answers are not kept in the page cache (a new address every 2 s would pile up in memory)
+  const j = live ? await fetch(u + '?_=' + Math.floor(Date.now() / 2000), { credentials: 'omit', referrerPolicy: 'no-referrer' }).then(r => r.ok ? r.json() : null).catch(() => null)
+    : await getJson(u, 45 * 1000).catch(() => null);
   return ((j && j.events) || []).map(e => {
     const c = (e.competitions || [])[0] || {};
     const t = side => { const x = (c.competitors || []).find(k => k.homeAway === side) || {}; const tm = x.team || {};
@@ -1192,6 +1196,25 @@ async function renderSports(pg) {
   });
   $('.pinadd', $('#sg')).onclick = () => pinPicker(() => renderSports(pg));
   pick(Math.max(0, idx.findIndex(g => g.id === keep)));
+  // Live scores every 3 s, written into the cards and the big panel in place (no redraw: hover and the preview keep going)
+  renderSports.idx = idx; clearInterval(renderSports.live);
+  renderSports.live = setInterval(async () => {
+    if (current !== 'sports' || !$('#sg')) { clearInterval(renderSports.live); return; }
+    const L = renderSports.idx || [], paths = [...new Set(L.filter(g => g.state === 'in').map(g => g.path))];
+    if (!paths.length || document.hidden) return;
+    const fresh = {}; (await Promise.all(paths.map(p => scoreboard(p, true)))).flat().forEach(g => fresh[g.id] = g);
+    L.forEach((g, i) => {
+      const f = fresh[g.id]; if (!f) return;
+      Object.assign(g.home, { score: f.home.score }); Object.assign(g.away, { score: f.away.score }); g.detail = f.detail; g.state = f.state;
+      const el = $('#sg') && $('#sg').querySelector(`.spc[data-g="${i}"]`); if (!el) return;
+      const bs = el.querySelectorAll('.spt b'); if (bs[0]) bs[0].textContent = f.away.score || '0'; if (bs[1]) bs[1].textContent = f.home.score || '0';
+      const w = el.querySelector('.sps b'); if (w) w.textContent = f.state === 'post' ? 'Final' : f.detail;
+      if (renderSports.sel === g.id && $('#spp')) {
+        const ps = $('#spp').querySelectorAll('.spr b'); if (ps[0]) ps[0].textContent = f.away.score || '0'; if (ps[1]) ps[1].textContent = f.home.score || '0';
+        const pw = $('#spp').querySelector('.spw b'); if (pw) pw.textContent = f.state === 'post' ? 'Final' : f.detail;
+      }
+    });
+  }, 3000);
   clearTimeout(renderSports.t); renderSports.t = setTimeout(() => { if (current === 'sports') renderSports(pg); }, 60000);
 }
 

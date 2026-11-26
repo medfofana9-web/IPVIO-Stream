@@ -210,7 +210,7 @@ fun BoxScope.SportPlayerOverlay() {
                 }.getOrNull()
                 if (!fresh.isNullOrEmpty()) SportFeed.put(fresh)
             }
-            delay(if ((SportFeed.latest[gameKey] ?: cur).state == 1) 8_000L else 30_000L)
+            delay(if ((SportFeed.latest[gameKey] ?: cur).state == 1) 4_000L else 30_000L)
         }
     }
     var tick by remember { mutableIntStateOf(0) }
