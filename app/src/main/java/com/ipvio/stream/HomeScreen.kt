@@ -510,10 +510,11 @@ fun HomeScreen(
     // Info at the top only for the normal title rows (from "Top 10 today" or "Newly added"), not for tiles, Live TV, Continue watching,
     // My list and Recently watched. And only if the row is low enough not to cover the info.
     val listTop = remember { floatArrayOf(0f) }
-    val noBb = remember { setOf("hero", "top", "tiles", "resume", "chnow", "hero1", "hero2", "top1", "top2", "res1", "res2", "wl1", "wl2", "hr1", "hr2", "hint1", "hint2") }
+    // Nuvio look: Continue Watching shows its title at the top too
+    val noBb = remember(FofPrefs.cleanLook) { setOf("hero", "top", "tiles", "chnow", "hero1", "hero2", "top1", "top2", "wl1", "wl2", "hr1", "hr2", "hint1", "hint2") + (if (FofPrefs.cleanLook) emptySet() else setOf("resume", "res1", "res2")) }
     val bbOnState = remember(tab) {
         derivedStateOf {
-            if (!bbTab || FofPrefs.cleanLook || !Billboard.cardFocus || Billboard.focused == null) return@derivedStateOf false
+            if (!bbTab || !Billboard.cardFocus || Billboard.focused == null) return@derivedStateOf false
             val co = Billboard.focusCo
             if (co == null || !co.isAttached) return@derivedStateOf false
             val li = bbState.layoutInfo
@@ -544,9 +545,9 @@ fun HomeScreen(
     // Read only in draw / layer lambdas and in BillboardLayer (no recomposition per animation frame)
     val bbA: () -> Float = remember(bbAnim) { { bbAnim.value } }
     // Clean look: the selected row settles in the upper third (like Nuvio); billboard mode keeps it in the middle
-    val pivotSpec = remember(tab, FofPrefs.cleanLook) { PivotSpec(if (FofPrefs.cleanLook) 0.3f else 0.5f) { states[tab.coerceIn(0, states.lastIndex)] } }
+    val pivotSpec = remember(tab, FofPrefs.cleanLook) { PivotSpec(if (FofPrefs.cleanLook) 0.45f else 0.5f) { states[tab.coerceIn(0, states.lastIndex)] } }
     Box(Modifier.fillMaxSize()) {
-        if (bbTab && !FofPrefs.cleanLook) BillboardLayer(bbA, bbItemState, Modifier.padding(start = SideStart + dpx(56), top = dpx(64) + (if (SidebarPrefs.pos == SidebarPrefs.TOP) TopBarH else 0.dp)))
+        if (bbTab) BillboardLayer(bbA, bbItemState, Modifier.padding(start = SideStart + dpx(56), top = dpx(64) + (if (SidebarPrefs.pos == SidebarPrefs.TOP) TopBarH else 0.dp)))
         // Keep watching: something played in the last hour (here, on the Mac or another TV) – one press resumes it
         if (tab == 0) {
             val kw = remember(resumeList) {
@@ -595,7 +596,7 @@ fun HomeScreen(
                     androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides (if (bbTab) pivotSpec else SmoothSpec)
                 ) { LazyColumn(Modifier.fillMaxSize().onGloballyPositioned { listTop[0] = it.positionInRoot().y }.drawWithContent {
                     // While the info is at the top (also while fading out): everything above the selected row is gone, the big picture always.
-                    val ct = if (bbTab && !FofPrefs.cleanLook && bbA() > 0.01f) {
+                    val ct = if (bbTab && bbA() > 0.01f) {
                         val li = states[tab].layoutInfo
                         val co = Billboard.focusCo
                         var edge = size.height * 0.5f - dpx(140).toPx()
@@ -618,8 +619,12 @@ fun HomeScreen(
                                     Text("Bearbeiten: Über jeder Reihe kannst du sie verschieben oder ausblenden.", color = Muted, fontSize = 15.sp)
                                 }
                             }
-                            if (ready.isNotEmpty() && HomeLayout.shown("hero")) item(key = "hero") { Hero(ready.toList(), heroH, true, onOpen, heroPlay, header, { heroScroll(states[0]) }) { scope.launch { states[0].animateScrollToItem(0) } } }
-                            else item(key = "top") { header(Modifier) }
+                            if (ready.isNotEmpty() && HomeLayout.shown("hero") && !FofPrefs.cleanLook) item(key = "hero") { Hero(ready.toList(), heroH, true, onOpen, heroPlay, header, { heroScroll(states[0]) }) { scope.launch { states[0].animateScrollToItem(0) } } }
+                            else {
+                                item(key = "top") { header(Modifier) }
+                                // Nuvio look: room at the top for the selected title (info and picture), rows start below it
+                                if (FofPrefs.cleanLook) item(key = "nvspace") { Spacer(Modifier.height(dpx(300))) }
+                            }
                             val wl = wlVod
                             for (blockId in HomeLayout.order) {
                                 if (blockId == "hero") continue
@@ -627,7 +632,7 @@ fun HomeScreen(
                                 if (editing) item(key = "eb$blockId") { HomeEditBar(ctx, blockId) }
                                 if (!HomeLayout.shown(blockId)) continue
                                 when (blockId) {
-                                    "tiles" -> { item(key = "tiles") { QuickTiles(tiles) } }
+                                    "tiles" -> { if (!FofPrefs.cleanLook) item(key = "tiles") { QuickTiles(tiles) } }
                                     "stremio" -> {
                                         // Kids profile: rows made for kids first (the other rows keep only their family titles)
                                         if (KidsMode.on) listOf(
@@ -1084,14 +1089,16 @@ private fun WideCard(item: Item, sub: String?, progress: Float, modifier: Modifi
     val img = m?.backdrop ?: m?.poster ?: item.logo
     Column(modifier.graphicsLayer { scaleX = sc; scaleY = sc }.billboardFocus(item) { f = it }.clickable(onClick = onClick)) {
         Box(
-            Modifier.fillMaxWidth().aspectRatio(16f / 9f).focusGlow(f, shape).clip(shape)
+            (if (FofPrefs.cleanLook) Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(shape).background(Surf2)
+                .then(if (f) Modifier.border(3.dp, Color.White, shape) else Modifier)
+            else Modifier.fillMaxWidth().aspectRatio(16f / 9f).focusGlow(f, shape).clip(shape)
                 .background(Brush.linearGradient(listOf(colorFor(item).copy(alpha = .75f), Surf2)))
-                .border(1.dp, FofGlass.edge(false), shape)
+                .border(1.dp, FofGlass.edge(false), shape))
         ) {
             if (img != null) AsyncImage(img, item.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xDD000000))))
-            AppIcon(AIcon.Play, Color.White, Modifier.align(Alignment.Center), 30.dp)
-            Text(raw = true, text = item.title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            if (!FofPrefs.cleanLook) AppIcon(AIcon.Play, Color.White, Modifier.align(Alignment.Center), 30.dp)
+            Text(raw = true, text = item.title, color = Color.White, fontSize = if (FofPrefs.cleanLook) spx(22) else 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.align(Alignment.BottomStart).padding(start = 12.dp, end = 12.dp, bottom = if (progress > 0f) 14.dp else 10.dp))
             if (progress > 0f) Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(5.dp).background(Color(0x66FFFFFF))) {
                 Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Accent2))

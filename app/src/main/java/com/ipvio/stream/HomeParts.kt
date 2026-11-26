@@ -584,6 +584,24 @@ fun LandscapeCard(item: Item, modifier: Modifier, onClick: () -> Unit) {
     val rowF = LocalRowFocus.current
     val dimA by animateFloatAsState(if (rowF && !f && !FofPrefs.cleanLook) 0.5f else 1f, tween(if (Look.motion == 0) 0 else 320), label = "dim")
     val img = m?.backdrop?.let { cardBackdrop(it) } ?: m?.poster?.let { cardPoster(it) } ?: item.logo
+    if (FofPrefs.cleanLook) {
+        val ns by animateFloatAsState(if (f) focusScale(1.06f) else 1f, if (Look.motion == 0) snap() else tween(120), label = "nv")
+        Box(
+            modifier.aspectRatio(16f / 9f).graphicsLayer { scaleX = ns; scaleY = ns }.clip(shape).background(Surf2)
+                .then(if (f) Modifier.border(3.dp, Color.White, shape) else Modifier)
+                .billboardFocus(item) { f = it }
+                .trackFocus()
+                .clickable(onClick = onClick)
+        ) {
+            if (img == null) ArtPlaceholder(item, Modifier.fillMaxSize(), showTitle = false)
+            else AsyncImage(img, item.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color(0xCC000000))))
+            Text(raw = true, text = item.title, color = Color.White, fontSize = spx(22), fontWeight = FontWeight.ExtraBold, maxLines = 2,
+                overflow = TextOverflow.Ellipsis, lineHeight = spx(24),
+                modifier = Modifier.align(Alignment.BottomStart).padding(start = dpx(14), end = dpx(14), bottom = dpx(12)))
+        }
+        return
+    }
     Box(
         modifier.aspectRatio(1.55f).graphicsLayer { scaleX = s; scaleY = s }.focusGlow(f, shape).clip(shape)
             .background(Brush.linearGradient(listOf(colorFor(item).copy(alpha = .75f), Surf2)))
@@ -654,6 +672,7 @@ fun CardRow(
     }
     val g = LocalCardGrid.current
     val live = list.firstOrNull()?.kind == Kind.LIVE
+    @Suppress("NAME_SHADOWING") val style = if (FofPrefs.cleanLook && !live) CARD_LAND else style
     val visibleCards = remember(list) { list.take(60) }
     val duplicateCardIds = remember(visibleCards) {
         visibleCards.groupingBy { it.id }.eachCount().filterValues { it > 1 }.keys
@@ -978,6 +997,7 @@ fun PreviewQualityBadge(q: String) {
 fun CardGridRows(list: List<Item>, style: Int, firstReq: FocusRequester?, onOpen: (Item) -> Unit) {
     val g = LocalCardGrid.current
     val live = list.firstOrNull()?.kind == Kind.LIVE
+    @Suppress("NAME_SHADOWING") val style = if (FofPrefs.cleanLook && !live) CARD_LAND else style
     // same column count as cardGrid ("Ansicht" button)
     val sz = General.cardSize.coerceIn(0, 2)
     val perRow = if (style == CARD_LAND || live) intArrayOf(7, 5, 4)[sz] else intArrayOf(9, 7, 5)[sz]
