@@ -3,6 +3,7 @@ package com.ipvio.stream
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -68,11 +69,15 @@ internal fun SportSplit(games0: List<SportData.Game>, hub: HubCtx) {
         delay(1_200)
         preview = runCatching { withContext(Dispatchers.Default) { SportWatch.startupChannels(ctx, g, hub.live) }.firstOrNull() }.getOrNull()
     }
-    fun open(g: SportData.Game) {
+    // OK: the game's sources to pick from (same as the Mac and phone: this game, team channels, national TV; the one you
+    // picked before comes first). Hold OK: start the best source right away.
+    fun open(g: SportData.Game, best: Boolean = false) {
         // Free the preview's connection first: many providers allow only one stream at a time
         preview = null
-        scope.launch { delay(250); if (g.state == 1) hub.watch(g) else hub.open(g) }
+        scope.launch { delay(250); if (g.state != 1) hub.open(g) else if (best) hub.watch(g) else hub.nav.open(HubPage.Watch(g)) }
     }
+    // The channel index is built as soon as the page opens, so the sources list and the preview come up at once
+    LaunchedEffect(hub.live) { withContext(Dispatchers.Default) { runCatching { SportWatch.prewarm(hub.live) } } }
     if (games.isEmpty()) { HubLoading("Loading games…"); return }
     Row(Modifier.fillMaxSize().padding(start = DS.PageX, end = DS.PageX, top = dpx(8)), horizontalArrangement = Arrangement.spacedBy(dpx(26))) {
         LazyColumn(Modifier.width(dpx(560)).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(dpx(12)), contentPadding = PaddingValues(top = dpx(4), bottom = dpx(60))) {
@@ -88,7 +93,7 @@ internal fun SportSplit(games0: List<SportData.Game>, hub: HubCtx) {
                 }
                 items(l, key = { key + "|" + it.key }) { g ->
                     SplitGameCard(SportFeed.latest[g.key] ?: g, playing = preview != null && shown?.key == g.key,
-                        onFocus = { sel = g }) { open(g) }
+                        onFocus = { sel = g }, onLong = { open(g, best = true) }) { open(g) }
                 }
             }
             section("live", "LIVE NOW", liveG, true)
@@ -133,14 +138,15 @@ internal fun SportSplit(games0: List<SportData.Game>, hub: HubCtx) {
             if (g != null) Row(horizontalArrangement = Arrangement.spacedBy(dpx(14))) {
                 InfoPanel("GAME", listOf(g.league, g.venue, g.away.name + " at " + g.home.name).filter { it.isNotBlank() }.joinToString(" · "), Modifier.weight(1f))
                 InfoPanel("WATCHING ON", (preview?.title ?: g.tv.ifBlank { g.nets.joinToString(" · ") }).ifBlank { "Finding a channel…" } +
-                    if (g.state == 1) "\nOK: watch full screen" else "\nOK: game page", Modifier.width(dpx(300)))
+                    if (g.state == 1) "\nOK: pick a source · hold OK: play the best" else "\nOK: game page", Modifier.width(dpx(300)))
             }
         }
     }
 }
 
 @Composable
-private fun SplitGameCard(g: SportData.Game, playing: Boolean, onFocus: () -> Unit, onClick: () -> Unit) {
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+private fun SplitGameCard(g: SportData.Game, playing: Boolean, onFocus: () -> Unit, onLong: () -> Unit, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(dpx(14))
     Row(
@@ -148,7 +154,7 @@ private fun SplitGameCard(g: SportData.Game, playing: Boolean, onFocus: () -> Un
             .border(3.dp, if (f) Color(0xFF5AA0FF) else Color.Transparent, shape)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
             .trackFocus()
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLong)
     ) {
         Box(Modifier.width(dpx(52)).fillMaxHeight().background(Color(0xFF0D1119)), contentAlignment = Alignment.Center) {
             TeamLogo(SportData.leagueOf(g)?.let { SportData.leagueLogos[it.path] }, g.league, dpx(30))

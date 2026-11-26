@@ -1015,6 +1015,7 @@ function spPanel(g) {
   }, 1200);
 }
 async function renderSports(pg) {
+  if (acct.playlist) loadLive().catch(() => {});
   pg.innerHTML = `<div class="sports"><h1>Sports</h1><div class="chips">${[['all', 'All']].concat(LEAGUES.map(l => [l[0], l[1]])).map(([k, l]) => `<button data-k="${k}" class="${k === sportPick ? 'on' : ''}">${l}</button>`).join('')}</div><div id="sg"><div class="spin"></div></div></div>`;
   pg.querySelectorAll('.chips button').forEach(b => b.onclick = () => { sportPick = b.dataset.k; store.set('sport', sportPick); renderSports(pg); });
   const ls = sportPick === 'all' ? LEAGUES : LEAGUES.filter(l => l[0] === sportPick);
@@ -1105,11 +1106,16 @@ async function watchGame(g) {
   document.addEventListener('keydown', esck); bg.onclick = e => { if (e.target === bg || e.target.closest('.sx')) close(); };
   try { await loadLive(); } catch (e) {}
   const list = gameChannels(g);
+  const lastK = [teamKey(g, g.home), teamKey(g, g.away)], picks = store.get('gamePick', {});
+  const lastU = lastK.map(k => picks[k]).find(Boolean);
+  const li = list.findIndex(c => c.url === lastU);
+  if (li > 0) list.unshift(list.splice(li, 1)[0]);
+  if (li >= 0) list[0].last = true;
   if (!document.body.contains(bg)) return;
   $('.sheet', bg).innerHTML = head + `<div class="sub">${esc(g.detail)}${g.nets.length ? ' · On ' + esc(g.nets.join(', ')) : ''}</div>` +
-    (list.length ? `<div class="chlist">${list.map((c, i) => `<div class="src" data-i="${i}">${c.logo ? `<img loading="lazy" src="${esc(c.logo)}" onerror="this.style.visibility='hidden'">` : ''}<div class="nm2"><b>${esc(c.name)}</b><small>${c.sc >= 12 ? 'This game' : c.sc >= 9 ? 'Team channel' : 'National broadcast'}</small></div></div>`).join('')}</div>`
+    (list.length ? `<div class="chlist">${list.map((c, i) => `<div class="src" data-i="${i}">${c.logo ? `<img loading="lazy" src="${esc(c.logo)}" onerror="this.style.visibility='hidden'">` : ''}<div class="nm2"><b>${esc(c.name)}</b><small>${c.last ? 'Your pick last time · ' : ''}${c.sc >= 12 ? 'This game' : c.sc >= 9 ? 'Team channel' : 'National broadcast'}</small></div></div>`).join('')}</div>`
       : '<div class="sub">No channel in your playlist matches this game. Try the league\'s category in Live TV.</div>');
-  bg.querySelectorAll('.src').forEach(el => el.onclick = () => { close(); const i = +el.dataset.i; play({ url: list[i].url, title: list[i].name, sub: `${g.away.short} at ${g.home.short}`, live: true, zap: list, zi: i }); });
+  bg.querySelectorAll('.src').forEach(el => el.onclick = () => { close(); const i = +el.dataset.i; const pk = store.get('gamePick', {}); lastK.forEach(k => pk[k] = list[i].url); store.set('gamePick', pk); play({ url: list[i].url, title: list[i].name, sub: `${g.away.short} at ${g.home.short}`, live: true, zap: list, zi: i }); });
   // Follow a team (its games first, a score bar while you watch something else, a notification when they start),
   // Add to Calendar for later games, and a second game in the corner of the player
   const tools = document.createElement('div'); tools.className = 'gtools';
