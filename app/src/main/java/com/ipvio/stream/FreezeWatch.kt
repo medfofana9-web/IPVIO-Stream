@@ -90,12 +90,12 @@ object FreezeLogic {
     fun idle(trace: List<StackTraceElement>): Boolean = trace.firstOrNull()?.methodName == "nativePollOnce"
 
     /**
-     * Raw frames for retracing (R8 renames library classes and moves inlined lines): "class.method:line" innermost
-     * first, without the looper/JDK plumbing, at most [max].
+     * Raw frames for retracing (R8 renames library classes and moves inlined lines): "class.method(File:line)"
+     * innermost first, without the looper/JDK plumbing, at most [max].
      */
     fun raw(trace: List<StackTraceElement>, max: Int = 9): String =
         trace.filter { e -> RAW_SKIP.none { e.className.startsWith(it) } }.take(max)
-            .joinToString(" < ") { it.className + "." + it.methodName + ":" + it.lineNumber }
+            .joinToString(" < ") { it.className + "." + it.methodName + "(" + (it.fileName ?: "SourceFile") + ":" + it.lineNumber + ")" }
 
     private val RAW_SKIP = listOf("java.lang.Thread", "dalvik.", "android.os.Looper", "android.os.Handler", "com.android.internal.os.",
         "java.lang.reflect.", "android.app.ActivityThread")

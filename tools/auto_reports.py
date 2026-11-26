@@ -105,6 +105,10 @@ def retrace(version, raw):
         return []
     lines = ["java.lang.Throwable"]
     for f in frames:
+        m = re.fullmatch(r"(.+)\.([^.(]+)\(([^:()]*):(-?\d+)\)", f)
+        if m:
+            lines.append(f"\tat {m.group(1)}.{m.group(2)}({m.group(3) or 'SourceFile'}:{m.group(4)})")
+            continue
         m = re.fullmatch(r"(.+)\.([^.]+):(-?\d+)", f)
         if m:
             lines.append(f"\tat {m.group(1)}.{m.group(2)}(SourceFile:{m.group(3)})")
@@ -132,6 +136,19 @@ def retraced_name(stack):
 
 if os.environ.get("RETRACE_TEST"):
     v, raw = os.environ["RETRACE_TEST"].split("|", 1)
+    if raw.strip() == "sample":
+        # A renamed library method from the mapping, as a TV would report it (checks the whole path end to end)
+        mp = mapping_for(v.strip())
+        cls = None
+        for ln in open(mp, encoding="utf-8", errors="replace") if mp else []:
+            m = re.match(r"(androidx\.compose\.\S+) -> (\S+):$", ln)
+            if m and m.group(1) != m.group(2):
+                cls = m.group(2)
+            m2 = re.match(r"\s+(\d+):(\d+):\S+ \S+\(.*\)(?::\d+(?::\d+)?)? -> (\S+)$", ln)
+            if cls and m2:
+                raw = f"{cls}.{m2.group(3)}(SourceFile:{m2.group(1)})"
+                print("sample:", ln.strip(), "| raw:", raw)
+                break
     st = retrace(v.strip(), raw)
     print("\n".join(st) or "(nothing)")
     print("name:", retraced_name(st))
