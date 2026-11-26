@@ -1,7 +1,7 @@
 {
   "name": "fof-tv-desktop",
   "productName": "Fof TV",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Fof TV for Mac - your Fof TV account, profiles, addons and playlist on the desktop",
   "main": "main.js",
   "private": true,
@@ -39,7 +39,14 @@
         "zip"
       ],
       "identity": null,
-      "darkModeSupport": true
+      "darkModeSupport": true,
+      "extendInfo": {
+        "NSLocalNetworkUsageDescription": "Fof TV finds the smart TVs on your Wi-Fi (Samsung, LG, Sony) so it can play on them.",
+        "NSBonjourServices": [
+          "_airplay._tcp",
+          "_googlecast._tcp"
+        ]
+      }
     },
     "dmg": {
       "title": "Fof TV",
@@ -48,5 +55,5 @@
     "publish": null
   },
   "repository": "https://github.com/medfofana9-web/IPVIO-Stream",
-  "shell": 7
+  "shell": 8
 }

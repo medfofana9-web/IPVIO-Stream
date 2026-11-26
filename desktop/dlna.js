@@ -8,8 +8,9 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;'
 const tag = (xml, name) => { const m = new RegExp(`<(?:\\w+:)?${name}[^>]*>([\\s\\S]*?)</(?:\\w+:)?${name}>`, 'i').exec(xml); return m ? m[1].trim() : ''; };
 let found = new Map();   // location -> device
 
-async function describe(location) {
-  const r = await fetch(location, { signal: AbortSignal.timeout(4000) });
+async function describe(location, ms = 4000) {
+  const r = await fetch(location, { signal: AbortSignal.timeout(ms) });
+  if (!r.ok) return null;
   const xml = await r.text();
   const base = tag(xml, 'URLBase') || location;
   const svc = type => {
@@ -20,6 +21,25 @@ async function describe(location) {
   const av = svc('AVTransport');
   if (!av) return null;
   return { id: location, name: tag(xml, 'friendlyName') || 'TV', maker: tag(xml, 'manufacturer'), model: tag(xml, 'modelName'), av, rc: svc('RenderingControl') };
+}
+
+// Fallback when the network drops multicast (mesh Wi-Fi, some routers): ask every address of this Mac's subnet for the
+// renderer description on the ports Samsung (9197 /dmr, 7676) and others use
+async function scan() {
+  const os = require('os'); const bases = new Set();
+  for (const l of Object.values(os.networkInterfaces())) for (const i of l || []) if (i.family === 'IPv4' && !i.internal && /^(10|172|192)\./.test(i.address)) bases.add(i.address.split('.').slice(0, 3).join('.'));
+  const urls = [];
+  for (const b of bases) for (let n = 1; n < 255; n++) for (const path of [':9197/dmr', ':7676/smp_15_', ':1400/xml/device_description.xml', ':49152/description.xml']) urls.push(`http://${b}.${n}${path}`);
+  const out = []; let i = 0;
+  const worker = async () => { while (i < urls.length) { const u = urls[i++]; try { const d = await describe(u, 1200); if (d && !out.some(x => x.name === d.name)) { found.set(d.id, d); out.push(d); } } catch (e) {} } };
+  await Promise.all(Array.from({ length: 48 }, worker));
+  return out;
+}
+
+async function discoverAll() {
+  const l = await discover();
+  if (l.length) return l;
+  return (await scan()).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function discover(ms = 3500) {
@@ -89,4 +109,4 @@ async function position(id) {
   return { pos: secs(tag(x, 'RelTime')), dur: secs(tag(x, 'TrackDuration')) };
 }
 
-module.exports = { discover, play, control, position };
+module.exports = { discover: discoverAll, play, control, position };
