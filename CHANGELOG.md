@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased – Smoother Calendar, screensaver, player and Home; faster switch from a dead sports feed; less memory
+
+- Calendar opens without freezing: finding your followed shows and movies in the playlist runs in the background (#72).
+- The screensaver no longer draws the whole Home screen underneath every frame (#53).
+- A dead sports feed that sends a few bytes and then nothing is left after 2.5 s, not after up to 7.5 s (#62).
+- The player no longer redraws the whole screen on every position update while you watch (#50).
+- Lite (TVs with 3 GB or less): the big picture changes without a crossfade, as Lite promised; the background colour
+  change takes 300 ms instead of 900 ms on every TV (#49, #56).
+- Less memory on TVs with 3 GB or less: picture cache 40 MB (24 MB on 1.5 GB boxes), video buffer at most 40 MB, and old
+  playlist copies are let go after a playlist reload or when Android asks for memory (#55, #68).
+
 ## Unreleased – Subtitles that line up by themselves
 
 - Subtitles made for exactly the file you play are found by its fingerprint (OpenSubtitles' video hash: the file's size

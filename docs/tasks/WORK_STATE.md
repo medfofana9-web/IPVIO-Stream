@@ -1,5 +1,16 @@
 # Work state
 
+## 27 Nov 2026 (2) – causes of all open auto-reports, fixes on branch `auto-fix-reports`
+- Every open auto-report issue has a cause comment (file:line, confidence). Closed #51/#59 (guide sort, fixed 1.3.271).
+- Fixed (branch `auto-fix-reports`, own branch because `auto-fix` carries the unreleased subtitle work of another
+  session): #72 `Calendar.kt` playlist lookup off the main thread; #53 `MainActivity` does not draw `AppContent` under
+  the screensaver; #62 `SportsStartupLogic.noData` (64 KiB) + trickling dead feed in `hang_server.py`, check in
+  `sports_check.py`; #50 `PlayerScreen` no composition read of `pos` (Animatable glide, derived `nearEnd`), seek scenario
+  tt9000006 in `playback_fixture.py`; #49/#56 Lite skips the billboard crossfade, glow 300 ms; #55/#68
+  `Mem.imageCacheBytes`, `BufferLogic.byteLimit(maxBytes)`, `AreaCache`/`LiveBundleLogic.clear` in `setItems` and `Mem.trim`.
+- Not changed (would hide titles or catch-up guide data): playlist budget share, EPG parse limit, `Xmltv.progs` trim.
+- Not tested on a device. Next: watch reports from the new version for #49/#50/#53/#56/#57/#69/#70.
+
 ## 27 Nov 2026 – daily auto-report run: Sports page freeze
 - Fixed #71/#73/#75: `SportPins.base/score` compiled 10 regexes per playlist channel inside `SportSplit` composition;
   now precompiled, and `SportSplit` resolves pins with `produceState` on `Dispatchers.Default`
