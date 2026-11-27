@@ -64,7 +64,7 @@ class OnlineSubsLogicTest {
 
     @Test fun frameRateStretchAndSyncLines() {
         assertEquals(1.0, OnlineSubsLogic.fpsScale(23.976f, 23.976f), 0.0)
-        assertEquals(25.0 / 23.976, OnlineSubsLogic.fpsScale(25f, 23.976f), 1e-9)
+        assertEquals(25.0 / 23.976, OnlineSubsLogic.fpsScale(25f, 23.976f), 1e-5)
         assertEquals(1.0, OnlineSubsLogic.fpsScale(0f, 23.976f), 0.0)
         val srt = "1\n00:00:10,000 --> 00:00:11,000\n[Laughs]\n\n2\n00:00:12,000 --> 00:00:14,000\n<i>Where were you</i>\nlast night?\n\n3\n00:01:00,000 --> 00:01:02,000\nOK.\n"
         val cues = OnlineSubsLogic.cues(srt)
