@@ -48,7 +48,7 @@ Allow "Install unknown apps" for Downloader (or your file manager) when asked, t
 **Player** (Media3 / ExoPlayer)
 - Audio and subtitle selection (remembered per title), preferred languages, subtitle style
 - FFmpeg audio decoder for AC3/E-AC3/DTS (also over Bluetooth headphones)
-- Skip intro and credits (TheIntroDB), next episode automatically
+- Skip intro and credits (TheIntroDB, SkipDB, or learned per show from your first skip), next episode automatically
 - Quality selection with 4K check, fallback to another source on errors or stuttering
 - Buffer levels, connection watchdog, endless reconnect for live TV, reconnect after network change and standby
 - HLS, MPEG-DASH and MPEG-TS
@@ -86,6 +86,7 @@ The app ships **without any API keys**. You can enter your own free keys in the 
 | TMDB | posters, descriptions in your language, cast, trailers, automatic genres, episode info, similar titles | free, see below |
 | OMDb | IMDb and Rotten Tomatoes ratings | free, see below |
 | TheIntroDB | intro/recap/credits times | no key needed |
+| SkipDB | intro/recap/credits times (by IMDb id) | no key needed |
 
 **Without keys** the app still works. With an Xtream Codes playlist it takes description, cover, rating, genres, running time and trailer **directly from your provider** (`player_api.php`). With a TMDB key it uses TMDB first and falls back to the provider when a title is not found. Keys are stored only on the device.
 

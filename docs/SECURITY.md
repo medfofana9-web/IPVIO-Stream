@@ -13,7 +13,7 @@ It has no accounts and no backend of its own. It does open network connections i
 
 - **Local Wi-Fi:** the phone-remote pages and the Wi-Fi transfer. The TV app runs a small HTTP server on ports 8765–8775 (`PhoneImport.kt:195`).
 - **Playlist providers entered by the user:** Xtream Codes, M3U (URL or file) and Stalker/Ministra portals.
-- **Optional metadata services with user-supplied keys:** TMDB and OMDb. TheIntroDB needs no key.
+- **Optional metadata services with user-supplied keys:** TMDB and OMDb. TheIntroDB and SkipDB (intro times) need no key; they receive only the title's TMDB/IMDb id, season, episode and length.
 - **GitHub Releases:** in-app update check and download.
 
 ## 2. Reporting

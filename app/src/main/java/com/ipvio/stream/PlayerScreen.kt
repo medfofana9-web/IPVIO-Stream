@@ -315,6 +315,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     val seekFocus = remember { FocusRequester() }
     val liveFirst = remember { FocusRequester() }
     val playBtn = remember { FocusRequester() }
+    val skipFocus = remember { FocusRequester() }
     val btn = remember { Panel.entries.associateWith { FocusRequester() } }
 
     val curItem = remember(cur.itemId, liveAll, zapSrc) { liveAll.firstOrNull { it.id == cur.itemId } ?: zapSrc.firstOrNull { it.id == cur.itemId } }
@@ -344,6 +345,22 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     }
     val manualRecapActive by remember(savedRecap) {
         derivedStateOf { AppSettings.skipRecap && savedRecap?.contains(pos) == true && activeSeg == null && !manualIntroActive }
+    }
+    // "Skip intro" for episodes without known intro times (IntroLearn): offered early in the episode; the press, and where
+    // the viewer lands after nudging, teach the show's intro length
+    var introDone by remember(cur.url) { mutableStateOf(false) }
+    var introPress by remember(cur.url) { mutableStateOf<LongArray?>(null) }
+    // A seek soon after the jump fixes where the intro ended
+    fun noteSeek(t: Long) {
+        val p = introPress ?: return
+        if (System.currentTimeMillis() - p[2] < IntroSkipLogic.ADJUST_MS && t > p[0]) p[1] = t
+    }
+    val introKnown by remember(savedIntro) { derivedStateOf { savedIntro != null || segs.any { it.label.startsWith("Intro") } } }
+    val learnSkip by remember(cur.url) {
+        derivedStateOf {
+            AppSettings.skipIntro && !cur.live && cur.archive == null &&
+                IntroSkipLogic.offer(pos, dur, cur.season > 0 && cur.episode > 0, introKnown, introDone)
+        }
     }
     val showNextCard by remember(hasNext) {
         derivedStateOf { hasNext && !cur.live && dur > 0 && dur - pos < 30_000 && !nextDismissed }
@@ -1569,6 +1586,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             val t = scrubTarget
             if (t >= 0) {
                 player.seekTo(t); pos = t
+                noteSeek(t)
                 if (BuildConfig.VERSION_NAME.endsWith("-test")) android.util.Log.i("FofPlay", "seek to " + t / 1000 + "s")
             }
             scrubTarget = -1L
@@ -1579,7 +1597,17 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     LaunchedEffect(cur.url, hasDur) {
         // Addon titles have no TMDB number of their own: it comes from Cinemeta, so "Skip intro" works for them too
         val tid = if (cur.tmdbId > 0) cur.tmdbId else if (cur.itemId.startsWith("stremio:")) IntroDb.tmdbForImdb(cur.itemId.removePrefix("stremio:"), cur.season > 0) else 0
-        if (!cur.live && tid > 0 && hasDur && AppSettings.skipIntro) segs = IntroDb.get(tid, cur.season, cur.episode, dur)
+        if (cur.live || !hasDur || !AppSettings.skipIntro) return@LaunchedEffect
+        var found = if (tid > 0) IntroDb.get(tid, cur.season, cur.episode, dur) else emptyList()
+        // No intro there: ask SkipDB (by IMDb id) too
+        val imdb = cur.itemId.removePrefix("stremio:").substringBefore(':')
+        if (found.none { it.label.startsWith("Intro") } && StremioLogic.isImdb(imdb)) {
+            val more = IntroDb.skipDb(imdb, cur.season, cur.episode, dur)
+            found = found + more.filter { m -> found.none { it.label == m.label } }
+        }
+        segs = found
+        // A known intro teaches the show's intro length, so episodes without times jump right too
+        if (cur.season > 0) found.firstOrNull { it.label.startsWith("Intro") }?.let { IntroLearn.saveIfNone(ctx, cur.itemId, it.end - it.start) }
     }
     // Only a user-confirmed window for this exact episode may be used as a fallback.
     LaunchedEffect(manualIntroActive, AppSettings.autoSkipIntro) {
@@ -1601,6 +1629,29 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     LaunchedEffect(activeSeg) {
         segVisible = activeSeg != null
         if (activeSeg != null) { delay(10_000); segVisible = false }
+    }
+    // "Skip intro" without known times: jump by the show's learned intro length (60 s the first time)
+    fun learnJump() {
+        val at = player.currentPosition.coerceAtLeast(0L)
+        val to = IntroSkipLogic.target(at, IntroSkipLogic.jumpMs(IntroLearn.load(ctx, cur.itemId)), player.duration)
+        introDone = true
+        introPress = longArrayOf(at, to, System.currentTimeMillis())
+        controls = false
+        player.seekTo(to); pos = to
+        player.playWhenReady = true; player.play()
+        flash = Flash(PIcon.Forward, "Intro skipped · Left/Right to adjust")
+        if (BuildConfig.VERSION_NAME.endsWith("-test")) android.util.Log.i("FofPlay", "intro skip from " + at / 1000 + "s to " + to / 1000 + "s")
+    }
+    // After the adjusting time: remember the show's intro length and this episode's intro window
+    LaunchedEffect(introPress) {
+        val p = introPress ?: return@LaunchedEffect
+        delay(IntroSkipLogic.ADJUST_MS)
+        IntroSkipLogic.learned(p[0], p[1])?.let { len ->
+            IntroLearn.save(ctx, cur.itemId, len)
+            IntroMarks.markStart(ctx, cur.itemId, cur.season, cur.episode, p[0])
+            IntroMarks.finish(ctx, cur.itemId, cur.season, cur.episode, p[1], player.duration)
+        }
+        introPress = null
     }
     // Skip: credits = straight to the next episode (hardly anyone wants to watch seconds of credits afterwards).
     // Then close the menu and restore focus, otherwise you got stuck in the menu.
@@ -1661,7 +1712,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     showChannels && showCats -> catsFocus.requestFocus()
                     showChannels -> chanFocus.requestFocus()
                     // The button the panel came from may not be on the bar (opened from Settings or a remote key): first button then
-                    controls -> runCatching { (if (lastPanel != Panel.NONE) btn.getValue(lastPanel) else if (focusSeek && !cur.live) seekFocus else firstFocus).requestFocus() }
+                    controls -> runCatching { (if (lastPanel != Panel.NONE) btn.getValue(lastPanel) else if (focusSeek && !cur.live) seekFocus else if (learnSkip && player.playWhenReady) skipFocus else firstFocus).requestFocus() }
                         .getOrDefault(false) || firstFocus.requestFocus()
                     else -> rootFocus.requestFocus()
                 }
@@ -1853,6 +1904,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             else if (scrubTarget >= 0) {
                                 val t = scrubTarget
                                 player.seekTo(t); pos = t
+                                noteSeek(t)
                                 scrubTarget = -1L; turbo = 0; resumeAfterScrub = false
                                 player.play()
                                 true
@@ -2101,7 +2153,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
 
         // ---------------------------------------------------------------- Skip & next episode
         val seg0 = activeSeg?.takeIf { segVisible || controls }
-        if ((seg0 != null || manualIntroActive || manualRecapActive || showNextCard) && panel == Panel.NONE && !showChannels && !showGuide) {
+        val offerSkip = learnSkip && controls && seg0 == null && !manualIntroActive && !manualRecapActive
+        if ((seg0 != null || manualIntroActive || manualRecapActive || showNextCard || offerSkip) && panel == Panel.NONE && !showChannels && !showGuide) {
             Column(
                 Modifier.align(Alignment.BottomEnd).padding(end = PT.MarginX, bottom = if (controls) 236.dp else 84.dp),
                 horizontalAlignment = Alignment.End,
@@ -2116,6 +2169,9 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 else if (manualRecapActive && savedRecap != null) PSkipPill("Skip Recap" + (if (!controls) "  (OK)" else "")) {
                     player.seekTo(savedRecap.endMs); player.playWhenReady = true; player.play()
                 }
+                // No intro times known: early in an episode the bar opens on this button (Down, then OK); when the bar
+                // opened because OK paused, Play keeps the focus so the next OK resumes
+                if (offerSkip) PSkipPill("Skip intro", Modifier.focusRequester(skipFocus)) { learnJump() }
                 if (outro || (showNextCard && hasNext && !controls)) {
                     NextPill({ (dur - pos).coerceAtLeast(0L) }, AppSettings.autoNext, !controls) { playEpisode(epList[epIdx + 1]) }
                 }

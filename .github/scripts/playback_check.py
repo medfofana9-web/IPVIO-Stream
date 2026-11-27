@@ -50,6 +50,20 @@ for sc in fx["scenarios"]:
                 bad.append(f"{sid} {sc['title']}: seek to {to}s from {last_before}s, then ticks {after[-3:]}")
             else:
                 print(f"PASS {sid} {sc['title']}: {msg(ok[0])}; seek {last_before}s -> {to}s, playing at {after[-1][1]}s")
+        elif ok and sc.get("intro_keys"):
+            # Episode without intro times: Down opens the bar on "Skip intro"; OK jumps forward 60 s and plays on
+            ii = next((i for i, l in enumerate(seg) if " intro skip from " in l), None)
+            tick = lambda l: (m := re.search(r" tick \S+ state=(\d) pos=(-?\d+)", l)) and (int(m.group(1)), int(m.group(2)))
+            if ii is None:
+                bad.append(f"{sid} {sc['title']}: no Skip intro after Down + OK (button missing or not focused)")
+            else:
+                m = re.search(r" intro skip from (\d+)s to (\d+)s", seg[ii])
+                a, b = int(m.group(1)), int(m.group(2))
+                after = [t for t in map(tick, seg[ii + 1:]) if t]
+                if b - a < 55 or not after or after[-1][0] != 3 or after[-1][1] < b - 2:
+                    bad.append(f"{sid} {sc['title']}: Skip intro {a}s -> {b}s, then ticks {after[-3:]}")
+                else:
+                    print(f"PASS {sid} {sc['title']}: {msg(ok[0])}; Skip intro {a}s -> {b}s, playing at {after[-1][1]}s")
         elif ok and sc.get("bar_keys"):
             # OK pauses (bar opens, Play focused); OK on the bar's Play button resumes, and the movie plays on
             pi = next((i for i, l in enumerate(seg) if " toggle pause" in l), None)

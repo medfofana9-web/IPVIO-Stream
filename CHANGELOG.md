@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased – Skip intro on every show
+
+- Early in an episode whose intro times are unknown, the controls open on "Skip intro" (press Down, then OK). It jumps
+  60 s the first time; nudge with Left/Right if needed, and the app remembers the show's intro length, so later
+  episodes land right after the intro with one press. Remembered per profile and synced to your other TVs.
+- More episodes get exact intro times automatically: SkipDB is asked when TheIntroDB has none, and a known intro on one
+  episode sets the jump for the whole show.
+
 ## Unreleased – New player controls and panels
 
 - Cleaner control bar: plain white icons without circles; the button you are on turns white and shows its name right

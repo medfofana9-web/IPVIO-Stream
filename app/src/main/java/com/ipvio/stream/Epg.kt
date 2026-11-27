@@ -282,6 +282,25 @@ object IntroDb {
         return id
     }
 
+    /**
+     * Second source (27 Nov 2026): SkipDB, by IMDb id, read without a key (only the title's IMDb id, season, episode and
+     * length are sent). Used when TheIntroDB has no intro for the episode. Same plausibility rules ([SegLogic]).
+     */
+    suspend fun skipDb(imdb: String, season: Int, episode: Int, durMs: Long): List<Seg> {
+        if (!StremioLogic.isImdb(imdb)) return emptyList()
+        val tv = if (season > 0 && episode > 0) "&season=$season&episode=$episode" else ""
+        val url = "https://api.skipdb.tv/api/segments?imdb_id=$imdb$tv" + (if (durMs > 0) "&duration=" + durMs / 1000 else "")
+        val body = withContext(Dispatchers.IO) {
+            runCatching {
+                client.newCall(Request.Builder().url(url).build()).execute().use { r -> if (r.isSuccessful) r.body?.string() else null }
+            }.getOrNull()
+        } ?: return emptyList()
+        return IntroSkipLogic.parseSkipDb(body).mapNotNull { (kind, st, en) ->
+            val label = when (kind) { SegLogic.INTRO -> "Intro überspringen"; SegLogic.RECAP -> "Rückblick überspringen"; else -> "Abspann überspringen" }
+            SegLogic.clean(kind, st, en, durMs)?.let { (a, b) -> Seg(label, a, b) }
+        }
+    }
+
     suspend fun get(tmdbId: Int, season: Int, episode: Int, durMs: Long): List<Seg> {
         val tv = if (season > 0 && episode > 0) "&season=$season&episode=$episode" else ""
         val url = "https://api.theintrodb.org/v3/media?tmdb_id=$tmdbId$tv&duration_ms=$durMs"

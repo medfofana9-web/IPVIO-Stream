@@ -29,6 +29,10 @@ for s in fx["scenarios"]:
         for k in s["seek_keys"]:
             out.append("adb shell input keyevent " + str(k) + "; sleep 0.3")
         out.append("sleep 10; adb exec-out screencap -p > p_" + s["id"].replace(":", "_") + "_seek.png")
+    for k in s.get("intro_keys") or []:
+        out.append(k if isinstance(k, str) else "adb shell input keyevent " + str(k) + "; sleep 1")
+    if s.get("intro_keys"):
+        out.append("sleep 10")
     if s.get("bar_keys"):
         for k in s["bar_keys"]:
             out.append(k if isinstance(k, str) else "adb shell input keyevent " + str(k) + "; sleep 1")

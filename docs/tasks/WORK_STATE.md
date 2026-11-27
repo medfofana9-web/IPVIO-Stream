@@ -1,5 +1,16 @@
 # Work state
 
+## 27 Nov 2026 (4) – Skip intro for every show (approved by Med)
+- `IntroLearn.kt`: `IntroSkipLogic` (pure: window 12 min / half the episode, jump = learned length or 60 s, learning from
+  where the viewer lands within 25 s, SkipDB parsing; `IntroSkipLogicTest`) and `IntroLearn` (show intro length as a new
+  key in `fof_intro_marks_v1`, per profile, synced by CloudSync; nothing renamed).
+- `IntroDb.skipDb` (api.skipdb.tv/api/segments by IMDb id, no key; response shape from its docs, **unverified** from
+  here: the session cannot reach the API). TheIntroDB v3 kept (frozen but working; v4 is keyed by TVDB).
+- `PlayerScreen`: `learnSkip` offer, "Skip intro" pill above the bar focused when the bar opens while playing (Play
+  keeps focus when OK paused), `learnJump`, `noteSeek` at both seek commits, learning effect also saves the episode window
+  via `IntroMarks`. Playback scenario tt9100002:1:1.
+- Not tested on a TV.
+
 ## 27 Nov 2026 (3) – player redesign (approved by Med from the preview canvas)
 - `PRoundButton` (square, showLabel; transparent at rest), VOD bar in `PlayerScreen` (centre transport 48/60 dp, options
   46 dp right, catch-up left; sized for 960 dp), `PTimeRow(speed)` end time, subtitles lifted via
