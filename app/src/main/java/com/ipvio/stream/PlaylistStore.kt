@@ -63,6 +63,8 @@ object PlaylistStore {
      */
     private fun setItems(l: List<Item>, shown: List<Item>? = null) {
         LibMatch.reset()
+        // Results kept for the previous list would keep that whole list in memory next to the new one (#68)
+        AreaCache.clear(); LiveBundleLogic.clear()
         filtered = shown ?: shownOf(l); filteredFor = l; filteredVer = filterVer()
         rawChannels = l
     }

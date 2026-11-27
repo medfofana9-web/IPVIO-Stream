@@ -25,6 +25,10 @@ for s in fx["scenarios"]:
     arg = "|".join([sid[0], s["title"], str(s["year"]), str(s["resume_ms"])] + sid[1:])
     out.append('adb shell "am broadcast -a com.fof.tv.TAB --es resume ' + Q + arg + Q + '"')
     out.append("sleep 55; adb exec-out screencap -p > p_" + s["id"].replace(":", "_") + ".png")
+    if s.get("seek_keys"):
+        for k in s["seek_keys"]:
+            out.append("adb shell input keyevent " + str(k) + "; sleep 0.3")
+        out.append("sleep 10; adb exec-out screencap -p > p_" + s["id"].replace(":", "_") + "_seek.png")
     out.append("adb shell input keyevent 4; sleep 3; adb shell input keyevent 4; sleep 3")
     # Back to the app in case the second Back left it (the test receiver lives with the activity)
     out.append("adb shell am start -n com.fof.tv/com.ipvio.stream.MainActivity; sleep 4")

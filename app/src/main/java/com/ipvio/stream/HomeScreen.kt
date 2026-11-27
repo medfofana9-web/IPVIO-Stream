@@ -128,8 +128,10 @@ private fun buildHome(all: List<Item>, ipvioWanted: Boolean, trend: Set<String>)
 }
 
 /** Filtered lists per area, so the same list object comes back and [HomeCache] can recognize it (no full recompute on every tab switch). */
-private object AreaCache {
+internal object AreaCache {
     private val m = HashMap<String, Pair<List<Item>, List<Item>>>()
+    /** Each entry keeps the list it was made from: after a playlist reload that was a whole old playlist per area (#68). */
+    @Synchronized fun clear() = m.clear()
     @Synchronized fun get(all: List<Item>, tab: Int, k: Int): List<Item> {
         val key = "$tab|$k"
         m[key]?.let { if (it.first === all) return it.second }

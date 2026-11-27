@@ -63,6 +63,9 @@ object LiveBundleLogic {
     // Bundling a big list (all channels) takes noticeable time: results of the last lists are kept (same list object = same result)
     private val cache = ArrayList<Pair<List<Item>, Result>>()
 
+    /** Forgets the kept results: they hold old lists alive (a whole playlist each) after a reload or under memory pressure. */
+    @Synchronized fun clear() = cache.clear()
+
     @Synchronized
     fun bundle(items: List<Item>): Result {
         cache.firstOrNull { it.first === items }?.let { return it.second }

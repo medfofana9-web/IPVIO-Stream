@@ -1,5 +1,5 @@
 """Checks the playback scenarios in the emulator log (playback-test.yml). Exit code 1 lists the scenarios that failed.
-- resume (movie or episode): a picture near the saved spot.
+- resume (movie or episode): a picture near the saved spot; with seek_keys also a forward jump that plays on.
 - live / zap: at the end of the scenario the player is playing (last "tick" state=3, READY) and the position moved.
 Usage: playback_check.py fixture.json logcat.txt"""
 import json, re, sys
@@ -36,7 +36,21 @@ for sc in fx["scenarios"]:
         failed = [l for l in seg if " failed " in l]
         want_s = sc["resume_ms"] // 1000 - 8
         ok = [l for l in ready if (m := re.search(r" at (\d+)s", l)) and int(m.group(1)) >= want_s]
-        if ok:
+        if ok and sc.get("seek_keys"):
+            # The jump must land ahead of where it played and the movie must play on from there
+            si = next((i for i, l in enumerate(seg) if " seek to " in l), None)
+            tick = lambda l: (m := re.search(r" tick \S+ state=(\d) pos=(-?\d+)", l)) and (int(m.group(1)), int(m.group(2)))
+            before = [t for t in map(tick, seg[:si] if si is not None else seg) if t]
+            after = [t for t in map(tick, seg[si + 1:]) if t] if si is not None else []
+            to = int(re.search(r" seek to (\d+)s", seg[si]).group(1)) if si is not None else -1
+            last_before = before[-1][1] if before else 0
+            if si is None:
+                bad.append(f"{sid} {sc['title']}: no seek after Right x{len(sc['seek_keys'])}")
+            elif to <= last_before + 5 or not after or after[-1][1] < to - 2 or after[-1][0] != 3:
+                bad.append(f"{sid} {sc['title']}: seek to {to}s from {last_before}s, then ticks {after[-3:]}")
+            else:
+                print(f"PASS {sid} {sc['title']}: {msg(ok[0])}; seek {last_before}s -> {to}s, playing at {after[-1][1]}s")
+        elif ok:
             print(f"PASS {sid} {sc['title']}: {msg(ok[0])}")
         else:
             why = msg(failed[0]) if failed else (msg(ready[0]) + " (not at the saved spot)" if ready else "no picture")

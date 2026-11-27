@@ -21,6 +21,15 @@ class PlayerBufferTest {
         assertEquals(-1, BufferLogic.byteLimit(-1, 512L * mb))
     }
 
+    /** #68: on a 2-3 GB TV with the large heap (512 MB) the buffer stops at 40 MB, still above the planned 28 MB. */
+    @Test fun byteLimitCappedOnSmallTvs() {
+        assertEquals(40 * mb, BufferLogic.byteLimit(28 * mb, 512L * mb, 40L * mb))
+        assertEquals(28 * mb, BufferLogic.byteLimit(28 * mb, 128L * mb, 40L * mb))
+        assertEquals(24 * 1024 * 1024, Mem.imageCacheBytes(0))
+        assertEquals(40 * 1024 * 1024, Mem.imageCacheBytes(1))
+        assertEquals(null, Mem.imageCacheBytes(2))
+    }
+
     @Test fun retry_nurWoSinnvoll() {
         assertTrue(IptvLoadErrorPolicy.isFinalStatus(403))
         assertTrue(IptvLoadErrorPolicy.isFinalStatus(404))

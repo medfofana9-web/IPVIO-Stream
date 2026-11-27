@@ -1,7 +1,7 @@
 """Sports start fixture for the emulator (launch-test workflow, job sports-start).
 
 Builds a playlist shaped like the maintainer's provider for tonight's live NBA game (from ESPN's public scoreboard):
-  - "USA | NBA" event feed naming both teams that never sends data (hanging server)  -> must fail over
+  - "USA | NBA" event feed naming both teams that sends a few KB, then nothing (dead) -> must fail over
   - "USA | NBA" event feed naming both teams with a real TS stream                    -> expected picture
   - "USA NBA Teams" team channel of the home team (real stream)                       -> backup
   - an event feed naming two OTHER teams with a real stream                           -> must never play

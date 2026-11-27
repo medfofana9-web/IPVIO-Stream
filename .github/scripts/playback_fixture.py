@@ -9,7 +9,7 @@ One HTTP server on port 8002 plays the parts of real sources that went wrong on 
   /media/hang.mp4      sends headers, then nothing
   /live/good.ts        a live channel (srv/live.ts)
   /live/drop.ts        a live channel whose connection ends after about 15 s every time (the player must reconnect)
-Scenarios (movie ids) and what each addon returns are in SCEN; fixture.json lists them for the checker. Needs
+Scenarios (movie ids) and what each addon returns are in SCEN (SEEK: keys pressed after the picture, then checked); fixture.json lists them for the checker. Needs
 srv/movie.mp4 (made by the workflow with ffmpeg). No real provider, addon or credentials.
 """
 import json, os, re, sys, threading, time
@@ -29,7 +29,11 @@ SCEN = {
     # Episodes (id:season:episode): the same problems on a show
     "tt9100001:1:2": ("Fixture Show", 2015, {"a": ("norange", 0), "b": ("good", 0)}, "a", 60000),
     "tt9100001:2:3": ("Fixture Show", 2015, {"a": ("expired", 0), "b": ("good", 5)}, "a", 60000),
+    # Seeking after the start (Right x3): the jump lands and plays on from there (#50: the seek glide no longer reads
+    # the position while composing)
+    "tt9000006": ("Fixture Six", 2011, {"b": ("good", 0)}, "b", 30000),
 }
+SEEK = {"tt9000006": [22, 22, 22]}
 # Live channels in srv/test.m3u (name, path) and the live scenarios: play, a connection that keeps dropping, zapping
 CHANNELS = [("Fixture Live A", "good"), ("Fixture Live B", "good"), ("Fixture Live C", "good"), ("Fixture Live Drop", "drop")]
 LIVE_SCEN = [
@@ -156,7 +160,7 @@ def fixture_json():
         out.append({"id": sid, "kind": "resume", "title": title, "year": year, "resume_ms": pos,
                     "good_key": (ADDONS[good] + "|" + label(good, sid)) if good else None,
                     "expect": "good" if "good" in [m for m, _ in srcs.values()] else None,
-                    "sources": {ADDONS[k]: m for k, (m, _) in srcs.items()}})
+                    "sources": {ADDONS[k]: m for k, (m, _) in srcs.items()}, "seek_keys": SEEK.get(sid, [])})
     return out + LIVE_SCEN
 
 
