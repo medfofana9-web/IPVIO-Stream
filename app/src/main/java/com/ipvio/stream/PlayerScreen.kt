@@ -1642,6 +1642,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         flash = Flash(PIcon.Forward, "Intro skipped · Left/Right to adjust")
         if (BuildConfig.VERSION_NAME.endsWith("-test")) android.util.Log.i("FofPlay", "intro skip from " + at / 1000 + "s to " + to / 1000 + "s")
     }
+    // Test builds: when the button is offered (the playback scenario reads it)
+    LaunchedEffect(learnSkip) { if (BuildConfig.VERSION_NAME.endsWith("-test")) android.util.Log.i("FofPlay", "intro offer " + learnSkip + " known=" + introKnown) }
     // After the adjusting time: remember the show's intro length and this episode's intro window
     LaunchedEffect(introPress) {
         val p = introPress ?: return@LaunchedEffect
