@@ -19,9 +19,19 @@ def parse(text):
 cur = parse(open(sys.argv[1], errors="replace").read())
 if cur is None:
     print("CHECK FAIL Home comparison: no frame numbers in this run"); sys.exit(1)
-runs = json.loads(subprocess.run(["gh", "api", f"repos/{REPO}/actions/workflows/perf-test.yml/runs?status=success&per_page=10"],
+# An accepted baseline (after a deliberate design change, e.g. the wider Home cards of 25 Nov): ".github/perf_baseline.txt"
+# holds "median_ms slow_percent" and is used instead of the last passing run. Only change it with a reason in the commit.
+BASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "perf_baseline.txt")
+if os.path.exists(BASE):
+    vals = [int(x) for x in open(BASE).read().split("#")[0].split()[:2]]
+    prev_fixed = (vals[0], vals[1])
+else:
+    prev_fixed = None
+runs = [] if prev_fixed else json.loads(subprocess.run(["gh", "api", f"repos/{REPO}/actions/workflows/perf-test.yml/runs?status=success&per_page=10"],
                                  capture_output=True, text=True).stdout or "{}").get("workflow_runs", [])
-prev = None
+prev = prev_fixed
+if prev:
+    print(f"Comparing with the accepted baseline in .github/perf_baseline.txt (median {prev[0]} ms, {prev[1]} % slow)")
 for r in runs:
     if str(r["id"]) == os.environ.get("GITHUB_RUN_ID"):
         continue
