@@ -201,6 +201,9 @@ class MainActivity : ComponentActivity() {
             }
         }
         setContent { App(pick) }
+        // The start picture behind the app (windowBackground) is covered by the app from the first frame on; without it
+        // the screen is not filled once more on every frame
+        window.decorView.post { window.decorView.postDelayed({ runCatching { window.setBackgroundDrawable(null) } }, 1500) }
     }
 
     /** Reminder tapped while the app is already running: open the channel. */
@@ -727,8 +730,10 @@ private fun AppContent() {
         }
     }
 
-    BoxWithConstraints(Modifier.fillMaxSize().background(Bg).fitScreenInset(playing == null)) {
-        if (FofPrefs.cleanLook && playing == null) AppGlowLayer()
+    // With the glow on, the glow paints the background itself (one full-screen fill less per frame)
+    val glow = FofPrefs.cleanLook && playing == null
+    BoxWithConstraints(Modifier.fillMaxSize().then(if (glow) Modifier else Modifier.background(Bg)).fitScreenInset(playing == null)) {
+        if (glow) AppGlowLayer()
         // Scale of the design from the available width (see Design)
         val dk = maxWidth.value / Design.WIDTH
         SideEffect { if (Design.k != dk) Design.k = dk }

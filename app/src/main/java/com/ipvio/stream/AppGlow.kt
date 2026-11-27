@@ -15,8 +15,14 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Canvas
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.runtime.remember
 
 /**
  * Background of the whole app in the clean look (Option A): not plain black but a soft glow in the colors of what is
@@ -51,15 +57,29 @@ fun AppGlowLayer(modifier: Modifier = Modifier) {
     val spec = if (Look.motion == 0) snap<Color>() else tween(900)
     val ca = animateColorAsState(Color(AppGlow.a), spec, label = "amb_a")
     val cb = animateColorAsState(Color(AppGlow.b), spec, label = "amb_b")
-    // Offscreen: the glow is painted into its own buffer once per color change and reused as one picture every frame.
-    // A plain layer replays the three full-screen fills with gradient shading on every frame: the performance test
-    // measured Home at 150 ms per frame with the glow and 89 ms without it (26 Nov 2026). The colors are read while
-    // drawing (not while composing), so a color change repaints the buffer without recomposing anything.
-    Box(modifier.fillMaxSize().graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }.drawBehind {
+    // The glow is soft, so it is painted into a small picture (192 x 108) when its colors change and stretched over the
+    // screen: one plain picture fill per frame instead of the background plus two full-screen gradient fills (the
+    // performance test measured Home at 150 ms per frame with the gradients and 89 ms without the glow, 26 Nov 2026).
+    // It also paints the background color, so the screen behind it is not filled first (see MainActivity).
+    val pic = remember { ImageBitmap(GLOW_W, GLOW_H) }
+    val painted = remember { longArrayOf(0L, 0L) }
+    val cds = remember { CanvasDrawScope() }
+    Box(modifier.fillMaxSize().drawBehind {
         val a = ca.value; val b = cb.value
-        drawRect(Bg)
-        val w = size.width; val h = size.height
-        drawRect(Brush.radialGradient(listOf(a.copy(alpha = 0.85f), a.copy(alpha = 0.25f), Color.Transparent), center = Offset(w * 0.8f, h * 0.02f), radius = w * 0.62f))
-        drawRect(Brush.radialGradient(listOf(b.copy(alpha = 0.7f), Color.Transparent), center = Offset(w * 0.06f, h * 1.02f), radius = w * 0.5f))
+        val key = a.value.toLong() xor (b.value.toLong() * 31)
+        if (painted[1] == 0L || painted[0] != key) {
+            painted[0] = key; painted[1] = 1L
+            cds.draw(this, layoutDirection, Canvas(pic), Size(GLOW_W.toFloat(), GLOW_H.toFloat())) {
+                val w = GLOW_W.toFloat(); val h = GLOW_H.toFloat()
+                drawRect(Bg)
+                drawRect(Brush.radialGradient(listOf(a.copy(alpha = 0.85f), a.copy(alpha = 0.25f), Color.Transparent), center = Offset(w * 0.8f, h * 0.02f), radius = w * 0.62f))
+                drawRect(Brush.radialGradient(listOf(b.copy(alpha = 0.7f), Color.Transparent), center = Offset(w * 0.06f, h * 1.02f), radius = w * 0.5f))
+            }
+        }
+        drawImage(pic, srcOffset = IntOffset.Zero, srcSize = IntSize(GLOW_W, GLOW_H), dstSize = IntSize(size.width.toInt(), size.height.toInt()),
+            filterQuality = FilterQuality.Low)
     })
 }
+
+private const val GLOW_W = 192
+private const val GLOW_H = 108
