@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased – Subtitles in step with the voices
+
+- Online subtitles made for the same release as the playing video come first: same frame rate (a subtitle for 25 fps
+  drifts further off a 23.976 fps video every minute), same source (Blu-ray, WEB, HDTV, DVD), same release group and
+  resolution.
+- Audio & Subtitles → "Subtitle timing" (with online subtitles): earlier or later by 0.5 s or 0.1 s until the words
+  match the voices; the picture pauses for a moment when it changes.
+
 ## Unreleased – Find subtitles online
 
 - Audio & Subtitles → "Find subtitles online" (movies and episodes): every language OpenSubtitles has for what is

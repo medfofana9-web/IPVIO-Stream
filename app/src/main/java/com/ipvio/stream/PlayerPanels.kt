@@ -53,7 +53,7 @@ fun PChoiceList(options: List<String>, selected: Int, focus: FocusRequester, onP
 fun BoxScope.TracksPanel(
     player: Player, ver: Int, onChanged: () -> Unit,
     audioFocus: FocusRequester, subsFocus: FocusRequester,
-    onClose: () -> Unit, onStyle: () -> Unit, onOnline: (() -> Unit)? = null
+    onClose: () -> Unit, onStyle: () -> Unit, onOnline: (() -> Unit)? = null, onTiming: (() -> Unit)? = null
 ) {
     val audio = remember(ver) { collectTracks(player, C.TRACK_TYPE_AUDIO) }
     val subs = remember(ver) { collectTracks(player, C.TRACK_TYPE_TEXT) }
@@ -145,6 +145,12 @@ fun BoxScope.TracksPanel(
             "Find subtitles online", false,
             Modifier.onPreviewKeyEvent { e -> if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionLeft) { onClose(); true } else false },
             chevron = true, tinted = true, onClick = onOnline
+        )
+        // Online subtitles out of step with the voices: move them earlier or later
+        if (onTiming != null) PPanelRow(
+            "Subtitle timing", false,
+            Modifier.onPreviewKeyEvent { e -> if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionLeft) { onClose(); true } else false },
+            chevron = true, tinted = true, onClick = onTiming
         )
         PPanelRow(
             "Subtitle appearance", false,

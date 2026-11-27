@@ -121,7 +121,7 @@ private fun digitOf(k: Key): Int = when (k) {
 
 private val SLEEP_MIN = listOf(0, 15, 30, 45, 60, 90, 120)
 
-private enum class Panel { NONE, TRACKS, SUBSTYLE, ONLINESUBS, QUALITY, SPEED, ASPECT, MENU, STEP, EPISODES, SLEEP, ARCHIVE, CLOCK }
+private enum class Panel { NONE, TRACKS, SUBSTYLE, ONLINESUBS, SUBSYNC, QUALITY, SPEED, ASPECT, MENU, STEP, EPISODES, SLEEP, ARCHIVE, CLOCK }
 
 private class Flash(val icon: PIcon?, val text: String?)
 
@@ -1238,6 +1238,15 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 cur.title.replace(Regex("\\s+S\\d+\\s*E\\d+\\s*$"), ""), null, "", null, ""), null)
     }
 
+    /** What plays, for choosing subtitles made for this very release (file name from the addon, frame rate). */
+    fun subHint(): OnlineSubsLogic.Hint {
+        val src = if (NowSources.owns(cur.itemId, cur.season, cur.episode)) NowSources.list.firstOrNull { it.key == NowSources.currentKey } else null
+        val name = listOfNotNull(src?.info, src?.label, src?.file, cur.url.substringAfterLast('/').substringBefore('?')).joinToString(" ")
+        return OnlineSubsLogic.Hint(name, player.videoFormat?.frameRate?.takeIf { it > 0f } ?: 0f)
+    }
+    // "Subtitle timing": how far the online subtitles are moved (ms, + = later); reset when new ones are loaded
+    var subDelayMs by remember { mutableLongStateOf(0L) }
+
     /**
      * Adds [subs] (one language) to the stream as local files and selects that language; subtitles added before in other
      * languages stay in the list. The stream reopens at the same spot. Returns how many were added.
@@ -1266,8 +1275,49 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             .clearOverridesOfType(C.TRACK_TYPE_TEXT)
             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false).setPreferredTextLanguages(lang).build()
         ReportCtx.crumb("online subs " + lang + " " + files.size)
+        subDelayMs = 0L
         return files.size
     }
+
+    /** Moves the online subtitles by [ms] (new copies of the files) and reopens the stream at the same spot. */
+    fun applySubDelay(ms: Long) {
+        val now = player.currentMediaItem ?: return
+        val cfgs = now.localConfiguration?.subtitleConfigurations.orEmpty()
+        if (cfgs.none { it.uri.scheme == "file" }) return
+        val sel = player.currentTracks.groups.firstOrNull { it.type == C.TRACK_TYPE_TEXT && it.isSelected }
+            ?.let { g -> (0 until g.length).firstOrNull { g.isTrackSelected(it) }?.let { g.getTrackFormat(it) } }
+        val forUrl = cur.url
+        scope.launch {
+            val moved = cfgs.map { c ->
+                val path = c.uri.path
+                if (c.uri.scheme != "file" || path == null) c
+                else OnlineSubs.shifted(ctx, OnlineSubs.originalOf(java.io.File(path)), ms)?.let { f ->
+                    c.buildUpon().setUri(android.net.Uri.fromFile(f))
+                        .setSelectionFlags(if (sel != null && c.label == sel.label) C.SELECTION_FLAG_DEFAULT else 0).build()
+                } ?: c
+            }
+            if (cur.url != forUrl || player.currentMediaItem == null) return@launch
+            val at = player.currentPosition.coerceAtLeast(0L)
+            val go = player.playWhenReady
+            lastSeekT = System.currentTimeMillis()
+            StreamHeaders.begin(resolvedUrl.ifEmpty { cur.url })
+            player.setMediaItem(player.currentMediaItem!!.buildUpon().setSubtitleConfigurations(moved).build(), at)
+            player.prepare()
+            player.playWhenReady = go
+            sel?.language?.let { l -> player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                .clearOverridesOfType(C.TRACK_TYPE_TEXT).setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false).setPreferredTextLanguages(l).build() }
+            ReportCtx.crumb("sub timing " + ms)
+        }
+    }
+    val subDelayApply = remember { arrayOf<Runnable?>(null) }
+    fun changeSubDelay(stepMs: Long) {
+        subDelayMs = if (stepMs == 0L) 0L else (subDelayMs + stepMs).coerceIn(-60_000L, 60_000L)
+        // Applied when the presses stop (each apply reopens the stream for a moment)
+        subDelayApply[0]?.let { h.removeCallbacks(it) }
+        val target = subDelayMs
+        subDelayApply[0] = Runnable { applySubDelay(target) }.also { h.postDelayed(it, 1_200) }
+    }
+    fun hasOnlineSubs(): Boolean = player.currentMediaItem?.localConfiguration?.subtitleConfigurations.orEmpty().any { it.uri.scheme == "file" }
 
     LaunchedEffect(cur.url, readyOnce) {
         if (!readyOnce || cur.live || cur.archive != null || onlineSubsFor == cur.url) return@LaunchedEffect
@@ -1287,7 +1337,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             if (mem == null && !TrackLogic.subsWanted(AppSettings.subMode, audio, want, AppSettings.audioLang)) return@runCatching
             val series = cur.season > 0 || cur.episode > 0
             val imdb = imdbOfCur() ?: return@runCatching
-            val n = addOnlineSubs(OnlineSubs.find(imdb, series, cur.season, cur.episode, want), want, forUrl)
+            val n = addOnlineSubs(OnlineSubs.find(imdb, series, cur.season, cur.episode, want, hint = subHint()), want, forUrl)
             if (n > 0) notice = "Subtitles added from OpenSubtitles (Audio & Subtitles)"
         }
     }
@@ -1315,7 +1365,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         scope.launch {
             val imdb = runCatching { imdbOfCur() }.getOrNull() ?: return@launch
             val series = cur.season > 0 || cur.episode > 0
-            val n = addOnlineSubs(OnlineSubs.find(imdb, series, cur.season, cur.episode, lang), lang, forUrl)
+            val n = addOnlineSubs(OnlineSubs.find(imdb, series, cur.season, cur.episode, lang, hint = subHint()), lang, forUrl)
             onlineMsg = null
             if (n > 0) {
                 notice = OnlineSubsLogic.langName(lang) + " subtitles on (" + n + " to choose from in Audio & Subtitles)"
@@ -2256,8 +2306,27 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 Panel.TRACKS -> TracksPanel(
                     player, tracksVer, { tracksVer++; h.postDelayed({ rememberTracks() }, 400) }, panelFocus, subsFocus,
                     { closePanel() }, { openPanel(Panel.SUBSTYLE, Panel.TRACKS) },
-                    onOnline = if (cur.live || cur.archive != null) null else ({ findOnlineSubs(); openPanel(Panel.ONLINESUBS, Panel.TRACKS) })
+                    onOnline = if (cur.live || cur.archive != null) null else ({ findOnlineSubs(); openPanel(Panel.ONLINESUBS, Panel.TRACKS) }),
+                    onTiming = if (hasOnlineSubs()) ({ openPanel(Panel.SUBSYNC, Panel.TRACKS) }) else null
                 )
+
+                Panel.SUBSYNC -> PSimplePanel(440.dp, "Subtitle timing", back, { closePanel() }) {
+                    Column(verticalArrangement = Arrangement.spacedBy(PT.RowGap)) {
+                        val d = subDelayMs
+                        Text(when {
+                            d == 0L -> "As loaded"
+                            d > 0 -> String.format(java.util.Locale.US, "%.1f s later", d / 1000.0)
+                            else -> String.format(java.util.Locale.US, "%.1f s earlier", -d / 1000.0)
+                        }, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 4.dp))
+                        PPanelRow("Earlier by 0.5 s", false, Modifier.focusRequester(panelFocus)) { changeSubDelay(-500) }
+                        PPanelRow("Later by 0.5 s", false) { changeSubDelay(500) }
+                        PPanelRow("Earlier by 0.1 s", false) { changeSubDelay(-100) }
+                        PPanelRow("Later by 0.1 s", false) { changeSubDelay(100) }
+                        PPanelRow("Reset", false) { changeSubDelay(0) }
+                        Text("Subtitles before the voice: press Later. After the voice: Earlier. The picture pauses for a moment when it changes.",
+                            color = Muted, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
+                    }
+                }
 
                 Panel.ONLINESUBS -> PSimplePanel(480.dp, "Subtitles online", back, { closePanel() }) {
                     val langs = onlineLangs

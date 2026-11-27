@@ -40,4 +40,25 @@ class OnlineSubsLogicTest {
         assertEquals("English", OnlineSubsLogic.langName("en"))
         assertEquals("Spanish", OnlineSubsLogic.langName("es"))
     }
+
+    @Test fun subtitlesForTheSameReleaseComeFirst() {
+        val hint = OnlineSubsLogic.Hint("Inside.Man.2006.1080p.BluRay.x264-SEPTiC.mkv", 23.976f)
+        val wrongFps = OnlineSubsLogic.Sub("https://s/1", "en", "Inside.Man.2006.DVDRip.XviD", 25f)
+        val sameRelease = OnlineSubsLogic.Sub("https://s/2", "en", "Inside.Man.2006.1080p.BluRay.x264-SEPTiC", 23.976f)
+        val unknown = OnlineSubsLogic.Sub("https://s/3", "en", "inside man", 0f)
+        val picked = OnlineSubsLogic.pick(listOf(wrongFps, unknown, sameRelease), "en", 3, hint).map { it.url }
+        assertEquals(listOf("https://s/2", "https://s/3", "https://s/1"), picked)
+        // Without a hint: the server's order
+        assertEquals(listOf("https://s/1", "https://s/3", "https://s/2"), OnlineSubsLogic.pick(listOf(wrongFps, unknown, sameRelease), "en", 3).map { it.url })
+    }
+
+    @Test fun timingShiftMovesEveryTimeAndNeverBeforeZero() {
+        val srt = "1\r\n00:00:01,000 --> 00:00:02,500\r\nHi\r\n\r\n2\r\n01:59:59,900 --> 02:00:00,100\r\nBye\r\n"
+        val later = OnlineSubsLogic.shiftSrt(srt, 1500)
+        assertTrue(later.contains("00:00:02,500 --> 00:00:04,000"))
+        assertTrue(later.contains("02:00:01,400 --> 02:00:01,600"))
+        val earlier = OnlineSubsLogic.shiftSrt(srt, -2000)
+        assertTrue(earlier.contains("00:00:00,000 --> 00:00:00,500"))
+        assertEquals(srt, OnlineSubsLogic.shiftSrt(srt, 0))
+    }
 }
