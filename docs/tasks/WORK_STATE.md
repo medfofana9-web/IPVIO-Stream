@@ -1,5 +1,13 @@
 # Work state
 
+## 27 Nov 2026 – daily auto-report run: Sports page freeze
+- Fixed #71/#73/#75: `SportPins.base/score` compiled 10 regexes per playlist channel inside `SportSplit` composition;
+  now precompiled, and `SportSplit` resolves pins with `produceState` on `Dispatchers.Default`
+  (`SportPins.resolveAll/cached`). Test: `SportPinsTest`.
+- Closed #58/#60/#67 (pick phase fixed in 1.3.254, no newer report) and #74 (provider net+decode).
+- Still open: #57 (Sports slow frames, probably the same freeze – check after release), #72 tab11, GPU-bound perf
+  #49/#50/#53/#56, old freezes #51/#59/#69/#70, low memory #55/#68, onn failover #61/#62.
+
 ## 26 Nov 2026 – 1.3.279: detailed reports (T-010), resume fix; online subtitles on branch `auto-fix`
 - Released 1.3.279: T-010 (see `docs/tasks/T-010-detailed-reports.md`), movie Resume asks addons for a fresh link
   (`ResumeFreshLogic.movieUrl`, `DetailScreen` Resume uses `targetFresh`), #63 and #64–#66 fixes (1.3.271).

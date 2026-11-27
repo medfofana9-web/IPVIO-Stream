@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased – Sports page no longer freezes
+
+- The Sports page found your pinned channels (ESPN, NBA TV …) by checking every channel of the playlist on the screen's
+  own thread, with the name patterns built anew for each channel. On big playlists that froze the page for seconds
+  (auto-reports #71, #73, #75). The patterns are built once, and the lookup runs in the background.
+
 ## Unreleased – New Audio & Subtitles panel, subtitles in sync
 
 - Audio & Subtitles is a panel along the right edge (design A): audio on top, subtitles below with plain names
