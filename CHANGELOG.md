@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased – Faster Home with the background glow
+
+- The background glow is painted as one small picture stretched over the screen when its colors change, instead of the
+  background plus two full-screen gradients on every frame; the screen behind the app is no longer filled as well. Home on
+  the test emulator: 150 ms per frame before, 109 ms now (the glow itself stays as it was).
+- Speed test baseline set to today's Home (109 ms) so later changes cannot make it slower; Home is still slower than
+  before the wide cards of 25 Nov (44 ms) and is the next thing to work on, with the reports from the TVs.
+
 ## Unreleased – More checks before an update reaches every TV (T-012)
 
 - Closed by Android for memory while Fof TV was in the background (the TV's own screensaver or another app in front)

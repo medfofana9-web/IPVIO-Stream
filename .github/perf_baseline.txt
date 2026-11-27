@@ -1,0 +1,1 @@
+109 60  # Accepted 26 Nov 2026: Home median frame (ms) and % of frames held up by the app on the emulator after the glow fix (was 150 ms / 63 %). Earlier baseline 44 ms / 31 % was before the wider Nuvio Home cards, the app glow and the Watching now banner (25-26 Nov). Lower these numbers when Home gets faster.
