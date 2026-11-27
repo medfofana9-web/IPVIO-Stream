@@ -1,6 +1,17 @@
 package com.ipvio.stream
 
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
@@ -27,6 +38,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -46,127 +58,117 @@ fun PChoiceList(options: List<String>, selected: Int, focus: FocusRequester, onP
 }
 
 /**
- * Audio & subtitles in one menu with two columns.
- * Right key in the audio column switches to the subtitles, Left goes back or closes the menu.
+ * Audio & Subtitles (design A, 27 Nov 2026): a panel along the right edge, full height, opaque, never wider than the
+ * screen allows. Audio on top, subtitles below with plain names ("English · best match", "English · version 2"), then
+ * "More languages", Timing (Left earlier, Right later, right on the row) with "Sync to a line", and the subtitle style.
+ * The player's control bar is hidden while it is open, so nothing shows through; the subtitles stay visible on the
+ * picture. Up/Down move, OK selects, Back closes.
  */
 @Composable
 fun BoxScope.TracksPanel(
     player: Player, ver: Int, onChanged: () -> Unit,
     audioFocus: FocusRequester, subsFocus: FocusRequester,
-    onClose: () -> Unit, onStyle: () -> Unit, onOnline: (() -> Unit)? = null, onTiming: (() -> Unit)? = null,
-    onEnglish: (() -> Unit)? = null
+    onClose: () -> Unit, onStyle: () -> Unit, onOnline: (() -> Unit)? = null,
+    onEnglish: (() -> Unit)? = null,
+    timingMs: Long? = null, onTimingStep: (Long) -> Unit = {}, onSyncLine: (() -> Unit)? = null,
+    styleLabel: String = ""
 ) {
     val audio = remember(ver) { collectTracks(player, C.TRACK_TYPE_AUDIO) }
     val subs = remember(ver) { collectTracks(player, C.TRACK_TYPE_TEXT) }
     val subsOff = player.trackSelectionParameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT)
-    val subsSel = if (subsOff) 0 else (subs.indexOfFirst { it.selected } + 1).coerceAtLeast(0)
-    val audioState = rememberLazyListState(0)
-    val subsState = rememberLazyListState(maxOf(subsSel - 3, 0))
+    val listState = rememberLazyListState(0)
+    val panelW = minOf(420, (LocalConfiguration.current.screenWidthDp * 0.44f).toInt()).dp
 
-    // Focus always starts at the first item of the audio column; if there is no audio choice, at the first item of the subtitles
+    // Focus on the subtitle in use (or Off) when there is only one audio track, else on the audio in use
     LaunchedEffect(Unit) {
         delay(200)
         repeat(8) {
-            if (runCatching { (if (audio.isNotEmpty()) audioFocus else subsFocus).requestFocus() }.getOrDefault(false)) return@LaunchedEffect
+            if (runCatching { (if (audio.size > 1) audioFocus else subsFocus).requestFocus() }.getOrDefault(false)) return@LaunchedEffect
             delay(70)
         }
     }
-
-    PPanelFrame(680.dp, "Audio & Subtitles", "Left closes the menu · Right opens subtitles", onEdgeDown = onClose) {
-        Row(Modifier.weight(1f, fill = false), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Column(
-                Modifier.weight(1f).onPreviewKeyEvent { e ->
-                    if (e.type != KeyEventType.KeyDown) false
-                    else when (e.key) {
-                        Key.DirectionLeft -> { onClose(); true }
-                        Key.DirectionRight -> { runCatching { subsFocus.requestFocus() }; true }
-                        else -> false
-                    }
-                }
-            ) {
-                PColumnHeader("Audio")
-                if (audio.isEmpty()) {
-                    Text(
-                        "No options available", color = Muted, fontSize = 15.sp,
-                        modifier = Modifier.focusRequester(audioFocus).focusable().padding(16.dp)
-                    )
-                } else {
-                    LazyColumn(state = audioState, verticalArrangement = Arrangement.spacedBy(PT.RowGap)) {
-                        itemsIndexed(audio) { i, t ->
-                            PPanelRow(t.label, t.selected, if (i == 0) Modifier.focusRequester(audioFocus) else Modifier) {
-                                player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
-                                    .setOverrideForType(TrackSelectionOverride(t.group.mediaTrackGroup, t.idx)).build()
-                                onChanged()
-                            }
-                        }
-                    }
+    Column(
+        Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(panelW)
+            .background(Color(0xFF141417)).border(1.dp, Color(0xFF2A2A30))
+            // After the rows (not before): the Timing row uses Left/Right itself; elsewhere Left closes the panel
+            .onKeyEvent { e -> if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionLeft) { onClose(); true } else false }
+            .focusGroup()
+            .padding(start = 28.dp, end = 28.dp, top = 28.dp, bottom = 20.dp)
+    ) {
+        Text("Audio & Subtitles", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+        Text("Back closes · OK selects", color = FofVisual.Secondary, fontSize = 13.sp, maxLines = 1, modifier = Modifier.padding(top = 4.dp, bottom = 14.dp))
+        LazyColumn(state = listState, modifier = Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            item { PSectionLabel("AUDIO") }
+            if (audio.isEmpty()) item {
+                Text("No audio choice in this stream", color = Muted, fontSize = 15.sp, modifier = Modifier.focusRequester(audioFocus).focusable().padding(12.dp))
+            }
+            itemsIndexed(audio) { i, t ->
+                val sel = t.selected
+                PPanelRow(t.label, sel, if (sel || (i == 0 && audio.none { it.selected })) Modifier.focusRequester(audioFocus) else Modifier,
+                    trailing = if (sel) "Playing" else null) {
+                    player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                        .setOverrideForType(TrackSelectionOverride(t.group.mediaTrackGroup, t.idx)).build()
+                    onChanged()
                 }
             }
-            Column(
-                Modifier.weight(1f).onPreviewKeyEvent { e ->
-                    if (e.type != KeyEventType.KeyDown) false
-                    else when (e.key) {
-                        Key.DirectionLeft -> { runCatching { audioFocus.requestFocus() }; true }
-                        Key.DirectionRight -> true
-                        else -> false
-                    }
+            item { Spacer(Modifier.height(10.dp)); PSectionLabel("SUBTITLES") }
+            item {
+                PPanelRow("Off", subsOff, if (subsOff || subs.none { it.selected }) Modifier.focusRequester(subsFocus) else Modifier) {
+                    player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build()
+                    onChanged()
                 }
-            ) {
-                PColumnHeader("Subtitles")
-                LazyColumn(state = subsState, verticalArrangement = Arrangement.spacedBy(PT.RowGap)) {
-                    item {
-                        PPanelRow("Aus", subsOff, if (subsSel == 0) Modifier.focusRequester(subsFocus) else Modifier) {
-                            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
-                                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build()
-                            onChanged()
-                        }
-                    }
-                    itemsIndexed(subs) { i, t ->
-                        PPanelRow(t.label, t.selected && !subsOff, if (subsSel == i + 1) Modifier.focusRequester(subsFocus) else Modifier) {
-                            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
-                                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-                                .setOverrideForType(TrackSelectionOverride(t.group.mediaTrackGroup, t.idx)).build()
-                            onChanged()
-                        }
-                    }
-                    // The stream has no English subtitles, but English ones from the internet are downloaded and ready
-                    if (onEnglish != null) item {
-                        PPanelRow("English · online", false, onClick = onEnglish)
-                    }
-                    if (subs.isEmpty() && onEnglish == null) {
-                        item {
-                            Text(
-                                "This stream has no subtitles. Try \"Find subtitles online\" below.", color = Muted, fontSize = 14.sp,
-                                modifier = Modifier.padding(16.dp)
-                            )
-                        }
-                    }
+            }
+            itemsIndexed(subs) { _, t ->
+                val on = t.selected && !subsOff
+                PPanelRow(t.label, on, if (on) Modifier.focusRequester(subsFocus) else Modifier, trailing = if (on) "On" else null) {
+                    player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                        .setOverrideForType(TrackSelectionOverride(t.group.mediaTrackGroup, t.idx)).build()
+                    onChanged()
                 }
+            }
+            // The stream has no English subtitles, but English ones from the internet are downloaded and ready
+            if (onEnglish != null) item { PPanelRow("English", false, trailing = "from the internet", onClick = onEnglish) }
+            if (onOnline != null) item { PPanelRow("More languages…", false, chevron = true, onClick = onOnline) }
+            if (subs.isEmpty() && onEnglish == null && onOnline == null) item {
+                Text("This stream has no subtitles.", color = Muted, fontSize = 14.sp, modifier = Modifier.padding(12.dp))
             }
         }
         Spacer(Modifier.height(12.dp))
-        // Movies and episodes: subtitles from the internet in any language (also when the stream has its own)
-        if (onOnline != null) PPanelRow(
-            "Find subtitles online", false,
-            Modifier.onPreviewKeyEvent { e -> if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionLeft) { onClose(); true } else false },
-            chevron = true, tinted = true, onClick = onOnline
-        )
-        // Online subtitles out of step with the voices: move them earlier or later
-        if (onTiming != null) PPanelRow(
-            "Subtitle timing", false,
-            Modifier.onPreviewKeyEvent { e -> if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionLeft) { onClose(); true } else false },
-            chevron = true, tinted = true, onClick = onTiming
-        )
-        PPanelRow(
-            "Subtitle appearance", false,
-            Modifier.onPreviewKeyEvent { e ->
-                if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionLeft) { onClose(); true }
-                else if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionRight) { onStyle(); true }
-                else false
-            },
-            chevron = true, tinted = true, onClick = onStyle
-        )
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF2A2A30)))
+        Spacer(Modifier.height(10.dp))
+        if (timingMs != null) {
+            // Timing right on the row: Left earlier, Right later (0.5 s a press); OK opens "Sync to a line"
+            PPanelRow(
+                "Timing   " + timingText(timingMs), false,
+                Modifier.onPreviewKeyEvent { e ->
+                    if (e.type != KeyEventType.KeyDown) false
+                    else when (e.key) {
+                        Key.DirectionLeft -> { onTimingStep(-500); true }
+                        Key.DirectionRight -> { onTimingStep(500); true }
+                        else -> false
+                    }
+                },
+                trailing = "◀ earlier · later ▶"
+            ) { onSyncLine?.invoke() }
+            if (onSyncLine != null) PPanelRow("Sync to a line", false, trailing = "press OK on the voice", chevron = true, onClick = onSyncLine)
+        }
+        PPanelRow("Subtitle style", false, trailing = styleLabel.ifEmpty { null }, chevron = true, onClick = onStyle)
     }
+}
+
+/** "As loaded", "1.5 s later", "0.5 s earlier". */
+fun timingText(ms: Long): String = when {
+    ms == 0L -> "as loaded"
+    ms > 0 -> String.format(java.util.Locale.US, "%.1f s later", ms / 1000.0)
+    else -> String.format(java.util.Locale.US, "%.1f s earlier", -ms / 1000.0)
+}
+
+@Composable
+private fun PSectionLabel(text: String) {
+    Text(text, color = FofVisual.Secondary, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp, maxLines = 1,
+        modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 2.dp), raw = true)
 }
 
 private class EpRow(val header: String?, val ep: Episode?)

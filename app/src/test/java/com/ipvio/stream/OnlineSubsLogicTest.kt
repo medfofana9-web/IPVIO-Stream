@@ -61,4 +61,16 @@ class OnlineSubsLogicTest {
         assertTrue(earlier.contains("00:00:00,000 --> 00:00:00,500"))
         assertEquals(srt, OnlineSubsLogic.shiftSrt(srt, 0))
     }
+
+    @Test fun frameRateStretchAndSyncLines() {
+        assertEquals(1.0, OnlineSubsLogic.fpsScale(23.976f, 23.976f), 0.0)
+        assertEquals(25.0 / 23.976, OnlineSubsLogic.fpsScale(25f, 23.976f), 1e-9)
+        assertEquals(1.0, OnlineSubsLogic.fpsScale(0f, 23.976f), 0.0)
+        val srt = "1\n00:00:10,000 --> 00:00:11,000\n[Laughs]\n\n2\n00:00:12,000 --> 00:00:14,000\n<i>Where were you</i>\nlast night?\n\n3\n00:01:00,000 --> 00:01:02,000\nOK.\n"
+        val cues = OnlineSubsLogic.cues(srt)
+        assertEquals(3, cues.size)
+        assertEquals(12_000L to "Where were you last night?", OnlineSubsLogic.syncLine(cues, 5_000L))
+        assertNull(OnlineSubsLogic.syncLine(cues, 13_000L))
+        assertTrue(OnlineSubsLogic.retime(srt, 0L, 2.0).contains("00:00:20,000 --> 00:00:22,000"))
+    }
 }

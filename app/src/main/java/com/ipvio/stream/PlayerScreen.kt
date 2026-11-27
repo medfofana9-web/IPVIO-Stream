@@ -1252,15 +1252,19 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
      * languages stay in the list. The stream reopens at the same spot. Returns how many were added.
      */
     suspend fun addOnlineSubs(subs: List<OnlineSubsLogic.Sub>, lang: String, forUrl: String): Int {
-        val files = subs.mapNotNull { OnlineSubs.file(ctx, it) }
+        // Made for another frame rate: stretched to this video's, or the voices fall further behind every minute
+        val vfps = player.videoFormat?.frameRate?.takeIf { it > 0f } ?: 0f
+        val files = subs.mapNotNull { sub -> OnlineSubs.file(ctx, sub)?.let { OnlineSubs.fpsFixed(it, OnlineSubsLogic.fpsScale(sub.fps, vfps)) } }
         val now = player.currentMediaItem
         if (files.isEmpty() || cur.url != forUrl || now == null) return 0
         val name = OnlineSubsLogic.langName(lang)
-        val kept = now.localConfiguration?.subtitleConfigurations.orEmpty().filter { c -> files.none { android.net.Uri.fromFile(it) == c.uri } }
+        // Online subtitles of other languages stay; this language's are replaced
+        val kept = now.localConfiguration?.subtitleConfigurations.orEmpty().filter { c -> c.uri.scheme != "file" || c.language != lang }
         val configs = kept + files.mapIndexed { i, f ->
             MediaItem.SubtitleConfiguration.Builder(android.net.Uri.fromFile(f))
                 .setMimeType(androidx.media3.common.MimeTypes.APPLICATION_SUBRIP).setLanguage(lang)
-                .setLabel("Online · " + name + " " + (i + 1)).setSelectionFlags(if (i == 0) C.SELECTION_FLAG_DEFAULT else 0).build()
+                .setLabel(if (i == 0) "$name · best match" else "$name · version ${i + 1}")
+                .setSelectionFlags(if (i == 0) C.SELECTION_FLAG_DEFAULT else 0).build()
         }
         val item = now.buildUpon().setSubtitleConfigurations(configs).build()
         val at = player.currentPosition.coerceAtLeast(0L)
@@ -1318,6 +1322,37 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         subDelayApply[0] = Runnable { applySubDelay(target) }.also { h.postDelayed(it, 1_200) }
     }
     fun hasOnlineSubs(): Boolean = player.currentMediaItem?.localConfiguration?.subtitleConfigurations.orEmpty().any { it.uri.scheme == "file" }
+
+    // "Sync to a line": the next line of the subtitle in use is shown; OK when the voice says it sets the timing exactly
+    // (also for subtitles that are many seconds off, where 0.5 s steps take too long)
+    var syncLine by remember { mutableStateOf<Pair<Long, String>?>(null) }
+    var syncMsg by remember { mutableStateOf<String?>(null) }
+    fun startSyncLine(after: Long? = null) {
+        val cfgs = player.currentMediaItem?.localConfiguration?.subtitleConfigurations.orEmpty().filter { it.uri.scheme == "file" }
+        val selLabel = player.currentTracks.groups.firstOrNull { it.type == C.TRACK_TYPE_TEXT && it.isSelected }
+            ?.let { g -> (0 until g.length).firstOrNull { g.isTrackSelected(it) }?.let { g.getTrackFormat(it).label } }
+        val path = (cfgs.firstOrNull { it.label == selLabel } ?: cfgs.firstOrNull())?.uri?.path ?: run { syncMsg = "Turn on subtitles from the internet first."; return }
+        syncLine = null; syncMsg = "Finding the next line …"
+        scope.launch {
+            val cues = OnlineSubs.cuesOf(java.io.File(path))
+            // Next line as the subtitles are timed now, a moment ahead so there is time to read it
+            val from = after ?: (player.currentPosition - subDelayMs + 2_000L)
+            val line = OnlineSubsLogic.syncLine(cues, from)
+            syncLine = line
+            syncMsg = if (line == null) "No more lines with words in these subtitles." else null
+        }
+    }
+    fun confirmSync() {
+        val line = syncLine ?: return
+        // About 0.4 s for the press after hearing the line
+        val d = (player.currentPosition - line.first - 400L).coerceIn(-600_000L, 600_000L)
+        subDelayApply[0]?.let { h.removeCallbacks(it) }
+        subDelayMs = d
+        applySubDelay(d)
+        notice = "Subtitles synced (" + timingText(d) + ")"
+        syncLine = null
+        closePanel()
+    }
 
     // English subtitles ready for every movie and episode whose stream has none: found and downloaded in the background
     // after the start, offered as "English · online" in Audio & Subtitles (one press, no search). Turned on by
@@ -1984,7 +2019,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         // ---------------------------------------------------------------- Control bar
         AnimatedVisibility(
             // No control bar under the TV guide: otherwise focus could slip from the guide into this menu
-            visible = controls && !showGuide,
+            // Hidden behind the Audio & Subtitles panel (nothing shows through it)
+            visible = controls && !showGuide && panel !in setOf(Panel.TRACKS, Panel.SUBSYNC, Panel.ONLINESUBS, Panel.SUBSTYLE),
             modifier = Modifier.fillMaxSize(),
             enter = fadeIn(tween(160)),
             exit = fadeOut(tween(120))
@@ -2322,25 +2358,24 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     player, tracksVer, { tracksVer++; h.postDelayed({ rememberTracks() }, 400) }, panelFocus, subsFocus,
                     { closePanel() }, { openPanel(Panel.SUBSTYLE, Panel.TRACKS) },
                     onOnline = if (cur.live || cur.archive != null) null else ({ findOnlineSubs(); openPanel(Panel.ONLINESUBS, Panel.TRACKS) }),
-                    onTiming = if (hasOnlineSubs()) ({ openPanel(Panel.SUBSYNC, Panel.TRACKS) }) else null,
-                    onEnglish = if (onlineEn.isEmpty()) null else ({ onlineEn = emptyList(); pickOnlineSubs("en") })
+                    onEnglish = if (onlineEn.isEmpty()) null else ({ onlineEn = emptyList(); pickOnlineSubs("en") }),
+                    timingMs = if (hasOnlineSubs()) subDelayMs else null,
+                    onTimingStep = { changeSubDelay(it) },
+                    onSyncLine = if (hasOnlineSubs()) ({ startSyncLine(); openPanel(Panel.SUBSYNC, Panel.TRACKS) }) else null,
+                    styleLabel = SubStyle.SIZES[AppSettings.subSize].first
                 )
 
-                Panel.SUBSYNC -> PSimplePanel(440.dp, "Subtitle timing", back, { closePanel() }) {
+                Panel.SUBSYNC -> PSimplePanel(480.dp, "Sync to a line", back, { closePanel() }) {
                     Column(verticalArrangement = Arrangement.spacedBy(PT.RowGap)) {
-                        val d = subDelayMs
-                        Text(when {
-                            d == 0L -> "As loaded"
-                            d > 0 -> String.format(java.util.Locale.US, "%.1f s later", d / 1000.0)
-                            else -> String.format(java.util.Locale.US, "%.1f s earlier", -d / 1000.0)
-                        }, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 4.dp))
-                        PPanelRow("Earlier by 0.5 s", false, Modifier.focusRequester(panelFocus)) { changeSubDelay(-500) }
-                        PPanelRow("Later by 0.5 s", false) { changeSubDelay(500) }
-                        PPanelRow("Earlier by 0.1 s", false) { changeSubDelay(-100) }
-                        PPanelRow("Later by 0.1 s", false) { changeSubDelay(100) }
-                        PPanelRow("Reset", false) { changeSubDelay(0) }
-                        Text("Subtitles before the voice: press Later. After the voice: Earlier. The picture pauses for a moment when it changes.",
-                            color = Muted, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
+                        val line = syncLine
+                        Text(if (line != null) "Press OK when you hear:" else (syncMsg ?: ""), color = Muted, fontSize = 15.sp)
+                        if (line != null) Text("\u201C" + line.second.take(140) + "\u201D", color = Color.White, fontSize = 24.sp,
+                            fontWeight = FontWeight.SemiBold, lineHeight = 30.sp, raw = true, modifier = Modifier.padding(vertical = 8.dp))
+                        PPanelRow("I hear it now", false, Modifier.focusRequester(panelFocus)) { confirmSync() }
+                        PPanelRow("Another line", false) { startSyncLine(after = (line?.first ?: (player.currentPosition - subDelayMs)) + 1L) }
+                        PPanelRow("Now: " + timingText(subDelayMs), false, trailing = "Reset") { changeSubDelay(0) }
+                        Text("Keep watching; the line usually comes within a few seconds. Subtitles that drift further off over time were made for another video; try \"version 2\".",
+                            color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
                     }
                 }
 

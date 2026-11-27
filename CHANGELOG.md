@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased – New Audio & Subtitles panel, subtitles in sync
+
+- Audio & Subtitles is a panel along the right edge (design A): audio on top, subtitles below with plain names
+  ("English · best match", "English · version 2"), More languages, Timing right on its row (Left earlier, Right later)
+  and the subtitle style. It never runs off the screen, and the control bar is hidden behind it.
+- "Sync to a line": the next line of the subtitles is shown; press OK when the voice says it and the timing is set
+  exactly, also when the subtitles are many seconds off.
+- Subtitles made for another frame rate are stretched to the video's (they no longer drift further off every minute).
+
 ## Unreleased – Subtitles in step with the voices
 
 - Online subtitles made for the same release as the playing video come first: same frame rate (a subtitle for 25 fps

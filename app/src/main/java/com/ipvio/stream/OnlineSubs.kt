@@ -31,6 +31,21 @@ object OnlineSubs {
         }.getOrNull()
     }
 
+    /** A copy stretched for the video's frame rate ([OnlineSubsLogic.fpsScale]); the file itself when no stretch is needed. */
+    suspend fun fpsFixed(original: File, scale: Double): File = withContext(Dispatchers.IO) {
+        if (scale == 1.0) return@withContext original
+        runCatching {
+            val f = File(original.parentFile, original.nameWithoutExtension + "_f" + Math.round(scale * 10000) + ".srt")
+            if (!f.isFile) f.writeText(OnlineSubsLogic.retime(original.readText(), 0L, scale))
+            f
+        }.getOrDefault(original)
+    }
+
+    /** The cues of the (unmoved) subtitle file behind [f], for "Sync to a line". */
+    suspend fun cuesOf(f: File): List<Pair<Long, String>> = withContext(Dispatchers.IO) {
+        runCatching { OnlineSubsLogic.cues(originalOf(f).readText()) }.getOrDefault(emptyList())
+    }
+
     /** The downloaded original behind a (possibly moved) subtitle file. */
     fun originalOf(f: File): File = File(f.parentFile, f.name.replace(Regex("_d-?\\d+\\.srt$"), ".srt"))
 
@@ -147,14 +162,49 @@ object OnlineSubsLogic {
      * The subtitle text with every time moved by [ms] (positive = later, negative = earlier; never before 0:00), for
      * "Subtitle timing" in the player. SRT times look like 00:01:02,345.
      */
-    fun shiftSrt(text: String, ms: Long): String {
-        if (ms == 0L) return text
-        return Regex("(\\d{1,2}):(\\d{2}):(\\d{2})[,.](\\d{3})").replace(text) { m ->
+    fun shiftSrt(text: String, ms: Long): String = retime(text, ms, 1.0)
+
+    /** Every time × [scale] (frame-rate fix, see [fpsScale]) and then moved by [ms]. */
+    fun retime(text: String, ms: Long, scale: Double): String {
+        if (ms == 0L && scale == 1.0) return text
+        return TIME.replace(text) { m ->
             val (h, mi, se, f) = m.destructured
-            val t = (((h.toLong() * 60 + mi.toLong()) * 60 + se.toLong()) * 1000 + f.toLong() + ms).coerceAtLeast(0L)
+            val raw = ((h.toLong() * 60 + mi.toLong()) * 60 + se.toLong()) * 1000 + f.toLong()
+            val t = (Math.round(raw * scale) + ms).coerceAtLeast(0L)
             String.format(java.util.Locale.US, "%02d:%02d:%02d,%03d", t / 3_600_000, t / 60_000 % 60, t / 1000 % 60, t % 1000)
         }
     }
+    private val TIME = Regex("(\\d{1,2}):(\\d{2}):(\\d{2})[,.](\\d{3})")
+
+    /**
+     * Stretch for a subtitle made for another frame rate: one timed for a 25 fps release runs 4 % fast against a
+     * 23.976 fps video (the voices fall further behind every minute). 1.0 when unknown or the same.
+     */
+    fun fpsScale(subFps: Float, videoFps: Float): Double {
+        if (subFps <= 0f || videoFps <= 0f || kotlin.math.abs(subFps - videoFps) < 0.1f) return 1.0
+        val r = subFps.toDouble() / videoFps
+        return if (r in 0.9..1.1) r else 1.0
+    }
+
+    /** The cues of an SRT: start time (ms) and text on one line. */
+    fun cues(text: String): List<Pair<Long, String>> {
+        val out = ArrayList<Pair<Long, String>>()
+        for (block in text.replace("\r", "").split(Regex("\n\\s*\n"))) {
+            val lines = block.trim().lines()
+            val ti = lines.indexOfFirst { "-->" in it }
+            if (ti < 0) continue
+            val m = TIME.find(lines[ti]) ?: continue
+            val (h, mi, se, f) = m.destructured
+            val start = ((h.toLong() * 60 + mi.toLong()) * 60 + se.toLong()) * 1000 + f.toLong()
+            val words = lines.drop(ti + 1).joinToString(" ").replace(Regex("<[^>]+>|\\{[^}]*\\}"), "").trim()
+            if (words.isNotEmpty()) out.add(start to words)
+        }
+        return out
+    }
+
+    /** A line to sync with: the first after [fromMs] with at least 3 words and no sound label ("[Laughs]"). */
+    fun syncLine(cues: List<Pair<Long, String>>, fromMs: Long): Pair<Long, String>? =
+        cues.firstOrNull { it.first >= fromMs && it.second.split(' ').count { w -> w.any(Char::isLetter) } >= 3 && !it.second.trim().startsWith("[") && !it.second.trim().startsWith("(") }
 
     /** Languages on offer with how many subtitles each: the [preferred] ones first (in that order), then by count. */
     fun languages(all: List<Sub>, preferred: List<String>): List<Pair<String, Int>> {
