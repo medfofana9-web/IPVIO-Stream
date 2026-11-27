@@ -32,8 +32,11 @@ SCEN = {
     # Seeking after the start (Right x3): the jump lands and plays on from there (#50: the seek glide no longer reads
     # the position while composing)
     "tt9000006": ("Fixture Six", 2011, {"b": ("good", 0)}, "b", 30000),
+    # New control bar (27 Nov 2026): OK pauses and shows the bar with Play focused; OK on the bar's Play button resumes
+    "tt9000007": ("Fixture Seven", 2012, {"b": ("good", 0)}, "b", 30000),
 }
 SEEK = {"tt9000006": [22, 22, 22]}
+BAR = {"tt9000007": [23, "sleep 4; adb exec-out screencap -p > p_tt9000007_bar.png", 23]}
 # Live channels in srv/test.m3u (name, path) and the live scenarios: play, a connection that keeps dropping, zapping
 CHANNELS = [("Fixture Live A", "good"), ("Fixture Live B", "good"), ("Fixture Live C", "good"), ("Fixture Live Drop", "drop")]
 LIVE_SCEN = [
@@ -160,7 +163,7 @@ def fixture_json():
         out.append({"id": sid, "kind": "resume", "title": title, "year": year, "resume_ms": pos,
                     "good_key": (ADDONS[good] + "|" + label(good, sid)) if good else None,
                     "expect": "good" if "good" in [m for m, _ in srcs.values()] else None,
-                    "sources": {ADDONS[k]: m for k, (m, _) in srcs.items()}, "seek_keys": SEEK.get(sid, [])})
+                    "sources": {ADDONS[k]: m for k, (m, _) in srcs.items()}, "seek_keys": SEEK.get(sid, []), "bar_keys": BAR.get(sid, [])})
     return out + LIVE_SCEN
 
 

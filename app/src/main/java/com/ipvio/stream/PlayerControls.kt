@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -56,7 +57,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Round control button. Focus = white surface with a dark icon (easily recognizable from 3 m). */
+/**
+ * Control button (player redesign, 27 Nov 2026): a plain white icon at rest (no circle, no border), a white shape with a
+ * dark icon when focused (easily recognizable from 3 m). [square]: rounded square instead of a circle (the option buttons
+ * on the right, so "watching" and "options" read as two groups). [showLabel]: the focused button's name appears right
+ * under it, in a slot of fixed size, so the row never moves.
+ */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun PRoundButton(
@@ -65,25 +71,38 @@ fun PRoundButton(
     enabled: Boolean = true,
     label: String = "",
     onLabel: (String) -> Unit = {},
+    square: Boolean = false,
+    showLabel: Boolean = false,
     onClick: () -> Unit,
     content: @Composable (Color) -> Unit
 ) {
     var f by remember { mutableStateOf(false) }
-    val sc by animateFloatAsState(if (f) focusScale(1.075f) else 1f, animationSpec = tween(145), label = "pbtn")
-    Box(
-        modifier
-            .focusProperties { canFocus = enabled }
-            .graphicsLayer { scaleX = sc; scaleY = sc }
-            .size(size)
-            .clip(CircleShape)
-            .background(if (f) Color.White else FofVisual.GlassDark)
-            .then(if (f) Modifier else Modifier.background(FofGlass.sheen(0, false)))
-            .border(if (f) 2.dp else 1.dp, if (f) FofVisual.Violet else FofVisual.GlassBorder, CircleShape)
-            .onFocusChanged { f = it.isFocused; if (it.isFocused) onLabel(label) }
-            .clickable(enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        content(if (!enabled) Color(0x59FFFFFF) else if (f) PT.Ink else Color.White)
+    val sc by animateFloatAsState(if (f) focusScale(1.06f) else 1f, animationSpec = tween(145), label = "pbtn")
+    val shape = if (square) RoundedCornerShape(size * 0.28f) else CircleShape
+    val button: @Composable () -> Unit = {
+        Box(
+            modifier
+                .focusProperties { canFocus = enabled }
+                .graphicsLayer { scaleX = sc; scaleY = sc }
+                .size(size)
+                .clip(shape)
+                .background(if (f) Color.White else Color.Transparent)
+                .onFocusChanged { f = it.isFocused; if (it.isFocused) onLabel(label) }
+                .clickable(enabled = enabled, onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) {
+            content(if (!enabled) Color(0x59FFFFFF) else if (f) PT.Ink else Color(0xE6FFFFFF))
+        }
+    }
+    if (!showLabel) button()
+    else Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        button()
+        Box(Modifier.width(size).height(PT.LabelSlot).padding(top = 6.dp), contentAlignment = Alignment.TopCenter) {
+            if (f && label.isNotEmpty()) Text(
+                label, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false,
+                modifier = Modifier.wrapContentWidth(unbounded = true)
+            )
+        }
     }
 }
 
@@ -241,15 +260,25 @@ fun PMiniSeek(
     }
 }
 
-/** Row under the timeline: elapsed time on the left, remaining time on the right. */
+/**
+ * Row under the timeline: elapsed time on the left, remaining time on the right; with [speed] also when it ends
+ * ("−51:14 · Ends at 4:34 PM"), so the bar needs no extra line for it.
+ */
 @Composable
-fun PTimeRow(pos: () -> Long, dur: () -> Long) {
+fun PTimeRow(pos: () -> Long, dur: () -> Long, speed: (() -> Float)? = null) {
     Row(
-        Modifier.fillMaxWidth().height(20.dp),
+        Modifier.fillMaxWidth().height(22.dp),
         horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
     ) {
         Text(fmtTime(pos()), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, style = TNUM, maxLines = 1)
-        Text("−" + fmtTime((dur() - pos()).coerceAtLeast(0L)), color = PT.T2, fontSize = 16.sp, style = TNUM, maxLines = 1)
+        val remain = (dur() - pos()).coerceAtLeast(0L)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("−" + fmtTime(remain), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, style = TNUM, maxLines = 1)
+            if (speed != null) Text(
+                "  ·  " + Lang.tr("Endet um") + " " + hhmm(endClockSec(System.currentTimeMillis(), remain, speed())),
+                color = PT.T2, fontSize = 16.sp, style = TNUM, maxLines = 1, raw = true
+            )
+        }
     }
 }
 
@@ -312,7 +341,8 @@ fun BoxScope.PPanelFrame(
     Column(
         Modifier.align(Alignment.TopEnd).padding(top = PT.MarginY, end = PT.MarginY)
             .width(width).heightIn(max = maxH)
-            .glass(shape, 2)
+            // One look for every player panel: an opaque dark surface with a hairline edge (no glass)
+            .clip(shape).background(PT.PanelBg).border(1.dp, Color(0x1AFFFFFF), shape)
             // Down at the end of the list: close the menu, the focus goes back to the icon in the control bar.
             // "exit" is called only when the focus would leave the menu downward (i.e. nothing below in the menu).
             .focusProperties {
@@ -325,9 +355,8 @@ fun BoxScope.PPanelFrame(
             .then(modifier)
             .padding(24.dp)
     ) {
-        FofEyebrow("PLAYER SETTINGS", Modifier.padding(bottom = 16.dp), compact = true)
-        Text(title, color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
-        Text(hint, color = FofVisual.Secondary, fontSize = 14.sp, maxLines = 1, modifier = Modifier.padding(top = 4.dp, bottom = 18.dp))
+        Text(title, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+        Text(hint, color = PT.Hint, fontSize = 14.sp, maxLines = 1, modifier = Modifier.padding(top = 4.dp, bottom = 16.dp))
         content()
     }
 }
@@ -360,8 +389,7 @@ fun PPanelRow(
     val shape = RoundedCornerShape(DS.RadiusS)
     Row(
         modifier.fillMaxWidth().height(PT.RowHeight).clip(shape)
-            .background(if (f) Color.White else if (selected || tinted) DS.Overlay1 else Color.Transparent)
-            .border(1.dp, if (f) FofVisual.Violet else if (selected) FofVisual.GlassBorder else Color.Transparent, shape)
+            .background(if (f) Color.White else if (tinted) DS.Overlay1 else Color.Transparent)
             .onFocusChanged { f = it.isFocused }
             .then(if (chevron || trailing != null) Modifier.onPreviewKeyEvent { e ->
                 if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionRight) { onClick(); true } else false
@@ -371,7 +399,7 @@ fun PPanelRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text, color = if (f) PT.Ink else Color.White, fontSize = 17.sp,
+            text, color = if (f) PT.Ink else if (selected) Color.White else PT.RowText, fontSize = 17.sp,
             fontWeight = if (selected || f) FontWeight.Bold else FontWeight.Medium,
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f), raw = raw
         )
@@ -382,7 +410,7 @@ fun PPanelRow(
         if (chevron) {
             PlayerIcon(PIcon.Chevron, if (f) PT.Ink else PT.T2, Modifier.padding(start = 8.dp), 20.dp)
         } else if (selected) {
-            PlayerIcon(PIcon.Check, if (f) PT.Ink else Accent2, Modifier.padding(start = 8.dp), 20.dp)
+            PlayerIcon(PIcon.Check, if (f) PT.Ink else FofVisual.Violet, Modifier.padding(start = 8.dp), 20.dp)
         }
     }
 }

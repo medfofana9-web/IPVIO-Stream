@@ -60,7 +60,8 @@ fun PChoiceList(options: List<String>, selected: Int, focus: FocusRequester, onP
 /**
  * Audio & Subtitles (design A, 27 Nov 2026): a panel along the right edge, full height, opaque, never wider than the
  * screen allows. Audio on top, subtitles below with plain names ("English · best match", "English · version 2"), then
- * "More languages", Timing (Left earlier, Right later, right on the row) with "Sync to a line", and the subtitle style.
+ * "More languages". Timing (Left earlier, Right later, right on the row), "Sync to a line" and the subtitle style sit
+ * behind one "Adjust subtitles" row (player redesign, 27 Nov 2026), so the list stays short; Left goes back from there.
  * The player's control bar is hidden while it is open, so nothing shows through; the subtitles stay visible on the
  * picture. Up/Down move, OK selects, Back closes.
  */
@@ -78,6 +79,17 @@ fun BoxScope.TracksPanel(
     val subsOff = player.trackSelectionParameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT)
     val listState = rememberLazyListState(0)
     val panelW = minOf(420, (LocalConfiguration.current.screenWidthDp * 0.44f).toInt()).dp
+    var adjust by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val adjustRow = remember { FocusRequester() }
+    val adjustFirst = remember { FocusRequester() }
+    // Into "Adjust subtitles": its first row; back out: the row that opened it
+    val adjustSeen = remember { booleanArrayOf(false) }
+    LaunchedEffect(adjust) {
+        // Not on opening the panel (the effect below picks the track in use then)
+        if (!adjustSeen[0]) { adjustSeen[0] = true; return@LaunchedEffect }
+        delay(60)
+        runCatching { (if (adjust) adjustFirst else adjustRow).requestFocus() }
+    }
 
     // Focus on the subtitle in use (or Off) when there is only one audio track, else on the audio in use
     LaunchedEffect(Unit) {
@@ -89,78 +101,90 @@ fun BoxScope.TracksPanel(
     }
     Column(
         Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(panelW)
-            .background(Color(0xFF141417)).border(1.dp, Color(0xFF2A2A30))
+            .background(Color(0xFF0E101A)).border(1.dp, Color(0x1AFFFFFF))
             // After the rows (not before): the Timing row uses Left/Right itself; elsewhere Left closes the panel
-            .onKeyEvent { e -> if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionLeft) { onClose(); true } else false }
+            // (from "Adjust subtitles": back to the list)
+            .onKeyEvent { e -> if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionLeft) { if (adjust) adjust = false else onClose(); true } else false }
             .focusGroup()
             .padding(start = 28.dp, end = 28.dp, top = 28.dp, bottom = 20.dp)
     ) {
-        Text("Audio & Subtitles", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
-        Text("Back closes · OK selects", color = FofVisual.Secondary, fontSize = 13.sp, maxLines = 1, modifier = Modifier.padding(top = 4.dp, bottom = 14.dp))
-        LazyColumn(state = listState, modifier = Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            item { PSectionLabel("AUDIO") }
-            if (audio.isEmpty()) item {
-                Text("No audio choice in this stream", color = Muted, fontSize = 15.sp, modifier = Modifier.focusRequester(audioFocus).focusable().padding(12.dp))
-            }
-            itemsIndexed(audio) { i, t ->
-                val sel = t.selected
-                PPanelRow(t.label, sel, if (sel || (i == 0 && audio.none { it.selected })) Modifier.focusRequester(audioFocus) else Modifier,
-                    trailing = if (sel) "Playing" else null) {
-                    player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
-                        .setOverrideForType(TrackSelectionOverride(t.group.mediaTrackGroup, t.idx)).build()
-                    onChanged()
+        if (adjust) {
+            Text("Adjust subtitles", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+            Text("Left = Back", color = PT.Hint, fontSize = 13.sp, maxLines = 1, modifier = Modifier.padding(top = 4.dp, bottom = 14.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (timingMs != null) {
+                    // Timing right on the row: Left earlier, Right later (0.5 s a press); OK opens "Sync to a line"
+                    PPanelRow(
+                        "Timing   " + timingText(timingMs), false,
+                        Modifier.focusRequester(adjustFirst).onPreviewKeyEvent { e ->
+                            if (e.type != KeyEventType.KeyDown) false
+                            else when (e.key) {
+                                Key.DirectionLeft -> { onTimingStep(-500); true }
+                                Key.DirectionRight -> { onTimingStep(500); true }
+                                else -> false
+                            }
+                        },
+                        trailing = "◀ earlier · later ▶"
+                    ) { onSyncLine?.invoke() }
+                    if (onSyncLine != null) PPanelRow("Sync to a line", false, trailing = "press OK on the voice", chevron = true, onClick = onSyncLine)
                 }
+                PPanelRow("Subtitle style", false, if (timingMs == null) Modifier.focusRequester(adjustFirst) else Modifier,
+                    trailing = styleLabel.ifEmpty { null }, chevron = true, onClick = onStyle)
             }
-            item { Spacer(Modifier.height(10.dp)); PSectionLabel("SUBTITLES") }
-            // How the online subtitles were timed: made for this file, synced to the voices, still checking …
-            if (syncInfo != null) item {
-                Text((if (syncInfo.startsWith("In sync") || syncInfo.startsWith("Made for") || syncInfo.startsWith("Synced")) "\u2713 " else "") + syncInfo,
-                    color = if (syncInfo.startsWith("Couldn")) Color(0xFFFFB4A8) else Color(0xFF9BE7B0), fontSize = 13.sp, maxLines = 2,
-                    modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
-            }
-            item {
-                PPanelRow("Off", subsOff, if (subsOff || subs.none { it.selected }) Modifier.focusRequester(subsFocus) else Modifier) {
-                    player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
-                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build()
-                    onChanged()
+        } else {
+            Text("Audio & Subtitles", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+            Text("OK selects · Back closes", color = PT.Hint, fontSize = 13.sp, maxLines = 1, modifier = Modifier.padding(top = 4.dp, bottom = 14.dp))
+            LazyColumn(state = listState, modifier = Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                item { PSectionLabel("AUDIO") }
+                if (audio.isEmpty()) item {
+                    Text("No audio choice in this stream", color = Muted, fontSize = 15.sp, modifier = Modifier.focusRequester(audioFocus).focusable().padding(12.dp))
                 }
-            }
-            itemsIndexed(subs) { _, t ->
-                val on = t.selected && !subsOff
-                PPanelRow(t.label, on, if (on) Modifier.focusRequester(subsFocus) else Modifier, trailing = if (on) "On" else null) {
-                    player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
-                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-                        .setOverrideForType(TrackSelectionOverride(t.group.mediaTrackGroup, t.idx)).build()
-                    onChanged()
-                }
-            }
-            // The stream has no English subtitles, but English ones from the internet are downloaded and ready
-            if (onEnglish != null) item { PPanelRow("English", false, trailing = "from the internet", onClick = onEnglish) }
-            if (onOnline != null) item { PPanelRow("More languages…", false, chevron = true, onClick = onOnline) }
-            if (subs.isEmpty() && onEnglish == null && onOnline == null) item {
-                Text("This stream has no subtitles.", color = Muted, fontSize = 14.sp, modifier = Modifier.padding(12.dp))
-            }
-        }
-        Spacer(Modifier.height(12.dp))
-        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF2A2A30)))
-        Spacer(Modifier.height(10.dp))
-        if (timingMs != null) {
-            // Timing right on the row: Left earlier, Right later (0.5 s a press); OK opens "Sync to a line"
-            PPanelRow(
-                "Timing   " + timingText(timingMs), false,
-                Modifier.onPreviewKeyEvent { e ->
-                    if (e.type != KeyEventType.KeyDown) false
-                    else when (e.key) {
-                        Key.DirectionLeft -> { onTimingStep(-500); true }
-                        Key.DirectionRight -> { onTimingStep(500); true }
-                        else -> false
+                itemsIndexed(audio) { i, t ->
+                    val sel = t.selected
+                    PPanelRow(t.label, sel, if (sel || (i == 0 && audio.none { it.selected })) Modifier.focusRequester(audioFocus) else Modifier,
+                        trailing = if (sel) "Playing" else null) {
+                        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                            .setOverrideForType(TrackSelectionOverride(t.group.mediaTrackGroup, t.idx)).build()
+                        onChanged()
                     }
-                },
-                trailing = "◀ earlier · later ▶"
-            ) { onSyncLine?.invoke() }
-            if (onSyncLine != null) PPanelRow("Sync to a line", false, trailing = "press OK on the voice", chevron = true, onClick = onSyncLine)
+                }
+                item { Spacer(Modifier.height(10.dp)); PSectionLabel("SUBTITLES") }
+                // How the online subtitles were timed: made for this file, synced to the voices, still checking …
+                if (syncInfo != null) item {
+                    Text((if (syncInfo.startsWith("In sync") || syncInfo.startsWith("Made for") || syncInfo.startsWith("Synced")) "\u2713 " else "") + syncInfo,
+                        color = if (syncInfo.startsWith("Couldn")) Color(0xFFFFB4A8) else Color(0xFF9BE7B0), fontSize = 13.sp, maxLines = 2,
+                        modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
+                }
+                item {
+                    PPanelRow("Off", subsOff, if (subsOff || subs.none { it.selected }) Modifier.focusRequester(subsFocus) else Modifier) {
+                        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build()
+                        onChanged()
+                    }
+                }
+                itemsIndexed(subs) { _, t ->
+                    val on = t.selected && !subsOff
+                    PPanelRow(t.label, on, if (on) Modifier.focusRequester(subsFocus) else Modifier, trailing = if (on) "On" else null) {
+                        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                            .setOverrideForType(TrackSelectionOverride(t.group.mediaTrackGroup, t.idx)).build()
+                        onChanged()
+                    }
+                }
+                // The stream has no English subtitles, but English ones from the internet are downloaded and ready
+                if (onEnglish != null) item { PPanelRow("English", false, trailing = "from the internet", onClick = onEnglish) }
+                if (onOnline != null) item { PPanelRow("More languages…", false, chevron = true, onClick = onOnline) }
+                if (subs.isEmpty() && onEnglish == null && onOnline == null) item {
+                    Text("This stream has no subtitles.", color = Muted, fontSize = 14.sp, modifier = Modifier.padding(12.dp))
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x1AFFFFFF)))
+            Spacer(Modifier.height(10.dp))
+            // Timing, Sync to a line and the style: one row, opened only when needed
+            PPanelRow("Adjust subtitles", false, Modifier.focusRequester(adjustRow),
+                trailing = timingMs?.takeIf { it != 0L }?.let { timingText(it) } ?: styleLabel.ifEmpty { null }, chevron = true) { adjust = true }
         }
-        PPanelRow("Subtitle style", false, trailing = styleLabel.ifEmpty { null }, chevron = true, onClick = onStyle)
     }
 }
 
@@ -177,11 +201,10 @@ private fun PSectionLabel(text: String) {
         modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 2.dp), raw = true)
 }
 
-private class EpRow(val header: String?, val ep: Episode?)
-
 /**
- * Episode list of the series. The running episode is highlighted and focused on opening.
- * Long seasons (One Piece & Co.) are split into blocks of 50 episodes; Right / fast-forward jumps 50 further, rewind back.
+ * Episodes of the series as a strip along the bottom (player redesign, 27 Nov 2026): season pills on top, the season's
+ * episodes as cards below, the picture stays visible above. The running episode is focused on opening. Up goes to the
+ * seasons, Down closes, Back closes. Long seasons (One Piece & Co.): fast-forward / rewind jump 50 episodes.
  */
 @Composable
 fun BoxScope.EpisodesPanel(
@@ -196,31 +219,16 @@ fun BoxScope.EpisodesPanel(
         if (seriesItem != null && sid != null && !EpisodeInfo.has(sid) && sid.startsWith("stremio:")) { runCatching { LazySeries.load(ctx, seriesItem) }; infoVer++ }
     }
     val progress = remember(sid) { if (sid != null) EpProgress.of(ctx, sid).toMap() else emptyMap() }
-    val rows = remember(episodes) {
-        val out = ArrayList<EpRow>()
-        val bySeason = episodes.groupBy { it.season }
-        var s = -1
-        var k = 0
-        for (e in episodes) {
-            if (e.season != s) { s = e.season; k = 0; out.add(EpRow("Season $s", null)) }
-            val list = bySeason.getValue(s)
-            if (list.size > EpisodeLogic.LONG && k % EpisodeLogic.BLOCK == 0) {
-                out.add(EpRow("Episodes ${e.num}–${list[minOf(k + EpisodeLogic.BLOCK - 1, list.lastIndex)].num}", null))
-            }
-            out.add(EpRow(null, e))
-            k++
-        }
-        out
-    }
-    val long = episodes.size > EpisodeLogic.LONG
-    // first episode after each heading = jump targets
-    val starts = remember(rows) { rows.indices.filter { rows[it].ep != null && (it == 0 || rows[it - 1].ep == null) } }
-    val curIdx = rows.indexOfFirst { r -> r.ep != null && r.ep.season == curSeason && r.ep.num == curNum }
-    val focusIdx = if (curIdx >= 0) curIdx else rows.indexOfFirst { it.ep != null }
-    val nextIdx = if (curIdx >= 0) (curIdx + 1 until rows.size).firstOrNull { rows[it].ep != null } else null
-    val st = rememberLazyListState(maxOf(focusIdx - 2, 0))
-    val reqs = remember(rows) { HashMap<Int, FocusRequester>() }
+    val seasons = remember(episodes) { episodes.map { it.season }.distinct() }
+    var season by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(if (curSeason in seasons) curSeason else seasons.firstOrNull() ?: curSeason) }
+    val list = remember(episodes, season) { episodes.filter { it.season == season } }
+    val curIdx = if (season == curSeason) list.indexOfFirst { it.num == curNum } else -1
+    val focusIdx = if (curIdx >= 0) curIdx else 0
+    val nextIdx = if (curIdx >= 0 && curIdx < list.lastIndex) curIdx + 1 else null
+    val st = androidx.compose.runtime.key(season) { rememberLazyListState(maxOf(focusIdx - 1, 0)) }
+    val reqs = remember(list) { HashMap<Int, FocusRequester>() }
     val scope = rememberCoroutineScope()
+    val long = list.size > EpisodeLogic.LONG
     fun jumpTo(target: Int) {
         scope.launch {
             st.scrollToItem(target)
@@ -229,44 +237,54 @@ fun BoxScope.EpisodesPanel(
             runCatching { reqs.getOrPut(target) { FocusRequester() }.requestFocus() }
         }
     }
-    val seasons = remember(rows) { rows.indices.filter { rows[it].header?.startsWith("Season") == true }.map { it to (rows[it].header ?: "") } }
-    PSimplePanel(if (sid != null) 760.dp else 520.dp, "Episodes", if (long) "Fast-forward / rewind to jump · Left to close" else "Left to close", onClose) {
-        // Seasons: one chip each (more than one season), OK jumps to that season's first episode
-        if (seasons.size > 1) {
-            androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 10.dp)) {
+    Column(
+        Modifier.align(Alignment.BottomStart).fillMaxWidth()
+            .background(androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color.Transparent, 0.22f to Color(0xE60A0B12), 1f to Color(0xFA0A0B12)))
+            .focusGroup()
+            .padding(start = PT.MarginX, top = 64.dp, bottom = PT.MarginY)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+            Text("Episodes", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+            if (seasons.size > 1) androidx.compose.foundation.lazy.LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(end = PT.MarginX)
+            ) {
                 items(seasons.size) { k ->
-                    val (row, label) = seasons[k]
-                    val n = label.removePrefix("Season ").trim()
-                    FilterPill("Season $n", n == curSeason.toString(), raw = true) { starts.firstOrNull { it > row }?.let { jumpTo(it) } }
+                    val n = seasons[k]
+                    FilterPill("Season $n", n == season, raw = true) { season = n }
                 }
             }
         }
-        LazyColumn(state = st, verticalArrangement = Arrangement.spacedBy(PT.RowGap)) {
-            itemsIndexed(rows, key = { i, r -> r.ep?.let { "e${it.season}_${it.num}" } ?: "h$i" }) { i, r ->
-                val ep = r.ep
-                if (ep == null) PColumnHeader(r.header ?: "")
-                else {
-                    val req = if (i == focusIdx) focus else reqs.getOrPut(i) { FocusRequester() }
-                    if (i == focusIdx) reqs[i] = focus
-                    val rowMod = Modifier.focusRequester(req).then(if (!long) Modifier else Modifier.onPreviewKeyEvent { e ->
-                            if (e.type != KeyEventType.KeyDown) false
-                            else when (e.key) {
-                                Key.DirectionRight, Key.MediaFastForward, Key.ChannelDown, Key.PageDown -> {
-                                    starts.firstOrNull { it > i }?.let { jumpTo(it) }; true
-                                }
-                                Key.MediaRewind, Key.ChannelUp, Key.PageUp -> {
-                                    val here = starts.lastOrNull { it <= i } ?: i
-                                    (if (here < i) here else starts.lastOrNull { it < i })?.let { jumpTo(it) }; true
-                                }
-                                else -> false
-                            }
-                        })
-                    if (sid != null) {
-                        val meta = remember(sid, ep.season, ep.num, infoVer) { EpisodeInfo.get(sid, ep.season, ep.num) }
-                        PEpisodeRow(ep, meta, progress[ResumeLogic.key(ep.season, ep.num)], i == curIdx, i == nextIdx, rowMod) { onPick(ep) }
-                    } else PPanelRow("Episode ${ep.num}", i == curIdx, rowMod, trailing = if (i == curIdx) "Playing" else null) { onPick(ep) }
+        Spacer(Modifier.height(18.dp))
+        androidx.compose.foundation.lazy.LazyRow(
+            state = st, horizontalArrangement = Arrangement.spacedBy(18.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(end = PT.MarginX),
+            modifier = Modifier.onPreviewKeyEvent { e ->
+                if (e.type != KeyEventType.KeyDown) false
+                else when (e.key) {
+                    Key.DirectionDown -> { onClose(); true }
+                    else -> false
                 }
             }
+        ) {
+            itemsIndexed(list, key = { _, e -> "e${e.season}_${e.num}" }) { i, ep ->
+                val req = if (i == focusIdx) focus else reqs.getOrPut(i) { FocusRequester() }
+                if (i == focusIdx) reqs[i] = focus
+                val cardMod = Modifier.focusRequester(req).then(if (!long) Modifier else Modifier.onPreviewKeyEvent { e ->
+                    if (e.type != KeyEventType.KeyDown) false
+                    else when (e.key) {
+                        Key.MediaFastForward, Key.ChannelDown, Key.PageDown -> { jumpTo(minOf(i + EpisodeLogic.BLOCK, list.lastIndex)); true }
+                        Key.MediaRewind, Key.ChannelUp, Key.PageUp -> { jumpTo(maxOf(i - EpisodeLogic.BLOCK, 0)); true }
+                        else -> false
+                    }
+                })
+                val meta = if (sid != null) remember(sid, ep.season, ep.num, infoVer) { EpisodeInfo.get(sid, ep.season, ep.num) } else null
+                PEpisodeCard(ep, meta, progress[ResumeLogic.key(ep.season, ep.num)], i == curIdx, i == nextIdx, cardMod) { onPick(ep) }
+            }
         }
+        Text(
+            if (long) "Up: seasons · Fast-forward / rewind jumps 50 · OK plays · Back closes" else "Up: seasons · OK plays · Back closes",
+            color = PT.Hint, fontSize = 13.sp, maxLines = 1, modifier = Modifier.padding(top = 14.dp)
+        )
     }
 }

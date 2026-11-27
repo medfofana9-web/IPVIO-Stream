@@ -71,6 +71,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -210,6 +211,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     var panelParent by remember { mutableStateOf(Panel.NONE) }
     var lastPanel by remember { mutableStateOf(Panel.NONE) }
     var menuSel by remember { mutableIntStateOf(0) }
+    // Settings shows the few things changed while watching; the rest sits under "More settings"
+    var menuMore by remember { mutableStateOf(false) }
     var showChannels by remember { mutableStateOf(false) }
     // Second stream (round 22): live player with a second picture; splitMode 0 = picture-in-picture, 1 = split
     var second by remember { mutableStateOf<Item?>(null) }
@@ -367,7 +370,11 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
 
     fun openChannels() { focusedCh = curItem; showCats = false; chanCat = playCat; showChannels = true }
 
-    fun togglePlay() { if (player.isPlaying) player.pause() else player.play() }
+    fun togglePlay() {
+        if (player.isPlaying) player.pause() else player.play()
+        // Test builds: the playback scenario checks that the bar's Play button resumes ("bar" = pressed on the control bar)
+        if (BuildConfig.VERSION_NAME.endsWith("-test")) android.util.Log.i("FofPlay", "toggle " + (if (player.playWhenReady) "play" else "pause") + (if (controls) " bar" else ""))
+    }
 
     // Seeking: single press = configured jump size. Holding speeds up in levels (fast seeking).
     // Several jumps are collected and executed only after a short pause.
@@ -457,11 +464,14 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     // Menus: parent = menu that "Left" returns to (NONE = close completely)
     fun openPanel(p: Panel, parent: Panel = Panel.NONE) {
         if (parent == Panel.NONE) { lastPanel = p; focusSeek = false }
+        if (p == Panel.MENU && parent == Panel.NONE && panel != Panel.MENU) { menuMore = false; menuSel = 0 }
         panelParent = parent
         panel = p
     }
 
     fun closePanel() {
+        // Back from "More settings" goes to the short Settings list first
+        if (panel == Panel.MENU && menuMore) { menuMore = false; menuSel = 0; return }
         val pp = panelParent
         panelParent = Panel.NONE
         panel = if (pp != Panel.NONE) pp else Panel.NONE
@@ -1885,6 +1895,10 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             5 -> Modifier.align(Alignment.Center).fillMaxHeight().aspectRatio(4f / 3f)
             else -> Modifier.fillMaxSize()
         }
+        // Subtitles sit above the control bar while it shows (they ran into the buttons): bar height over screen height
+        val screenH = LocalConfiguration.current.screenHeightDp
+        val subLift = remember(screenH) { (PT.MarginY.value + 214f) / screenH.coerceAtLeast(300) }
+        val subPad = remember { floatArrayOf(-1f) }
         AndroidView(
             factory = { c ->
                 PlayerView(c).apply {
@@ -1905,6 +1919,9 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     }
                     applyStyle(v)
                 }
+                val lift = if (controls && !cur.live && panel == Panel.NONE && !showGuide) subLift.coerceIn(0.08f, 0.6f)
+                    else SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION
+                if (subPad[0] != lift) { subPad[0] = lift; v.subtitleView?.setBottomPaddingFraction(lift) }
             },
             modifier = if (dualSplit) Modifier.align(Alignment.CenterStart).fillMaxHeight().fillMaxWidth(0.5f) else videoMod
         )
@@ -2115,7 +2132,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         AnimatedVisibility(
             // No control bar under the TV guide: otherwise focus could slip from the guide into this menu
             // Hidden behind the Audio & Subtitles panel (nothing shows through it)
-            visible = controls && !showGuide && panel !in setOf(Panel.TRACKS, Panel.SUBSYNC, Panel.ONLINESUBS, Panel.SUBSTYLE),
+            // and behind the Episodes strip along the bottom
+            visible = controls && !showGuide && panel !in setOf(Panel.TRACKS, Panel.SUBSYNC, Panel.ONLINESUBS, Panel.SUBSTYLE, Panel.EPISODES),
             modifier = Modifier.fillMaxSize(),
             enter = fadeIn(tween(160)),
             exit = fadeOut(tween(120))
@@ -2131,15 +2149,15 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                         .background(Brush.verticalGradient(0f to Color.Transparent, 0.45f to Color(0x85000000), 1f to PT.ScrimBottom))
                 )
 
-                // Title (top left) – for live the info block at the bottom takes over
+                // Title (top left) – for live the info block at the bottom takes over. Clean look: the title and one quiet
+                // line ("S4 · E10 · Episode name"), no eyebrow and no boxed chips
                 if (!cur.live) {
                     val baseTitle = if (cur.season > 0 && cur.episode > 0) cur.title.substringBeforeLast(" S" + cur.season + "E" + cur.episode) else cur.title
                     Column(
                         Modifier.align(Alignment.TopStart).padding(start = PT.MarginX, top = PT.MarginY, end = 360.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        FofEyebrow("NOW PLAYING", Modifier.padding(bottom = 4.dp), compact = true)
-                        Text(baseTitle, color = Color.White, fontSize = 32.sp, lineHeight = 38.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis, raw = cur.archive != null)
+                        Text(baseTitle, color = Color.White, fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis, raw = cur.archive != null)
                         cur.archive?.let { a ->
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                 PChip("Catch-up", icon = AIcon.Catchup, raw = true)
@@ -2148,11 +2166,10 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             }
                         }
                         if (cur.season > 0 && cur.episode > 0) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                PChip("Season " + cur.season, raw = true)
-                                PChip("Episode " + cur.episode, raw = true)
-                            }
-                            epName?.let { Text(it, color = Color(0xD9FFFFFF), fontSize = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, raw = true) }
+                            Text(
+                                listOfNotNull("S" + cur.season + " · E" + cur.episode, epName).joinToString("  ·  "),
+                                color = Color(0xD9FFFFFF), fontSize = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, raw = true
+                            )
                         }
                     }
                 }
@@ -2164,7 +2181,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 ) {
                     if (cur.live && Recorder.isRecording(cur.itemId)) PChip("● REC", raw = true)
                     if (cur.live) PLiveChip(behindSec = behindSec)
-                    else badges.forEachIndexed { i, b -> PChip(b, filled = i == 0 && b == "4K") }
+                    else if (badges.isNotEmpty()) Text(badges.joinToString("  ·  "), color = PT.T2, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 0.5.sp, maxLines = 1, raw = true)
                 }
 
                 val setLabel: (String) -> Unit = { ctrlLabel = it }
@@ -2310,13 +2328,6 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                         }
                     } else {
                         val stepS = (step / 1000).toString()
-                        Row(Modifier.fillMaxWidth().padding(bottom = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("PLAYBACK", color = FofVisual.Violet, fontSize = 12.sp,
-                                fontWeight = FontWeight.ExtraBold, letterSpacing = 1.6.sp, raw = true)
-                            Spacer(Modifier.weight(1f))
-                            Text("◀ / ▶  SEEK", color = FofVisual.Secondary, fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp, raw = true)
-                        }
                         PSeekBar(
                             Modifier.fillMaxWidth().focusRequester(seekFocus),
                             pos = posNow, dur = durNow, buffered = bufNow, segs = segsNow,
@@ -2326,13 +2337,19 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             onSeekKey = { stepSeek(it) },
                             onRepeat = { repeatSeek(it) }
                         )
-                        PTimeRow(posNow, durNow)
-                        Spacer(Modifier.height(14.dp))
+                        // Times on the bar's own line: elapsed left, remaining and the end time right
+                        PTimeRow(posNow, durNow, if (AppSettings.showEndTime) ({ SPEEDS[speedIdx] }) else null)
+                        Spacer(Modifier.height(16.dp))
                         val arch = cur.archive != null
                         val prevLabel = if (arch) (archPrev?.let { "Previous program: " + hhmm(it.start) + "  " + it.title } ?: "Previous program")
                             else if (hasPrev) "Previous episode: Season " + epList[epIdx - 1].season + ", Episode " + epList[epIdx - 1].num else "Previous episode"
                         val nextLabel = if (arch) (archNext?.let { "Next program: " + hhmm(it.start) + "  " + it.title } ?: "Next program: Live TV")
                             else if (hasNext) "Next episode: Season " + epList[epIdx + 1].season + ", Episode " + epList[epIdx + 1].num else "Next episode"
+                        // Player redesign (27 Nov 2026): quiet white icons, no circles at rest; the focused button turns white and
+                        // shows its name right under it. Watching controls in the middle, options on the right as rounded
+                        // squares, catch-up actions on the left. Sizes keep the middle and right groups apart on a 960 dp screen.
+                        val tBtn = 48.dp
+                        val oBtn = 46.dp
                         Box(
                             Modifier.fillMaxWidth().onPreviewKeyEvent { e ->
                                 if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionUp) { runCatching { seekFocus.requestFocus() }; true }
@@ -2340,81 +2357,74 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                                 else false
                             }
                         ) {
-                            Row(
-                                Modifier.fillMaxWidth().height(PT.BtnPrimary),
-                                horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(PT.BtnGap), verticalAlignment = Alignment.CenterVertically) {
-                                    PRoundButton(enabled = if (arch) archPrev != null else hasPrev, label = prevLabel, onLabel = setLabel, onClick = {
-                                        val ch = curItem
-                                        val pv = archPrev
-                                        if (arch) { if (ch != null && pv != null) playArchive(ch, pv) }
-                                        else if (hasPrev) playEpisode(epList[epIdx - 1])
-                                    }) {
-                                        PlayerIcon(PIcon.PrevEp, it)
-                                    }
-                                    PRoundButton(label = "Rewind $stepS seconds", onLabel = setLabel, onClick = { stepSeek(-1, fromBar = false) }) { c ->
-                                        Box(contentAlignment = Alignment.Center) {
-                                            PlayerIcon(PIcon.Replay, c, size = 30.dp)
-                                            Text(stepS, color = c, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.offset(y = 2.dp))
-                                        }
-                                    }
-                                    PRoundButton(
-                                        Modifier.focusRequester(playBtn), size = PT.BtnPrimary,
-                                        label = if (playing) "Pause" else "Play", onLabel = setLabel, onClick = { togglePlay() }
-                                    ) { PlayerIcon(if (playing) PIcon.Pause else PIcon.Play, it, size = 32.dp) }
-                                    PRoundButton(label = "Forward $stepS seconds", onLabel = setLabel, onClick = { stepSeek(1, fromBar = false) }) { c ->
-                                        Box(contentAlignment = Alignment.Center) {
-                                            PlayerIcon(PIcon.Forward, c, size = 30.dp)
-                                            Text(stepS, color = c, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.offset(y = 2.dp))
-                                        }
-                                    }
-                                    PRoundButton(enabled = arch || hasNext, label = nextLabel, onLabel = setLabel, onClick = {
-                                        val ch = curItem
-                                        val nx = archNext
-                                        if (arch) { if (ch != null && nx != null) playArchive(ch, nx) else backToLive() }
-                                        else if (hasNext) playEpisode(epList[epIdx + 1])
-                                    }) {
-                                        PlayerIcon(PIcon.NextEp, it)
-                                    }
+                            if (arch) Row(Modifier.align(Alignment.CenterStart), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                PRoundButton(size = oBtn, label = "Return to live", onLabel = setLabel, square = true, showLabel = true, onClick = { backToLive() }) {
+                                    AppIcon(AIcon.Live, it, size = 24.dp)
                                 }
-                                Row(horizontalArrangement = Arrangement.spacedBy(PT.BtnGap), verticalAlignment = Alignment.CenterVertically) {
-                                    if (arch) {
-                                        PRoundButton(label = "Return to live", onLabel = setLabel, onClick = { backToLive() }) {
-                                            AppIcon(AIcon.Live, it, size = 26.dp)
-                                        }
-                                        PRoundButton(Modifier.focusRequester(btn.getValue(Panel.ARCHIVE)), label = "Archiv: verpasste Sendungen", onLabel = setLabel, onClick = { openPanel(Panel.ARCHIVE) }) {
-                                            AppIcon(AIcon.History, it, size = 26.dp)
-                                        }
-                                    }
-                                    PRoundButton(Modifier.focusRequester(btn.getValue(Panel.TRACKS)), label = "Audio & Subtitles", onLabel = setLabel, onClick = { openPanel(Panel.TRACKS) }) {
-                                        PlayerIcon(PIcon.AudioSubs, it)
-                                    }
-                                    // Sources of exactly this movie/episode: addon streams, or the playlist's other qualities
-                                    if (addonContent || currentAlts().size > 1) PRoundButton(label = "Sources", onLabel = setLabel, onClick = {
-                                        if (addonContent) { controls = false; srcPanel = true } else openPanel(Panel.QUALITY)
-                                    }) { AppIcon(AIcon.Lists, it, size = 26.dp) }
-                                    // Watch together with friends and family (signed-in TVs)
-                                    if (FofAccount.signedInState) PRoundButton(label = "Watch together", onLabel = setLabel, onClick = { controls = false; partyPanel = true }) {
-                                        AppIcon(AIcon.Person, it, size = 26.dp)
-                                    }
-                                    if (epList.size > 1) {
-                                        PRoundButton(Modifier.focusRequester(btn.getValue(Panel.EPISODES)), label = "Episodes", onLabel = setLabel, onClick = { openPanel(Panel.EPISODES) }) {
-                                            PlayerIcon(PIcon.Episodes, it)
-                                        }
-                                    }
-                                    PRoundButton(Modifier.focusRequester(btn.getValue(Panel.MENU)), label = "Settings", onLabel = setLabel, onClick = { openPanel(Panel.MENU) }) {
-                                        PlayerIcon(PIcon.Settings, it)
-                                    }
+                                PRoundButton(Modifier.focusRequester(btn.getValue(Panel.ARCHIVE)), size = oBtn, label = "Archiv: verpasste Sendungen", onLabel = setLabel,
+                                    square = true, showLabel = true, onClick = { openPanel(Panel.ARCHIVE) }) {
+                                    AppIcon(AIcon.History, it, size = 24.dp)
                                 }
                             }
-                        }
-                        Row(
-                            Modifier.fillMaxWidth().padding(top = 12.dp).height(20.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(ctrlLabel.ifBlank { "Sources  ·  Subtitles  ·  Episodes  ·  Watch Together" }, color = FofVisual.Secondary, fontSize = 14.sp, maxLines = 1, modifier = Modifier.weight(1f), raw = true)
-                            if (AppSettings.showEndTime) PEndsAt(posNow, durNow) { SPEEDS[speedIdx] }
+                            Row(Modifier.align(Alignment.Center), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                PRoundButton(size = tBtn, enabled = if (arch) archPrev != null else hasPrev, label = prevLabel, onLabel = setLabel, showLabel = true, onClick = {
+                                    val ch = curItem
+                                    val pv = archPrev
+                                    if (arch) { if (ch != null && pv != null) playArchive(ch, pv) }
+                                    else if (hasPrev) playEpisode(epList[epIdx - 1])
+                                }) {
+                                    PlayerIcon(PIcon.PrevEp, it)
+                                }
+                                PRoundButton(size = tBtn, label = "Rewind $stepS seconds", onLabel = setLabel, showLabel = true, onClick = { stepSeek(-1, fromBar = false) }) { c ->
+                                    Box(contentAlignment = Alignment.Center) {
+                                        PlayerIcon(PIcon.Replay, c, size = 30.dp)
+                                        Text(stepS, color = c, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.offset(y = 2.dp))
+                                    }
+                                }
+                                PRoundButton(
+                                    Modifier.focusRequester(playBtn), size = 60.dp,
+                                    label = if (playing) "Pause" else "Play", onLabel = setLabel, showLabel = true, onClick = { togglePlay() }
+                                ) { PlayerIcon(if (playing) PIcon.Pause else PIcon.Play, it, size = 30.dp) }
+                                PRoundButton(size = tBtn, label = "Forward $stepS seconds", onLabel = setLabel, showLabel = true, onClick = { stepSeek(1, fromBar = false) }) { c ->
+                                    Box(contentAlignment = Alignment.Center) {
+                                        PlayerIcon(PIcon.Forward, c, size = 30.dp)
+                                        Text(stepS, color = c, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.offset(y = 2.dp))
+                                    }
+                                }
+                                PRoundButton(size = tBtn, enabled = arch || hasNext, label = nextLabel, onLabel = setLabel, showLabel = true, onClick = {
+                                    val ch = curItem
+                                    val nx = archNext
+                                    if (arch) { if (ch != null && nx != null) playArchive(ch, nx) else backToLive() }
+                                    else if (hasNext) playEpisode(epList[epIdx + 1])
+                                }) {
+                                    PlayerIcon(PIcon.NextEp, it)
+                                }
+                            }
+                            Row(Modifier.align(Alignment.CenterEnd), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                PRoundButton(Modifier.focusRequester(btn.getValue(Panel.TRACKS)), size = oBtn, label = "Audio & Subtitles", onLabel = setLabel,
+                                    square = true, showLabel = true, onClick = { openPanel(Panel.TRACKS) }) {
+                                    PlayerIcon(PIcon.AudioSubs, it, size = 24.dp)
+                                }
+                                if (epList.size > 1) {
+                                    PRoundButton(Modifier.focusRequester(btn.getValue(Panel.EPISODES)), size = oBtn, label = "Episodes", onLabel = setLabel,
+                                        square = true, showLabel = true, onClick = { openPanel(Panel.EPISODES) }) {
+                                        PlayerIcon(PIcon.Episodes, it, size = 24.dp)
+                                    }
+                                }
+                                // Sources of exactly this movie/episode: addon streams, or the playlist's other qualities
+                                if (addonContent || currentAlts().size > 1) PRoundButton(size = oBtn, label = "Sources", onLabel = setLabel, square = true, showLabel = true, onClick = {
+                                    if (addonContent) { controls = false; srcPanel = true } else openPanel(Panel.QUALITY)
+                                }) { AppIcon(AIcon.Lists, it, size = 24.dp) }
+                                // Watch together with friends and family (signed-in TVs)
+                                if (FofAccount.signedInState) PRoundButton(size = oBtn, label = "Watch together", onLabel = setLabel, square = true, showLabel = true,
+                                    onClick = { controls = false; partyPanel = true }) {
+                                    AppIcon(AIcon.Person, it, size = 24.dp)
+                                }
+                                PRoundButton(Modifier.focusRequester(btn.getValue(Panel.MENU)), size = oBtn, label = "Settings", onLabel = setLabel,
+                                    square = true, showLabel = true, onClick = { openPanel(Panel.MENU) }) {
+                                    PlayerIcon(PIcon.Settings, it, size = 24.dp)
+                                }
+                            }
                         }
                     }
                 }
@@ -2618,8 +2628,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     }
                 }
 
-                Panel.MENU -> PSimplePanel(440.dp, "Settings", back, { closePanel() }) {
-                    val entries = buildList<MenuEntry> {
+                Panel.MENU -> PSimplePanel(440.dp, if (menuMore) "More settings" else "Settings", if (menuMore) "Left = Back" else back, { closePanel() }) {
+                    val all = buildList<MenuEntry> {
                         if (cur.live) add(MenuEntry(20, "Zusatzbild", second?.title ?: "Aus", false))
                         if (cur.live && second != null) {
                             add(MenuEntry(21, "Anordnung", if (splitMode == 1) "Geteilt" else "Bild-in-Bild", false))
@@ -2655,9 +2665,16 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                         if (cur.live && lastChId != null) add(MenuEntry(9, "Letzter Kanal", null, false))
                         add(MenuEntry(7, "Extern öffnen", null, false))
                     }
+                    // The short list: what is changed while watching (and the live-only picture options); the rest below
+                    val mainOrder = listOf(20, 21, 22, 24, 25, 23, 30, 3, 5, 13, 2, 4, 8, 9)
+                    val entries = if (menuMore) all.filter { it.id !in mainOrder }
+                        else all.filter { it.id in mainOrder }.sortedBy { mainOrder.indexOf(it.id) } + MenuEntry(99, "More settings", null, true)
                     val focusAt = menuSel.coerceIn(0, entries.lastIndex)
+                    // Switching between the short list and "More settings": a fresh list, focus on its first row
+                    val menuState = androidx.compose.runtime.key(menuMore) { rememberLazyListState(maxOf(focusAt - 3, 0)) }
+                    LaunchedEffect(menuMore) { delay(60); runCatching { panelFocus.requestFocus() } }
                     // Starts so that the last chosen row is drawn (otherwise focus cannot find it and keys go nowhere)
-                    LazyColumn(state = rememberLazyListState(maxOf(focusAt - 3, 0)), verticalArrangement = Arrangement.spacedBy(PT.RowGap)) {
+                    LazyColumn(state = menuState, verticalArrangement = Arrangement.spacedBy(PT.RowGap)) {
                         itemsIndexed(entries) { i, e ->
                             PPanelRow(
                                 e.label, false, if (i == focusAt) Modifier.focusRequester(panelFocus) else Modifier,
@@ -2665,6 +2682,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             ) {
                                 menuSel = i
                                 when (e.id) {
+                                    99 -> { menuMore = true; menuSel = 0 }
                                     30 -> { closePanel(); scoreDlg = true }
                                     0 -> openPanel(Panel.STEP, Panel.MENU)
                                     1 -> openPanel(Panel.SUBSTYLE, Panel.MENU)

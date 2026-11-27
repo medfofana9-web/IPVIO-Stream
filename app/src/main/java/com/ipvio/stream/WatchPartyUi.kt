@@ -1,6 +1,7 @@
 package com.ipvio.stream
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
@@ -26,8 +27,11 @@ fun WatchPartyPanel(modifier: Modifier, start: suspend () -> String?, onClose: (
     var busy by remember { mutableStateOf(false) }
     val first = remember { FocusRequester() }
     LaunchedEffect(s?.code) { delay(80); runCatching { first.requestFocus() } }
-    Column(modifier.width(560.dp).glass(RoundedCornerShape(DS.RadiusL), 2).padding(26.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Watch together", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold, raw = true)
+    // Same look as the other player panels (player redesign, 27 Nov 2026): opaque dark card, hairline edge
+    val shape = RoundedCornerShape(PT.PanelRadius)
+    Column(modifier.width(580.dp).clip(shape).background(PT.PanelBg).border(1.dp, Color(0x1AFFFFFF), shape).padding(32.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text("Watch together", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, raw = true)
         if (s == null) {
             Text("Start a private party for what is playing. Friends join with a code on their own Fof TV and watch in sync – each TV plays from its own sources.",
                 color = Color(0xB3FFFFFF), fontSize = 16.sp, raw = true)

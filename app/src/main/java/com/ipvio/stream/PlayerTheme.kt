@@ -12,7 +12,9 @@ object PT {
     val Gold = DS.Gold
     val Ink = Color(0xFF0B0C12)         // dark text on white focus
     val InkSoft = Color(0xFF3C4256)
-    val PanelBg = Color(0xF2111320)     // menu surfaces
+    val PanelBg = Color(0xF00E101A)     // panel surfaces (opaque enough that nothing shows through)
+    val Hint = Color(0xFF8E95A8)        // key hints and section labels in panels
+    val RowText = Color(0xFFDDE1EA)     // panel rows at rest (white is for the chosen one)
     val PanelBorder = DS.Overlay1
     val BtnBg = Color(0x24FFFFFF)       // round buttons at rest
     val Track = DS.Overlay3
@@ -28,6 +30,7 @@ object PT {
     val BtnSize = 52.dp
     val BtnPrimary = 64.dp
     val BtnGap = 16.dp
+    val LabelSlot = 30.dp               // space under a control button for its name when focused
 
     // Menus
     val PanelRadius = 24.dp

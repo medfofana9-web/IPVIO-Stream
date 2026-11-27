@@ -50,6 +50,20 @@ for sc in fx["scenarios"]:
                 bad.append(f"{sid} {sc['title']}: seek to {to}s from {last_before}s, then ticks {after[-3:]}")
             else:
                 print(f"PASS {sid} {sc['title']}: {msg(ok[0])}; seek {last_before}s -> {to}s, playing at {after[-1][1]}s")
+        elif ok and sc.get("bar_keys"):
+            # OK pauses (bar opens, Play focused); OK on the bar's Play button resumes, and the movie plays on
+            pi = next((i for i, l in enumerate(seg) if " toggle pause" in l), None)
+            ri = next((i for i, l in enumerate(seg) if " toggle play bar" in l and (pi is None or i > pi)), None)
+            tick = lambda l: (m := re.search(r" tick \S+ state=(\d) pos=(-?\d+)", l)) and (int(m.group(1)), int(m.group(2)))
+            after = [t for t in map(tick, seg[ri + 1:]) if t] if ri is not None else []
+            if pi is None:
+                bad.append(f"{sid} {sc['title']}: OK did not pause")
+            elif ri is None:
+                bad.append(f"{sid} {sc['title']}: the control bar's Play button did not resume (focus not on Play?)")
+            elif len(after) < 2 or after[-1][0] != 3 or after[-1][1] <= after[0][1]:
+                bad.append(f"{sid} {sc['title']}: resumed from the bar but not playing on (ticks {after[-3:]})")
+            else:
+                print(f"PASS {sid} {sc['title']}: {msg(ok[0])}; paused, resumed from the bar's Play button, playing at {after[-1][1]}s")
         elif ok:
             print(f"PASS {sid} {sc['title']}: {msg(ok[0])}")
         else:

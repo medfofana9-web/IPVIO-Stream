@@ -242,13 +242,13 @@ fun StremioSourcesPopup(
 @Composable
 internal fun SourceRow(s: Stremio.Source, match: Int, wrong: Boolean, lastGood: Boolean, modifier: Modifier, active: Boolean = false, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(4.dp)
+    val shape = RoundedCornerShape(14.dp)
     Row(
         modifier.fillMaxWidth().clip(shape)
-            .background(if (f) Color.White else Color.Transparent)
+            .background(if (f) Color.White else if (active) Color(0x14FFFFFF) else Color.Transparent)
             .onFocusChanged { f = it.isFocused }
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -273,7 +273,10 @@ internal fun SourceRow(s: Stremio.Source, match: Int, wrong: Boolean, lastGood: 
             match == StremioLogic.VERIFIED -> null
             else -> "Not confirmed"
         }
-        if (tag != null) Text(tag, color = if (tag == "Playing") ink else soft, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, raw = true)
+        if (tag == "Playing") Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Box(Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(FofVisual.Violet))
+            Text(tag, color = ink, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, raw = true)
+        } else if (tag != null) Text(tag, color = soft, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, raw = true)
     }
 }
 
@@ -444,31 +447,44 @@ internal fun PlayerSourcePicker(
     ) {
         val first = remember { FocusRequester() }
         LaunchedEffect(Unit) { repeat(10) { kotlinx.coroutines.delay(60); if (runCatching { first.requestFocus() }.getOrDefault(false)) return@LaunchedEffect } }
-        val shape = RoundedCornerShape(DS.RadiusM)
+        // Player redesign (27 Nov 2026): same panel look as the other player panels; the three best sources (and the one
+        // playing) first, the rest behind "Show all"
+        val shape = RoundedCornerShape(PT.PanelRadius)
+        var showAll by remember { mutableStateOf(false) }
+        val playingSrc = list.firstOrNull { it.key == currentKey }
+        val shown = if (showAll || list.size <= 4) list else (list.take(3) + listOfNotNull(playingSrc)).distinctBy { it.key }
+        val hidden = list.size - shown.size
         Column(
-            Modifier.padding(end = 40.dp).width(640.dp).heightIn(max = 560.dp).clip(shape)
-                .background(Surf.copy(alpha = 0.97f)).border(1.dp, DS.Overlay3, shape).padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            Modifier.padding(end = 32.dp).width(600.dp).heightIn(max = 600.dp).clip(shape)
+                .background(PT.PanelBg).border(1.dp, Color(0x1AFFFFFF), shape).padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Sources", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold, raw = true)
-            Text(want.title + if (want.series) "  ·  S${want.season} E${want.ep}" else "", color = Muted, fontSize = 15.sp, maxLines = 1, raw = true)
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                PillButton("Wrong content", light = true, raw = true) { onWrong() }
-                PillButton("Retry", light = true, raw = true) { onRetry() }
-            }
+            Text("Sources", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, raw = true)
+            Text(want.title + (if (want.series) "  ·  S${want.season} E${want.ep}" else "") + "  ·  " + list.size + (if (list.size == 1) " source" else " sources"),
+                color = PT.Hint, fontSize = 15.sp, maxLines = 1, raw = true, modifier = Modifier.padding(bottom = 6.dp))
             if (busy) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Spinner(Accent2, Modifier.size(20.dp)); Text("Opening the source …", color = Muted, fontSize = 14.sp, raw = true)
             }
             if (list.isEmpty()) Text("No other sources for this title.", color = Muted, fontSize = 15.sp, raw = true)
-            val startAt = list.indexOfFirst { it.key == currentKey }.coerceAtLeast(0)
+            val startAt = shown.indexOfFirst { it.key == currentKey }.coerceAtLeast(0)
             androidx.compose.foundation.lazy.LazyColumn(
                 state = androidx.compose.foundation.lazy.rememberLazyListState(maxOf(startAt - 2, 0)),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.weight(1f, fill = false)
             ) {
-                itemsIndexed(list) { i, s ->
+                itemsIndexed(shown, key = { _, s -> s.key }) { i, s ->
                     SourceRow(s, Stremio.match(s, want), SourceMemory.isWrong(cid, s.key), s.key == SourceMemory.lastGood(cid),
                         if (i == startAt) Modifier.focusRequester(first) else Modifier, active = s.key == currentKey) { onPick(s) }
                 }
+                if (hidden > 0) item(key = "all") {
+                    PPanelRow("Show all " + list.size + " sources", false, chevron = true, raw = true) { showAll = true }
+                }
+            }
+            Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                PillButton("Wrong video? Report it", light = true, raw = true) { onWrong() }
+                PillButton("Retry", light = true, raw = true) { onRetry() }
+                Spacer(Modifier.weight(1f))
+                Text("OK switches · Back closes", color = PT.Hint, fontSize = 13.sp, maxLines = 1, raw = true)
             }
         }
     }
