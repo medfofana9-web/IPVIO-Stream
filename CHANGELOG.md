@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased – Find subtitles online
+
+- Audio & Subtitles → "Find subtitles online" (movies and episodes): every language OpenSubtitles has for what is
+  playing, with how many each; your subtitle language first. Pick one and it loads at once (up to three versions, in case
+  one is out of sync); languages added before stay in the list, and the choice is remembered for the next episode.
+
 ## Unreleased – Faster Home with the background glow
 
 - The background glow is painted as one small picture stretched over the screen when its colors change, instead of the

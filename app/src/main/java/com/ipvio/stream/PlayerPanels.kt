@@ -53,7 +53,7 @@ fun PChoiceList(options: List<String>, selected: Int, focus: FocusRequester, onP
 fun BoxScope.TracksPanel(
     player: Player, ver: Int, onChanged: () -> Unit,
     audioFocus: FocusRequester, subsFocus: FocusRequester,
-    onClose: () -> Unit, onStyle: () -> Unit
+    onClose: () -> Unit, onStyle: () -> Unit, onOnline: (() -> Unit)? = null
 ) {
     val audio = remember(ver) { collectTracks(player, C.TRACK_TYPE_AUDIO) }
     val subs = remember(ver) { collectTracks(player, C.TRACK_TYPE_TEXT) }
@@ -131,7 +131,7 @@ fun BoxScope.TracksPanel(
                     if (subs.isEmpty()) {
                         item {
                             Text(
-                                "This stream has no subtitles.", color = Muted, fontSize = 14.sp,
+                                "This stream has no subtitles. Try \"Find subtitles online\" below.", color = Muted, fontSize = 14.sp,
                                 modifier = Modifier.padding(16.dp)
                             )
                         }
@@ -140,6 +140,12 @@ fun BoxScope.TracksPanel(
             }
         }
         Spacer(Modifier.height(12.dp))
+        // Movies and episodes: subtitles from the internet in any language (also when the stream has its own)
+        if (onOnline != null) PPanelRow(
+            "Find subtitles online", false,
+            Modifier.onPreviewKeyEvent { e -> if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionLeft) { onClose(); true } else false },
+            chevron = true, tinted = true, onClick = onOnline
+        )
         PPanelRow(
             "Subtitle appearance", false,
             Modifier.onPreviewKeyEvent { e ->

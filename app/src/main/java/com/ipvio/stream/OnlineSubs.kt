@@ -19,15 +19,18 @@ object OnlineSubs {
 
     /** Up to [max] subtitles in [lang] (two letters) for the title; empty when nothing fits or the server is not reachable. */
     suspend fun find(imdb: String, series: Boolean, season: Int, ep: Int, lang: String, max: Int = 3): List<OnlineSubsLogic.Sub> =
+        OnlineSubsLogic.pick(all(imdb, series, season, ep), lang, max)
+
+    /** Every subtitle OpenSubtitles lists for the title (all languages), kept for the session. */
+    suspend fun all(imdb: String, series: Boolean, season: Int, ep: Int): List<OnlineSubsLogic.Sub> =
         withContext(Dispatchers.IO) {
             val url = OnlineSubsLogic.url(imdb, series, season, ep) ?: return@withContext emptyList()
-            val all = synchronized(found) { found[url] } ?: runCatching {
+            synchronized(found) { found[url] } ?: runCatching {
                 val req = Request.Builder().url(url).header("User-Agent", "FofTV").build()
                 Net.withTimeouts(6, 8).newCall(req).execute().use { r ->
                     if (!r.isSuccessful) emptyList() else OnlineSubsLogic.parse(r.body?.string().orEmpty())
                 }
             }.getOrDefault(emptyList()).also { l -> if (l.isNotEmpty()) synchronized(found) { found[url] = l } }
-            OnlineSubsLogic.pick(all, lang, max)
         }
 
     /** The subtitle as a local file (downloaded once). Null when it could not be loaded. */
@@ -87,6 +90,20 @@ object OnlineSubsLogic {
     fun pick(all: List<Sub>, lang: String, max: Int): List<Sub> {
         val want = lang(lang) ?: return emptyList()
         return all.filter { it.lang == want }.distinctBy { it.url }.take(max)
+    }
+
+    /** Languages on offer with how many subtitles each: the [preferred] ones first (in that order), then by count. */
+    fun languages(all: List<Sub>, preferred: List<String>): List<Pair<String, Int>> {
+        val pref = preferred.mapNotNull { lang(it) }.distinct()
+        return all.groupingBy { it.lang }.eachCount().entries
+            .sortedWith(compareBy<Map.Entry<String, Int>>({ pref.indexOf(it.key).let { i -> if (i < 0) Int.MAX_VALUE else i } }, { -it.value }, { it.key }))
+            .map { it.key to it.value }
+    }
+
+    /** "English", "Romanian" … for a language code (two or three letters); the code itself when unknown. */
+    fun langName(code: String): String {
+        val n = runCatching { java.util.Locale(code).getDisplayLanguage(java.util.Locale.ENGLISH) }.getOrNull()
+        return if (n.isNullOrBlank() || n.equals(code, true)) code.uppercase() else n
     }
 
     /** A subtitle file, not an error page: an SRT starts with a cue number (after an optional BOM). */

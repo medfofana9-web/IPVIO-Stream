@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -120,7 +121,7 @@ private fun digitOf(k: Key): Int = when (k) {
 
 private val SLEEP_MIN = listOf(0, 15, 30, 45, 60, 90, 120)
 
-private enum class Panel { NONE, TRACKS, SUBSTYLE, QUALITY, SPEED, ASPECT, MENU, STEP, EPISODES, SLEEP, ARCHIVE, CLOCK }
+private enum class Panel { NONE, TRACKS, SUBSTYLE, ONLINESUBS, QUALITY, SPEED, ASPECT, MENU, STEP, EPISODES, SLEEP, ARCHIVE, CLOCK }
 
 private class Flash(val icon: PIcon?, val text: String?)
 
@@ -1227,6 +1228,47 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     // the wanted language. Found by IMDb id on OpenSubtitles (OnlineSubs); added as up to 3 local files, listed in
     // Audio & Subtitles as "Online 1–3". The stream is opened again at the same spot (a moment of buffering).
     var onlineSubsFor by remember { mutableStateOf("") }
+
+    /** IMDb id of what plays (addon title, catalog id, or found by name), or null. */
+    suspend fun imdbOfCur(): String? {
+        val series = cur.season > 0 || cur.episode > 0
+        return (if (NowSources.owns(cur.itemId, cur.season, cur.episode)) NowSources.imdb else null)
+            ?: cur.itemId.removePrefix("stremio:").substringBefore(':').takeIf { StremioLogic.isImdb(it) }
+            ?: Stremio.imdbFor(Item("probe", if (series) Kind.SERIES else Kind.MOVIE,
+                cur.title.replace(Regex("\\s+S\\d+\\s*E\\d+\\s*$"), ""), null, "", null, ""), null)
+    }
+
+    /**
+     * Adds [subs] (one language) to the stream as local files and selects that language; subtitles added before in other
+     * languages stay in the list. The stream reopens at the same spot. Returns how many were added.
+     */
+    suspend fun addOnlineSubs(subs: List<OnlineSubsLogic.Sub>, lang: String, forUrl: String): Int {
+        val files = subs.mapNotNull { OnlineSubs.file(ctx, it) }
+        val now = player.currentMediaItem
+        if (files.isEmpty() || cur.url != forUrl || now == null) return 0
+        val name = OnlineSubsLogic.langName(lang)
+        val kept = now.localConfiguration?.subtitleConfigurations.orEmpty().filter { c -> files.none { android.net.Uri.fromFile(it) == c.uri } }
+        val configs = kept + files.mapIndexed { i, f ->
+            MediaItem.SubtitleConfiguration.Builder(android.net.Uri.fromFile(f))
+                .setMimeType(androidx.media3.common.MimeTypes.APPLICATION_SUBRIP).setLanguage(lang)
+                .setLabel("Online · " + name + " " + (i + 1)).setSelectionFlags(if (i == 0) C.SELECTION_FLAG_DEFAULT else 0).build()
+        }
+        val item = now.buildUpon().setSubtitleConfigurations(configs).build()
+        val at = player.currentPosition.coerceAtLeast(0L)
+        val go = player.playWhenReady
+        // Not a stall: the short buffering of reopening must not count against the source
+        lastSeekT = System.currentTimeMillis()
+        StreamHeaders.begin(resolvedUrl.ifEmpty { cur.url })
+        player.setMediaItem(item, at)
+        player.prepare()
+        player.playWhenReady = go
+        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+            .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false).setPreferredTextLanguages(lang).build()
+        ReportCtx.crumb("online subs " + lang + " " + files.size)
+        return files.size
+    }
+
     LaunchedEffect(cur.url, readyOnce) {
         if (!readyOnce || cur.live || cur.archive != null || onlineSubsFor == cur.url) return@LaunchedEffect
         onlineSubsFor = cur.url
@@ -1244,32 +1286,43 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 ?.let { g -> (0 until g.length).firstOrNull { g.isTrackSelected(it) }?.let { TrackLogic.guess(g.getTrackFormat(it).language, g.getTrackFormat(it).label) } }
             if (mem == null && !TrackLogic.subsWanted(AppSettings.subMode, audio, want, AppSettings.audioLang)) return@runCatching
             val series = cur.season > 0 || cur.episode > 0
-            val imdb = (if (NowSources.owns(cur.itemId, cur.season, cur.episode)) NowSources.imdb else null)
-                ?: cur.itemId.removePrefix("stremio:").substringBefore(':').takeIf { StremioLogic.isImdb(it) }
-                ?: Stremio.imdbFor(Item("probe", if (series) Kind.SERIES else Kind.MOVIE,
-                    cur.title.replace(Regex("\\s+S\\d+\\s*E\\d+\\s*$"), ""), null, "", null, ""), null)
-                ?: return@runCatching
-            val subs = OnlineSubs.find(imdb, series, cur.season, cur.episode, want)
-            val files = subs.mapNotNull { OnlineSubs.file(ctx, it) }
-            if (files.isEmpty() || cur.url != forUrl || player.currentMediaItem == null) return@runCatching
-            val configs = files.mapIndexed { i, f ->
-                MediaItem.SubtitleConfiguration.Builder(android.net.Uri.fromFile(f))
-                    .setMimeType(androidx.media3.common.MimeTypes.APPLICATION_SUBRIP).setLanguage(want)
-                    .setLabel("Online " + (i + 1)).setSelectionFlags(if (i == 0) C.SELECTION_FLAG_DEFAULT else 0).build()
-            }
-            val item = player.currentMediaItem!!.buildUpon().setSubtitleConfigurations(configs).build()
-            val at = player.currentPosition.coerceAtLeast(0L)
-            val go = player.playWhenReady
-            // Not a stall: the short buffering of reopening must not count against the source
-            lastSeekT = System.currentTimeMillis()
-            StreamHeaders.begin(resolvedUrl.ifEmpty { cur.url })
-            player.setMediaItem(item, at)
-            player.prepare()
-            player.playWhenReady = go
-            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
-                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false).setPreferredTextLanguages(want).build()
-            ReportCtx.crumb("online subs " + files.size)
-            notice = "Subtitles added from OpenSubtitles (Audio & Subtitles: Online 1–" + files.size + ")"
+            val imdb = imdbOfCur() ?: return@runCatching
+            val n = addOnlineSubs(OnlineSubs.find(imdb, series, cur.season, cur.episode, want), want, forUrl)
+            if (n > 0) notice = "Subtitles added from OpenSubtitles (Audio & Subtitles)"
+        }
+    }
+
+    // "Find subtitles online" in Audio & Subtitles: every language OpenSubtitles has for this movie or episode
+    var onlineLangs by remember { mutableStateOf<List<Pair<String, Int>>?>(null) }
+    var onlineMsg by remember { mutableStateOf<String?>(null) }
+    fun findOnlineSubs() {
+        onlineLangs = null; onlineMsg = "Looking for subtitles …"
+        val forUrl = cur.url
+        scope.launch {
+            val imdb = runCatching { imdbOfCur() }.getOrNull()
+            if (imdb == null) { onlineMsg = "This title could not be identified, so no subtitles can be looked up."; return@launch }
+            val series = cur.season > 0 || cur.episode > 0
+            val all = OnlineSubs.all(imdb, series, cur.season, cur.episode)
+            if (cur.url != forUrl) return@launch
+            val list = OnlineSubsLogic.languages(all, listOf(AppSettings.subLangEffective(), AppSettings.audioLang, Lang.code(), "en"))
+            onlineLangs = list
+            onlineMsg = if (list.isEmpty()) "No subtitles found online for this title." else null
+        }
+    }
+    fun pickOnlineSubs(lang: String) {
+        val forUrl = cur.url
+        onlineMsg = "Loading " + OnlineSubsLogic.langName(lang) + " subtitles …"
+        scope.launch {
+            val imdb = runCatching { imdbOfCur() }.getOrNull() ?: return@launch
+            val series = cur.season > 0 || cur.episode > 0
+            val n = addOnlineSubs(OnlineSubs.find(imdb, series, cur.season, cur.episode, lang), lang, forUrl)
+            onlineMsg = null
+            if (n > 0) {
+                notice = OnlineSubsLogic.langName(lang) + " subtitles on (" + n + " to choose from in Audio & Subtitles)"
+                // Remember like a choice in the menu (the next episode starts with this language)
+                h.postDelayed({ rememberTracks() }, 2_500)
+                closePanel()
+            } else onlineMsg = "These subtitles could not be loaded. Try another language."
         }
     }
     // Prefer another mapped game feed quickly when the first one never starts.
@@ -2202,8 +2255,22 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             when (panel) {
                 Panel.TRACKS -> TracksPanel(
                     player, tracksVer, { tracksVer++; h.postDelayed({ rememberTracks() }, 400) }, panelFocus, subsFocus,
-                    { closePanel() }, { openPanel(Panel.SUBSTYLE, Panel.TRACKS) }
+                    { closePanel() }, { openPanel(Panel.SUBSTYLE, Panel.TRACKS) },
+                    onOnline = if (cur.live || cur.archive != null) null else ({ findOnlineSubs(); openPanel(Panel.ONLINESUBS, Panel.TRACKS) })
                 )
+
+                Panel.ONLINESUBS -> PSimplePanel(480.dp, "Subtitles online", back, { closePanel() }) {
+                    val langs = onlineLangs
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(PT.RowGap), modifier = Modifier.heightIn(max = 520.dp)) {
+                        onlineMsg?.let { m -> item { Text(m, color = Muted, fontSize = 15.sp, modifier = Modifier.padding(8.dp).focusRequester(panelFocus).focusable()) } }
+                        if (langs != null) itemsIndexed(langs) { i, (code, n) ->
+                            PPanelRow(OnlineSubsLogic.langName(code), false, if (i == 0 && onlineMsg == null) Modifier.focusRequester(panelFocus) else Modifier,
+                                trailing = n.toString()) { pickOnlineSubs(code) }
+                        }
+                        item { Text("From OpenSubtitles. Only the title's IMDb number is sent.", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp)) }
+                    }
+                    LaunchedEffect(langs, onlineMsg) { delay(150); runCatching { panelFocus.requestFocus() } }
+                }
 
                 Panel.SUBSTYLE -> PSimplePanel(440.dp, "Subtitle appearance", back, { closePanel() }) {
                     Column(verticalArrangement = Arrangement.spacedBy(PT.RowGap)) {
