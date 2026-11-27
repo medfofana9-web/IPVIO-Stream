@@ -53,7 +53,8 @@ fun PChoiceList(options: List<String>, selected: Int, focus: FocusRequester, onP
 fun BoxScope.TracksPanel(
     player: Player, ver: Int, onChanged: () -> Unit,
     audioFocus: FocusRequester, subsFocus: FocusRequester,
-    onClose: () -> Unit, onStyle: () -> Unit, onOnline: (() -> Unit)? = null, onTiming: (() -> Unit)? = null
+    onClose: () -> Unit, onStyle: () -> Unit, onOnline: (() -> Unit)? = null, onTiming: (() -> Unit)? = null,
+    onEnglish: (() -> Unit)? = null
 ) {
     val audio = remember(ver) { collectTracks(player, C.TRACK_TYPE_AUDIO) }
     val subs = remember(ver) { collectTracks(player, C.TRACK_TYPE_TEXT) }
@@ -128,7 +129,11 @@ fun BoxScope.TracksPanel(
                             onChanged()
                         }
                     }
-                    if (subs.isEmpty()) {
+                    // The stream has no English subtitles, but English ones from the internet are downloaded and ready
+                    if (onEnglish != null) item {
+                        PPanelRow("English · online", false, onClick = onEnglish)
+                    }
+                    if (subs.isEmpty() && onEnglish == null) {
                         item {
                             Text(
                                 "This stream has no subtitles. Try \"Find subtitles online\" below.", color = Muted, fontSize = 14.sp,

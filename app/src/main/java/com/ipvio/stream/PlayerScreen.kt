@@ -1319,26 +1319,41 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     }
     fun hasOnlineSubs(): Boolean = player.currentMediaItem?.localConfiguration?.subtitleConfigurations.orEmpty().any { it.uri.scheme == "file" }
 
+    // English subtitles ready for every movie and episode whose stream has none: found and downloaded in the background
+    // after the start, offered as "English · online" in Audio & Subtitles (one press, no search). Turned on by
+    // themselves only when the subtitle settings want them.
+    var onlineEn by remember { mutableStateOf<List<OnlineSubsLogic.Sub>>(emptyList()) }
     LaunchedEffect(cur.url, readyOnce) {
         if (!readyOnce || cur.live || cur.archive != null || onlineSubsFor == cur.url) return@LaunchedEffect
         onlineSubsFor = cur.url
+        onlineEn = emptyList()
         val forUrl = cur.url
         delay(1_500)
         runCatching {
+            fun langOf(type: Int): List<String?> = player.currentTracks.groups.filter { it.type == type }
+                .flatMap { g -> (0 until g.length).map { TrackLogic.guess(g.getTrackFormat(it).language, g.getTrackFormat(it).label) } }
+            val series = cur.season > 0 || cur.episode > 0
+            val imdb = imdbOfCur() ?: return@runCatching
+            val all = OnlineSubs.all(imdb, series, cur.season, cur.episode)
+            if (cur.url != forUrl) return@runCatching
+            val hint = subHint()
+            if ("en" !in langOf(C.TRACK_TYPE_TEXT)) {
+                val en = OnlineSubsLogic.pick(all, "en", 3, hint)
+                // Downloaded now, so choosing them later is instant
+                val ready = en.filter { OnlineSubs.file(ctx, it) != null }
+                if (cur.url == forUrl) onlineEn = ready
+            }
+            // Turned on by themselves: the subtitle language from the settings, when the stream has none and they are wanted
             if (AppSettings.subMode == TrackLogic.SUB_OFF) return@runCatching
             val mem = TrackMemory.get(ctx, cur.itemId)
             if (mem != null && mem.second == null) return@runCatching   // subtitles turned off by hand for this title
             val want = TrackLogic.norm(mem?.second ?: AppSettings.subLangEffective()) ?: return@runCatching
-            fun langOf(type: Int): List<String?> = player.currentTracks.groups.filter { it.type == type }
-                .flatMap { g -> (0 until g.length).map { TrackLogic.guess(g.getTrackFormat(it).language, g.getTrackFormat(it).label) } }
             if (want in langOf(C.TRACK_TYPE_TEXT)) return@runCatching
             val audio = player.currentTracks.groups.firstOrNull { it.type == C.TRACK_TYPE_AUDIO && it.isSelected }
                 ?.let { g -> (0 until g.length).firstOrNull { g.isTrackSelected(it) }?.let { TrackLogic.guess(g.getTrackFormat(it).language, g.getTrackFormat(it).label) } }
             if (mem == null && !TrackLogic.subsWanted(AppSettings.subMode, audio, want, AppSettings.audioLang)) return@runCatching
-            val series = cur.season > 0 || cur.episode > 0
-            val imdb = imdbOfCur() ?: return@runCatching
-            val n = addOnlineSubs(OnlineSubs.find(imdb, series, cur.season, cur.episode, want, hint = subHint()), want, forUrl)
-            if (n > 0) notice = "Subtitles added from OpenSubtitles (Audio & Subtitles)"
+            val n = addOnlineSubs(OnlineSubsLogic.pick(all, want, 3, hint), want, forUrl)
+            if (n > 0) { notice = "Subtitles added from OpenSubtitles (Audio & Subtitles)"; if (want == "en") onlineEn = emptyList() }
         }
     }
 
@@ -2307,7 +2322,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     player, tracksVer, { tracksVer++; h.postDelayed({ rememberTracks() }, 400) }, panelFocus, subsFocus,
                     { closePanel() }, { openPanel(Panel.SUBSTYLE, Panel.TRACKS) },
                     onOnline = if (cur.live || cur.archive != null) null else ({ findOnlineSubs(); openPanel(Panel.ONLINESUBS, Panel.TRACKS) }),
-                    onTiming = if (hasOnlineSubs()) ({ openPanel(Panel.SUBSYNC, Panel.TRACKS) }) else null
+                    onTiming = if (hasOnlineSubs()) ({ openPanel(Panel.SUBSYNC, Panel.TRACKS) }) else null,
+                    onEnglish = if (onlineEn.isEmpty()) null else ({ onlineEn = emptyList(); pickOnlineSubs("en") })
                 )
 
                 Panel.SUBSYNC -> PSimplePanel(440.dp, "Subtitle timing", back, { closePanel() }) {

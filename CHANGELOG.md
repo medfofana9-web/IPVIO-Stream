@@ -5,6 +5,9 @@
 - Online subtitles made for the same release as the playing video come first: same frame rate (a subtitle for 25 fps
   drifts further off a 23.976 fps video every minute), same source (Blu-ray, WEB, HDTV, DVD), same release group and
   resolution.
+- English subtitles for every movie and episode that OpenSubtitles has them for: when the stream has none, they are
+  found and downloaded in the background after the start and offered as "English · online" in Audio & Subtitles (one
+  press). They turn on by themselves only when the subtitle settings want them.
 - Audio & Subtitles → "Subtitle timing" (with online subtitles): earlier or later by 0.5 s or 0.1 s until the words
   match the voices; the picture pauses for a moment when it changes.
 
