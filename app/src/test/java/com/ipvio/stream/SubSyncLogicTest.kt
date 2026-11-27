@@ -23,7 +23,7 @@ class SubSyncLogicTest {
         val fit = SubSyncLogic.align(cues, sp, 120_000L, win)!!
         assertEquals(1.0, fit.scale, 0.0)
         assertTrue("offset ${fit.offsetMs}", kotlin.math.abs(fit.offsetMs - 7_340L) <= 40)
-        assertTrue("z ${fit.z}", fit.z > 5)
+        assertTrue("clarity ${fit.clarity}", SubSyncLogic.clear(fit))
     }
 
     @Test fun findsAFrameRateStretch() {
@@ -34,10 +34,17 @@ class SubSyncLogicTest {
         assertTrue("offset ${fit.offsetMs}", kotlin.math.abs(fit.offsetMs + 2_000L) <= 40)
     }
 
+    @Test fun noiseIsNotAClearMatch() {
+        val rnd = java.util.Random(7)
+        val sp = IntArray(75_000 / win) { if (rnd.nextInt(3) == 0) 1 else -1 }
+        val fit = SubSyncLogic.align(cues, sp, 120_000L, win)
+        assertTrue("clarity ${fit?.clarity}", !SubSyncLogic.clear(fit))
+    }
+
     @Test fun loudnessToSpeech() {
-        val e = FloatArray(100) { if (it % 2 == 0) 0.001f else 0.1f }
+        val e = FloatArray(100) { if (it % 3 == 0) 0.1f else 0.001f }
         val s = SubSyncLogic.speech(e)
-        assertEquals(-1, s[0]); assertEquals(1, s[1])
+        assertEquals(1, s[0]); assertEquals(-1, s[1])
     }
 
     @Test fun openSubtitlesFingerprint() {

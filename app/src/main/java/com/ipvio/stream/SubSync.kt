@@ -67,15 +67,18 @@ object SubSyncLogic {
         return IntArray(energies.size) { if (energies[it] > med * 1.5f) 1 else -1 }
     }
 
-    class Fit(val offsetMs: Long, val scale: Double, val score: Double, val z: Double)
+    /** [clarity]: how far the best move stands above every move more than 1 s away, as a share of the subtitle time. */
+    class Fit(val offsetMs: Long, val scale: Double, val score: Double, val clarity: Double)
+
+    /** A match clear enough to use: a quarter of the subtitle time on speech and 6 % above any other move. */
+    fun clear(f: Fit?): Boolean = f != null && f.clarity >= 0.06
 
     /** Frame-rate stretches worth trying (subtitle made for another release of the same video). */
     val SCALES = listOf(1.0, 25.0 / 23.976, 23.976 / 25.0, 24.0 / 23.976, 23.976 / 24.0, 25.0 / 24.0, 24.0 / 25.0)
 
     /**
      * Best move of the subtitle [cues] (start, end in ms) against [speech] (+1/-1 per [winMs], from [startMs]): for each
-     * stretch and every move within ±[rangeMs], how much subtitle time falls on speech minus on no speech. [z] says how far
-     * the best stands out from all other moves (a clear match is above 5).
+     * stretch and every move within ±[rangeMs], how much subtitle time falls on speech minus on no speech. the best stands out (see [Fit.clarity], [clear]).
      */
     fun align(cues: List<Pair<Long, Long>>, speech: IntArray, startMs: Long, winMs: Int, rangeMs: Long = 60_000, scales: List<Double> = SCALES): Fit? {
         if (speech.size < 500 || cues.isEmpty()) return null
@@ -101,9 +104,17 @@ object SubSyncLogic {
             }
             var bi = 0
             for (i in scores.indices) if (scores[i] > scores[bi]) bi = i
-            val mean = scores.average()
-            val sd = kotlin.math.sqrt(scores.sumOf { (it - mean) * (it - mean) } / scores.size).coerceAtLeast(1e-6)
-            val f = Fit(-rangeMs + bi.toLong() * winMs, k, scores[bi], (scores[bi] - mean) / sd)
+            val far = scores.indices.filter { kotlin.math.abs(it - bi) > 1000 / winMs }.maxOfOrNull { scores[it] } ?: 0.0
+            // Subtitle time inside the heard window at the best move
+            val d = -rangeMs + bi.toLong() * winMs
+            var covered = 0
+            for ((a, b) in scaled) {
+                val i0 = (((a + d) - startMs) / winMs).toInt().coerceIn(0, speech.size)
+                val i1 = (((b + d) - startMs) / winMs).toInt().coerceIn(0, speech.size)
+                if (i1 > i0) covered += i1 - i0
+            }
+            val clarity = if (covered < 100 || scores[bi] < covered * 0.25) 0.0 else (scores[bi] - far) / covered
+            val f = Fit(d, k, scores[bi], clarity)
             if (best == null || f.score > best.score) best = f
         }
         return best

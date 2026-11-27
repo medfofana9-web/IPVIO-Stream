@@ -264,7 +264,9 @@ object OnlineSubsLogic {
         for (block in text.replace("\r", "").split(Regex("\n\\s*\n"))) {
             val lines = block.trim().lines()
             val ti = lines.indexOfFirst { "-->" in it }
-            if (ti < 0 || lines.drop(ti + 1).none { l -> l.any(Char::isLetter) }) continue
+            val words = lines.drop(ti + 1).joinToString(" ").trim()
+            // Sound labels ("[Laughs]", "(music)") are not speech
+            if (ti < 0 || words.none(Char::isLetter) || words.startsWith("[") || words.startsWith("(") || words.startsWith("♪")) continue
             val ts = TIME.findAll(lines[ti]).toList()
             if (ts.size < 2) continue
             fun ms(m: MatchResult): Long { val (h, mi, se, f) = m.destructured; return ((h.toLong() * 60 + mi.toLong()) * 60 + se.toLong()) * 1000 + f.toLong() }

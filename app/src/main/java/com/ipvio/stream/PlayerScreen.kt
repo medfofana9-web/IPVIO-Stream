@@ -1385,9 +1385,9 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 }
             }
             if (cur.url != forUrl) return@LaunchedEffect
-            val best = fits.maxByOrNull { it.second.score }
-            android.util.Log.i("FofSubSync", fits.joinToString { it.first + ": " + it.second.offsetMs + " ms x" + it.second.scale + " z=" + String.format(java.util.Locale.US, "%.1f", it.second.z) })
-            if (best == null || best.second.z < 5.0) {
+            val best = fits.maxByOrNull { it.second.clarity }
+            android.util.Log.i("FofSubSync", fits.joinToString { it.first + ": " + it.second.offsetMs + " ms x" + it.second.scale + " clarity=" + String.format(java.util.Locale.US, "%.3f", it.second.clarity) })
+            if (best == null || !SubSyncLogic.clear(best.second)) {
                 syncInfo = if (best == null) "Couldn't hear the voices (sound goes straight to the TV)" else "Couldn't match the voices clearly · use Sync to a line"
             } else {
                 val (label, fit) = best
