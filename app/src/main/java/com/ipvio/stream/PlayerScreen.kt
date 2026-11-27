@@ -1246,6 +1246,19 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     }
     // "Subtitle timing": how far the online subtitles are moved (ms, + = later); reset when new ones are loaded
     var subDelayMs by remember { mutableLongStateOf(0L) }
+    // Stretch of the online subtitles (frame rate) found by the automatic sync; 1.0 = none
+    var subScale by remember { mutableStateOf(1.0) }
+    // What the panel says about the timing ("Made for this video", "In sync with the voices" …)
+    var syncInfo by remember { mutableStateOf<String?>(null) }
+    // Automatic sync: the subtitle files to check (one per version) and when listening started
+    var syncFiles by remember { mutableStateOf<List<Pair<String, java.io.File>>>(emptyList()) }
+    var syncStartedAt by remember { mutableLongStateOf(0L) }
+    var curHash by remember { mutableStateOf<OnlineSubsLogic.VideoHash?>(null) }
+    /** A show's episodes from the same source share their subtitle delay (SubSyncMemory). */
+    fun syncKey(): String {
+        val src = if (NowSources.owns(cur.itemId, cur.season, cur.episode)) NowSources.list.firstOrNull { it.key == NowSources.currentKey }?.addon else null
+        return SubSyncMemory.key(cur.itemId, src ?: cur.url.substringAfter("://").substringBefore('/'))
+    }
 
     /**
      * Adds [subs] (one language) to the stream as local files and selects that language; subtitles added before in other
@@ -1258,12 +1271,17 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         val now = player.currentMediaItem
         if (files.isEmpty() || cur.url != forUrl || now == null) return 0
         val name = OnlineSubsLogic.langName(lang)
+        val exact = subs.firstOrNull()?.exact == true
+        val labels = files.indices.map { i -> if (i == 0) (if (exact) "$name · made for this video" else "$name · best match") else "$name · version ${i + 1}" }
+        // Not made for this very file: start with the timing that fitted this show's last episode from the same source
+        val remembered = if (exact) null else SubSyncMemory.get(ctx, syncKey())
+        val used = if (remembered == null) files else files.map { f -> OnlineSubs.shifted(ctx, f, remembered.first, remembered.second) ?: f }
         // Online subtitles of other languages stay; this language's are replaced
         val kept = now.localConfiguration?.subtitleConfigurations.orEmpty().filter { c -> c.uri.scheme != "file" || c.language != lang }
-        val configs = kept + files.mapIndexed { i, f ->
+        val configs = kept + used.mapIndexed { i, f ->
             MediaItem.SubtitleConfiguration.Builder(android.net.Uri.fromFile(f))
                 .setMimeType(androidx.media3.common.MimeTypes.APPLICATION_SUBRIP).setLanguage(lang)
-                .setLabel(if (i == 0) "$name · best match" else "$name · version ${i + 1}")
+                .setLabel(labels[i])
                 .setSelectionFlags(if (i == 0) C.SELECTION_FLAG_DEFAULT else 0).build()
         }
         val item = now.buildUpon().setSubtitleConfigurations(configs).build()
@@ -1272,56 +1290,118 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         // Not a stall: the short buffering of reopening must not count against the source
         lastSeekT = System.currentTimeMillis()
         StreamHeaders.begin(resolvedUrl.ifEmpty { cur.url })
+        subDelayMs = remembered?.first ?: 0L
+        subScale = remembered?.second ?: 1.0
+        if (exact) { syncFiles = emptyList(); SpeechTap.stop(); syncInfo = "Made for this video" }
+        else {
+            // Automatic sync: listen to the next 75 s from exactly this spot (the reopen starts the sound there)
+            syncFiles = labels.zip(files)
+            SpeechTap.begin(at); syncStartedAt = System.currentTimeMillis()
+            syncInfo = if (remembered != null) "Timing from the last episode · checking against the voices" else "Checking against the voices …"
+        }
         player.setMediaItem(item, at)
         player.prepare()
         player.playWhenReady = go
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
             .clearOverridesOfType(C.TRACK_TYPE_TEXT)
             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false).setPreferredTextLanguages(lang).build()
-        ReportCtx.crumb("online subs " + lang + " " + files.size)
-        subDelayMs = 0L
+        ReportCtx.crumb("online subs " + lang + " " + files.size + (if (exact) " exact" else ""))
         return files.size
     }
 
     /** Moves the online subtitles by [ms] (new copies of the files) and reopens the stream at the same spot. */
-    fun applySubDelay(ms: Long) {
+    fun applySubDelay(ms: Long, scale: Double = subScale, selectLabel: String? = null) {
         val now = player.currentMediaItem ?: return
         val cfgs = now.localConfiguration?.subtitleConfigurations.orEmpty()
         if (cfgs.none { it.uri.scheme == "file" }) return
         val sel = player.currentTracks.groups.firstOrNull { it.type == C.TRACK_TYPE_TEXT && it.isSelected }
             ?.let { g -> (0 until g.length).firstOrNull { g.isTrackSelected(it) }?.let { g.getTrackFormat(it) } }
+        val want = selectLabel ?: sel?.label
+        val lang = cfgs.firstOrNull { it.label == want }?.language ?: sel?.language
         val forUrl = cur.url
         scope.launch {
             val moved = cfgs.map { c ->
                 val path = c.uri.path
                 if (c.uri.scheme != "file" || path == null) c
-                else OnlineSubs.shifted(ctx, OnlineSubs.originalOf(java.io.File(path)), ms)?.let { f ->
+                else OnlineSubs.shifted(ctx, OnlineSubs.originalOf(java.io.File(path)), ms, scale)?.let { f ->
                     c.buildUpon().setUri(android.net.Uri.fromFile(f))
-                        .setSelectionFlags(if (sel != null && c.label == sel.label) C.SELECTION_FLAG_DEFAULT else 0).build()
+                        .setSelectionFlags(if (want != null && c.label == want) C.SELECTION_FLAG_DEFAULT else 0).build()
                 } ?: c
             }
+            // The chosen subtitle first: with the same language, the first default one is selected
+            val ordered = moved.sortedBy { if (it.label == want) 0 else 1 }
             if (cur.url != forUrl || player.currentMediaItem == null) return@launch
             val at = player.currentPosition.coerceAtLeast(0L)
             val go = player.playWhenReady
             lastSeekT = System.currentTimeMillis()
             StreamHeaders.begin(resolvedUrl.ifEmpty { cur.url })
-            player.setMediaItem(player.currentMediaItem!!.buildUpon().setSubtitleConfigurations(moved).build(), at)
+            if (SpeechTap.listening) { SpeechTap.begin(at); syncStartedAt = System.currentTimeMillis() }
+            player.setMediaItem(player.currentMediaItem!!.buildUpon().setSubtitleConfigurations(ordered).build(), at)
             player.prepare()
             player.playWhenReady = go
-            sel?.language?.let { l -> player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+            lang?.let { l -> player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
                 .clearOverridesOfType(C.TRACK_TYPE_TEXT).setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false).setPreferredTextLanguages(l).build() }
-            ReportCtx.crumb("sub timing " + ms)
+            ReportCtx.crumb("sub timing " + ms + " x" + scale)
         }
     }
     val subDelayApply = remember { arrayOf<Runnable?>(null) }
     fun changeSubDelay(stepMs: Long) {
         subDelayMs = if (stepMs == 0L) 0L else (subDelayMs + stepMs).coerceIn(-60_000L, 60_000L)
+        if (stepMs == 0L) subScale = 1.0
+        syncInfo = "Timing set by hand"
+        SubSyncMemory.put(ctx, syncKey(), subDelayMs, subScale)
         // Applied when the presses stop (each apply reopens the stream for a moment)
         subDelayApply[0]?.let { h.removeCallbacks(it) }
         val target = subDelayMs
         subDelayApply[0] = Runnable { applySubDelay(target) }.also { h.postDelayed(it, 1_200) }
     }
     fun hasOnlineSubs(): Boolean = player.currentMediaItem?.localConfiguration?.subtitleConfigurations.orEmpty().any { it.uri.scheme == "file" }
+
+    // Automatic sync: once 75 s of sound were heard, each version of the subtitles is lined up with the voices (move and
+    // frame-rate stretch); the clearest match is used and remembered for the show. A seek while listening starts over.
+    LaunchedEffect(syncFiles, cur.url) {
+        val files = syncFiles
+        if (files.isEmpty()) return@LaunchedEffect
+        val forUrl = cur.url
+        while (true) {
+            delay(2_000)
+            if (cur.url != forUrl || syncFiles !== files) return@LaunchedEffect
+            if (lastSeekT > syncStartedAt + 500) {
+                // The viewer jumped: listen again from where the picture is now (the sound restarts with the next reopen)
+                SpeechTap.stop(); syncInfo = "Seek: checking again …"
+                delay(4_000)
+                val at = player.currentPosition.coerceAtLeast(0L)
+                SpeechTap.begin(at); syncStartedAt = System.currentTimeMillis()
+                lastSeekT = System.currentTimeMillis() - 1_000
+                player.seekTo(at)
+                continue
+            }
+            val heard = SpeechTap.done ?: continue
+            val fits = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                val speech = SubSyncLogic.speech(heard.second)
+                files.mapNotNull { (label, f) ->
+                    val spans = runCatching { OnlineSubsLogic.spans(f.readText()) }.getOrDefault(emptyList())
+                    SubSyncLogic.align(spans, speech, heard.first, SpeechTap.WIN_MS)?.let { label to it }
+                }
+            }
+            if (cur.url != forUrl) return@LaunchedEffect
+            val best = fits.maxByOrNull { it.second.score }
+            android.util.Log.i("FofSubSync", fits.joinToString { it.first + ": " + it.second.offsetMs + " ms x" + it.second.scale + " z=" + String.format(java.util.Locale.US, "%.1f", it.second.z) })
+            if (best == null || best.second.z < 5.0) {
+                syncInfo = if (best == null) "Couldn't hear the voices (sound goes straight to the TV)" else "Couldn't match the voices clearly · use Sync to a line"
+            } else {
+                val (label, fit) = best
+                subDelayMs = fit.offsetMs; subScale = fit.scale
+                SubSyncMemory.put(ctx, syncKey(), fit.offsetMs, fit.scale)
+                applySubDelay(fit.offsetMs, fit.scale, label)
+                syncInfo = "In sync with the voices"
+                notice = "Subtitles synced to the voices"
+                ReportCtx.crumb("auto sync " + fit.offsetMs + " x" + fit.scale)
+            }
+            syncFiles = emptyList()
+            return@LaunchedEffect
+        }
+    }
 
     // "Sync to a line": the next line of the subtitle in use is shown; OK when the voice says it sets the timing exactly
     // (also for subtitles that are many seconds off, where 0.5 s steps take too long)
@@ -1348,6 +1428,9 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         val d = (player.currentPosition - line.first - 400L).coerceIn(-600_000L, 600_000L)
         subDelayApply[0]?.let { h.removeCallbacks(it) }
         subDelayMs = d
+        SpeechTap.stop(); syncFiles = emptyList()
+        syncInfo = "Synced to a line"
+        SubSyncMemory.put(ctx, syncKey(), d, subScale)
         applySubDelay(d)
         notice = "Subtitles synced (" + timingText(d) + ")"
         syncLine = null
@@ -1369,7 +1452,10 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 .flatMap { g -> (0 until g.length).map { TrackLogic.guess(g.getTrackFormat(it).language, g.getTrackFormat(it).label) } }
             val series = cur.season > 0 || cur.episode > 0
             val imdb = imdbOfCur() ?: return@runCatching
-            val all = OnlineSubs.all(imdb, series, cur.season, cur.episode)
+            // The file's fingerprint: subtitles uploaded for exactly this file need no syncing
+            val hash = runCatching { OnlineSubs.videoHash(resolvedUrl.ifEmpty { cur.url }) }.getOrNull()
+            curHash = hash
+            val all = OnlineSubs.all(imdb, series, cur.season, cur.episode, hash)
             if (cur.url != forUrl) return@runCatching
             val hint = subHint()
             if ("en" !in langOf(C.TRACK_TYPE_TEXT)) {
@@ -1402,7 +1488,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             val imdb = runCatching { imdbOfCur() }.getOrNull()
             if (imdb == null) { onlineMsg = "This title could not be identified, so no subtitles can be looked up."; return@launch }
             val series = cur.season > 0 || cur.episode > 0
-            val all = OnlineSubs.all(imdb, series, cur.season, cur.episode)
+            val all = OnlineSubs.all(imdb, series, cur.season, cur.episode, curHash)
             if (cur.url != forUrl) return@launch
             val list = OnlineSubsLogic.languages(all, listOf(AppSettings.subLangEffective(), AppSettings.audioLang, Lang.code(), "en"))
             onlineLangs = list
@@ -1415,7 +1501,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         scope.launch {
             val imdb = runCatching { imdbOfCur() }.getOrNull() ?: return@launch
             val series = cur.season > 0 || cur.episode > 0
-            val n = addOnlineSubs(OnlineSubs.find(imdb, series, cur.season, cur.episode, lang, hint = subHint()), lang, forUrl)
+            val n = addOnlineSubs(OnlineSubs.find(imdb, series, cur.season, cur.episode, lang, hint = subHint(), hash = curHash), lang, forUrl)
             onlineMsg = null
             if (n > 0) {
                 notice = OnlineSubsLogic.langName(lang) + " subtitles on (" + n + " to choose from in Audio & Subtitles)"
@@ -2362,7 +2448,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     timingMs = if (hasOnlineSubs()) subDelayMs else null,
                     onTimingStep = { changeSubDelay(it) },
                     onSyncLine = if (hasOnlineSubs()) ({ startSyncLine(); openPanel(Panel.SUBSYNC, Panel.TRACKS) }) else null,
-                    styleLabel = SubStyle.SIZES[AppSettings.subSize].first
+                    styleLabel = SubStyle.SIZES[AppSettings.subSize].first,
+                    syncInfo = if (hasOnlineSubs()) syncInfo else null
                 )
 
                 Panel.SUBSYNC -> PSimplePanel(480.dp, "Sync to a line", back, { closePanel() }) {

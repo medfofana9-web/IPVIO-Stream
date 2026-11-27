@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased – Subtitles that line up by themselves
+
+- Subtitles made for exactly the file you play are found by its fingerprint (OpenSubtitles' video hash: the file's size
+  and its first and last 64 KB, read with two small requests) and come first, marked "made for this video".
+- Otherwise the app listens to the first 75 s after the subtitles are added and lines every version up with the voices
+  (delay and frame-rate stretch) and switches to the one that fits best: "In sync with the voices" in Audio & Subtitles.
+  Sound sent straight to the TV (Dolby bitstream) cannot be heard by the app; then Sync to a line remains.
+- The timing found for an episode (automatic or by hand) is used for the show's next episodes from the same source.
+
 ## Unreleased – Sports page no longer freezes
 
 - The Sports page found your pinned channels (ESPN, NBA TV …) by checking every channel of the playlist on the screen's

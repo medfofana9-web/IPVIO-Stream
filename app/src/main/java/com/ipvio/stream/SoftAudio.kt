@@ -43,7 +43,15 @@ object SoftAudio {
 
     /** Never waits: until the background check is done the player starts without the extra decoder (device audio). */
     fun factory(ctx: Context): DefaultRenderersFactory =
-        DefaultRenderersFactory(ctx)
+        // The decoded sound also goes to SpeechTap (automatic subtitle sync); it only listens while a sync is wanted
+        object : DefaultRenderersFactory(ctx) {
+            override fun buildAudioSink(context: Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean): androidx.media3.exoplayer.audio.AudioSink? =
+                androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context)
+                    .setEnableFloatOutput(enableFloatOutput)
+                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                    .setAudioProcessors(arrayOf(androidx.media3.exoplayer.audio.TeeAudioProcessor(SpeechTap)))
+                    .build()
+        }
             .setExtensionRendererMode(if (checked && ok) DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON else DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
             .setEnableDecoderFallback(true)
 }

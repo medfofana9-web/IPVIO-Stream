@@ -9,7 +9,8 @@ import java.io.File
 /**
  * Subtitles from the internet for movies and episodes whose stream has none in the wanted language. Source: the free
  * OpenSubtitles addon of Stremio (opensubtitles-v3.strem.io; no account, no key), asked by IMDb id. Only the IMDb id,
- * season and episode are sent – never the stream address. The files are saved in the app's cache (at most [KEEP]) and
+ * season and episode and, for plain video files, the file's fingerprint and size ([videoHash]) are sent – never the
+ * stream address. The files are saved in the app's cache (at most [KEEP]) and
  * handed to the player as local files, so the stream's own request headers never go to the subtitle server.
  */
 object OnlineSubs {
@@ -18,17 +19,57 @@ object OnlineSubs {
     private val found = HashMap<String, List<OnlineSubsLogic.Sub>>()
 
     /** Up to [max] subtitles in [lang] (two letters) for the title; empty when nothing fits or the server is not reachable. */
-    suspend fun find(imdb: String, series: Boolean, season: Int, ep: Int, lang: String, max: Int = 3, hint: OnlineSubsLogic.Hint? = null): List<OnlineSubsLogic.Sub> =
-        OnlineSubsLogic.pick(all(imdb, series, season, ep), lang, max, hint)
+    suspend fun find(imdb: String, series: Boolean, season: Int, ep: Int, lang: String, max: Int = 3, hint: OnlineSubsLogic.Hint? = null,
+                     hash: OnlineSubsLogic.VideoHash? = null): List<OnlineSubsLogic.Sub> =
+        OnlineSubsLogic.pick(all(imdb, series, season, ep, hash), lang, max, hint)
 
     /** A copy of a downloaded subtitle moved by [ms] (see [OnlineSubsLogic.shiftSrt]); the original when [ms] is 0. */
-    suspend fun shifted(c: Context, original: File, ms: Long): File? = withContext(Dispatchers.IO) {
-        if (ms == 0L) return@withContext original
+    suspend fun shifted(c: Context, original: File, ms: Long, scale: Double = 1.0): File? = withContext(Dispatchers.IO) {
+        if (ms == 0L && scale == 1.0) return@withContext original
         runCatching {
-            val f = File(original.parentFile, original.nameWithoutExtension + "_d" + ms + ".srt")
-            if (!f.isFile) f.writeText(OnlineSubsLogic.shiftSrt(original.readText(), ms))
+            val k = if (scale == 1.0) "" else "_k" + Math.round(scale * 100000)
+            val f = File(original.parentFile, original.nameWithoutExtension + "_d" + ms + k + ".srt")
+            if (!f.isFile) f.writeText(OnlineSubsLogic.retime(original.readText(), ms, scale))
             f
         }.getOrNull()
+    }
+
+    /**
+     * OpenSubtitles' fingerprint of a video file (size plus the sums of its first and last 64 KB): subtitles uploaded for
+     * exactly this file come back marked, and those match the voices without syncing. Two small range requests; null
+     * for anything that is not a plain file on a server that answers range requests (live channels, HLS).
+     */
+    private val hashes = HashMap<String, OnlineSubsLogic.VideoHash?>()
+    suspend fun videoHash(url: String): OnlineSubsLogic.VideoHash? = withContext(Dispatchers.IO) {
+        if (!url.startsWith("http") || ".m3u8" in url.lowercase()) return@withContext null
+        synchronized(hashes) { if (hashes.containsKey(url)) return@withContext hashes[url] }
+        val chunk = 65536L
+        val client = Net.withTimeouts(5, 6).newBuilder().callTimeout(10, java.util.concurrent.TimeUnit.SECONDS).build()
+        fun range(from: Long, to: Long): Pair<ByteArray, Long>? {
+            val b = Request.Builder().url(url).header("Range", "bytes=$from-$to")
+            StreamHeaders.headersFor(url).forEach { (k, v) -> b.header(k, v) }
+            if (StreamHeaders.headersFor(url).keys.none { it.equals("User-Agent", true) }) b.header("User-Agent", "Mozilla/5.0 (Linux; Android) FofTV")
+            return client.newCall(b.build()).execute().use { r ->
+                if (r.code != 206) return@use null
+                val total = r.header("Content-Range")?.substringAfterLast('/')?.toLongOrNull() ?: return@use null
+                val bytes = r.body?.byteStream()?.use { it.readNBytesCompat((to - from + 1).toInt()) } ?: return@use null
+                bytes to total
+            }
+        }
+        val h = runCatching {
+            val (head, size) = range(0, chunk - 1) ?: return@runCatching null
+            if (size < chunk * 2) return@runCatching null
+            val (tail, _) = range(size - chunk, size - 1) ?: return@runCatching null
+            OnlineSubsLogic.osHash(size, head, tail)
+        }.getOrNull()
+        synchronized(hashes) { hashes[url] = h }
+        h
+    }
+
+    private fun java.io.InputStream.readNBytesCompat(n: Int): ByteArray {
+        val out = ByteArray(n); var got = 0
+        while (got < n) { val k = read(out, got, n - got); if (k <= 0) break; got += k }
+        return if (got == n) out else out.copyOf(got)
     }
 
     /** A copy stretched for the video's frame rate ([OnlineSubsLogic.fpsScale]); the file itself when no stretch is needed. */
@@ -47,12 +88,12 @@ object OnlineSubs {
     }
 
     /** The downloaded original behind a (possibly moved) subtitle file. */
-    fun originalOf(f: File): File = File(f.parentFile, f.name.replace(Regex("_d-?\\d+\\.srt$"), ".srt"))
+    fun originalOf(f: File): File = File(f.parentFile, f.name.replace(Regex("_d-?\\d+(_k\\d+)?\\.srt$"), ".srt"))
 
     /** Every subtitle OpenSubtitles lists for the title (all languages), kept for the session. */
-    suspend fun all(imdb: String, series: Boolean, season: Int, ep: Int): List<OnlineSubsLogic.Sub> =
+    suspend fun all(imdb: String, series: Boolean, season: Int, ep: Int, hash: OnlineSubsLogic.VideoHash? = null): List<OnlineSubsLogic.Sub> =
         withContext(Dispatchers.IO) {
-            val url = OnlineSubsLogic.url(imdb, series, season, ep) ?: return@withContext emptyList()
+            val url = OnlineSubsLogic.url(imdb, series, season, ep, hash) ?: return@withContext emptyList()
             synchronized(found) { found[url] } ?: runCatching {
                 val req = Request.Builder().url(url).header("User-Agent", "FofTV").build()
                 Net.withTimeouts(6, 8).newCall(req).execute().use { r ->
@@ -88,16 +129,30 @@ object OnlineSubsLogic {
     const val BASE = "https://opensubtitles-v3.strem.io"
 
     /** [release]: file and release names the subtitle was made for; [fps]: its frame rate (0 = unknown). */
-    class Sub(val url: String, val lang: String, val release: String = "", val fps: Float = 0f)
+    class Sub(val url: String, val lang: String, val release: String = "", val fps: Float = 0f, val exact: Boolean = false)
+
+    /** OpenSubtitles fingerprint: 16 hex digits and the file size. */
+    class VideoHash(val hash: String, val size: Long)
+
+    /** Size plus the first and last 64 KB read as little-endian 64-bit numbers, all added up (overflow ignored). */
+    fun osHash(size: Long, head: ByteArray, tail: ByteArray): VideoHash {
+        var h = size
+        for (part in listOf(head, tail)) {
+            val bb = java.nio.ByteBuffer.wrap(part).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+            while (bb.remaining() >= 8) h += bb.long
+        }
+        return VideoHash(String.format("%016x", h), size)
+    }
 
     /** What is playing: its file/release name (from the addon) and the video's frame rate (0 = unknown). */
     class Hint(val name: String, val fps: Float)
 
-    fun url(imdb: String, series: Boolean, season: Int, ep: Int): String? {
+    fun url(imdb: String, series: Boolean, season: Int, ep: Int, hash: VideoHash? = null): String? {
         if (!Regex("tt\\d{5,}").matches(imdb)) return null
+        val extra = if (hash == null) "" else "/videoHash=${hash.hash}&videoSize=${hash.size}"
         return if (series) {
-            if (season < 1 || ep < 1) null else "$BASE/subtitles/series/$imdb:$season:$ep.json"
-        } else "$BASE/subtitles/movie/$imdb.json"
+            if (season < 1 || ep < 1) null else "$BASE/subtitles/series/$imdb:$season:$ep$extra.json"
+        } else "$BASE/subtitles/movie/$imdb$extra.json"
     }
 
     // OpenSubtitles' own codes that are not ISO 639-2
@@ -116,7 +171,8 @@ object OnlineSubsLogic {
             val l = lang(o.optString("lang")) ?: return@mapNotNull null
             val rel = listOf("subtitleFileName", "movieReleaseName", "releaseGroup", "releaseFormat").joinToString(" ") { o.optString(it) }
             val fps = o.optInt("fpsMilli", 0) / 1000f
-            if (!u.startsWith("https://")) null else Sub(u, l, rel.trim(), fps)
+            // "m": how OpenSubtitles matched it, "h" = made for exactly this file (by its fingerprint)
+            if (!u.startsWith("https://")) null else Sub(u, l, rel.trim(), fps, exact = o.optString("m") == "h")
         }
     }.getOrDefault(emptyList())
 
@@ -128,8 +184,8 @@ object OnlineSubsLogic {
     fun pick(all: List<Sub>, lang: String, max: Int, hint: Hint? = null): List<Sub> {
         val want = lang(lang) ?: return emptyList()
         val l = all.filter { it.lang == want }.distinctBy { it.url }
-        if (hint == null) return l.take(max)
-        return l.withIndex().sortedWith(compareBy({ -score(it.value, hint) }, { it.index })).map { it.value }.take(max)
+        return l.withIndex().sortedWith(compareBy({ if (it.value.exact) 0 else 1 }, { if (hint == null) 0 else -score(it.value, hint) }, { it.index }))
+            .map { it.value }.take(max)
     }
 
     private val SOURCES = listOf(
@@ -198,6 +254,22 @@ object OnlineSubsLogic {
             val start = ((h.toLong() * 60 + mi.toLong()) * 60 + se.toLong()) * 1000 + f.toLong()
             val words = lines.drop(ti + 1).joinToString(" ").replace(Regex("<[^>]+>|\\{[^}]*\\}"), "").trim()
             if (words.isNotEmpty()) out.add(start to words)
+        }
+        return out
+    }
+
+    /** Start and end (ms) of every cue with words, for the automatic sync. */
+    fun spans(text: String): List<Pair<Long, Long>> {
+        val out = ArrayList<Pair<Long, Long>>()
+        for (block in text.replace("\r", "").split(Regex("\n\\s*\n"))) {
+            val lines = block.trim().lines()
+            val ti = lines.indexOfFirst { "-->" in it }
+            if (ti < 0 || lines.drop(ti + 1).none { l -> l.any(Char::isLetter) }) continue
+            val ts = TIME.findAll(lines[ti]).toList()
+            if (ts.size < 2) continue
+            fun ms(m: MatchResult): Long { val (h, mi, se, f) = m.destructured; return ((h.toLong() * 60 + mi.toLong()) * 60 + se.toLong()) * 1000 + f.toLong() }
+            val a = ms(ts[0]); val b = ms(ts[1])
+            if (b > a) out.add(a to b)
         }
         return out
     }

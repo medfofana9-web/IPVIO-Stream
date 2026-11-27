@@ -71,7 +71,7 @@ fun BoxScope.TracksPanel(
     onClose: () -> Unit, onStyle: () -> Unit, onOnline: (() -> Unit)? = null,
     onEnglish: (() -> Unit)? = null,
     timingMs: Long? = null, onTimingStep: (Long) -> Unit = {}, onSyncLine: (() -> Unit)? = null,
-    styleLabel: String = ""
+    styleLabel: String = "", syncInfo: String? = null
 ) {
     val audio = remember(ver) { collectTracks(player, C.TRACK_TYPE_AUDIO) }
     val subs = remember(ver) { collectTracks(player, C.TRACK_TYPE_TEXT) }
@@ -112,6 +112,12 @@ fun BoxScope.TracksPanel(
                 }
             }
             item { Spacer(Modifier.height(10.dp)); PSectionLabel("SUBTITLES") }
+            // How the online subtitles were timed: made for this file, synced to the voices, still checking …
+            if (syncInfo != null) item {
+                Text((if (syncInfo.startsWith("In sync") || syncInfo.startsWith("Made for") || syncInfo.startsWith("Synced")) "\u2713 " else "") + syncInfo,
+                    color = if (syncInfo.startsWith("Couldn")) Color(0xFFFFB4A8) else Color(0xFF9BE7B0), fontSize = 13.sp, maxLines = 2,
+                    modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
+            }
             item {
                 PPanelRow("Off", subsOff, if (subsOff || subs.none { it.selected }) Modifier.focusRequester(subsFocus) else Modifier) {
                     player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
