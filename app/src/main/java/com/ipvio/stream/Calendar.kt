@@ -173,29 +173,42 @@ internal fun CalendarScreen(all: List<Item>, onOpen: (Item) -> Unit) {
     var filter by remember { mutableIntStateOf(0) }    // 0 All, 1 Shows, 2 Movies, 3 Sports
     var view by remember { mutableIntStateOf(2) }      // 0 List, 1 Week, 2 Month
     var day by remember { mutableStateOf(LocalDate.now()) }
-    val byId = remember(all) { all.associateBy { it.id } }
     CalFollow.init(ctx)
     val followVer = CalFollow.version
-    val mineItems = remember(byId, Library.favs.size, Library.watch.size, followVer) {
-        // Shows: the ones followed here (until something is picked: favorites and My List); movies: favorites and My List
-        val shows = CalFollow.shows(ctx).mapNotNull { byId[it] ?: CatalogItems.get(it) }
-        val movies = (Library.favs + Library.watch).mapNotNull { byId[it] ?: CatalogItems.get(it) }.filter { it.kind == Kind.MOVIE }
-        (shows + movies).distinctBy { it.id }
+    val favN = Library.favs.size
+    val watchN = Library.watch.size
+    // Shows: the ones followed here (until something is picked: favorites and My List); movies: favorites and My List.
+    // Finding them scans the whole playlist, so it runs in the background (it froze the Calendar on the main thread, #72)
+    val mineItems by produceState<List<Item>?>(null, all, favN, watchN, followVer) {
+        val showIds = CalFollow.shows(ctx)
+        val movieIds = Library.favs + Library.watch
+        val want = (showIds + movieIds).toHashSet()
+        val found = withContext(Dispatchers.Default) {
+            val m = HashMap<String, Item>()
+            for (i in all) if (i.id in want) m[i.id] = i
+            m
+        }
+        val shows = showIds.mapNotNull { found[it] ?: CatalogItems.get(it) }
+        val movies = movieIds.mapNotNull { found[it] ?: CatalogItems.get(it) }.filter { it.kind == Kind.MOVIE }
+        value = (shows + movies).distinctBy { it.id }
     }
     var picking by remember { mutableStateOf(false) }
-    val entries by produceState<List<CalendarData.Entry>?>(null, mineItems.size, followVer, SportFavs.keys.size) {
+    val entries by produceState<List<CalendarData.Entry>?>(null, mineItems?.size ?: -1, followVer, SportFavs.keys.size) {
+        val mine = mineItems ?: return@produceState
         if (CalFollow.dirty) { CalFollow.dirty = false; CalendarData.clear() }
-        value = CalendarData.mine(ctx, mineItems.filter { it.kind == Kind.SERIES }, mineItems.filter { it.kind == Kind.MOVIE })
+        value = CalendarData.mine(ctx, mine.filter { it.kind == Kind.SERIES }, mine.filter { it.kind == Kind.MOVIE })
     }
     val airing by produceState<List<CalendarData.Entry>>(emptyList(), tab == 1) {
-        if (tab == 1) value = CalendarData.airingToday(all.filter { it.kind == Kind.SERIES }.associateBy { it.title.lowercase(Locale.ROOT) })
+        if (tab == 1) value = CalendarData.airingToday(withContext(Dispatchers.Default) {
+            all.filter { it.kind == Kind.SERIES }.associateBy { it.title.lowercase(Locale.ROOT) }
+        })
     }
     val base = when (tab) { 1 -> airing; else -> entries.orEmpty() }
     val list = base.filter { filter == 0 || it.kind == filter - 1 }
     val open: (CalendarData.Entry) -> Unit = { e -> e.item?.let(onOpen) ?: e.game?.let { g -> openInHub(HubPage.Match(g)) } }
 
     Row(Modifier.fillMaxSize()) {
-    FollowRail(mineItems) { picking = true }
+    FollowRail(mineItems.orEmpty()) { picking = true }
     LazyColumn(Modifier.weight(1f).fillMaxHeight(), contentPadding = PaddingValues(start = dpx(40), end = DS.PageX, top = dpx(36), bottom = dpx(80)),
         verticalArrangement = Arrangement.spacedBy(dpx(16))) {
         item(key = "head") {
@@ -220,7 +233,7 @@ internal fun CalendarScreen(all: List<Item>, onOpen: (Item) -> Unit) {
             tab == 2 -> {
                 // Following: each of your shows with its next new episode
                 val next = list.filter { it.kind == 0 && !it.day.isBefore(LocalDate.now()) }.groupBy { it.title }.map { it.value.first() }
-                val rest = mineItems.filter { it.kind == Kind.SERIES && next.none { n -> n.title == it.title } }
+                val rest = mineItems.orEmpty().filter { it.kind == Kind.SERIES && next.none { n -> n.title == it.title } }
                 item(key = "fh") { CalHeader("Coming back", "${next.size} with a date") }
                 item(key = "fr") { CalRow(next, open) }
                 if (rest.isNotEmpty()) {

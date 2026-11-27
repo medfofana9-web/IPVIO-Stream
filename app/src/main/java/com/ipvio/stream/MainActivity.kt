@@ -12,6 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
@@ -160,7 +161,10 @@ class MainActivity : ComponentActivity() {
         CrashLog.install(this)
         Coil.setImageLoader(
             ImageLoader.Builder(this)
-                .memoryCache { MemoryCache.Builder(this).maxSizePercent(Mem.imageCachePercent(Mem.tier(this))).build() }
+                .memoryCache {
+                    val t = Mem.tier(this)
+                    MemoryCache.Builder(this).let { b -> Mem.imageCacheBytes(t)?.let { b.maxSizeBytes(it) } ?: b.maxSizePercent(Mem.imageCachePercent(t)) }.build()
+                }
                 // Saved pictures: a fixed cap (Coil's default grows to 250 MB) – 60 MB on budget boxes, 150 MB otherwise.
                 // Same folder as before, so Settings > Storage still shows and clears it.
                 .diskCache {
@@ -322,7 +326,12 @@ fun App(pick: Boolean = false) {
             LaunchedEffect(Unit) { delay(10_000); runCatching { SportAlerts.run(c.applicationContext) } }   // after the start: the playlist and the home screen come first
             LaunchedEffect(Unit) { delay(15_000); runCatching { GameDay.run(c.applicationContext) } }   // Fof Game Day: reminders and close-game alerts
             LaunchedEffect(Unit) { runCatching { SportPlan.run(c.applicationContext) } }   // daily game plan: games matched to channels ahead of time
-            Box(Modifier.fillMaxSize()) { AppContent(); SportPlayerOverlay(); SportAlertHost(); QuickMenuHost(); AmbientHost() }
+            Box(Modifier.fillMaxSize()) {
+                // Under the screensaver the screen stays composed (nothing is lost) but is not drawn: the GPU drew all of
+                // Home first and the screensaver on top, every frame (#53: 98-100 % slow frames, GPU 70-81 %)
+                Box(Modifier.fillMaxSize().drawWithContent { if (!Ambient.on) drawContent() }) { AppContent() }
+                SportPlayerOverlay(); SportAlertHost(); QuickMenuHost(); AmbientHost()
+            }
         }
         // New version available: dialog with one button (above every screen)
         UpdatePromptHost()

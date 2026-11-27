@@ -348,12 +348,17 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
 
     // Lambdas for timelines etc.: read only when drawing, not when composing.
     // While seeking the marker glides to each new target instead of jumping; during playback it follows the position directly
-    val scrubGlide by androidx.compose.animation.core.animateFloatAsState(
-        if (scrubTarget >= 0) scrubTarget.toFloat() else pos.toFloat(),
-        if (scrubTarget >= 0) androidx.compose.animation.core.tween(170, easing = androidx.compose.animation.core.FastOutSlowInEasing)
-        else androidx.compose.animation.core.snap(), label = "scrub"
-    )
-    val posNow: () -> Long = { if (scrubTarget >= 0) scrubGlide.toLong() else pos }
+    // The glide starts from the playing position. It is not an animate*AsState of pos: that read pos while composing, so
+    // every position update (every 2 s with the controls hidden) recomposed the whole player and drew a frame (#50)
+    val scrubAnim = remember { androidx.compose.animation.core.Animatable(0f) }
+    val glideIdle = remember { booleanArrayOf(true) }
+    LaunchedEffect(scrubTarget) {
+        val t = scrubTarget
+        if (t < 0) { glideIdle[0] = true; return@LaunchedEffect }
+        if (glideIdle[0]) { glideIdle[0] = false; scrubAnim.snapTo(pos.toFloat()) }
+        scrubAnim.animateTo(t.toFloat(), androidx.compose.animation.core.tween(170, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+    }
+    val posNow: () -> Long = { if (scrubTarget >= 0) scrubAnim.value.toLong() else pos }
     val durNow: () -> Long = { dur }
     val bufNow: () -> Long = { buffered }
     val segsNow: () -> List<Seg> = { segs }
@@ -797,7 +802,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     }
 
     // The last 3 minutes of an addon episode: the next episode's stream is looked up and chosen now, so it starts at once
-    val nearEnd = addonSeries && hasNext && dur > 0 && dur - pos in 0..180_000L
+    // Derived: reading pos here directly recomposed the whole player on every position update (#50)
+    val nearEnd by remember(addonSeries, hasNext) { derivedStateOf { addonSeries && hasNext && dur > 0 && dur - pos in 0..180_000L } }
     LaunchedEffect(nearEnd, epIdx) {
         if (!nearEnd || epIdx < 0) return@LaunchedEffect
         val ep = epList.getOrNull(epIdx + 1) ?: return@LaunchedEffect
@@ -1518,11 +1524,11 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             SportSession.isVerified(ctx, cur.itemId), SportSession.streams(cur.itemId).size
         )
         if (cur.live && cur.archive == null && startupDelay != null) {
-            // A hanging feed (connection open, not one byte received) is left after 2.5 s; a feed that sends data, however
+            // A hanging feed (connection open, almost nothing received) is left after 2.5 s; a feed that sends video, however
             // slow its first picture, gets the full time
             val bytesAtOpen = StreamBytes.total.get()
             delay(SportsStartupLogic.NO_DATA_MS)
-            val noData = StreamBytes.total.get() == bytesAtOpen
+            val noData = SportsStartupLogic.noData(bytesAtOpen, StreamBytes.total.get())
             if (!(noData && SportsStartupLogic.shouldTryNext(readyOnce, SportSession.owns(cur.itemId), SportSession.streams(cur.itemId).size))) {
                 delay((startupDelay - SportsStartupLogic.NO_DATA_MS).coerceAtLeast(0L))
             }
@@ -1551,7 +1557,10 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         if (scrubTarget >= 0) {
             delay(450)
             val t = scrubTarget
-            if (t >= 0) { player.seekTo(t); pos = t }
+            if (t >= 0) {
+                player.seekTo(t); pos = t
+                if (BuildConfig.VERSION_NAME.endsWith("-test")) android.util.Log.i("FofPlay", "seek to " + t / 1000 + "s")
+            }
             scrubTarget = -1L
             turbo = 0
             if (resumeAfterScrub) { resumeAfterScrub = false; player.play() }

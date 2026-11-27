@@ -54,7 +54,9 @@ object AppGlow {
 
 @Composable
 fun AppGlowLayer(modifier: Modifier = Modifier) {
-    val spec = if (Look.motion == 0) snap<Color>() else tween(900)
+    // Each step of the colour change repaints the glow and redraws the whole window: 900 ms of that on every title change
+    // kept Home drawing (#49); 300 ms, and none on Lite
+    val spec = if (Look.motion == 0 || Lite.on) snap<Color>() else tween(300)
     val ca = animateColorAsState(Color(AppGlow.a), spec, label = "amb_a")
     val cb = animateColorAsState(Color(AppGlow.b), spec, label = "amb_b")
     // The glow is soft, so it is painted into a small picture (192 x 108) when its colors change and stretched over the

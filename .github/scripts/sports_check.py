@@ -18,6 +18,10 @@ for i, f in enumerate(frames[:2]):
     on = f.split(" · on ", 1)[1] if " · on " in f else ""
     check(f"start {i+1} on the right game", on in fx["expected"], on)
     check(f"start {i+1} never on another game or the dead feed", on not in fx["forbidden"], on)
+    # The dead first feed sends a few KB, then nothing: it must be left by the 2.5 s no-data rule, not after the full
+    # 4.5-7.5 s (auto-report #62: 6.9 s on failed feeds)
+    ff = re.search(r"failed feeds ([0-9.]+)", f)
+    if ff: check(f"start {i+1} left the dead feed quickly", float(ff.group(1)) <= 4.0, ff.group(1) + " s on failed feeds")
     m = re.search(r"fixture ([0-9.]+)s", f)
     if m: print(f"TIMING start {i+1}: {m.group(1)} s OK to first frame (emulator, synthetic feeds)")
 sys.exit(0 if ok else 1)

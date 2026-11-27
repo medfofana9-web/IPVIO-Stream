@@ -123,7 +123,9 @@ fun BillboardBackdrop(item0: Item?, modifier: Modifier = Modifier) {
     val actx = androidx.compose.ui.platform.LocalContext.current
     Box(modifier.graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }.background(if (clean) Color.Transparent else Bg)) {
         // 17c: calm picture (no constant zoom), medium image size (w780) instead of full resolution – saves memory and computing time
-        Crossfade(item, animationSpec = tween(if (Look.motion == 0) 0 else 320), label = "bb") { it0 ->
+        // Lite (2-3 GB TVs): no crossfade, as Lite promises; two full-screen pictures per frame for 320 ms on every title
+        // change made Home and TV Shows GPU-bound (#49, #56)
+        Crossfade(item, animationSpec = tween(if (Look.motion == 0 || Lite.on) 0 else 320), label = "bb") { it0 ->
             if (it0 != null) {
                 val m = rememberMeta(it0)
                 val url = m?.backdrop?.let { b -> cardBackdrop(b) } ?: m?.poster?.let { p -> cardPoster(p) }

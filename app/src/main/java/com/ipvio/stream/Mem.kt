@@ -37,6 +37,12 @@ object Mem {
     /** Share of the working memory for the image cache (Coil). */
     fun imageCachePercent(tier: Int): Double = when (tier) { 0 -> 0.08; 1 -> 0.13; else -> 0.18 }
 
+    /**
+     * Fixed image cache on TVs with 3 GB or less (null = the share above). With the large heap the share is of about
+     * 512 MB (66 MB of pictures), while Android closed these TVs at 263-302 MB in total (#55, #68).
+     */
+    fun imageCacheBytes(tier: Int): Int? = when (tier) { 0 -> 24 * 1024 * 1024; 1 -> 40 * 1024 * 1024; else -> null }
+
     /** Buffer sizes for the player: (min ms, max ms, start ms, rebuffer ms, byte limit). */
     fun bufferPlan(tier: Int): IntArray = when (tier) {
         // After a stall playback resumes only with a few seconds in the buffer (rebuffer ms); too little means stall, play 1 s, stall again
@@ -54,7 +60,8 @@ object Mem {
         // Live: first picture after the short start threshold (TiviMate-like zapping); bigger buffers still apply after it
         if (live) p[2] = BufferLogic.liveStartMs(base[2], lvl)
         val b = DefaultLoadControl.Builder().setBufferDurationsMs(p[0], p[1], p[2], p[3])
-        val bytes = BufferLogic.byteLimit(p[4], Runtime.getRuntime().maxMemory())
+        // TVs with 3 GB or less: the buffer grows to 40 MB at most (64 MB counted against the large heap, #68)
+        val bytes = BufferLogic.byteLimit(p[4], Runtime.getRuntime().maxMemory(), if (tier(ctx) <= 1) 40L * 1024 * 1024 else 64L * 1024 * 1024)
         if (bytes > 0) b.setTargetBufferBytes(bytes).setPrioritizeTimeOverSizeThresholds(false)
         return b.build()
     }
@@ -70,6 +77,8 @@ object Mem {
         runCatching { Coil.imageLoader(ctx).memoryCache?.clear() }
         runCatching { MetaRepo.trim() }
         runCatching { Epg.trim(); EpgFull.trim(); CreditsRepo.trim() }
+        // Lists kept only to skip a recompute (they are rebuilt on the next visit)
+        runCatching { AreaCache.clear(); LiveBundleLogic.clear() }
     }
 }
 
@@ -146,7 +155,7 @@ object CrashLog {
                 "ram ${Mem.totalMb(app)}MB tier ${Mem.tier(app)}").joinToString(" · ")
             // Keep a freeze location saved by the watcher a moment before (it says where the screen was stuck)
             val prev = sp.getString("last", null)?.takeIf { it.startsWith("Freeze") && e.timestamp - sp.getLong("at", 0L) in 0..120_000 }
-            sp.edit().putString("last", "$why (memory $mb MB" + (e.description?.take(80)?.let { ", $it" } ?: "") + ")" + (prev?.let { " · $it" } ?: ""))
+            sp.edit().putString("last", "$why (memory $mb MB" + (e.description?.takeIf { it.isNotBlank() }?.take(80)?.let { ", $it" } ?: "") + ")" + (prev?.let { " · $it" } ?: ""))
                 .putString("details", details)
                 .putLong("at", e.timestamp).putBoolean("shown", false).commit()
         }
