@@ -10,5 +10,6 @@ object StateWarmUp {
     fun run() {
         runCatching { ProfileAvatars.version + AccountCloud.pins.size }
         runCatching { Ambient.on; Lite.on; Look.motion; FofPrefs.cleanLook }
+        runCatching { IntroLearn.version }
     }
 }
