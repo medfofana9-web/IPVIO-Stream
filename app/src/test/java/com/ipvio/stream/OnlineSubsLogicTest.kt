@@ -36,7 +36,7 @@ class OnlineSubsLogicTest {
 
     @Test fun languagesPreferredFirstThenByCount() {
         val all = listOf("eng", "ron", "ron", "ron", "spa", "spa", "eng").mapIndexed { i, l -> OnlineSubsLogic.Sub("https://s/$i", OnlineSubsLogic.lang(l)!!) }
-        assertEquals(listOf("en" to 2, "ron" to 3, "es" to 2), OnlineSubsLogic.languages(all, listOf("en", "")))
+        assertEquals(listOf("en" to 2, "ro" to 3, "es" to 2), OnlineSubsLogic.languages(all, listOf("en", "")))
         assertEquals("English", OnlineSubsLogic.langName("en"))
         assertEquals("Spanish", OnlineSubsLogic.langName("es"))
     }
