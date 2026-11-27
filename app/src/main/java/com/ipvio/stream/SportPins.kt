@@ -31,23 +31,47 @@ object SportPins {
     fun add(c: Context, ch: Item) { val pin = "name:" + base(ch.title); val l = list(c); if (l.none { it.equals(pin, true) }) save(c, l + pin) }
     fun remove(c: Context, pin: String) = save(c, list(c).filter { it != pin })
 
+    // Compiled once: resolve() runs these for every playlist channel (thousands), and compiling them per call froze the
+    // Sports page (auto-reports #71, #73, #75: PatternNative.compileImpl in base()).
+    private val RX_PREFIX = Regex("^\\s*[a-z]{2,3}\\s*[:|\\-]\\s*")
+    private val RX_BRACKETS = Regex("[\\[(].*?[\\])]")
+    private val RX_QUALITY = Regex("\\b(fhd|uhd|hd|sd|4k|hevc|h265|1080p?|720p?|50fps|60fps)\\b")
+    private val RX_NON_ALNUM = Regex("[^a-z0-9 ]")
+    private val RX_SPACES = Regex("\\s+")
+    private val RX_US = Regex("^\\s*(us|usa)\\s*[:|\\-]")
+    private val RX_FHD = Regex("\\b(fhd|1080)")
+    private val RX_HD = Regex("\\bhd\\b")
+    private val RX_ALT = Regex("\\b(backup|raw|plus|alt)\\b")
+    private val RX_UHD = Regex("\\b(4k|uhd)\\b")
+
     /** Base name of a channel: no country prefix, no quality tags ("US: ESPN FHD" -> "espn"). */
     internal fun base(title: String): String {
-        var t = title.lowercase().replace(Regex("^\\s*[a-z]{2,3}\\s*[:|\\-]\\s*"), "")
-        t = t.replace(Regex("[\\[(].*?[\\])]"), " ")
-        t = t.replace(Regex("\\b(fhd|uhd|hd|sd|4k|hevc|h265|1080p?|720p?|50fps|60fps)\\b"), " ")
-        return t.replace(Regex("[^a-z0-9 ]"), " ").replace(Regex("\\s+"), " ").trim()
+        var t = title.lowercase().replace(RX_PREFIX, "")
+        t = t.replace(RX_BRACKETS, " ")
+        t = t.replace(RX_QUALITY, " ")
+        return t.replace(RX_NON_ALNUM, " ").replace(RX_SPACES, " ").trim()
     }
 
     private fun score(title: String): Double {
         val t = title.lowercase()
         var s = 0.0
-        if (Regex("^\\s*(us|usa)\\s*[:|\\-]").containsMatchIn(t)) s += 2
-        if (Regex("\\b(fhd|1080)").containsMatchIn(t)) s += 1 else if (Regex("\\bhd\\b").containsMatchIn(t)) s += 0.5
-        if (Regex("\\b(backup|raw|plus|alt)\\b").containsMatchIn(t)) s -= 1
-        if (Regex("\\b(4k|uhd)\\b").containsMatchIn(t)) s -= 0.3
+        if (RX_US.containsMatchIn(t)) s += 2
+        if (RX_FHD.containsMatchIn(t)) s += 1 else if (RX_HD.containsMatchIn(t)) s += 0.5
+        if (RX_ALT.containsMatchIn(t)) s -= 1
+        if (RX_UHD.containsMatchIn(t)) s -= 0.3
         return s
     }
+
+    private class Resolved(val live: List<Item>, val ver: Int, val pins: List<Pair<String, Item?>>)
+    @Volatile private var lastResolved: Resolved? = null
+
+    /** The last [resolveAll] result for this channel list (same object) and pin version, or null. Cheap on the main thread. */
+    fun cached(live: List<Item>, ver: Int): List<Pair<String, Item?>>? =
+        lastResolved?.takeIf { it.live === live && it.ver == ver }?.pins
+
+    /** Every pin with its playlist channel. Scans the whole playlist, so call it off the main thread. */
+    fun resolveAll(c: Context, live: List<Item>, ver: Int): List<Pair<String, Item?>> =
+        list(c).map { it to resolve(it, live) }.also { lastResolved = Resolved(live, ver, it) }
 
     /** The playlist channel for one pin, or null when the playlist has none. */
     fun resolve(pin: String, live: List<Item>): Item? = when {

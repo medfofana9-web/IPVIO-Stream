@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -61,7 +62,10 @@ internal fun SportSplit(games0: List<SportData.Game>, hub: HubCtx) {
     var sel by remember { mutableStateOf<SportData.Game?>(null) }
     // Pinned channels (ESPN, NBA TV …) at the top of the list; resting on one plays it in the big preview
     val pinVer = SportPins.version
-    val pins = remember(hub.live, pinVer) { SportPins.list(ctx).map { it to SportPins.resolve(it, hub.live) } }
+    // Resolved in the background: it scans the whole playlist (it froze the page on the main thread, #71/#73/#75)
+    val pins by produceState(SportPins.cached(hub.live, pinVer) ?: SportPins.list(ctx).map { it to null as Item? }, hub.live, pinVer) {
+        value = withContext(Dispatchers.Default) { SportPins.resolveAll(ctx, hub.live, pinVer) }
+    }
     var selCh by remember { mutableStateOf<Item?>(null) }
     var picking by remember { mutableStateOf(false) }
     val onNow = remember { androidx.compose.runtime.mutableStateMapOf<String, String>() }
