@@ -1,5 +1,13 @@
 # Work state
 
+## 27 Nov 2026 (3) – player redesign (approved by Med from the preview canvas)
+- `PRoundButton` (square, showLabel; transparent at rest), VOD bar in `PlayerScreen` (centre transport 48/60 dp, options
+  46 dp right, catch-up left; sized for 960 dp), `PTimeRow(speed)` end time, subtitles lifted via
+  `SubtitleView.setBottomPaddingFraction` while the bar shows, `PPanelFrame`/`PPanelRow` one look (`PT.PanelBg`, `PT.Hint`).
+- Panels: `TracksPanel` "Adjust subtitles" sub-view; `EpisodesPanel` bottom strip with `PEpisodeCard`; Settings short list
+  + `menuMore`; `PlayerSourcePicker` top 3 + "Show all"; `WatchPartyPanel` same card look. Live bar keeps its layout.
+- Playback scenario tt9000007 (pause with OK, resume from the bar's Play button). Not tested on a TV.
+
 ## 27 Nov 2026 (2) – causes of all open auto-reports, fixes on branch `auto-fix-reports`
 - Every open auto-report issue has a cause comment (file:line, confidence). Closed #51/#59 (guide sort, fixed 1.3.271).
 - Fixed (branch `auto-fix-reports`, own branch because `auto-fix` carries the unreleased subtitle work of another

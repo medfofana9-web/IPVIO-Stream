@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased – New player controls and panels
+
+- Cleaner control bar: plain white icons without circles; the button you are on turns white and shows its name right
+  under it. Play controls in the middle, options (Audio & Subtitles, Episodes, Sources, Watch together, Settings) on the
+  right. The times and when the episode ends sit on the progress bar's line.
+- Subtitles move up while the controls show, so they no longer run into the buttons.
+- Every panel has the same look (dark, opaque, white focus).
+- Audio & Subtitles: Timing, Sync to a line and the subtitle style are under "Adjust subtitles".
+- Sources: the three best first, "Show all" for the rest.
+- Episodes: a row of episode cards along the bottom, with the season above; the picture stays visible.
+- Settings: the six things you change while watching, the rest under "More settings".
+
 ## Unreleased – Smoother Calendar, screensaver, player and Home; faster switch from a dead sports feed; less memory
 
 - Calendar opens without freezing: finding your followed shows and movies in the playlist runs in the background (#72).
