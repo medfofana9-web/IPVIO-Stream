@@ -69,9 +69,18 @@ object MainSampler {
                 }
                 // Live channel by its name in the test playlist (same path as a reminder notification)
                 i.getStringExtra("live")?.let { name ->
-                    val ch = PlaylistStore.channels.firstOrNull { it.kind == Kind.LIVE && it.title == name }
-                    Log.i("FofPlay", "scenario live " + name + (if (ch == null) " (not in the playlist)" else ""))
-                    if (ch != null) AppNav.openChannel = ch.id
+                    Log.i("FofPlay", "scenario live " + name)
+                    // The test playlist may still be loading: wait up to 30 s for the channel
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                        var ch: Item? = null
+                        for (t in 0 until 60) {
+                            ch = PlaylistStore.channels.firstOrNull { it.kind == Kind.LIVE && it.title == name }
+                            if (ch != null) break
+                            kotlinx.coroutines.delay(500)
+                        }
+                        if (ch == null) Log.i("FofPlay", "live " + name + " not in the playlist (" + PlaylistStore.channels.size + " channels)")
+                        else AppNav.openChannel = ch.id
+                    }
                 }
             }
         }

@@ -45,7 +45,7 @@ for sc in fx["scenarios"]:
         seg = segment(f"scenario live {sc['channel']}")
         if seg is None:
             bad.append(f"{sid}: scenario never started"); continue
-        if any("not in the playlist" in l for l in lines if f"scenario live {sc['channel']}" in l):
+        if any(f"live {sc['channel']} not in the playlist" in l for l in lines):
             bad.append(f"{sid}: channel {sc['channel']} not in the test playlist"); continue
         ticks = [(int(m.group(1)), int(m.group(2))) for l in seg if (m := re.search(r" tick \S+ state=(\d) pos=(-?\d+)", l))]
         if len(ticks) < 2:
