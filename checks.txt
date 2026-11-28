@@ -1,0 +1,7 @@
+CHECK PASS provider movies/series skipped (23773 titles)
+CHECK PASS no frozen screen
+CHECK PASS app stays open (search, Live TV, every screen)
+CHECK PASS no app crash
+Comparing with the accepted baseline in .github/perf_baseline.txt (median 109 ms, 60 % slow)
+CHECK FAIL Home slower than the last passing run: median frame 109 ms -> 150 ms
+CHECK PASS key rotation signing
