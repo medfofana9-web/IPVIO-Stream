@@ -20,6 +20,20 @@ object Mem {
         return mi.totalMem / (1024 * 1024)
     }
 
+    /**
+     * Java memory the app plans with. With largeHeap, maxMemory() is about 512 MB even on 2–3 GB TVs, while Android closed
+     * the app there at 263–302 MB in total (#55, #68). On those TVs every limit (playlist, TV guide, video buffer, extra
+     * playlists) is taken from 192 MB (128 MB at 1.5 GB or less); bigger TVs keep the full heap. Before the tier is known
+     * (very early at start) the full heap counts.
+     */
+    fun planHeap(): Long = planHeapFor(Runtime.getRuntime().maxMemory(), cachedTier)
+
+    fun planHeapFor(maxHeap: Long, tier: Int): Long = when (tier) {
+        0 -> minOf(maxHeap, 128L * 1024 * 1024)
+        1 -> minOf(maxHeap, 192L * 1024 * 1024)
+        else -> maxHeap
+    }
+
     fun tier(ctx: Context): Int {
         if (cachedTier >= 0) return cachedTier
         val am = ctx.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
@@ -61,7 +75,7 @@ object Mem {
         if (live) p[2] = BufferLogic.liveStartMs(base[2], lvl)
         val b = DefaultLoadControl.Builder().setBufferDurationsMs(p[0], p[1], p[2], p[3])
         // TVs with 3 GB or less: the buffer grows to 40 MB at most (64 MB counted against the large heap, #68)
-        val bytes = BufferLogic.byteLimit(p[4], Runtime.getRuntime().maxMemory(), if (tier(ctx) <= 1) 40L * 1024 * 1024 else 64L * 1024 * 1024)
+        val bytes = BufferLogic.byteLimit(p[4], planHeap(), if (tier(ctx) <= 1) 40L * 1024 * 1024 else 64L * 1024 * 1024)
         if (bytes > 0) b.setTargetBufferBytes(bytes).setPrioritizeTimeOverSizeThresholds(false)
         return b.build()
     }
@@ -69,7 +83,7 @@ object Mem {
     /** True if the app's Java memory is used by more than [limit] (background work then stops instead of crashing). */
     fun heapTight(limit: Double = 0.75): Boolean {
         val r = Runtime.getRuntime()
-        return r.totalMemory() - r.freeMemory() > r.maxMemory() * limit
+        return r.totalMemory() - r.freeMemory() > planHeap() * limit
     }
 
     /** On memory shortage: empty everything that can be reloaded. */

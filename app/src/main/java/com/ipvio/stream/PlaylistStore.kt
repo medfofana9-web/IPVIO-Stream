@@ -199,7 +199,7 @@ object PlaylistStore {
     } catch (e: Exception) { java.util.Locale.getDefault().language }
 
     /** How much memory the playlist may use at most. */
-    fun budget(): Long = LoadLogic.budget(Runtime.getRuntime().maxMemory())
+    fun budget(): Long = LoadLogic.budget(Mem.planHeap())
 
     /** Does this language selection fit in memory? (Estimate from the last parse; unknown = yes.) */
     fun fits(hidden: Set<String>): Boolean = LoadLogic.fits(langBytes, hidden, budget())

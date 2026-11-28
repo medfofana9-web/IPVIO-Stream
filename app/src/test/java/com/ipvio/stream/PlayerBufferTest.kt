@@ -38,4 +38,15 @@ class PlayerBufferTest {
         assertFalse(IptvLoadErrorPolicy.isFinalStatus(500))
         assertFalse(IptvLoadErrorPolicy.isFinalStatus(512))
     }
+
+    /** #55/#68: on 2–3 GB TVs the limits come from 192 MB (128 MB at 1.5 GB), not from the large heap. */
+    @Test fun planHeapOnSmallTvs() {
+        assertEquals(192L * mb, Mem.planHeapFor(512L * mb, 1))
+        assertEquals(128L * mb, Mem.planHeapFor(512L * mb, 0))
+        assertEquals(96L * mb, Mem.planHeapFor(96L * mb, 1))
+        assertEquals(512L * mb, Mem.planHeapFor(512L * mb, 2))
+        assertEquals(512L * mb, Mem.planHeapFor(512L * mb, -1))
+        // Playlist budget on a 2 GB TV: 192 MB × 40 % / 0.65 ≈ 118 MB of list
+        assertTrue(LoadLogic.budget(Mem.planHeapFor(512L * mb, 1)) in (110L * mb)..(125L * mb))
+    }
 }
