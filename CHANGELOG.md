@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased – Dead channels known at once, fewer forced closes, Continue watching on the home screen
+
+- Live TV: a channel the provider does not send no longer spins and reconnects for ever. After 3 s without a picture
+  another quality of the channel is tried; after 8 s the app says the channel is not sending a picture right now, and
+  Up/Down still change channels.
+- TVs with 3 GB or less (Fire TV, onn 4K): memory limits now match what Android lets the app keep, so it is no longer
+  closed in the middle of watching. A very large playlist asks for fewer languages on those TVs.
+- Google TV / Android TV: your Continue watching titles also appear on the TV's home screen; choosing one resumes it.
+
 ## Unreleased – Skip intro that hears the theme
 
 - The app now recognises a show's intro by its sound: after two episodes of a season (or one, when an intro database

@@ -1,5 +1,17 @@
 # Work state
 
+## 27 Nov 2026 (6) – essentials (approved by Med)
+- Promotion: stable channel was still on 1.3.189 (23 Nov). A gate change (accept passes on later commits with the same
+  app code) was blocked by the session's safety check and NOT made. The way out is a build whose own app commit passes
+  playback, soak and perf: this one (9974024), then a hand promotion (promote.yml "now"). 1.3.291 passes the gate too.
+- `LiveDeadLogic` + LaunchedEffect in `PlayerScreen`: live, under 64 KiB after 3 s → other quality (`liveAlts`), after
+  8 s → message, `deadLive` (no AutoReport: provider's fault, would hold promotion), Up/Down zap from the message.
+  Scenario live-dead (fixture "dead" live channel).
+- `Mem.planHeap()` (192 MB tier 1, 128 MB tier 0) for `heapTight`, playlist budget, buffer bytes. Test in PlayerBufferTest.
+- `HomeRow.kt`: Watch Next via the platform TV provider (raw column names), `AppNav.openResume` → `resumeSaved`.
+  **Unverified**: whether Google TV shows rows from this app without extra permission; not tested on a device (CI
+  emulator has no TV provider).
+
 ## 27 Nov 2026 (5) – Skip more, intro by sound (approved by Med)
 - Skip more: `moreOn`/`skipMore` in `PlayerScreen`, root OK takes it for 10 s after each press; learning waits until
   25 s after the last change.
