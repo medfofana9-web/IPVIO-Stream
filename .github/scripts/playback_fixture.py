@@ -36,11 +36,23 @@ SCEN = {
     "tt9000007": ("Fixture Seven", 2012, {"b": ("good", 0)}, "b", 30000),
     # Skip intro without known times (27 Nov 2026): Down opens the bar on "Skip intro", OK jumps 60 s and plays on
     "tt9100002:1:1": ("Fixture Series", 2016, {"b": ("good", 0)}, "b", 10000),
+    # Intro by sound (27 Nov 2026): three episodes share a 30 s theme between different noise (intro_*.mp4, made at
+    # start). Episodes 1 and 2 teach the intro; in episode 3 the theme (15-45 s) is recognised and OK skips it.
+    "tt9100003:1:1": ("Fixture Theme", 2017, {"b": ("introa", 0)}, "b", 1000),
+    "tt9100003:1:2": ("Fixture Theme", 2017, {"b": ("introb", 0)}, "b", 1000),
+    "tt9100003:1:3": ("Fixture Theme", 2017, {"b": ("introc", 0)}, "b", 1000),
 }
+# Seconds to wait after starting a scenario before its keys (default 55)
+WAIT = {"tt9100003:1:3": 27}
+# Intro the app must hear by itself (start s, end s), then OK skips it
+HEARD = {"tt9100003:1:3": [15, 45]}
+# file, seeds and lengths (noise before, theme 30 s, noise after; 120 s in all)
+INTRO_MEDIA = {"introa": ("intro_a.mp4", 1, 10, 2, 80), "introb": ("intro_b.mp4", 3, 20, 4, 70), "introc": ("intro_c.mp4", 5, 15, 6, 75)}
 SEEK = {"tt9000006": [22, 22, 22]}
 BAR = {"tt9000007": [23, "sleep 4; adb exec-out screencap -p > p_tt9000007_bar.png", 23]}
 # The bar hides 4 s after the last key while playing: a first Down for the screenshot, then Down and OK back to back
-INTRO = {"tt9100002:1:1": [20, "adb exec-out screencap -p > p_tt9100002_intro.png", "sleep 6", 20, 23]}
+INTRO = {"tt9100002:1:1": [20, "adb exec-out screencap -p > p_tt9100002_intro.png", "sleep 6", 20, 23, 23],
+         "tt9100003:1:3": [23]}
 # Live channels in srv/test.m3u (name, path) and the live scenarios: play, a connection that keeps dropping, zapping
 CHANNELS = [("Fixture Live A", "good"), ("Fixture Live B", "good"), ("Fixture Live C", "good"), ("Fixture Live Drop", "drop")]
 LIVE_SCEN = [
@@ -126,13 +138,17 @@ class H(BaseHTTPRequestHandler):
     def media(self, kind):
         if kind == "expired":
             self.send_response(403); self.send_header("Content-Length", "0"); self.end_headers(); return
-        size = os.path.getsize(MOVIE)
+        path = os.path.join(ROOT, INTRO_MEDIA[kind][0]) if kind in INTRO_MEDIA else MOVIE
+        if not os.path.exists(path):
+            self.send_response(404); self.send_header("Content-Length", "0"); self.end_headers(); return
+        size = os.path.getsize(path)
+        ranged = kind == "good" or kind in INTRO_MEDIA
         if kind == "hang":
             self.send_response(200); self.send_header("Content-Type", "video/mp4"); self.send_header("Content-Length", str(size)); self.end_headers()
             time.sleep(600); return
         rng = self.headers.get("Range")
         start, end = 0, size - 1
-        if kind == "good" and rng:
+        if ranged and rng:
             mm = re.match(r"bytes=(\d+)-(\d*)", rng)
             if mm:
                 start = int(mm.group(1)); end = int(mm.group(2)) if mm.group(2) else size - 1
@@ -142,13 +158,13 @@ class H(BaseHTTPRequestHandler):
             self.send_response(206); self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
         else:
             self.send_response(200)
-        if kind == "good":
+        if ranged:
             self.send_header("Accept-Ranges", "bytes")
         self.send_header("Content-Type", "video/mp4"); self.send_header("Content-Length", str(end - start + 1)); self.end_headers()
         # norange: about 400 KB/s, so resuming has to read for a while before the picture (like a server that cannot seek)
         rate = 400 * 1024 if kind == "norange" else 0
         try:
-            with open(MOVIE, "rb") as f:
+            with open(path, "rb") as f:
                 f.seek(start); left = end - start + 1
                 while left > 0:
                     chunk = f.read(min(64 * 1024, left))
@@ -161,13 +177,39 @@ class H(BaseHTTPRequestHandler):
             pass
 
 
+def make_intro_media():
+    """The three themed episodes (ffmpeg, about 20 s; the emulator needs minutes to start anyway)."""
+    import subprocess
+    theme = os.path.join(ROOT, "theme.wav")
+    expr = ("aevalsrc='0.45*sin(2*PI*t*(420+160*sin(1.3*t)+90*sin(0.37*t)))+"
+            "0.3*sin(2*PI*t*(830+120*sin(0.71*t)+60*sin(2.3*t)))':s=48000:d=30")
+    try:
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i", expr, theme], check=True)
+        for name, s1, pre, s2, post in INTRO_MEDIA.values():
+            out = os.path.join(ROOT, name)
+            tmp = out + ".part.mp4"
+            subprocess.run(["ffmpeg", "-loglevel", "error", "-y",
+                            "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=25:d=120",
+                            "-f", "lavfi", "-i", f"anoisesrc=c=pink:seed={s1}:a=0.25:r=48000:d={pre}",
+                            "-i", theme,
+                            "-f", "lavfi", "-i", f"anoisesrc=c=pink:seed={s2}:a=0.25:r=48000:d={post}",
+                            "-filter_complex", "[1:a][2:a][3:a]concat=n=3:v=0:a=1[a]", "-map", "0:v", "-map", "[a]",
+                            "-t", "120", "-c:v", "libx264", "-preset", "veryfast", "-b:v", "300k", "-pix_fmt", "yuv420p",
+                            "-c:a", "aac", "-movflags", "+faststart", tmp], check=True)
+            os.replace(tmp, out)
+        sys.stderr.write("fixture intro media ready\n")
+    except Exception as e:
+        sys.stderr.write(f"fixture intro media failed: {e}\n")
+
+
 def fixture_json():
     out = []
     for sid, (title, year, srcs, good, pos) in SCEN.items():
         out.append({"id": sid, "kind": "resume", "title": title, "year": year, "resume_ms": pos,
                     "good_key": (ADDONS[good] + "|" + label(good, sid)) if good else None,
                     "expect": "good" if "good" in [m for m, _ in srcs.values()] else None,
-                    "sources": {ADDONS[k]: m for k, (m, _) in srcs.items()}, "seek_keys": SEEK.get(sid, []), "bar_keys": BAR.get(sid, []), "intro_keys": INTRO.get(sid, [])})
+                    "sources": {ADDONS[k]: m for k, (m, _) in srcs.items()}, "seek_keys": SEEK.get(sid, []), "bar_keys": BAR.get(sid, []), "intro_keys": INTRO.get(sid, []),
+                    "wait": WAIT.get(sid, 55), "heard": HEARD.get(sid)})
     return out + LIVE_SCEN
 
 
@@ -186,4 +228,5 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "json":
         print(json.dumps({"addons": [f"{HOST}/{k}/manifest.json" for k in ADDONS], "scenarios": fixture_json()}, indent=1))
         sys.exit(0)
+    threading.Thread(target=make_intro_media, daemon=True).start()
     ThreadingHTTPServer(("0.0.0.0", 8002), H).serve_forever()

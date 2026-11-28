@@ -50,6 +50,24 @@ for sc in fx["scenarios"]:
                 bad.append(f"{sid} {sc['title']}: seek to {to}s from {last_before}s, then ticks {after[-3:]}")
             else:
                 print(f"PASS {sid} {sc['title']}: {msg(ok[0])}; seek {last_before}s -> {to}s, playing at {after[-1][1]}s")
+        elif ok and sc.get("heard"):
+            # Intro by sound: the theme is recognised by itself near where it plays, and OK skips to its end
+            want_a, want_b = sc["heard"]
+            hi = next((i for i, l in enumerate(seg) if " intro heard from " in l), None)
+            tick = lambda l: (m := re.search(r" tick \S+ state=(\d) pos=(-?\d+)", l)) and (int(m.group(1)), int(m.group(2)))
+            learned = [msg(l) for l in lines if " intro learned " in l or " intro shared " in l or " intro print heard " in l or " intro template " in l]
+            if hi is None:
+                bad.append(f"{sid} {sc['title']}: theme not recognised (intro log: {learned[-6:]})")
+            else:
+                m = re.search(r" intro heard from (\d+)s to (\d+)s", seg[hi])
+                a, b = int(m.group(1)), int(m.group(2))
+                after = [t for t in map(tick, seg[hi + 1:]) if t]
+                if abs(a - want_a) > 3 or abs(b - want_b) > 3:
+                    bad.append(f"{sid} {sc['title']}: heard {a}s-{b}s, theme is at {want_a}s-{want_b}s")
+                elif not after or after[-1][0] != 3 or after[-1][1] < b - 2:
+                    bad.append(f"{sid} {sc['title']}: heard {a}s-{b}s, but OK did not skip it (ticks {after[-3:]})")
+                else:
+                    print(f"PASS {sid} {sc['title']}: theme heard {a}s-{b}s by itself, OK skipped to {after[-1][1]}s")
         elif ok and sc.get("intro_keys"):
             # Episode without intro times: Down opens the bar on "Skip intro"; OK jumps forward 60 s and plays on
             ii = next((i for i, l in enumerate(seg) if " intro skip from " in l), None)
@@ -62,6 +80,8 @@ for sc in fx["scenarios"]:
                 after = [t for t in map(tick, seg[ii + 1:]) if t]
                 if b - a < 55 or not after or after[-1][0] != 3 or after[-1][1] < b - 2:
                     bad.append(f"{sid} {sc['title']}: Skip intro {a}s -> {b}s, then ticks {after[-3:]}")
+                elif sc["intro_keys"].count(23) > 1 and not any(" intro more to " in l for l in seg[ii + 1:]):
+                    bad.append(f"{sid} {sc['title']}: Skip intro {a}s -> {b}s, but the second OK did not skip 10 s more")
                 else:
                     print(f"PASS {sid} {sc['title']}: {msg(ok[0])}; Skip intro {a}s -> {b}s, playing at {after[-1][1]}s")
         elif ok and sc.get("bar_keys"):

@@ -24,7 +24,7 @@ for s in fx["scenarios"]:
     sid = s["id"].split(":")
     arg = "|".join([sid[0], s["title"], str(s["year"]), str(s["resume_ms"])] + sid[1:])
     out.append('adb shell "am broadcast -a com.fof.tv.TAB --es resume ' + Q + arg + Q + '"')
-    out.append("sleep 55; adb exec-out screencap -p > p_" + s["id"].replace(":", "_") + ".png")
+    out.append("sleep " + str(s.get("wait", 55)) + "; adb exec-out screencap -p > p_" + s["id"].replace(":", "_") + ".png")
     if s.get("seek_keys"):
         for k in s["seek_keys"]:
             out.append("adb shell input keyevent " + str(k) + "; sleep 0.3")
