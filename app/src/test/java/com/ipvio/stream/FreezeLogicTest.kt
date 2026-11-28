@@ -43,4 +43,11 @@ class FreezeLogicTest {
     @Test fun waitingForWorkIsNoFreeze() {
         assertTrue(FreezeLogic.idle(listOf(e("android.os.MessageQueue", "nativePollOnce", null, -2))))
     }
+
+    @Test fun aWatchThreadThatOversleptMeansTheProcessWasPaused() {
+        assertTrue(!FreezeLogic.paused(500))
+        assertTrue(!FreezeLogic.paused(1_900))
+        assertTrue(FreezeLogic.paused(2_500))
+        assertTrue(FreezeLogic.paused(155_000))
+    }
 }

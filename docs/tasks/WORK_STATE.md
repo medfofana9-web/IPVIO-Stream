@@ -1,5 +1,15 @@
 # Work state
 
+## 28 Nov 2026 – daily auto-report run
+- `FreezeWatch`: a watch-thread sleep that overslept by a freeze length (`FreezeLogic.paused`) means the process was
+  paused (cached-app freezer), not a freeze; measuring restarts (#77, 155 s "in" `performRestart`). Test in FreezeLogicTest.
+- `Ambient`: no crossfade on Lite (#78: slow frames were the 400 ms fades at GPU 79 %).
+- Closed: #57 (Sports, fixed 1.3.286, no newer report), #69/#70 (old freezes, no report since 1.3.241/1.3.238),
+  #79 (addon's link host: timeout + HTTP 429).
+- Open with causes: #49/#56 (GPU-bound navigation, needs a design decision), #50/#80 (player draws at the video's
+  ~29 fps with no key, cause not confirmed), #55/#68 (wait for 1.3.293+ reports).
+- Not tested on a device.
+
 ## 27 Nov 2026 (6) – essentials (approved by Med)
 - Promotion: stable channel was still on 1.3.189 (23 Nov). A gate change (accept passes on later commits with the same
   app code) was blocked by the session's safety check and NOT made. The way out is a build whose own app commit passes

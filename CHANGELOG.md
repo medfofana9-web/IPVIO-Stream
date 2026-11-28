@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased – Screensaver on budget TVs, no false freeze reports after standby
+
+- Screensaver on Lite TVs (onn 4K Plus, Fire TV): the picture changes with a cut instead of a fade, which those boxes
+  drew at a few frames a second (#78).
+- Problem reports: when Android pauses the app in the background (TV standby), the pause is no longer reported as a
+  freeze of whatever the app runs first when it comes back (#77).
+
 ## Unreleased – Dead code removed (no visible change)
 
 - Removed code nothing in the app calls anymore: old screen pieces replaced by the redesign (SectionHeader, EpisodeRow,

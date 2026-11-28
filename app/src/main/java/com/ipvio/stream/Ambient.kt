@@ -54,7 +54,10 @@ fun AmbientHost() {
         // Calm on every TV: the onn 4K Plus (not a budget box) still reported 99–100 % slow frames at 76–81 % GPU while the
         // drift and long crossfade ran for as long as the TV sat idle. Now a short fade, then a still picture.
         val calm = true
-        Crossfade(i, animationSpec = tween(if (calm) 400 else 2_000), label = "amb") { k ->
+        // Lite (onn 4K Plus, Fire TV): no fade at all. Two full-screen pictures in one frame took 33–100 ms each there
+        // (#78: 96 % slow frames, GPU 79 %, all of them during the fades); a cut every 12 s draws one or two frames.
+        val fadeMs = if (Lite.on) 0 else if (calm) 400 else 2_000
+        Crossfade(i, animationSpec = tween(fadeMs), label = "amb") { k ->
             val (item, url) = pool[k]
             // Slow drift: one gentle move per picture (drawn by the layer, nothing is laid out again)
             val t = remember { androidx.compose.animation.core.Animatable(0f) }

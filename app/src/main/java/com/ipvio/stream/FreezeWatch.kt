@@ -31,7 +31,11 @@ object FreezeWatch {
             var reportedFor = 0L
             while (running) {
                 main.post(beat)
+                val sleptFrom = SystemClock.uptimeMillis()
                 try { Thread.sleep(500) } catch (_: InterruptedException) { return@Thread }
+                // The whole process was paused (Android freezes a stopped app; uptime keeps counting): the main thread
+                // was not stuck, it was frozen with us. Start measuring again from now (#77: "155 s in performRestart").
+                if (FreezeLogic.paused(SystemClock.uptimeMillis() - sleptFrom)) { lastBeat = SystemClock.uptimeMillis(); continue }
                 runCatching { ReportCtx.tick(app) }
                 runCatching { IdleDraw.check(app) }
                 val beatAt = lastBeat
@@ -45,14 +49,19 @@ object FreezeWatch {
                     // Sample the stuck main thread every 500 ms until it runs again (at most 12 s): one look at 2 s can
                     // catch the end of the freeze instead of its cause
                     val samples = ArrayList<List<StackTraceElement>>()
+                    var paused = false
                     while (true) {
                         val t = runCatching { Looper.getMainLooper().thread.stackTrace.toList() }.getOrDefault(emptyList())
                         if (t.isNotEmpty() && !FreezeLogic.idle(t)) samples.add(t)
                         if (lastBeat != beatAt || SystemClock.uptimeMillis() - beatAt > 12_000) break
+                        val from = SystemClock.uptimeMillis()
                         try { Thread.sleep(500) } catch (_: InterruptedException) { return@Thread }
+                        if (FreezeLogic.paused(SystemClock.uptimeMillis() - from)) { paused = true; break }
                     }
                     val total = SystemClock.uptimeMillis() - beatAt
                     val ended = lastBeat != beatAt
+                    // Paused with the process while sampling: the length would count the pause, not a freeze
+                    if (paused) { lastBeat = SystemClock.uptimeMillis(); continue }
                     // Only idle samples: the main thread was already free again (no real freeze, e.g. "ActivityThread.main")
                     if (samples.isEmpty()) continue
                     val sums = samples.map { FreezeLogic.summarize(it) }.filter { it.isNotEmpty() }
@@ -78,6 +87,13 @@ object FreezeWatch {
 /** Pure part (tested in FreezeLogicTest). */
 object FreezeLogic {
     const val FREEZE_MS = 2_000L
+
+    /**
+     * A 500 ms sleep of the watch thread that took [sleptMs]: true when it overslept by about a freeze length, i.e. the
+     * whole process was paused (cached-app freezer after the TV went to standby or another app came up), not the main
+     * thread alone. Such a gap must not be reported as a freeze of whatever the main thread runs first afterwards.
+     */
+    fun paused(sleptMs: Long): Boolean = sleptMs >= 500 + FREEZE_MS
 
     private val SKIP = listOf("java.", "javax.", "sun.", "dalvik.", "libcore.", "kotlin.", "kotlinx.coroutines.",
         "android.os.", "com.android.internal.", "java.lang.reflect.")
