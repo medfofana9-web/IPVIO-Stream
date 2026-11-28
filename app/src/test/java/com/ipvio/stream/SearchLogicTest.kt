@@ -24,4 +24,16 @@ class SearchLogicTest {
     }
 
     @Test fun leer() = assertEquals(0, idx.find("  ").first.size + idx.find("xyz").first.size)
+
+    @Test fun wordStartsFirstAndChannelsOnlyAtAWordStart() {
+        val x = SearchIndex(listOf(
+            item("a", Kind.SERIES, "Outlaws"), item("b", Kind.SERIES, "Family Law"),
+            item("c", Kind.LIVE, "NCAAW B 06: Merrimack vs Delaware"), item("d", Kind.LIVE, "Law & Crime"),
+            item("e", Kind.MOVIE, "Lawless")
+        ))
+        val (m, s, l) = x.find("law")
+        assertEquals(listOf("e"), m.map { it.id })
+        assertEquals(listOf("b", "a"), s.map { it.id })
+        assertEquals(listOf("d"), l.map { it.id })
+    }
 }

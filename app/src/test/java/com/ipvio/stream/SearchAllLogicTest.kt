@@ -59,4 +59,12 @@ class SearchAllLogicTest {
         assertEquals(null, SearchAllLogic.genre("reasonable doubt", g))
         assertEquals(null, SearchAllLogic.genre("ac", g))
     }
+
+    @Test fun recentSearchesKeepWholeWords() {
+        assertEquals("inside man", SearchAllLogic.historyTerm("inside m", "Inside Man"))
+        assertEquals("diplomat", SearchAllLogic.historyTerm("dipl", "The Diplomat"))
+        assertEquals("law", SearchAllLogic.historyTerm("law", "Family Law"))
+        assertEquals("power", SearchAllLogic.historyTerm(" power ", "Power Book II: Ghost"))
+        assertEquals(null, SearchAllLogic.historyTerm("inse", "Inside Man"))
+    }
 }

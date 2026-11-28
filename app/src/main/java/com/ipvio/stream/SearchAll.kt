@@ -34,6 +34,23 @@ object SearchAllLogic {
     /** Words that only join a matchup ("lakers vs celtics") and must not have to match. */
     private val JOIN = setOf("vs", "v", "at", "and", "game", "the")
 
+    /**
+     * What to keep in "Recent searches" when a result is opened: the typed search with its last word completed from the
+     * title ("inside m" + Inside Man → "inside man", "dipl" + The Diplomat → "diplomat"), or the search as typed when that
+     * word is already whole. Null for a half word that the title does not complete (a typo found by tolerance, "inse"),
+     * so the list no longer fills with fragments.
+     */
+    fun historyTerm(q: String, title: String): String? {
+        val t = q.trim().replace(Regex("\\s+"), " ")
+        if (t.length < 2) return null
+        val head = t.substringBeforeLast(' ', "")
+        val last = t.substringAfterLast(' ').lowercase()
+        val words = title.lowercase().split(Regex("[^\\p{L}\\p{N}']+")).filter { it.isNotEmpty() }
+        if (words.any { it == last }) return t
+        val done = words.firstOrNull { it.startsWith(last) } ?: return null
+        return (if (head.isEmpty()) "" else "$head ") + done
+    }
+
     fun tokens(q: String): List<String> = ChannelSearch.norm(q).split(' ').filter { it.isNotEmpty() && it !in JOIN }
 
     /** Every word of the query occurs as the start of a word in [hay] ("lak" finds "Lakers", "celt" finds "Celtics"). */

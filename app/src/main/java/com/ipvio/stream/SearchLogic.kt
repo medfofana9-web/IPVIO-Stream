@@ -11,14 +11,22 @@ class SearchIndex(val all: List<Item>) {
         if (n.isEmpty()) return Triple(m, s, l)
         // At most MAX hits per kind: a two-letter query on a big provider matched tens of thousands of titles, and every
         // later step (dedupe, rows, recomposition) paid for all of them
-        for (i in all.indices) if (keys[i].contains(n)) {
+        // Matches at the start of a word first ("law" → "Lawless", "Family Law"), inside a word after them for titles
+        // ("law" in "Delaware"); channels only at the start of a word (a game channel named "… Merrimack vs Delaware"
+        // filled Live TV for "law")
+        val mIn = ArrayList<Item>(); val sIn = ArrayList<Item>()
+        for (i in all.indices) {
+            val key = keys[i]
+            if (!key.contains(n)) continue
+            val start = wordStart(key, n)
             val it = all[i]
             when (it.kind) {
-                Kind.MOVIE -> if (m.size < MAX) m.add(it)
-                Kind.SERIES -> if (s.size < MAX) s.add(it)
-                Kind.LIVE -> if (l.size < MAX) l.add(it)
+                Kind.MOVIE -> if (start) { if (m.size < MAX) m.add(it) } else if (mIn.size < MAX) mIn.add(it)
+                Kind.SERIES -> if (start) { if (s.size < MAX) s.add(it) } else if (sIn.size < MAX) sIn.add(it)
+                Kind.LIVE -> if (start && l.size < MAX) l.add(it)
             }
         }
+        m.addAll(mIn.take((MAX - m.size).coerceAtLeast(0))); s.addAll(sIn.take((MAX - s.size).coerceAtLeast(0)))
         // Few hits: forgive typos (movies and series, not channels)
         if (m.size + s.size < FUZZY_BELOW && n.length >= 4) {
             val k = maxErrors(n.length)
@@ -64,6 +72,16 @@ class SearchIndex(val all: List<Item>) {
                 if (col[m] < best) best = col[m]
             }
             return best
+        }
+
+        /** [n] occurs in [key] at the start of a word (start of the title or after a non-letter, non-digit). */
+        fun wordStart(key: String, n: String): Boolean {
+            var i = key.indexOf(n)
+            while (i >= 0) {
+                if (i == 0 || !key[i - 1].isLetterOrDigit()) return true
+                i = key.indexOf(n, i + 1)
+            }
+            return false
         }
 
         private val MARKS = Regex("""\p{Mn}+""")

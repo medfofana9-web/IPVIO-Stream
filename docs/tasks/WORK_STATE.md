@@ -1,5 +1,13 @@
 # Work state
 
+## 28 Nov 2026 (4) – search fixes (Med: "search should be and look better"; fixes now, redesign preview next)
+- `SearchScreen`: scroll to the top on every query change after opening (the keyboard keeps focus on its keys, so the old
+  `fieldFocused` condition never held); auto-saved searches only when the last word is whole in a shown title;
+  opening a result saves `SearchAllLogic.historyTerm` (last word completed from the title, null for fragments).
+- `SearchIndex.find`: word-start matches first; inside-word matches after them for movies/series, dropped for channels
+  (`SearchIndex.wordStart`). Tests in SearchLogicTest, SearchAllLogicTest (logic also run locally with kotlinc).
+- Not changed: "On TV" (EPG) matching, row order, card design (redesign preview pending Med's approval).
+
 ## 28 Nov 2026 (3) – source stops mid-show (#82, Med: "Connection lost – reconnecting" on black)
 - Cause (#82, Fire TV, 1.3.295): playlist VOD (m3u, mkv, 4K HEVC) played 50 min, then IO_UNSPECIFIED; every later try
   of the same file failed in about 5 s ("no format yet"), also after restarting the app. The TV was online. The app took

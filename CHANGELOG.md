@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased – Search: results from the top, fitting channels, clean recent searches
+
+- Every new search shows its results from the top. Typing on the on-screen keyboard used to leave the first row half
+  hidden under the filter buttons.
+- Words are matched from their start: "law" finds Lawless, Family Law and Law & Crime first. Live TV no longer fills
+  with channels that only contain the letters inside a word (a game channel with "Delaware" in its name).
+- Recent searches keep whole words: opening Inside Man after typing "inside m" keeps "inside man", and half-typed
+  fragments such as "dipl" are no longer saved. Fragments already in the list stay until removed with the small x.
+
 ## Unreleased – A source that stops mid-show no longer leaves a black "reconnecting" screen
 
 - When a movie or episode's source stops sending in the middle (a provider that drops a 4K file, #82) while the TV's

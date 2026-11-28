@@ -121,7 +121,14 @@ fun SearchScreen(
     LaunchedEffect(q, SearchState.filter) { focusItem = null }
     // A new search starts at the top of the results (the list kept the scroll position of the previous one) – only while
     // typing, so returning from a title page keeps its place
-    LaunchedEffect(q) { if (fieldFocused && state.firstVisibleItemIndex > 0) runCatching { state.scrollToItem(0) } }
+    // The on-screen keyboard keeps the focus on its keys, not the field, so "while typing" is any change of the search
+    // after the screen opened (the first row was left half scrolled under the filter chips)
+    var shownQ by remember { mutableStateOf(q) }
+    LaunchedEffect(q) {
+        if (q == shownQ) return@LaunchedEffect
+        shownQ = q
+        if (state.firstVisibleItemIndex > 0 || state.firstVisibleItemScrollOffset > 0) runCatching { state.scrollToItem(0) }
+    }
     val none = Triple(emptyList<Item>(), emptyList<Item>(), emptyList<Item>())
     // A result always belongs to exactly one input: while still searching it says "Searching …" instead of "No hits"
     val found by produceState("" to none, q, index) {
@@ -269,9 +276,17 @@ fun SearchScreen(
         }
         return true
     }
-    // Remember what was searched: after a short pause with results, and when leaving Search
-    LaunchedEffect(q, hasResults) { if (q.trim().length >= 3 && hasResults) { delay(3000); AppSettings.addSearch(ctx, q) } }
-    DisposableEffect(Unit) { onDispose { SearchState.query.trim().takeIf { it.length >= 3 }?.let { AppSettings.addSearch(ctx, it) } } }
+    // Remember what was searched: after a short pause with results, and when leaving Search – only when the last word is
+    // a whole word of a title found ("dipl", "inse" filled Recent searches with fragments)
+    val shownTitles = rememberUpdatedState((cmS.take(10) + cmM.take(10) + rm.take(10) + rs.take(10) + rl.take(10)).map { it.title })
+    fun whole(t: String): Boolean {
+        val n = t.trim().replace(Regex("\\s+"), " ")
+        return shownTitles.value.any { SearchAllLogic.historyTerm(n, it) == n }
+    }
+    LaunchedEffect(q, hasResults) { if (q.trim().length >= 3 && hasResults) { delay(3000); if (whole(q)) AppSettings.addSearch(ctx, q) } }
+    DisposableEffect(Unit) { onDispose { SearchState.query.trim().takeIf { it.length >= 3 && whole(it) }?.let { AppSettings.addSearch(ctx, it) } } }
+    /** Opening a result keeps the search with its last word completed from the title ("inside m" → "inside man"). */
+    fun keepFor(i: Item) { SearchAllLogic.historyTerm(q, i.title)?.let { AppSettings.addSearch(ctx, it) } }
     // Back: in the search field (keyboard already closed) first to the recent searches or hits, otherwise into the sidebar
     BackHandler(enabled = !inSidebar) {
         // Back from the results returns to the keyboard (where the search is typed); from the keyboard to the menu
@@ -393,7 +408,7 @@ fun SearchScreen(
                         }
                     }
                 } else {
-                    val openS: (Item) -> Unit = { i -> AppSettings.addSearch(ctx, q); onOpen(i) }
+                    val openS: (Item) -> Unit = { i -> keepFor(i); onOpen(i) }
                     if (searching) item {
                         Text("Searching …", color = Muted, fontSize = 16.sp, modifier = Modifier.padding(horizontal = DS.PageX, vertical = 16.dp))
                     } else if (cmReady && rm.isEmpty() && rs.isEmpty() && rl.isEmpty() && cmM.isEmpty() && cmS.isEmpty() && per == null && sg.isEmpty() && st.isEmpty() && sl.isEmpty() && sh.isEmpty()) item {
@@ -433,7 +448,7 @@ fun SearchScreen(
                         if (gm.isNotEmpty() && (fl == 0 || fl == 1)) item(key = "genre_m") { SearchTitleRow("$g movies", gm, cardW, null, report, openS) }
                         if (gs.isNotEmpty() && (fl == 0 || fl == 2)) item(key = "genre_s") { SearchTitleRow("$g shows", gs, cardW, null, report, openS) }
                     }
-                    if (sh.isNotEmpty()) item(key = "shows") { SearchShowRow(sh, fr("shows")) { ch -> AppSettings.addSearch(ctx, q); onOpen(ch) } }
+                    if (sh.isNotEmpty()) item(key = "shows") { SearchShowRow(sh, fr("shows")) { ch -> keepFor(ch); onOpen(ch) } }
                 }
                     }
                 }
