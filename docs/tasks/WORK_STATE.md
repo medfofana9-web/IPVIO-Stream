@@ -1,5 +1,17 @@
 # Work state
 
+## 27 Nov 2026 (5) – Skip more, intro by sound (approved by Med)
+- Skip more: `moreOn`/`skipMore` in `PlayerScreen`, root OK takes it for 10 s after each press; learning waits until
+  25 s after the last change.
+- `IntroPrint.kt`: `IntroPrintLogic` (Haitsma–Kalker style 31-bit codes per 100 ms over 0.5 s, 32 bands 300–3000 Hz at
+  about 8 kHz, energy floor −40 dB, dead zone 1e-3; `common` = longest shared run 15 s–3 min, `locate` = live match of
+  the last 4 s), `IntroTap` (via `AudioTaps` in `SoftAudio`'s tee; anchored by the 500 ms position loop), `IntroPrints`
+  (files/intro_prints, print + template per show/season, max 120 files). Detected intros become ordinary `Seg`s.
+- Parameters checked offline in Python (numpy) on synthetic audio and on the AAC fixture files: intro found within
+  ±0.5 s, recognised about 2 s after the theme starts, steady tone and different noise rejected.
+- Tests: `IntroPrintLogicTest`; playback scenarios tt9100003:1:1–3 (fixture makes intro_a/b/c.mp4 with ffmpeg at
+  start), Skip more in tt9100002:1:1. Not tested on a real TV or real shows; Dolby passthrough cannot be heard.
+
 ## 27 Nov 2026 (4) – Skip intro for every show (approved by Med)
 - `IntroLearn.kt`: `IntroSkipLogic` (pure: window 12 min / half the episode, jump = learned length or 60 s, learning from
   where the viewer lands within 25 s, SkipDB parsing; `IntroSkipLogicTest`) and `IntroLearn` (show intro length as a new

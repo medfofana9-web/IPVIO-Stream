@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased – Skip intro that hears the theme
+
+- The app now recognises a show's intro by its sound: after two episodes of a season (or one, when an intro database
+  knows its times) the next episodes show "Skip intro" by themselves as soon as the theme starts, and OK lands where
+  the theme ends. Only a small sound fingerprint of the first minutes is kept on the TV, never the sound itself; it
+  does not work when the TV sends Dolby sound straight to a soundbar or receiver.
+- Right after a Skip intro jump, "Skip more +10 s" takes OK for a few seconds, for intros longer than the jump; the app
+  remembers how far you went.
+
 ## Unreleased – Skip intro on every show
 
 - Early in an episode whose intro times are unknown, the controls open on "Skip intro" (press Down, then OK). It jumps
