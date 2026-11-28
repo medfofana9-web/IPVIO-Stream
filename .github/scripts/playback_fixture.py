@@ -42,8 +42,9 @@ SCEN = {
     "tt9100003:1:2": ("Fixture Theme", 2017, {"b": ("introb", 0)}, "b", 1000),
     "tt9100003:1:3": ("Fixture Theme", 2017, {"b": ("introc", 0)}, "b", 1000),
 }
-# Seconds to wait after starting a scenario before its keys (default 55)
-WAIT = {"tt9100003:1:3": 27}
+# Seconds to wait after starting a scenario before its keys (default 55). Episode 3: the theme (15 s) is heard about
+# 1 s in and its button shows for 10 s, so OK comes at about 19 s
+WAIT = {"tt9100003:1:3": 20}
 # Intro the app must hear by itself (start s, end s), then OK skips it
 HEARD = {"tt9100003:1:3": [15, 45]}
 # file, seeds and lengths (noise before, theme 30 s, noise after; 120 s in all)
