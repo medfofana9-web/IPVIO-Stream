@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased – Subtitles from the internet line up with the voices more often
+
+- The automatic subtitle sync now listens for voices the way films are mixed: only the voice range of the centre of
+  the sound (the centre speaker of 5.1, or what both stereo sides share), so music and effects no longer count as
+  speech. It lines up the starts of the lines with the starts of the voices, listens for 2½ minutes instead of 75 s and
+  picks the version that fits best. In an offline test with real speech over music it found the right timing (within
+  0.15 s) about five times as often as before, and it never applied a wrong timing. When it is not sure, it still
+  leaves the timing alone and says so ("use Sync to a line").
+
 ## Unreleased – Screensaver on budget TVs, no false freeze reports after standby
 
 - Screensaver on Lite TVs (onn 4K Plus, Fire TV): the picture changes with a cut instead of a fade, which those boxes

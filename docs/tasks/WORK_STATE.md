@@ -1,5 +1,19 @@
 # Work state
 
+## 28 Nov 2026 (2) – tighter automatic subtitle sync (asked by Med)
+- Med: "best match" and version 2 were a bit off, the sync said "Couldn't match the voices clearly", version 3 was right.
+- `SubSync.kt`: `SpeechTap` keeps voice-band (250–3500 Hz, `SubSyncLogic.Band`) energy of the centre (5.1 centre
+  channel, stereo mid minus side, floor 5 % of mid), 150 s. `SubSyncLogic.speech`: log-scale threshold between 10th and
+  97th percentile, blips < 60 ms dropped, pauses ≤ 200 ms filled. `align`: scores the first 1.2 s of each line and
+  penalises speech in the 400 ms before it; a frame-rate stretch must beat 1.0 by 10 %; `clear` at 0.2.
+- Offline check (Python port, LibriSpeech clips from librosa's example data over 3 real music tracks, 108 mixes, known
+  offsets and a 25/23.976 stretch): old 17 right / 7 wrong / 84 left alone; new 86 within 150 ms, 8 within 400 ms,
+  0 wrong, 14 left alone. Not committed (scratch script).
+- `SubSyncLogicTest`: filter coefficients, voice band, pauses, whole chain with a centre voice under wide noise;
+  cue test data made irregular (evenly spaced lines match one line over). Run locally with kotlinc and a JUnit stand-in;
+  SpeechTap compiled against stubs and fed simulated stereo. Playback scenarios cannot serve online subtitles.
+- Not tested on a TV or with real films.
+
 ## 28 Nov 2026 – daily auto-report run
 - `FreezeWatch`: a watch-thread sleep that overslept by a freeze length (`FreezeLogic.paused`) means the process was
   paused (cached-app freezer), not a freeze; measuring restarts (#77, 155 s "in" `performRestart`). Test in FreezeLogicTest.

@@ -15,7 +15,7 @@ It has no accounts and no backend of its own. It does open network connections i
 - **Playlist providers entered by the user:** Xtream Codes, M3U (URL or file) and Stalker/Ministra portals.
 - **Optional metadata services with user-supplied keys:** TMDB and OMDb. TheIntroDB and SkipDB (intro times) need no key; they receive only the title's TMDB/IMDb id, season, episode and length.
 - **GitHub Releases:** in-app update check and download.
-- **Decoded sound (no network):** the player reads the decoded audio for subtitle sync (`SubSync.kt`, loudness numbers in memory only) and for intro detection (`IntroPrint.kt`, one 31-bit fingerprint per 100 ms of an episode's first minutes, kept in `files/intro_prints`). No sound is stored or sent anywhere.
+- **Decoded sound (no network):** the player reads the decoded audio for subtitle sync (`SubSync.kt`, voice-band loudness numbers in memory only) and for intro detection (`IntroPrint.kt`, one 31-bit fingerprint per 100 ms of an episode's first minutes, kept in `files/intro_prints`). No sound is stored or sent anywhere.
 
 ## 2. Reporting
 

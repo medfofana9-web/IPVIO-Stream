@@ -1343,7 +1343,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         subScale = remembered?.second ?: 1.0
         if (exact) { syncFiles = emptyList(); SpeechTap.stop(); syncInfo = "Made for this video" }
         else {
-            // Automatic sync: listen to the next 75 s from exactly this spot (the reopen starts the sound there)
+            // Automatic sync: listen to the next 150 s from exactly this spot (the reopen starts the sound there)
             syncFiles = labels.zip(files)
             SpeechTap.begin(at); syncStartedAt = System.currentTimeMillis()
             syncInfo = if (remembered != null) "Timing from the last episode · checking against the voices" else "Checking against the voices …"
@@ -1406,7 +1406,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     }
     fun hasOnlineSubs(): Boolean = player.currentMediaItem?.localConfiguration?.subtitleConfigurations.orEmpty().any { it.uri.scheme == "file" }
 
-    // Automatic sync: once 75 s of sound were heard, each version of the subtitles is lined up with the voices (move and
+    // Automatic sync: once 150 s of sound were heard, each version of the subtitles is lined up with the voices (move and
     // frame-rate stretch); the clearest match is used and remembered for the show. A seek while listening starts over.
     LaunchedEffect(syncFiles, cur.url) {
         val files = syncFiles

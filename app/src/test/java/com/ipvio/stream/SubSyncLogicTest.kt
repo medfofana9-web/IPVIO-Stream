@@ -16,7 +16,12 @@ class SubSyncLogicTest {
         }
     }
 
-    private val cues = (0 until 120).map { i -> val a = 5_000L + i * 4_100L + (i * 977 % 1300); a to a + 1_200L + (i * 311 % 900) }
+    /** Lines as in a film: 1–3.5 s long, 0.4–5 s apart (irregular; evenly spaced lines would match one line over). */
+    private val cues = run {
+        val rnd = java.util.Random(11)
+        var t = 5_000L
+        (0 until 120).map { val a = t; val b = a + 1_000L + rnd.nextInt(2_500); t = b + 400L + rnd.nextInt(4_600); a to b }
+    }
 
     @Test fun findsAMoveOfSeveralSeconds() {
         val sp = speechFor(cues, 120_000L, 7_340L, 1.0)
@@ -41,10 +46,69 @@ class SubSyncLogicTest {
         assertTrue("clarity ${fit?.clarity}", !SubSyncLogic.clear(fit))
     }
 
-    @Test fun loudnessToSpeech() {
-        val e = FloatArray(100) { if (it % 3 == 0) 0.1f else 0.001f }
+    @Test fun loudnessToSpeechFillsPausesBetweenWords() {
+        // 1 s blocks of voice with a 100 ms pause inside, 2 s of quiet between lines
+        val e = FloatArray(1_000) { i ->
+            val inLine = i % 150 < 50
+            val wordGap = i % 150 in 20..24
+            if (inLine && !wordGap) 0.05f else 0.0005f
+        }
         val s = SubSyncLogic.speech(e)
-        assertEquals(1, s[0]); assertEquals(-1, s[1])
+        assertEquals(1, s[0]); assertEquals(1, s[22])   // pause between words counts as speech
+        assertEquals(-1, s[100])                       // the quiet between lines does not
+    }
+
+    @Test fun aSteadySignalHasNoSpeech() {
+        assertTrue(SubSyncLogic.speech(FloatArray(500) { 0.01f }).all { it == -1 })
+    }
+
+    @Test fun voiceBandFilterPassesVoicesNotRumble() {
+        fun gain(hz: Double): Double {
+            val band = SubSyncLogic.Band(48_000)
+            var e = 0.0
+            for (i in 0 until 48_000) { val y = band.step(Math.sin(2 * Math.PI * hz * i / 48_000)); if (i > 24_000) e += y * y }
+            return Math.sqrt(e / 24_000 * 2)
+        }
+        assertTrue("1 kHz ${gain(1_000.0)}", gain(1_000.0) > 0.9)
+        assertTrue("50 Hz ${gain(50.0)}", gain(50.0) < 0.1)
+        assertTrue("12 kHz ${gain(12_000.0)}", gain(12_000.0) < 0.15)
+    }
+
+    /**
+     * The whole chain as on the TV: stereo at 8 kHz, a voice in the centre (noise bursts in the voice band) where the
+     * lines are, under wide music twice as loud (different noise left and right), subtitles 3.2 s late.
+     */
+    @Test fun voicesInTheCentreAreFoundUnderWideMusic() {
+        val rate = 8_000
+        val start = 60_000L
+        val secs = 75
+        val rnd = java.util.Random(3)
+        val mid = SubSyncLogic.Band(rate); val side = SubSyncLogic.Band(rate)
+        val perWin = rate * win / 1000
+        val energies = FloatArray(secs * 1000 / win)
+        var am = 0.0; var asd = 0.0; var k = 0; var w = 0
+        for (i in 0 until secs * rate) {
+            val t = start + i * 1000L / rate
+            val talking = cues.any { (a, b) -> t >= a && t < b - 300 }
+            val voice = if (talking) rnd.nextGaussian() * 0.2 else 0.0
+            val l = voice + rnd.nextGaussian() * 0.4
+            val r = voice + rnd.nextGaussian() * 0.4
+            val m = mid.step((l + r) / 2); val s = side.step((l - r) / 2)
+            am += m * m; asd += s * s; k++
+            if (k == perWin) { energies[w++] = SubSyncLogic.dialogue(am / k, asd / k); am = 0.0; asd = 0.0; k = 0 }
+        }
+        val late = cues.map { (a, b) -> a + 3_200L to b + 3_200L }
+        val fit = SubSyncLogic.align(late, SubSyncLogic.speech(energies), start, win)!!
+        assertEquals(1.0, fit.scale, 0.0)
+        assertTrue("offset ${fit.offsetMs}", kotlin.math.abs(fit.offsetMs + 3_200L) <= 60)
+        assertTrue("clarity ${fit.clarity}", SubSyncLogic.clear(fit))
+    }
+
+    @Test fun filterCoefficientsMatchButterworth() {
+        // scipy.signal.butter(2, 250, 'high', fs=48000)
+        val c = SubSyncLogic.coefficients(250.0, 48_000, high = true)
+        val want = doubleArrayOf(0.977125627, -1.954251255, 0.977125627, -1.953727949, 0.95477456)
+        for (i in want.indices) assertEquals(want[i], c[i], 1e-8)
     }
 
     @Test fun openSubtitlesFingerprint() {
