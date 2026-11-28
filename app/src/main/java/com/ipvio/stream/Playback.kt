@@ -66,6 +66,18 @@ object DeviceCaps {
         val cm = c.getSystemService(ConnectivityManager::class.java)
         cm?.activeNetwork != null
     }.getOrDefault(true)
+
+    /**
+     * The internet really answers (not only Wi-Fi connected): any HTTP answer from Google's connectivity check within
+     * 4 s. Used to tell a source whose server stopped from an internet outage.
+     */
+    suspend fun internetWorks(): Boolean = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        runCatching {
+            Net.withTimeouts(3, 3).newBuilder().callTimeout(4, java.util.concurrent.TimeUnit.SECONDS).build()
+                .newCall(okhttp3.Request.Builder().url("https://connectivitycheck.gstatic.com/generate_204").head().build())
+                .execute().use { it.code > 0 }
+        }.getOrDefault(false)
+    }
 }
 
 /** Settings for source/quality and what the app has learned about this device (applies to all profiles). */

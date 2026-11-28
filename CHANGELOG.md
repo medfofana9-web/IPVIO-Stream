@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased – A source that stops mid-show no longer leaves a black "reconnecting" screen
+
+- When a movie or episode's source stops sending in the middle (a provider that drops a 4K file, #82) while the TV's
+  internet works, the app now tries that source twice, checks that the internet itself answers, and then continues
+  with another copy (another quality in the playlist, or your Stremio addons) at the same spot, within seconds.
+  Before, it kept showing "Connection lost – reconnecting …" on black for minutes as if the internet were down.
+  A real internet outage still waits for the connection and resumes the same source, as before.
+
 ## Unreleased – Subtitles from the internet line up with the voices more often
 
 - The automatic subtitle sync now listens for voices the way films are mixed: only the voice range of the centre of

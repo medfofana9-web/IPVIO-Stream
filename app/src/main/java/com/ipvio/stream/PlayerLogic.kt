@@ -248,6 +248,17 @@ object PlayerRecoveryLogic {
     fun isNetwork(code: Int, httpStatus: Int): Boolean =
         httpStatus <= 0 && (code == IO_NETWORK_CONNECTION_FAILED || code == IO_NETWORK_CONNECTION_TIMEOUT || code == TIMEOUT || code == IO_UNSPECIFIED)
 
+    /** Quick tries of the same movie/episode source before asking whether the internet itself works (#82). */
+    const val ONLINE_TRIES = 2
+
+    /**
+     * After network try [netTries] of a movie or episode while the TV has a network: check the internet. When it
+     * answers, the source's server is the problem and the next copy plays at the same spot (#82: a provider stopped
+     * sending a 4K file mid-show and the TV showed "reconnecting" on black for minutes). Live channels keep their own
+     * reconnect and feed failover.
+     */
+    fun askInternet(netTries: Int, online: Boolean, live: Boolean): Boolean = !live && online && netTries > ONLINE_TRIES
+
     /** Pause before network try [n] (1-based): 1, 2, 4, 8 s, then 15 s. */
     fun backoffMs(n: Int): Long = minOf(1000L shl (n - 1).coerceIn(0, 4), 15_000L)
 }

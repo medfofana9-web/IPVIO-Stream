@@ -50,6 +50,17 @@ for sc in fx["scenarios"]:
                 bad.append(f"{sid} {sc['title']}: seek to {to}s from {last_before}s, then ticks {after[-3:]}")
             else:
                 print(f"PASS {sid} {sc['title']}: {msg(ok[0])}; seek {last_before}s -> {to}s, playing at {after[-1][1]}s")
+        elif ok and sc.get("cut"):
+            # The first source stops mid-play: the other copy must give a picture past the saved spot, and play at the end
+            later = [l for l in ready[ready.index(ok[0]) + 1:] if (m := re.search(r" at (\d+)s", l)) and int(m.group(1)) >= sc["resume_ms"] // 1000]
+            tick = lambda l: (m := re.search(r" tick \S+ state=(\d) pos=(-?\d+)", l)) and (int(m.group(1)), int(m.group(2)))
+            ticks = [t for t in map(tick, seg) if t]
+            if not later:
+                bad.append(f"{sid} {sc['title']}: the source stopped mid-play and no other copy took over (log: {[msg(l) for l in seg if ' tick ' not in l][-5:]})")
+            elif not ticks or ticks[-1][0] != 3:
+                bad.append(f"{sid} {sc['title']}: other copy started ({msg(later[0])}) but not playing at the end (ticks {ticks[-3:]})")
+            else:
+                print(f"PASS {sid} {sc['title']}: {msg(ok[0])}; source cut, then {msg(later[0])}, playing at {ticks[-1][1]}s")
         elif ok and sc.get("heard"):
             # Intro by sound: the theme is recognised by itself near where it plays, and OK skips to its end
             want_a, want_b = sc["heard"]

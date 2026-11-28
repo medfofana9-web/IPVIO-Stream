@@ -1067,11 +1067,12 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 // The internet dropped (not the source): wait for it and resume the same stream at the same spot.
                 // Before, a movie gave up after ~9 s (3 quick retries) and then switched source or showed a dead end,
                 // and the source was even counted as broken. Bounded: 12 tries with growing pauses, at most 5 min offline.
-                if (PlayerRecoveryLogic.isNetwork(e.errorCode, status) && netTries < PlayerRecoveryLogic.MAX_NET_TRIES) {
+                val net = PlayerRecoveryLogic.isNetwork(e.errorCode, status)
+                if (net && netTries < PlayerRecoveryLogic.MAX_NET_TRIES) {
                     netTries++
                     if (netWaitStart[0] == 0L) netWaitStart[0] = System.currentTimeMillis()
                     val started = netWaitStart[0]
-                    h.postDelayed(object : Runnable {
+                    val retry = object : Runnable {
                         override fun run() {
                             if (!DeviceCaps.online(ctx)) {
                                 if (System.currentTimeMillis() - started < PlayerRecoveryLogic.MAX_OFFLINE_MS) {
@@ -1083,7 +1084,22 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             msg = "Connection lost – reconnecting …"
                             if (liveNow) LiveTimeshift.reconnect(player) else player.prepare()
                         }
-                    }, PlayerRecoveryLogic.backoffMs(netTries))
+                    }
+                    // Movie or episode, TV online, the same source failed again: if the internet itself answers, it is
+                    // this source's server (a provider that stopped sending the file mid-show, #82) – go on with another
+                    // copy at the same spot instead of a black "reconnecting" screen for minutes.
+                    if (PlayerRecoveryLogic.askInternet(netTries, DeviceCaps.online(ctx), liveNow)) {
+                        val forUrl = cur.url
+                        scope.launch {
+                            val works = DeviceCaps.internetWorks()
+                            if (BuildConfig.VERSION_NAME.endsWith("-test")) android.util.Log.i("FofPlay", "source down check: internet " + works)
+                            if (cur.url != forUrl || !pError) return@launch
+                            if (works) { ReportCtx.crumb("source down"); giveUp(e, status, decoder, sourceDown = true) }
+                            else h.postDelayed(retry, PlayerRecoveryLogic.backoffMs(netTries))
+                        }
+                        return
+                    }
+                    h.postDelayed(retry, PlayerRecoveryLogic.backoffMs(netTries))
                     return
                 }
                 if (liveNow && !readyOnce && DeviceCaps.online(ctx) && sportFailover()) return
@@ -1092,15 +1108,21 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     msg = if (liveNow) "Connection interrupted — retrying (attempt $retries)" else "Connection interrupted — retrying ($retries/3)"
                     // Live: keep trying with a growing pause (at most 15 s), and back to the live picture
                     h.postDelayed({ if (liveNow) LiveTimeshift.reconnect(player) else player.prepare() }, minOf(1500L * retries, 15_000L))
-                } else {
-                    // Finally failed: remember the link (only if the link is the cause) and try another source
-                    if (cur.archive == null && DeadLinkLogic.counts(status, decoder, DeviceCaps.online(ctx))) DeadLinks.fail(ctx, cur.url, DeadLinkLogic.permanent(status))
-                    if (switchSource(if (decoder) "Unsupported playback format" else "Source unavailable", sameFirst = !decoder)) { pError = false; msg = null }
-                    else if (Marathon.owns(cur.itemId)) { msg = "This episode will not play – next episode …"; marathonNext() }
-                    else if (stremioFallback()) { msg = "Looking for another source in your Stremio addons …" }
-                    else if (cur.archive != null) msg = "This program is not available in your provider archive. Back returns to live TV."
-                    else { msg = Lang.tr(playbackErrorText(e.errorCode, status, cur.live, TlsFallback.isHostMismatch(e))); failed = true; if (Boomer.enabled) boomerFail = true }
-                }
+                } else giveUp(e, status, decoder, sourceDown = false)
+            }
+
+            /** Finally failed: remember the link (only if the link is the cause) and try another source. */
+            private fun giveUp(e: PlaybackException, status: Int, decoder: Boolean, sourceDown: Boolean) {
+                // A source that played this evening and then dropped is not a dead link (it may be back tomorrow)
+                val counts = !(sourceDown && readyOnce) && DeadLinkLogic.counts(status, decoder, DeviceCaps.online(ctx))
+                if (cur.archive == null && counts) DeadLinks.fail(ctx, cur.url, DeadLinkLogic.permanent(status))
+                // The next copy gets its own quick tries
+                if (sourceDown) { netTries = 0; netWaitStart[0] = 0L }
+                if (switchSource(if (decoder) "Unsupported playback format" else "Source unavailable", sameFirst = !decoder)) { pError = false; msg = null }
+                else if (Marathon.owns(cur.itemId)) { msg = "This episode will not play – next episode …"; marathonNext() }
+                else if (stremioFallback()) { msg = "Looking for another source in your Stremio addons …" }
+                else if (cur.archive != null) msg = "This program is not available in your provider archive. Back returns to live TV."
+                else { msg = Lang.tr(playbackErrorText(e.errorCode, status, cur.live, TlsFallback.isHostMismatch(e))); failed = true; if (Boomer.enabled) boomerFail = true }
             }
             override fun onPlaybackStateChanged(state: Int) {
                 pState = state

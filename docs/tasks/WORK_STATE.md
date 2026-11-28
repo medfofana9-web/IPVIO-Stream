@@ -1,5 +1,16 @@
 # Work state
 
+## 28 Nov 2026 (3) – source stops mid-show (#82, Med: "Connection lost – reconnecting" on black)
+- Cause (#82, Fire TV, 1.3.295): playlist VOD (m3u, mkv, 4K HEVC) played 50 min, then IO_UNSPECIFIED; every later try
+  of the same file failed in about 5 s ("no format yet"), also after restarting the app. The TV was online. The app took
+  it for an internet drop: up to 12 tries with growing pauses (~3 min of black), then 3 more, only then another source.
+- Fix: `PlayerRecoveryLogic.askInternet` (movie/episode, online, after `ONLINE_TRIES` = 2): `DeviceCaps.internetWorks`
+  (generate_204, 4 s); answers → `giveUp(sourceDown)` = the existing switchSource → Marathon → stremioFallback chain at
+  the same spot; no answer → wait as before. A source that played and then dropped is not counted as a dead link.
+- Test: `PlayerRecoveryLogicTest`; playback scenario tt9000008 (`cutoff` media: drops after 1 MB + 15 s, then empty
+  answers; the other copy must show a picture past the saved spot and play at the end).
+- Why the provider stopped: unknown from the report (server side; a connection limit or the file host). Not tested on a TV.
+
 ## 28 Nov 2026 (2) – tighter automatic subtitle sync (asked by Med)
 - Med: "best match" and version 2 were a bit off, the sync said "Couldn't match the voices clearly", version 3 was right.
 - `SubSync.kt`: `SpeechTap` keeps voice-band (250–3500 Hz, `SubSyncLogic.Band`) energy of the centre (5.1 centre

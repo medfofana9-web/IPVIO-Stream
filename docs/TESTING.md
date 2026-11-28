@@ -78,7 +78,7 @@ Four layers, so a source problem is caught before a viewer meets it:
    `.github/scripts/playback_fixture.py` serves two fixture addons ("Dragon Fixture", "HD Fixture") and media that
    misbehaves like real sources: no range requests and slow (DragonStreams on Resume), HTTP 403 (expired link), headers
    then nothing (hanging), an addon that answers after 9 s, a remembered source that fails before the other addon
-   answered. Each scenario resumes a movie at 1:00 through the Continue watching path (test-build broadcast
+   answered, a source that stops sending mid-play (tt9000008, #82). Each scenario resumes a movie at 1:00 through the Continue watching path (test-build broadcast
    `com.fof.tv.TAB --es resume`); `playback_check.py` fails the run unless every one shows a picture near 1:00.
 2. **Rules as tested logic** – `StartWatchLogic` (when to give up on a source, what comes next) with
    `StartWatchLogicTest`; `SourceHealthLogic`, `SourceCheckLogic` with their tests.

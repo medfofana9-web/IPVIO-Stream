@@ -7,6 +7,9 @@ One HTTP server on port 8002 plays the parts of real sources that went wrong on 
   /media/norange.mp4   ignores range requests and sends slowly (DragonStreams on Resume)
   /media/expired.mp4   HTTP 403 (an expired addon link)
   /media/hang.mp4      sends headers, then nothing
+  /media/cutoff.mp4    plays (at about twice the video's rate), then 15 s after 1 MB was sent the server drops the
+                       connection and answers every new request with an empty body (#82: a provider stopped sending a
+                       4K file mid-show)
   /live/good.ts        a live channel (srv/live.ts)
   /live/drop.ts        a live channel whose connection ends after about 15 s every time (the player must reconnect)
 Scenarios (movie ids) and what each addon returns are in SCEN (SEEK: keys pressed after the picture, then checked); fixture.json lists them for the checker. Needs
@@ -34,6 +37,9 @@ SCEN = {
     "tt9000006": ("Fixture Six", 2011, {"b": ("good", 0)}, "b", 30000),
     # New control bar (27 Nov 2026): OK pauses and shows the bar with Play focused; OK on the bar's Play button resumes
     "tt9000007": ("Fixture Seven", 2012, {"b": ("good", 0)}, "b", 30000),
+    # Mid-show cut (28 Nov 2026, #82): the remembered source plays, then its server stops; the app must go on with the
+    # other copy near the same spot within seconds, not "reconnecting" on black for minutes
+    "tt9000008": ("Fixture Eight", 2013, {"a": ("cutoff", 0), "b": ("good", 0)}, "a", 60000),
     # Skip intro without known times (27 Nov 2026): Down opens the bar on "Skip intro", OK jumps 60 s and plays on
     "tt9100002:1:1": ("Fixture Series", 2016, {"b": ("good", 0)}, "b", 10000),
     # Intro by sound (27 Nov 2026): three episodes share a 30 s theme between different noise (intro_*.mp4, made at
@@ -44,7 +50,13 @@ SCEN = {
 }
 # Seconds to wait after starting a scenario before its keys (default 55). Episode 3: the theme (15 s) is heard about
 # 1 s in and its button shows for 10 s, so OK comes at about 19 s
-WAIT = {"tt9100003:1:3": 20}
+WAIT = {"tt9100003:1:3": 20, "tt9000008": 90}
+# Scenarios whose first source is cut mid-play: a second picture from the other copy, past the saved spot
+CUT = {"tt9000008"}
+CUT_S = 15
+# The clock starts once 1 MB was sent for the scenario (real playback, not a short source check)
+CUT_SENT = {}
+CUT_AT = {}
 # Intro the app must hear by itself (start s, end s), then OK skips it
 HEARD = {"tt9100003:1:3": [15, 45]}
 # file, seeds and lengths (noise before, theme 30 s, noise after; 120 s in all)
@@ -112,6 +124,8 @@ class H(BaseHTTPRequestHandler):
                                                 "url": f"{HOST}/media/{media}.mp4?s={sid}"}]})
         m = re.fullmatch(r"/media/(\w+)\.mp4", p)
         if m:
+            if m.group(1) == "cutoff":
+                return self.cutoff(self.path.split("s=")[-1])
             return self.media(m.group(1))
         m = re.fullmatch(r"/live/(\w+)\.ts", p)
         if m:
@@ -143,6 +157,47 @@ class H(BaseHTTPRequestHandler):
                         break
                     self.wfile.write(chunk); sent += len(chunk)
                     if sent > rate * 3:
+                        time.sleep(len(chunk) / rate)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        self.close_connection = True
+
+    def cutoff(self, sid):
+        def cut():
+            return sid in CUT_AT and time.time() - CUT_AT[sid] > CUT_S
+        if cut():
+            # The server still answers, but sends nothing any more
+            self.send_response(200); self.send_header("Content-Type", "video/mp4"); self.send_header("Content-Length", "0")
+            self.send_header("Connection", "close"); self.end_headers(); self.close_connection = True
+            return
+        size = os.path.getsize(MOVIE)
+        start, end = 0, size - 1
+        rng = self.headers.get("Range")
+        mm = rng and re.match(r"bytes=(\d+)-(\d*)", rng)
+        if mm:
+            start = int(mm.group(1)); end = min(int(mm.group(2)) if mm.group(2) else size - 1, size - 1)
+            self.send_response(206); self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+        else:
+            self.send_response(200)
+        self.send_header("Accept-Ranges", "bytes"); self.send_header("Content-Type", "video/mp4")
+        self.send_header("Content-Length", str(end - start + 1)); self.send_header("Connection", "close"); self.end_headers()
+        # About twice the video's rate (900 kbit/s), after a 512 KB head start: the buffer stays short, so the cut shows
+        rate = 220 * 1024
+        sent = 0
+        try:
+            with open(MOVIE, "rb") as f:
+                f.seek(start); left = end - start + 1
+                while left > 0:
+                    if cut():
+                        break   # dropped in the middle of the file
+                    chunk = f.read(min(32 * 1024, left))
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk); left -= len(chunk); sent += len(chunk)
+                    CUT_SENT[sid] = CUT_SENT.get(sid, 0) + len(chunk)
+                    if CUT_SENT[sid] >= 1024 * 1024:
+                        CUT_AT.setdefault(sid, time.time())
+                    if sent > 512 * 1024:
                         time.sleep(len(chunk) / rate)
         except (BrokenPipeError, ConnectionResetError):
             pass
@@ -222,7 +277,7 @@ def fixture_json():
                     "good_key": (ADDONS[good] + "|" + label(good, sid)) if good else None,
                     "expect": "good" if "good" in [m for m, _ in srcs.values()] else None,
                     "sources": {ADDONS[k]: m for k, (m, _) in srcs.items()}, "seek_keys": SEEK.get(sid, []), "bar_keys": BAR.get(sid, []), "intro_keys": INTRO.get(sid, []),
-                    "wait": WAIT.get(sid, 55), "heard": HEARD.get(sid)})
+                    "wait": WAIT.get(sid, 55), "heard": HEARD.get(sid), "cut": sid in CUT})
     return out + LIVE_SCEN
 
 
