@@ -365,28 +365,6 @@ object SportHubFavs {
     fun isEmpty() = SportFavs.keys.isEmpty() && leagues.isEmpty() && sports.isEmpty() && players.isEmpty()
 }
 
-/** News per league (ESPN news). Only headline, short text and image; the article itself is not loaded. */
-object SportNews {
-    class Article(val headline: String, val text: String, val image: String?, val published: String, val league: String)
-    private val cache = HashMap<String, Pair<Long, List<Article>>>()
-
-    suspend fun fetch(l: SportData.League): List<Article> = withContext(Dispatchers.IO) {
-        if (l.kind == SportData.KIND_CRICKET) return@withContext emptyList()
-        val now = System.currentTimeMillis()
-        val hit = synchronized(cache) { cache[l.path] }
-        if (hit != null && now - hit.first < 600_000) return@withContext hit.second
-        val o = J.get("https://site.api.espn.com/apis/site/v2/sports/${l.path}/news") ?: return@withContext hit?.second ?: emptyList()
-        val out = J.objs(o.optJSONArray("articles")).mapNotNull { a ->
-            val h = a.optString("headline")
-            if (h.isBlank()) return@mapNotNull null
-            val img = J.objs(a.optJSONArray("images")).firstOrNull { (it.optString("type") == "header" || it.optString("type") == "Media") && it.optString("url").isNotBlank() }?.optString("url")
-            Article(h, a.optString("description"), img, a.optString("published"), l.name)
-        }
-        synchronized(cache) { cache[l.path] = now to out }
-        out
-    }
-}
-
 // ───────────────────────── Tabs: Leagues, Teams, Favorites ─────────────────────────
 
 /** Leagues tab: all competitions grouped by sport; OK opens the League Center. */
@@ -814,44 +792,3 @@ internal fun SportPlayerPage(l: SportData.League, id: String, name: String, hub:
 
 // ───────────────────────── News ─────────────────────────
 
-/** News row for the overview: up to three leagues of today's games, OK shows headline and short text. */
-@Composable
-internal fun HubNewsRow(leagues: List<SportData.League>) {
-    val ls = remember(leagues.map { it.path }) { leagues.filter { it.kind != SportData.KIND_CRICKET }.take(3) }
-    val news by produceState<List<SportNews.Article>>(emptyList(), ls) {
-        value = coroutineScope { ls.map { l -> async { SportNews.fetch(l).take(4) } }.awaitAll() }.flatten()
-    }
-    var open by remember { mutableStateOf<SportNews.Article?>(null) }
-    if (news.isEmpty()) return
-    Column {
-        HubSectionTitle("Nachrichten")
-        Spacer(Modifier.height(dpx(8)))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(14)), contentPadding = PaddingValues(vertical = dpx(8))) {
-            items(news, key = { it.league + it.headline }) { a ->
-                HubCardBox(Modifier.width(dpx(320)), onClick = { open = a }) {
-                    Box(Modifier.fillMaxWidth().height(dpx(150)).clip(RoundedCornerShape(DS.RadiusS)).background(Tok.CardFocus)) {
-                        if (a.image != null) AsyncImage(a.image, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                    }
-                    Text(raw = true, text = a.league, color = Accent2, fontSize = spx(13), fontWeight = FontWeight.Bold)
-                    Text(raw = true, text = a.headline, color = Tok.TextHi, fontSize = spx(15), fontWeight = FontWeight.SemiBold, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                }
-            }
-        }
-    }
-    open?.let { a ->
-        val first = remember { FocusRequester() }
-        LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
-        Dialog(onDismissRequest = { open = null }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-            Column(
-                Modifier.fillMaxWidth(0.6f).clip(RoundedCornerShape(DS.RadiusM)).background(Bg).border(1.dp, Tok.Line, RoundedCornerShape(DS.RadiusM)).padding(dpx(20)),
-                verticalArrangement = Arrangement.spacedBy(dpx(12))
-            ) {
-                if (a.image != null) AsyncImage(a.image, null, Modifier.fillMaxWidth().height(dpx(240)).clip(RoundedCornerShape(DS.RadiusS)), contentScale = ContentScale.Crop)
-                Text(raw = true, text = a.league, color = Accent2, fontSize = spx(14), fontWeight = FontWeight.Bold)
-                Text(raw = true, text = a.headline, color = Tok.TextHi, fontSize = spx(24), fontWeight = FontWeight.ExtraBold)
-                if (a.text.isNotBlank()) Text(raw = true, text = a.text, color = Tok.TextMid, fontSize = spx(17))
-                PillButton("Schließen", Modifier.focusRequester(first)) { open = null }
-            }
-        }
-    }
-}

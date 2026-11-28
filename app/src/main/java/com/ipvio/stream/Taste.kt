@@ -413,41 +413,6 @@ private fun TeamGrid(list: List<TeamPick>, chosen: MutableList<TeamPick>) {
     }
 }
 
-@Composable
-private fun PosterGrid(list: List<Item>?, chosen: MutableList<Item>) {
-    if (list == null) { Text("Loading …", color = Color(0x99FFFFFF), fontSize = 18.sp, raw = true); return }
-    if (list.isEmpty()) { Text("Couldn't load titles right now – go on, you can do this later.", color = Color(0x99FFFFFF), fontSize = 18.sp, raw = true); return }
-    val first = remember { FocusRequester() }
-    LaunchedEffect(list.size) { repeat(8) { delay(60); if (runCatching { first.requestFocus() }.getOrDefault(false)) return@LaunchedEffect } }
-    // 7 even columns; focus = lift with a light rim (FOF Glass), chosen = lavender frame, check badge and a soft tint,
-    // so "where I am" and "what I picked" never look the same
-    LazyVerticalGrid(GridCells.Fixed(7), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalArrangement = Arrangement.spacedBy(22.dp),
-        contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp, start = 6.dp, end = 6.dp)) {
-        items(list, key = { it.id }) { i ->
-            val on = chosen.any { it.id == i.id }
-            var f by remember { mutableStateOf(false) }
-            val s by animateFloatAsState(if (f) 1.06f else 1f, tween(140), label = "pg")
-            val shape = RoundedCornerShape(12.dp)
-            Column((if (i === list.first()) Modifier.focusRequester(first) else Modifier).graphicsLayer { scaleX = s; scaleY = s }
-                .onFocusChanged { f = it.isFocused }
-                .clickable { if (!chosen.removeAll { it.id == i.id }) chosen.add(i) }) {
-                Box(
-                    Modifier.fillMaxWidth().aspectRatio(2f / 3f).focusGlow(f, shape).clip(shape).background(Color(0xFF15161A))
-                        .border(if (on) 3.dp else 1.dp, if (on) Color(0xFFE60023) else Color(0x1FFFFFFF), shape)
-                ) {
-                    coil.compose.AsyncImage(i.logo, i.title, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
-                    if (on) Box(Modifier.fillMaxSize().background(Color(0x40E60023)))
-                    if (on) Box(Modifier.align(Alignment.TopEnd).padding(8.dp).size(30.dp).clip(CircleShape).background(Color.White), contentAlignment = Alignment.Center) {
-                        AppIcon(AIcon.Check, Color.Black, size = 18.dp)
-                    }
-                }
-                Text(i.title, color = if (f || on) Color.White else Color(0x99FFFFFF), fontSize = 14.sp, maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, raw = true, modifier = Modifier.padding(top = 8.dp, start = 2.dp))
-            }
-        }
-    }
-}
-
 /** Focusable tile that is white when chosen. */
 @Composable
 private fun SelectTile(on: Boolean, focus: Modifier, size: Modifier, onClick: () -> Unit, content: @Composable () -> Unit) {

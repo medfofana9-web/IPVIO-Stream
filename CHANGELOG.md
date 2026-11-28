@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased – Dead code removed (no visible change)
+
+- Removed code nothing in the app calls anymore: old screen pieces replaced by the redesign (SectionHeader, EpisodeRow,
+  SeasonEntry, PickerBackdrop, ClockPill, SearchPill, SpotlightKicker, WideCard, PEndsAt, LiveGameCard, FeaturedPanel,
+  HubNewsRow, MatchCard, MBtn, PosterGrid, the old Stremio home rows), the unused SportNews loader, unused helpers
+  (AppUpdate.autoCheck, IgnoredGroups.setMany/groupKey, LiveTimeshift.spanMs, PlaylistStore.bySource, SportHome.setBugOff,
+  Stremio.allCatalogs, TmdbRows.trendingOf) and unused values. The title page no longer works out an artwork color it never
+  showed. Mac/phone: unused gameHtml removed.
+- Kept on purpose: test-only helpers, the manifest receiver, account sync calls, test hooks, design tokens,
+  PlayerScreen (protected core).
+
 ## Unreleased – Dead channels known at once, fewer forced closes, Continue watching on the home screen
 
 - Live TV: a channel the provider does not send no longer spins and reconnects for ever. After 3 s without a picture

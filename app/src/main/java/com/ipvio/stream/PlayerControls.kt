@@ -315,15 +315,6 @@ fun ClockSample(modifier: Modifier = Modifier) {
     ) { ClockText() }
 }
 
-@Composable
-fun PEndsAt(pos: () -> Long, dur: () -> Long, speed: () -> Float) {
-    val remain = (dur() - pos()).coerceAtLeast(0L)
-    Text(
-        "Endet um " + hhmm(endClockSec(System.currentTimeMillis(), remain, speed())),
-        color = Muted, fontSize = 14.sp, style = TNUM, maxLines = 1
-    )
-}
-
 // ---------------------------------------------------------------------------------------------
 // Menus (top right)
 // ---------------------------------------------------------------------------------------------

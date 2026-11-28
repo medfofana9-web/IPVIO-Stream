@@ -1062,13 +1062,6 @@ async function scoreboard(path, live) {
   });
 }
 
-function gameHtml(g, i) {
-  const live = g.state === 'in', post = g.state === 'post';
-  const when = live ? g.detail : post ? 'Final' : new Date(g.date).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
-  const row = (t, other) => `<div class="team ${post && t.win === false ? 'lose' : ''}">${t.logo ? `<img src="${esc(t.logo)}" onerror="this.style.visibility='hidden'">` : '<span style="width:30px"></span>'}<span class="tn">${esc(t.short || t.name)}</span>${g.state !== 'pre' ? `<span class="sc">${esc(t.score || '0')}</span>` : ''}</div>`;
-  return `<div class="game" data-g="${i}"><div class="top">${live ? '<span class="live">LIVE</span>' : ''}<span>${esc(when)}</span><span class="net">${esc(g.nets.join(' · '))}</span></div>${row(g.away)}${row(g.home)}</div>`;
-}
-
 const HOVER = matchMedia('(hover: hover)').matches;
 const teamCol = c => c ? '#' + String(c).replace('#', '') : '#2a3142';
 function spCard(g, i) {

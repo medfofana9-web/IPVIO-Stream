@@ -509,48 +509,7 @@ private fun HubOverview(feed: SportFeed.State, hub: HubCtx, onRetry: () -> Unit)
     }
 }
 
-/** Big panel of the featured game: competition, teams with logos, score or start time, Watch Live and Match Center. */
-@Composable
-private fun FeaturedPanel(g: SportData.Game, hub: HubCtx) {
-    val shape = RoundedCornerShape(DS.RadiusL)
-    // Channel matching can be expensive on giant lists; never block remote navigation on the UI thread.
-    val chans by produceState(emptyList<Item>(), g.key, hub.live, SportWatch.prepVersion, SportWatch.version, SportAddons.version, SportFresh.version) {
-        value = withContext(Dispatchers.Default) { SportWatch.prewarm(hub.live); hub.chans(g) }
-    }
-    val l = SportData.leagueOf(g)
-    Column(
-        Modifier.fillMaxWidth().clip(shape).background(featuredBrush(g))
-            .border(1.dp, FofVisual.GlassBorder, shape).padding(dpx(26)),
-        verticalArrangement = Arrangement.spacedBy(dpx(15))
-    ) {
-        FofEyebrow(if (g.state == 1) "LIVE FEATURE" else "FEATURED MATCH", compact = true)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
-            if (l != null) TeamLogo(SportData.leagueLogos[l.path], "", dpx(30))
-            Text(raw = true, text = listOf(g.groupName, g.note).filter { it.isNotBlank() }.distinct().joinToString(" · "), color = Tok.TextHi, fontSize = spx(18),
-                fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            if (SportHubFavs.isFavGame(g)) AppIcon(AIcon.Star, DS.Gold, size = dpx(22))
-        }
-        MatchHeader(g, 110)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(dpx(14), Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
-            WatchLiveButton(chans, live = g.state == 1) { hub.watch(g) }
-            HeroButton("Match Center", AIcon.Info, false, Modifier, 46) { hub.open(g) }
-        }
-    }
-}
-
 private fun sportMatch(g: SportData.Game, sport: String?) = sport == null || SportData.sportOf(g) == sport
-
-/** "Live now", "Starts in 2h 14m", "Tomorrow" for the My Teams row. */
-private fun countdown(g: SportData.Game): String {
-    if (g.state == 1) return "Live now  ·  OK to watch"
-    val s = g.start - System.currentTimeMillis() / 1000
-    return when {
-        s <= 0 -> "Starting"
-        s < 3600 -> "Starts in " + (s / 60) + " min"
-        s < 86400 -> "Starts in " + (s / 3600) + "h " + (s % 3600 / 60) + "m"
-        else -> "In " + (s / 86400) + (if (s / 86400 == 1L) " day" else " days")
-    }
-}
 
 /** Games grouped by competition: header with logo, LIVE marker and count, then one row per game. */
 private fun LazyListScope.groupedGames(games: List<SportData.Game>, hub: HubCtx, timeFirst: Boolean) {
@@ -672,5 +631,3 @@ internal object SportChannels {
     }
 }
 
-/** Calendar day of a start time (seconds) in the device's time zone, for sorting. */
-private fun localDay(startSec: Long): Long = (startSec * 1000 + java.util.TimeZone.getDefault().getOffset(startSec * 1000)) / 86_400_000L

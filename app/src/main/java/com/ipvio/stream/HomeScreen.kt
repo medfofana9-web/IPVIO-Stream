@@ -289,8 +289,6 @@ fun HomeScreen(
     }
     // Movies/series: tabs at the top next to the search (instead of the big buttons under the picture)
     val isVod = tab == 1 || tab == 2
-    val vodBase = if (tab == 1) movies else series
-    val vodTop = if (tab == 1) topM else topS
     val vodNoun = if (tab == 1) "Movies" else "TV Shows"
     val vodK = if (tab == 1) Kind.MOVIE else Kind.SERIES
     val openCats: () -> Unit = {
@@ -1098,35 +1096,6 @@ private fun ResumeCard(item: Item, se: Pair<Int, Int>?, badge: String?, sub: Str
         if (progress > 0f) Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Color(0x40FFFFFF))) {
             Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Color(0xFFE60023)))
         }
-    }
-}
-
-/** Wide landscape card (backdrop) with title and progress bar, like "Continue watching" in Netflix. */
-@Composable
-private fun WideCard(item: Item, sub: String?, progress: Float, modifier: Modifier, onClick: () -> Unit) {
-    val m = rememberMeta(item)
-    var f by remember { mutableStateOf(false) }
-    val sc by animateFloatAsState(if (f) focusScale(1.06f) else 1f, label = "wide")
-    val shape = RoundedCornerShape(DS.RadiusM)
-    val img = m?.backdrop ?: m?.poster ?: item.logo
-    Column(modifier.graphicsLayer { scaleX = sc; scaleY = sc }.billboardFocus(item) { f = it }.clickable(onClick = onClick)) {
-        Box(
-            (if (FofPrefs.cleanLook) Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(shape).background(Surf2)
-                .then(if (f) Modifier.border(3.dp, Color.White, shape) else Modifier)
-            else Modifier.fillMaxWidth().aspectRatio(16f / 9f).focusGlow(f, shape).clip(shape)
-                .background(Brush.linearGradient(listOf(colorFor(item).copy(alpha = .75f), Surf2)))
-                .border(1.dp, FofGlass.edge(false), shape))
-        ) {
-            if (img != null) AsyncImage(img, item.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xDD000000))))
-            if (!FofPrefs.cleanLook) AppIcon(AIcon.Play, Color.White, Modifier.align(Alignment.Center), 30.dp)
-            Text(raw = true, text = item.title, color = Color.White, fontSize = if (FofPrefs.cleanLook) spx(22) else 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.align(Alignment.BottomStart).padding(start = 12.dp, end = 12.dp, bottom = if (progress > 0f) 14.dp else 10.dp))
-            if (progress > 0f) Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(5.dp).background(Color(0x66FFFFFF))) {
-                Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Accent2))
-            }
-        }
-        if (sub != null) Text(sub, color = Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp, start = 4.dp))
     }
 }
 

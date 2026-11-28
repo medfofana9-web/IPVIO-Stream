@@ -375,30 +375,6 @@ private fun SubtleAction(label: String, onClick: () -> Unit) {
     }
 }
 
-
-/**
- * TryBox-style backdrop for "Who's watching?": one cinematic still of today's most popular title, in black and white,
- * dimmed, with that title's logo at the bottom left. Falls back to the poster wall until the catalog is cached.
- */
-@Composable
-internal fun PickerBackdrop() {
-    val pick = remember {
-        (Catalog.cached(Catalog.popular(Kind.MOVIE)).take(6) + Catalog.cached(Catalog.popular(Kind.SERIES)).take(4)).shuffled().firstOrNull()
-    }
-    if (pick == null) { PosterWall(); return }
-    val m = rememberMeta(pick)
-    val full = rememberFullMeta(pick, m)
-    val url = m?.backdrop
-    if (url == null) { PosterWall(); return }
-    val gray = remember { androidx.compose.ui.graphics.ColorFilter.colorMatrix(androidx.compose.ui.graphics.ColorMatrix().apply { setToSaturation(0f) }) }
-    coil.compose.AsyncImage(url, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop, colorFilter = gray)
-    Box(Modifier.fillMaxSize().background(Color(0x8C000000)))
-    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color(0x99000000), 0.3f to Color.Transparent, 0.7f to Color.Transparent, 1f to Color(0xE6000000))))
-    Box(Modifier.fillMaxSize().padding(start = 56.dp, bottom = 48.dp), contentAlignment = Alignment.BottomStart) {
-        Box(Modifier.alpha(0.85f)) { HeroTitle(pick, full, 52, 340.dp, 110.dp) }
-    }
-}
-
 /** Last thing a profile watched (its own Continue Watching store), as "Show · S4 E10"; null when nothing. */
 private fun lastWatched(ctx: android.content.Context, id: Int): String? = runCatching {
     val raw = ctx.applicationContext.getSharedPreferences(Profiles.scopedName("ipvio_watch", id), android.content.Context.MODE_PRIVATE).getString("e", null) ?: return null

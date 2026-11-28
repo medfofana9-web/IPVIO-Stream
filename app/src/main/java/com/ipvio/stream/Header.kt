@@ -94,27 +94,6 @@ fun HeaderBar(
     }
 }
 
-@Composable
-private fun SearchPill(w: Int, onClick: () -> Unit) {
-    var f by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(50)
-    Row(
-        Modifier.width(dpx(w)).height(dpx(50)).clip(shape)
-            .background(if (f) DS.FocusFill else Color(0xCC0E0E12))
-            .then(if (f) Modifier else Modifier.background(FofGlass.sheen(0, false)))
-            .border(1.dp, if (f) DS.FocusFill else Color(0x33FFFFFF), shape)
-            .onFocusChanged { f = it.isFocused }
-            .trackFocus()
-            .clickable(onClick = onClick)
-            .padding(horizontal = dpx(20)),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(dpx(14))
-    ) {
-        MenuIcon(4, if (f) DS.FocusInk else Color(0xFFD0D0D6), Modifier.size(dpx(22)))
-        Text(raw = true, text = "Search movies, shows, games, channels…", color = if (f) DS.FocusInk else Tok.TextLow, fontSize = spx(16), maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
-}
-
 /** Tab: calm (text and icon on a light surface), selected: white surface with dark text. */
 @Composable
 private fun NavTab(t: HeaderTab, fixedReq: FocusRequester?) {
@@ -274,27 +253,6 @@ private fun BellButton(onReminder: (Reminder) -> Unit, onNewEpisode: (String) ->
                 }
             }
         }
-    }
-}
-
-/** Clock next to the profile (setting "Show clock", default on). Follows the time zone and time format from the settings. */
-@Composable
-private fun ClockPill() {
-    var now by remember { mutableStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            now = System.currentTimeMillis()
-            kotlinx.coroutines.delay(60_000L - now % 60_000L + 50L)
-        }
-    }
-    val h24 = when (General.timeFmt) { 1 -> true; 2 -> false; else -> General.sys24 }
-    val fmt = java.text.SimpleDateFormat(if (h24) "HH:mm" else "h:mm a", java.util.Locale.getDefault())
-    fmt.timeZone = General.zone()
-    val dfmt = java.text.SimpleDateFormat("EEE, d. MMM", java.util.Locale.getDefault())
-    dfmt.timeZone = General.zone()
-    Column(horizontalAlignment = Alignment.End) {
-        Text(fmt.format(java.util.Date(now)), color = Color.White, fontSize = spx(20), fontWeight = FontWeight.SemiBold, maxLines = 1, raw = true)
-        Text(dfmt.format(java.util.Date(now)), color = Tok.TextLow, fontSize = spx(12), maxLines = 1, raw = true)
     }
 }
 

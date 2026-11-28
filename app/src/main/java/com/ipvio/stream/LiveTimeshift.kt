@@ -211,9 +211,6 @@ object LiveTimeshift {
         return (t.nowMs() - posMs(player)).coerceAtLeast(0)
     }
 
-    /** How far back the buffer reaches (ms). */
-    fun spanMs(): Long { val t = tap ?: return 0; return (t.nowMs() - t.oldestMs()).coerceAtLeast(0) }
-
     /** Jump by [deltaMs] (negative = back). Not beyond the live picture, not before the buffer. */
     fun seekBy(player: ExoPlayer, deltaMs: Long) {
         val t = tap ?: return

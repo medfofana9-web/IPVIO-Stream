@@ -224,28 +224,6 @@ fun HeroButton(text: String, icon: AIcon, primary: Boolean, modifier: Modifier =
     }
 }
 
-/** Cinematic editorial label for featured movie / series banners.
- * No per-frame animation or expensive blur; visible immediately on the TV.
- */
-@Composable
-fun SpotlightKicker(type: String) {
-    val shape = RoundedCornerShape(50)
-    Row(
-        Modifier.clip(shape).background(Color(0x990A0A0F))
-            .border(1.dp, Color(0x55FFFFFF), shape)
-            .padding(horizontal = dpx(13), vertical = dpx(8)),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(dpx(10))
-    ) {
-        Box(Modifier.size(dpx(7)).clip(CircleShape).background(Color(0xFFE60023)))
-        Text(raw = true, text = "FOF TV  /  SPOTLIGHT", color = Color.White, fontSize = spx(13),
-            fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp, maxLines = 1)
-        Box(Modifier.width(1.dp).height(dpx(14)).background(Color(0x66FFFFFF)))
-        Text(raw = true, text = type.uppercase(), color = Color(0xFFC5C2DC), fontSize = spx(12),
-            fontWeight = FontWeight.Bold, maxLines = 1)
-    }
-}
-
 /** Uniform button of the detail page (seasons, director, read more …): same look and height as the main buttons. */
 @Composable
 fun DetailPill(text: String, modifier: Modifier = Modifier, light: Boolean = false, icon: AIcon? = null, trailing: AIcon? = null, h: Int = 44, onClick: () -> Unit) {
@@ -1095,7 +1073,6 @@ fun ChannelDetailRows(list: List<Item>, firstReq: FocusRequester?, onOpen: (Item
     }
 }
 
-
 /** Outlined rank number of the Top 10 row (drawn as a stroke, like TryBox / Netflix). */
 @Composable
 fun Top10Number(rank: Int) {
@@ -1113,7 +1090,6 @@ fun Top10Number(rank: Int) {
         maxLines = 1
     )
 }
-
 
 /**
  * TryBox-style spotlight card ("We think you'll love this!"): wide scene picture, the official title logo at the
@@ -1165,7 +1141,6 @@ private fun SpotChip(text: String, icon: AIcon, primary: Boolean) {
     }
 }
 
-
 /** Current year, read once (not per card and frame). */
 val THIS_YEAR: Int = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
 
@@ -1191,7 +1166,6 @@ fun RedStrip(text: String, modifier: Modifier = Modifier) {
         modifier = modifier.clip(RoundedCornerShape(topStart = dpx(4), topEnd = dpx(4))).background(Color(0xFFE60023))
             .padding(horizontal = dpx(9), vertical = dpx(3)))
 }
-
 
 /** Title logo when TMDB has one, otherwise the title in bold (expanded card preview). */
 @Composable

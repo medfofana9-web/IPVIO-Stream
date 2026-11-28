@@ -181,9 +181,6 @@ private fun DetailScreenFull(
         val id = meta?.tmdbId ?: 0
         if (id > 0) { delay(1200); value = TmdbExtra.reviews(id, item.kind == Kind.SERIES) }
     }
-    // The page takes on the artwork's color (TryBox: the panel glows in the title's own tone)
-    val tint by produceState(0, meta?.backdrop) { value = meta?.backdrop?.let { runCatching { ArtColor.of(ctx, it) }.getOrDefault(0) } ?: 0 }
-    val tintCol by androidx.compose.animation.animateColorAsState(if (tint == 0) Color.Transparent else Color(tint), tween(600), label = "tint")
 
     val seasons = remember(item) { item.episodes.map { it.season }.distinct().sorted() }
     // Resume point: the page opens at this season and the section with this episode
@@ -358,7 +355,6 @@ private fun DetailScreenFull(
     var refocusEp by remember { mutableStateOf(false) }
     // Episode list (right in the episodes area); the area itself is as tall as the picture, the episodes scroll inside
     val epListState = rememberLazyListState()
-    val paneH = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp - 72).dp.coerceAtLeast(360.dp)
     var focusTick by remember { mutableIntStateOf(0) }
     var jumpOpen by remember(item.id) { mutableStateOf(false) }
     var jumpText by remember(item.id) { mutableStateOf("") }
@@ -892,64 +888,6 @@ private fun DetailScreenFull(
     }
 }
 
-@Composable
-private fun EpisodeRow(ep: Episode, em: EpMeta?, v: Variant, prog: ResumeLogic.EpPos?, modifier: Modifier, onFocus: () -> Unit, onToggleSeen: () -> Unit, onClick: () -> Unit) {
-    // Netflix-style episode row: big episode number, 16:9 still with a red progress line, title with the length on the
-    // right, two lines of description. Flat; the selected row gets a soft light surface (no frame, no lift).
-    var f by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(dpx(8))
-    Row(
-        modifier.fillMaxWidth().padding(vertical = dpx(3))
-            .clip(shape).background(if (f) Color(0x29FFFFFF) else Color.Transparent)
-            .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
-            .favKeys(onToggleSeen)
-            .clickable(onClick = onClick)
-            .padding(horizontal = dpx(14), vertical = dpx(14)),
-        horizontalArrangement = Arrangement.spacedBy(dpx(22)), verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(raw = true, text = ep.num.toString(), color = if (f) Color.White else Color(0xFF8C8C8C), fontSize = spx(30),
-            fontWeight = FontWeight.Medium, modifier = Modifier.width(dpx(44)), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        Box(
-            Modifier.width(dpx(214)).height(dpx(120)).clip(RoundedCornerShape(dpx(6))).background(Color(0xFF1F1F1F)),
-            contentAlignment = Alignment.Center
-        ) {
-            if (em?.still != null) {
-                // No spoilers: an episode not watched yet shows a blurred picture, sharp again once watched
-                val hide = FofPrefs.spoilerPics && prog?.done != true
-                if (hide) {
-                    val ctxI = androidx.compose.ui.platform.LocalContext.current
-                    val req = remember(em.still) { coil.request.ImageRequest.Builder(ctxI).data(em.still).size(32, 18).build() }
-                    AsyncImage(req, null, Modifier.fillMaxSize().then(if (Lite.on) Modifier else Modifier.blur(14.dp)), contentScale = ContentScale.Crop)   // Lite: the 32x18 picture is soft enough without the GPU blur pass
-                } else AsyncImage(em.still, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-            } else BrandMark(Modifier.size(dpx(40)).graphicsLayer { alpha = 0.5f })
-            // Selected: Netflix's round play button over the still
-            if (f) Box(Modifier.align(Alignment.Center).size(dpx(46)).clip(CircleShape).background(Color(0x99000000))
-                .border(2.dp, Color.White, CircleShape), contentAlignment = Alignment.Center) {
-                AppIcon(AIcon.Play, Color.White, size = dpx(20))
-            }
-            // Progress: red line at the bottom (full when watched)
-            val frac = if (prog?.done == true) 1f else prog?.fraction ?: 0f
-            if (frac > 0.02f) Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(dpx(4)).background(Color(0x80808080))) {
-                Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(Color(0xFFE60023)))
-            }
-        }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(dpx(8))) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
-                Text(raw = true, text = em?.name ?: ep.title, color = Color.White, fontSize = spx(20), fontWeight = FontWeight.Bold,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                if (prog?.done == true) AppIcon(AIcon.Check, Color(0xFF46D369), size = dpx(18))
-                v.quality?.let { QualityBadge(it) }
-                em?.runtime?.let { Text(raw = true, text = if (it >= 60) "${it / 60}h ${it % 60}m" else "${it}m", color = Color(0xFFD2D2D2), fontSize = spx(18), fontWeight = FontWeight.Medium) }
-            }
-            em?.overview?.takeIf { !(FofPrefs.spoilerText && prog?.done != true) }?.let {
-                Text(raw = true, text = it, color = Color(0xFFBCBCBC), fontSize = spx(16), lineHeight = spx(23), maxLines = 3, overflow = TextOverflow.Ellipsis)
-            }
-            // Fof touch: the air date in small type
-            em?.air?.let { Text(raw = true, text = it, color = Color(0xFF7A7A7A), fontSize = spx(13)) }
-        }
-    }
-}
-
 /** Season pill (layout C): "Season N"; the shown season is filled, the remote focus is a white ring around any pill. */
 @Composable
 private fun SeasonPill(season: Int, selected: Boolean, modifier: Modifier, onFocused: () -> Unit, onDown: () -> Unit, onClick: () -> Unit) {
@@ -1052,29 +990,6 @@ private fun SynopsisDialog(show: String, ep: Episode, em: EpMeta?, onClose: () -
         }
     }
 }
-
-/** Season list entry (Netflix): plain text, the shown season bright and bold with its episode count, focus = white capsule. */
-@Composable
-private fun SeasonEntry(season: Int, count: Int, selected: Boolean, modifier: Modifier, onRight: () -> Unit) {
-    var f by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(dpx(6))
-    Column(
-        modifier.fillMaxWidth().clip(shape)
-            .background(if (f) Color.White else Color.Transparent)
-            .onFocusChanged { f = it.isFocused }
-            .onPreviewKeyEvent { ev ->
-                if (ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionRight) { if (ev.nativeKeyEvent.repeatCount == 0) onRight(); true } else false
-            }
-            .clickable(onClick = onRight)
-            .padding(horizontal = dpx(14), vertical = dpx(10))
-    ) {
-        Text("Season $season", color = if (f) Color.Black else if (selected) Color.White else Color(0xFF8C8C8C),
-            fontSize = spx(if (selected) 21 else 19), fontWeight = if (selected || f) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
-        if (selected) Text(text = if (count == 1) "1 episode" else "$count episodes", color = if (f) Color(0xFF444444) else Color(0xFFE60023),
-            fontSize = spx(13), fontWeight = FontWeight.SemiBold)
-    }
-}
-
 
 /** TryBox-style reviews: glass cards with avatar, name, date, score and three lines; OK opens the whole review. */
 @Composable

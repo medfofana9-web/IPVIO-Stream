@@ -39,8 +39,6 @@ object AppUpdate {
     var available by mutableStateOf<UpdateInfo?>(null)
         private set
 
-    /** "Später" tapped in the start dialog: stays hidden until the app is started again. */
-    var promptDismissed by mutableStateOf(false)
     /** Version whose prompt was closed with "Later" (a newer one shows again). */
     var dismissedFor by mutableStateOf<String?>(null)
 
@@ -109,16 +107,6 @@ object AppUpdate {
         if (code <= 0L || apk.isBlank()) error("Update-Datei unvollständig")
         if (!UpdateLogic.isNewer(currentCode(c), code)) return null
         return UpdateInfo(code, j.optString("versionName", code.toString()), UpdateLogic.resolve(u, apk), j.optString("notes"))
-    }
-
-    /** At start: check silently at most once a day. Errors (no network, GitHub unreachable) stay invisible. */
-    suspend fun autoCheck(c: Context) {
-        if (!auto(c)) return
-        if (!UpdateLogic.due(prefs(c).getLong("last", 0L), System.currentTimeMillis())) {
-            // Remember a known update so the bell keeps showing it after a restart
-            restore(c); return
-        }
-        check(c)
     }
 
     /**

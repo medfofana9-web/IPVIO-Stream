@@ -175,9 +175,4 @@ object TmdbRows {
         }
     }
 
-    /** Trending rows split per kind (for the Movies and Series pages). */
-    suspend fun trendingOf(movies: List<Item>, series: List<Item>, kind: Kind): List<Item> {
-        val ts = list(if (kind == Kind.SERIES) "trending/tv/week" else "trending/movie/week", 3)
-        return withContext(Dispatchers.Default) { match(ts, index2(movies, series, kind)) }
-    }
 }

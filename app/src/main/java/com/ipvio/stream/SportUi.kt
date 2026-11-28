@@ -302,45 +302,6 @@ internal fun TeamName(t: SportData.Team, state: Int, modifier: Modifier, end: Bo
     }
 }
 
-/** Card for horizontal rows (Live now, Upcoming). Field events show the leaders instead of two teams. */
-@Composable
-internal fun MatchCard(g: SportData.Game, hasChan: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    HubCardBox(modifier.width(dpx(330)).restoreFocus("game:" + g.key), onClick = onClick) {
-        // Fof TV: the two team colors as a thin band on top of the card
-        if (!g.solo) Row(Modifier.fillMaxWidth().height(dpx(4)).clip(RoundedCornerShape(50))) {
-            Box(Modifier.weight(1f).fillMaxHeight().background(teamColor(g.away)))
-            Box(Modifier.weight(1f).fillMaxHeight().background(teamColor(g.home)))
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.weight(1f)) { MatchStatus(g) }
-            if (SportHubFavs.isFavGame(g)) AppIcon(AIcon.Star, DS.Gold, size = dpx(18))
-        }
-        Text(raw = true, text = listOf(g.groupName, g.note).filter { it.isNotBlank() }.distinct().joinToString(" · "), color = Muted, fontSize = spx(13), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (g.solo) {
-            Text(raw = true, text = g.title, color = Tok.TextHi, fontSize = spx(17), fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            g.field.take(3).forEach { e ->
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(8))) {
-                    Text(raw = true, text = e.pos, color = Accent2, fontSize = spx(14), fontWeight = FontWeight.Bold, modifier = Modifier.width(dpx(28)))
-                    TeamLogo(e.flag, "", dpx(20))
-                    Text(raw = true, text = e.name, color = Tok.TextHi, fontSize = spx(14), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    if (e.value.isNotBlank()) Text(raw = true, text = e.value, color = Tok.TextHi, fontSize = spx(14), fontWeight = FontWeight.Bold)
-                }
-            }
-            if (g.field.isEmpty()) Text("No results yet", color = Muted, fontSize = spx(13))
-        } else listOf(g.home, g.away).forEach { t ->
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
-                Box(Modifier.width(dpx(4)).height(dpx(26)).clip(RoundedCornerShape(50)).background(teamColor(t)))
-                TeamName(t, g.state, Modifier.weight(1f))
-                Text(raw = true, text = if (SportPrefs.hideScores) "" else t.score ?: "", color = Tok.TextHi, fontSize = spx(if ((t.score?.length ?: 0) > 6) 13 else 20), fontWeight = FontWeight.ExtraBold, maxLines = 1)
-            }
-        }
-        if (hasChan) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(6))) {
-            AppIcon(AIcon.Play, Accent2, size = dpx(14))
-            Text("On your channels", color = Accent2, fontSize = spx(13), maxLines = 1)
-        }
-    }
-}
-
 /**
  * Row of a scoreboard: status | home – score – away | marks. Large numbers of games stay readable because every
  * row has the same columns. Field events show title and leader.
@@ -472,12 +433,6 @@ internal fun WatchLiveButton(chans: List<Item>, modifier: Modifier = Modifier, l
     }
 }
 
-/** Simple secondary button (kept for older dialogs). */
-@Composable
-internal fun MBtn(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    PillButton(text, modifier, onClick = onClick)
-}
-
 // ───────── Lists for LazyColumns ─────────
 
 /** Statistics home | name | away with a bar that shows the share of both sides. */
@@ -603,9 +558,3 @@ internal fun MatchHeader(g: SportData.Game, logo: Int = 96) {
     }
 }
 
-/** Soft background in the team colors behind a featured game (like the hero of the home screen uses item colors). */
-internal fun featuredBrush(g: SportData.Game): Brush {
-    val a = teamColor(g.home.color) ?: Accent1
-    val b = teamColor(g.away.color) ?: Accent2
-    return Brush.horizontalGradient(listOf(a.copy(alpha = 0.30f), Tok.Card, b.copy(alpha = 0.30f)))
-}

@@ -244,8 +244,6 @@ fun SearchScreen(
     val openTop: (Item) -> Unit = { i -> onOpen(i) }
     // Top results: the best matches (one grid row); the other movies and shows follow in their own rows, never twice
     val topRes = remember(both) { both.take(6) }
-    val moreM = remember(both, cmM) { val t = topRes.map { it.id }.toSet(); cmM.filter { it.id !in t } }
-    val moreS = remember(both, cmS) { val t = topRes.map { it.id }.toSet(); cmS.filter { it.id !in t } }
     val firstKey = when {
         sg.any { it.state == 1 } -> "games"; cmM.isNotEmpty() || cmS.isNotEmpty() -> "cmm"; per != null -> "person"
         sg.isNotEmpty() -> "games"; st.isNotEmpty() || sl.isNotEmpty() -> "teams"
@@ -555,7 +553,6 @@ private fun SearchRow(
     }
 }
 
-
 /** Display of the input (read only: typing is done with the on-screen keyboard on the left). */
 @Composable
 private fun QueryBox(text: String, modifier: Modifier) {
@@ -569,8 +566,6 @@ private fun QueryBox(text: String, modifier: Modifier) {
         else Text(text, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, raw = true)
     }
 }
-
-private val SEARCH_FILTERS = listOf("All", "Movies", "Shows", "Live TV", "Sports")
 
 /** Heuristic for the sports hub filter: channel name or category looks like sports. */
 internal object SearchSport {

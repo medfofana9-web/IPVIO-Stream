@@ -26,12 +26,6 @@ object Stremio {
     /** One title of a catalog. [imdb] is the IMDb id when the addon uses one. */
     data class Meta(val imdb: String, val name: String, val poster: String?, val year: Int?, val series: Boolean)
 
-    /** Stremio's own free catalog: always shown as the first rows (popular movies and series). */
-    private const val CINEMETA = "https://v3-cinemeta.strem.io"
-    val builtIn = listOf(
-        Cat(CINEMETA, "movie", "top", "Popular movies", "Cinemeta"),
-        Cat(CINEMETA, "series", "top", "Popular series", "Cinemeta")
-    )
     /** A stream: a direct [url], or a torrent ([hash], optional [file] name) that Real-Debrid turns into a link. */
     /** [info]: everything the addon says about the stream (name, title, description, file name) – used to check the match. */
     data class Source(val addon: String, val label: String, val url: String, val q: Int, val hash: String? = null, val file: String? = null, val info: String = "") {
@@ -126,9 +120,6 @@ object Stremio {
         }
         return out.take(30)
     }
-
-    /** All catalog rows: Stremio's popular lists first, then the catalogs of added addons. */
-    fun allCatalogs(): List<Cat> = builtIn + addons.flatMap { it.cats }
 
     private val catCache = java.util.concurrent.ConcurrentHashMap<String, Pair<Long, List<Meta>>>()
 

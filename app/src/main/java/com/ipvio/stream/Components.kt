@@ -117,15 +117,6 @@ fun QualityBadge(q: String) {
     Badge(q, if (gold) Color(0xFFFFB300) else Color(0xCC000000), if (gold) Color.Black else Color.White)
 }
 
-@Composable
-fun SectionHeader(title: String) {
-    Row(Modifier.padding(start = DS.PageX, top = 22.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.width(4.dp).height(22.dp).clip(RoundedCornerShape(2.dp)).background(Accent1))
-        Spacer(Modifier.width(12.dp))
-        Text(title, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-    }
-}
-
 /** Subtitle of a series card, e.g. "5 Staffeln · 62 Folgen" (German key text). */
 fun seriesInfo(item: Item): String {
     // Series with a placeholder: seasons and episodes are not known yet (loaded on opening)
@@ -244,7 +235,6 @@ fun LiveCard(item: Item, onClick: () -> Unit, modifier: Modifier = Modifier) {
         }
     }
 }
-
 
 /** Netflix-style red LIVE tag with a white dot. */
 @Composable

@@ -68,7 +68,6 @@ object General {
     /** Adjust screen (1.2): margin in percent left/right and top/bottom so nothing is cut off at the TV edge. */
     var fitX by mutableIntStateOf(0)
     var fitY by mutableIntStateOf(0)
-    val FIT_STEPS = listOf(0, 1, 2, 3, 4, 5, 6, 8, 10)
 
     fun plan() = UpdatePlan(refreshMode, refreshInterval, refreshHour, refreshMinute, refreshDow)
     fun zone(): java.util.TimeZone = SettingsLogic.zoneOf(tzId)

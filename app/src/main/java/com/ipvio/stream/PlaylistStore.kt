@@ -922,12 +922,6 @@ object PlaylistStore {
     /** Does the title belong to source [k]? */
     fun inSource(i: Item, k: Int): Boolean = merged.inSource(i, k)
 
-    /** Titles of one source (0 = active playlist), with parental-control filter. */
-    fun bySource(k: Int): List<Item> {
-        val m = merged
-        return shownOf(m.items.filter { m.inSource(it, k) })
-    }
-
     /** Load further playlists: [network] = from the server (otherwise from the cache, only missing ones from the server). */
     private suspend fun loadExtras(c: Context, network: Boolean) {
         val urls = extraUrls(c)

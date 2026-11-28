@@ -80,7 +80,6 @@ object Boomer {
     // Appearance (stored per profile); everything can be set in Settings > Boomer mode with a live preview
     val SIZE_NAMES = listOf("Klein", "Mittel", "Groß", "Riesig")
     val SIZE_K = floatArrayOf(0.75f, 1f, 1.25f, 1.5f)
-    val ROW_H = floatArrayOf(0.42f, 0.55f, 0.65f, 0.75f)
     val TEXT_K = floatArrayOf(0.85f, 1f, 1.25f, 1.5f)
     val COLOR_NAMES = listOf("Rot", "Gelb", "Grün", "Blau", "Orange", "Weiß", "Pink")
     val COLORS = listOf(Color(0xFFFF2D2D), Color(0xFFFFD60A), Color(0xFF30D158), Color(0xFF3B82F6), Color(0xFFFF9F0A), Color.White, Color(0xFFFF4FA3))

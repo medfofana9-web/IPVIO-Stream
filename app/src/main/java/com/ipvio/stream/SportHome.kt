@@ -47,7 +47,6 @@ object SportPrefs {
     /** Score box over a game in the player turned off (Show/Hide score button in the player). */
     var bugOff by mutableStateOf(false)
         private set
-    fun setBugOff(c: Context, off: Boolean) { bugOff = off; prefs(c).edit().putBoolean("bug_off", off).apply() }
 
     fun setHideScores(c: Context, on: Boolean) {
         hideScores = on
@@ -166,40 +165,6 @@ fun LiveSportsRow(live: List<Item>, onOpen: (Item) -> Unit, onSports: () -> Unit
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun LiveGameCard(g: SportData.Game, onClick: () -> Unit) {
-    var f by remember { mutableStateOf(false) }
-    val s by animateFloatAsState(if (f) focusScale(1.06f) else 1f, label = "livegame")
-    val shape = RoundedCornerShape(DS.RadiusM)
-    Column(
-        Modifier.width(dpx(320)).graphicsLayer { scaleX = s; scaleY = s }.clip(shape)
-            .background(Color(0xFF1C1C1C))
-            .border(if (f) 3.dp else 0.dp, if (f) Color.White else Color.Transparent, shape)
-            .onFocusChanged { f = it.isFocused }
-            .trackFocus()
-            .restoreFocus("game:" + g.key)
-            .clickable(onClick = onClick)
-            .padding(dpx(14)),
-        verticalArrangement = Arrangement.spacedBy(dpx(8))
-    ) {
-        val ink = Color.White
-        val sub = Color(0xFFA3A3A3)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(raw = true, text = g.league, color = sub, fontSize = spx(13), fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), maxLines = 1)
-            if (g.state == 1) LiveTag()
-        }
-        for (t in listOf(g.away, g.home)) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
-            // Thin bar in the team color (ESPN), then a larger logo
-            val tc = t.color?.let { c -> runCatching { Color(android.graphics.Color.parseColor("#" + c.removePrefix("#"))) }.getOrNull() } ?: Color(0x55FFFFFF)
-            Box(Modifier.width(dpx(4)).height(dpx(34)).clip(RoundedCornerShape(dpx(2))).background(tc))
-            TeamLogo(t.logo, t.abbr, dpx(38))
-            Text(raw = true, text = t.short, color = ink, fontSize = spx(18), fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (!SportPrefs.hideScores) Text(raw = true, text = t.score.orEmpty(), color = ink, fontSize = spx(26), fontWeight = FontWeight.ExtraBold)
-        }
-        Text(raw = true, text = listOf(statusText(g), g.tv).filter { it.isNotBlank() }.joinToString(" · "), color = sub, fontSize = spx(13), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

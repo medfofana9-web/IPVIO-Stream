@@ -34,7 +34,6 @@ object IgnoredGroups {
     }
 
     fun set(c: Context, key: String, ignored: Boolean) = save(c, if (ignored) keys + key else keys - key)
-    fun setMany(c: Context, add: Collection<String>, ignored: Boolean) = save(c, if (ignored) keys + add else keys - add.toSet())
     fun clear(c: Context) = save(c, emptySet())
 
     private val START = Regex("""^\W*([A-Za-z]{2,5})\s*(?:[|:\]\)]|[-–]\s)""")
@@ -48,7 +47,6 @@ object IgnoredGroups {
     fun tagOf(i: Item): String = tagIn(i.group) ?: tagIn(i.title) ?: ""
 
     fun bundleKey(kind: Kind, tag: String) = "t:" + kind.name + "|" + tag
-    fun groupKey(kind: Kind, group: String) = "g:" + kind.name + "|" + group
 
     fun isIgnored(i: Item): Boolean {
         if (keys.isEmpty()) return false

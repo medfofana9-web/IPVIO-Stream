@@ -76,13 +76,6 @@ internal object SportShowcase {
 /** Darkened team color, so white text stays readable on any color. */
 private fun deep(c: Color, f: Float = 0.62f) = Color(c.red * f, c.green * f, c.blue * f, 1f)
 
-/** Team color as a quiet accent: mostly the near-black card, a hint of the team at its own side. */
-private fun accentBrush(away: Color, home: Color): Brush {
-    val base = Color(0xFF111114)
-    fun mix(c: Color) = Color(base.red + (c.red - base.red) * 0.32f, base.green + (c.green - base.green) * 0.32f, base.blue + (c.blue - base.blue) * 0.32f, 1f)
-    return Brush.horizontalGradient(0f to mix(away), 0.45f to base, 0.55f to base, 1f to mix(home))
-}
-
 @Composable
 internal fun GameTile(g: SportData.Game, hub: HubCtx, modifier: Modifier = Modifier, place: String = "tile") =
     GameTileCard(g, modifier, place) { if (g.state == 1) hub.watch(g) else hub.open(g) }
