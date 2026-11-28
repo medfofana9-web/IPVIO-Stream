@@ -1648,10 +1648,9 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             if (segs.any { it.label.startsWith("Intro") }) return@LaunchedEffect
             val (from, recent) = IntroTap.recent(40) ?: continue
             val j = withContext(Dispatchers.Default) { IntroPrintLogic.locate(tpl, recent) } ?: continue
-            // A frame stands for the 0.5 s before it: the theme began about 0.5 s before its first frame; the last frames
-            // that still agree end slightly before the theme does
+            // A frame stands for the 0.5 s before it: the theme began about 0.5 s before its first frame
             val startMs = ((from - j).toLong() * IntroPrintLogic.HOP_MS - 500L).coerceAtLeast(0L)
-            val endMs = (from - j + tpl.size).toLong() * IntroPrintLogic.HOP_MS + 600L
+            val endMs = (from - j + tpl.size).toLong() * IntroPrintLogic.HOP_MS
             SegLogic.clean(SegLogic.INTRO, startMs, endMs, dur)?.let { (a, b) ->
                 segs = segs + Seg("Intro überspringen", a, b)
                 IntroTap.known(a, b)

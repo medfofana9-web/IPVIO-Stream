@@ -85,15 +85,20 @@ object IntroPrintLogic {
             }
             if (power / FFT < 1e-7) { hasPrev = false; return NONE }
             fft(re, im)
+            var total = 0.0
             for (b in 0 until BANDS) {
                 var e = 0.0
                 for (k in edges[b] until edges[b + 1]) e += re[k] * re[k] + im[k] * im[k]
-                cur[b] = ln(e + 1e-12)
+                cur[b] = e; total += e
             }
+            // Bands 40 dB under the frame count as quiet (their noise would flip bits at random); differences that small
+            // are no change (a steady tone gives steady bits)
+            val floor = total * 1e-4 + 1e-12
+            for (b in 0 until BANDS) cur[b] = ln(cur[b] + floor)
             var code = NONE
             if (hasPrev) {
                 code = 0
-                for (b in 0 until BANDS - 1) if ((cur[b] - cur[b + 1]) - (prev[b] - prev[b + 1]) > 0) code = code or (1 shl b)
+                for (b in 0 until BANDS - 1) if ((cur[b] - cur[b + 1]) - (prev[b] - prev[b + 1]) > 1e-3) code = code or (1 shl b)
             }
             System.arraycopy(cur, 0, prev, 0, BANDS); hasPrev = true
             return code
