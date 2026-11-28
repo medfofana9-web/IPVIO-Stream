@@ -177,6 +177,7 @@ class MainActivity : ComponentActivity() {
         )
         ScreenAwake.attach(this)
         intent?.getStringExtra(Reminders.EXTRA_CH)?.let { AppNav.openChannel = it }
+        intent?.getStringExtra(HomeRow.EXTRA)?.let { AppNav.openResume = it }
         if (BuildConfig.VERSION_NAME.endsWith("-test")) intent?.getStringExtra("fof_test_url")?.let { AppNav.testUrl = it }
         if (BuildConfig.VERSION_NAME.endsWith("-test") && intent?.getBooleanExtra("fof_taste", false) == true) Taste.testForce = true
         MainSampler.register(this)
@@ -214,6 +215,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         intent.getStringExtra(Reminders.EXTRA_CH)?.let { AppNav.openChannel = it }
+        intent.getStringExtra(HomeRow.EXTRA)?.let { AppNav.openResume = it }
     }
 
     override fun onStart() {
@@ -587,6 +589,19 @@ private fun AppContent() {
                 pendingResume = null
             }
         }
+    }
+    // A title chosen in "Continue watching" on the TV's home screen (HomeRow): resumed like from the app's own row
+    LaunchedEffect(AppNav.openResume, all.isNotEmpty()) {
+        val id = AppNav.openResume ?: return@LaunchedEffect
+        WatchStore.init(ctx)
+        val e = WatchStore.entries.firstOrNull { it.itemId == id }
+        if (e == null) { AppNav.openResume = null; return@LaunchedEffect }
+        val i = all.firstOrNull { it.id == id } ?: CatalogItems.get(id)
+            ?: if (id.startsWith("stremio:")) Item(id, if (e.season > 0) Kind.SERIES else Kind.MOVIE, HomeRowLogic.title(e), null, "", null, "Stremio") else null
+        // A playlist title: wait until the playlist is loaded
+        if (i == null) { if (all.isNotEmpty()) AppNav.openResume = null; return@LaunchedEffect }
+        AppNav.openResume = null
+        resumeSaved(e, i)
     }
     val openNow: (Item) -> Unit = { i ->
         CatalogItems.put(ctx, i)

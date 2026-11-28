@@ -100,6 +100,8 @@ object AppNav {
     var playing by androidx.compose.runtime.mutableStateOf(false)
     /** Channel to be opened (tapping a reminder notification). */
     var openChannel by androidx.compose.runtime.mutableStateOf<String?>(null)
+    /** Title to resume, chosen on the TV's home screen ([HomeRow]). */
+    var openResume by androidx.compose.runtime.mutableStateOf<String?>(null)
     @Volatile var leftByUser = false
     @Volatile var focusTab = -1
     /** Open the TV guide at the next start of the player (Live TV > "TV guide"). */

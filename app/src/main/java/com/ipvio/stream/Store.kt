@@ -581,9 +581,10 @@ object WatchStore {
             SyncLogic.recordEdit(p.getString("edits", null), editedId, present, System.currentTimeMillis()))
         edit.apply()
         CloudSync.kick(c)
+        HomeRow.kick(c)
     }
 
-    fun reload(c: Context) { entries.clear(); init(c) }
+    fun reload(c: Context) { entries.clear(); init(c); HomeRow.kick(c) }
 
     /**
      * What "Resume" plays: title and a CURRENT address from the loaded playlist
