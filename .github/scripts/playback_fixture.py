@@ -55,11 +55,14 @@ BAR = {"tt9000007": [23, "sleep 4; adb exec-out screencap -p > p_tt9000007_bar.p
 INTRO = {"tt9100002:1:1": [20, "adb exec-out screencap -p > p_tt9100002_intro.png", "sleep 6", 20, 23, 23],
          "tt9100003:1:3": [23]}
 # Live channels in srv/test.m3u (name, path) and the live scenarios: play, a connection that keeps dropping, zapping
-CHANNELS = [("Fixture Live A", "good"), ("Fixture Live B", "good"), ("Fixture Live C", "good"), ("Fixture Live Drop", "drop")]
+CHANNELS = [("Fixture Live A", "good"), ("Fixture Live B", "good"), ("Fixture Live C", "good"), ("Fixture Live Drop", "drop"),
+            ("Fixture Live Dead", "dead")]
 LIVE_SCEN = [
     {"id": "live-a", "kind": "live", "channel": "Fixture Live A", "wait": 30},
     {"id": "live-drop", "kind": "live", "channel": "Fixture Live Drop", "wait": 70},
     {"id": "zap", "kind": "zap", "channel": "Fixture Live B", "wait": 30, "keys": [19, 19, 20, 19, 20, 20]},
+    # A channel that answers but never sends a picture: the app must say so within about 8 s (27 Nov 2026)
+    {"id": "live-dead", "kind": "dead", "channel": "Fixture Live Dead", "wait": 14},
 ]
 HOST = "http://10.0.2.2:8002"
 
@@ -116,6 +119,15 @@ class H(BaseHTTPRequestHandler):
         self.send_response(404); self.send_header("Content-Length", "0"); self.end_headers()
 
     def live(self, kind):
+        if kind == "dead":
+            # Headers, then nothing (the provider's channel is down but the server still answers)
+            self.send_response(200); self.send_header("Content-Type", "video/mp2t"); self.send_header("Connection", "close"); self.end_headers()
+            try:
+                self.wfile.flush(); time.sleep(60)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            self.close_connection = True
+            return
         size = os.path.getsize(LIVE)
         # Live: no length, sent at about real speed; "drop" ends the connection after about 15 s
         self.send_response(200); self.send_header("Content-Type", "video/mp2t"); self.send_header("Connection", "close"); self.end_headers()

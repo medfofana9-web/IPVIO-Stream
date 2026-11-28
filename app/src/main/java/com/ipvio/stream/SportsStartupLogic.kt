@@ -24,3 +24,17 @@ internal object SportsStartupLogic {
     fun shouldTryNext(readyOnce: Boolean, isLiveGame: Boolean, candidates: Int): Boolean =
         !readyOnce && isLiveGame && candidates > 1
 }
+
+/**
+ * Live channel that sends nothing (dead or blocked at the provider, Med 27 Nov 2026): it used to spin for 15 s and then
+ * reconnect to the same dead link for ever. Now another quality of the same channel is tried after [ALT_MS] without data,
+ * and after [DEAD_MS] a clear message says the channel sends no picture (Up/Down still change channels). "No data" is
+ * [SportsStartupLogic.noData] (under 64 KiB since opening). Tested in SportsStartupLogicTest.
+ */
+internal object LiveDeadLogic {
+    const val ALT_MS = 3_000L
+    const val DEAD_MS = 8_000L
+
+    fun tryOtherFeed(noData: Boolean, hasOther: Boolean, online: Boolean, sports: Boolean): Boolean = noData && hasOther && online && !sports
+    fun dead(noData: Boolean, online: Boolean, sports: Boolean): Boolean = noData && online && !sports
+}

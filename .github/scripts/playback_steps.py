@@ -7,7 +7,7 @@ out = []
 for u in fx["addons"]:
     out.append('adb shell am broadcast -a com.fof.tv.TAB --es addon "' + u + '"; sleep 4')
 for s in fx["scenarios"]:
-    if s["kind"] in ("live", "zap"):
+    if s["kind"] in ("live", "zap", "dead"):
         out.append('adb shell "am broadcast -a com.fof.tv.TAB --es live ' + Q + s["channel"] + Q + '"')
         if s["kind"] == "zap":
             out.append("sleep 15")

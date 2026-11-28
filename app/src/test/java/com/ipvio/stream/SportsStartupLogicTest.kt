@@ -34,4 +34,15 @@ class SportsStartupLogicTest {
         assertFalse(SportsStartupLogic.noData(0L, SportsStartupLogic.NO_DATA_BYTES))
         assertFalse(SportsStartupLogic.noData(5_000L, 5_000L + 300 * 1024))
     }
+
+    /** Dead live channel: another feed after 3 s when there is one, the message after 8 s; never for sports or offline. */
+    @Test fun deadLiveChannelIsKnownWithinSeconds() {
+        assertTrue(LiveDeadLogic.tryOtherFeed(noData = true, hasOther = true, online = true, sports = false))
+        assertFalse(LiveDeadLogic.tryOtherFeed(noData = true, hasOther = false, online = true, sports = false))
+        assertFalse(LiveDeadLogic.tryOtherFeed(noData = false, hasOther = true, online = true, sports = false))
+        assertTrue(LiveDeadLogic.dead(noData = true, online = true, sports = false))
+        assertFalse(LiveDeadLogic.dead(noData = true, online = false, sports = false))
+        assertFalse(LiveDeadLogic.dead(noData = true, online = true, sports = true))
+        assertTrue(LiveDeadLogic.ALT_MS < LiveDeadLogic.DEAD_MS && LiveDeadLogic.DEAD_MS <= 8_000L)
+    }
 }

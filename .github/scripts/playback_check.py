@@ -103,6 +103,18 @@ for sc in fx["scenarios"]:
         else:
             why = msg(failed[0]) if failed else (msg(ready[0]) + " (not at the saved spot)" if ready else "no picture")
             bad.append(f"{sid} {sc['title']} (sources {sc['sources']}): {why}")
+    elif sc["kind"] == "dead":
+        seg = segment(f"scenario live {sc['channel']}")
+        if seg is None:
+            bad.append(f"{sid}: scenario never started"); continue
+        d = next((l for l in seg if " live dead after " in l), None)
+        m = d and re.search(r" live dead after (\d+)s", d)
+        if not m:
+            bad.append(f"{sid} ({sc['channel']}): no 'not sending a picture' message (log: {[msg(l) for l in seg if ' tick ' not in l][-4:]})")
+        elif int(m.group(1)) > 9:
+            bad.append(f"{sid} ({sc['channel']}): message only after {m.group(1)} s")
+        else:
+            print(f"PASS {sid} ({sc['channel']}): dead channel reported after {m.group(1)} s")
     else:
         seg = segment(f"scenario live {sc['channel']}")
         if seg is None:

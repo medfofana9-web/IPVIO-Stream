@@ -188,10 +188,13 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     var msg by remember { mutableStateOf<String?>(null) }
     // Playback could not be restored: the message gets "Retry" and "Change source" buttons (no dead end)
     var failed by remember { mutableStateOf(false) }
+    // A live channel the provider does not send: shown like a failure, but not reported (not the app's fault, and a report
+    // would hold the early-channel build back)
+    var deadLive by remember { mutableStateOf(false) }
     // Automatic problem report: a stream that finally did not play (title and reason only, never the link)
     LaunchedEffect(failed) {
         if (failed && BuildConfig.VERSION_NAME.endsWith("-test")) android.util.Log.i("FofPlay", "failed " + cur.url.substringAfterLast('/') + ": " + msg)
-        if (failed) AutoReport.issue(ctx, "stream", (if (cur.live) "live " else "vod ") + "'" + cur.title + "' – " + (msg ?: "no picture"),
+        if (failed && !deadLive) AutoReport.issue(ctx, "stream", (if (cur.live) "live " else "vod ") + "'" + cur.title + "' – " + (msg ?: "no picture"),
             runCatching { ReportLogic.sourceKind(cur.url, cur.live) + " · failovers " + StartTrace.failoverCount() + " · " + ReportCtx.all(ctx) }.getOrDefault(""))
     }
     // Watch Together panel (start / code / reactions / leave)
@@ -1240,7 +1243,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         // Something outside the sports session (other channel, movie): the session ends, Up/Down works as usual again
         if (!SportSession.owns(cur.itemId) && cur.archive == null) SportSession.stop()
         SportSession.watching = cur.itemId
-        readyOnce = false; stalls = emptyList()
+        readyOnce = false; stalls = emptyList(); deadLive = false
         retries = 0; msg = null; boomerFail = false; buffering = true; segs = emptyList(); pos = 0; dur = 0; buffered = 0
         infoFor = ""; info = null; badges = emptyList(); nextDismissed = false
         if (cur.live) bannerTick++
@@ -1559,6 +1562,32 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     }
     // Prefer another mapped game feed quickly when the first one never starts.
     // Regular live TV and streams already playing are unaffected.
+    // Live channel that sends nothing ([LiveDeadLogic]): another quality of it after 3 s, a clear message after 8 s
+    LaunchedEffect(cur.url) {
+        if (!cur.live || cur.archive != null) return@LaunchedEffect
+        val sports = SportSession.owns(cur.itemId)
+        val bytesAtOpen = StreamBytes.total.get()
+        val t0 = System.currentTimeMillis()
+        delay(LiveDeadLogic.ALT_MS)
+        if (readyOnce || player.playbackState == Player.STATE_READY) return@LaunchedEffect
+        val other = liveAlts.firstOrNull { it.url != cur.url && it.url !in triedUrls }
+        if (LiveDeadLogic.tryOtherFeed(SportsStartupLogic.noData(bytesAtOpen, StreamBytes.total.get()), other != null, DeviceCaps.online(ctx), sports) && other != null) {
+            triedUrls.add(cur.url)
+            notice = "No picture on this feed – trying " + (other.quality ?: "another feed")
+            if (BuildConfig.VERSION_NAME.endsWith("-test")) android.util.Log.i("FofPlay", "live other feed after " + (System.currentTimeMillis() - t0) / 1000 + "s")
+            cur = cur.copy(url = other.url, startMs = 0L, note = null)
+            return@LaunchedEffect
+        }
+        delay(LiveDeadLogic.DEAD_MS - LiveDeadLogic.ALT_MS)
+        if (readyOnce || player.playbackState == Player.STATE_READY) return@LaunchedEffect
+        if (LiveDeadLogic.dead(SportsStartupLogic.noData(bytesAtOpen, StreamBytes.total.get()), DeviceCaps.online(ctx), sports)) {
+            if (BuildConfig.VERSION_NAME.endsWith("-test")) android.util.Log.i("FofPlay", "live dead after " + (System.currentTimeMillis() - t0) / 1000 + "s")
+            deadLive = true
+            player.stop()
+            msg = "This channel is not sending a picture right now. Up/Down: other channels."
+            failed = true
+        }
+    }
     LaunchedEffect(cur.url) {
         val startupDelay = SportsStartupLogic.nextFeedDelayMs(
             SportSession.isVerified(ctx, cur.itemId), SportSession.streams(cur.itemId).size
@@ -1875,6 +1904,13 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
             .onKeyEvent { e ->
                 if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
                 // Retry / Change source buttons are shown: the remote moves between them
+                // A dead live channel's message: Up/Down still change channels
+                val k0 = e.key
+                if (failed && cur.live && cur.archive == null && (k0 == Key.DirectionUp || k0 == Key.DirectionDown || k0 == Key.ChannelUp || k0 == Key.ChannelDown)) {
+                    failed = false; msg = null
+                    zap(if (k0 == Key.DirectionUp || k0 == Key.ChannelUp) -1 else 1)
+                    return@onKeyEvent true
+                }
                 if (failed || partyPanel) return@onKeyEvent false
                 val k = e.key
                 if (e.nativeKeyEvent.repeatCount > 0) {
