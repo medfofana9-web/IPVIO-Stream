@@ -27,6 +27,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -121,8 +122,8 @@ fun SearchScreen(
     LaunchedEffect(q, SearchState.filter) { focusItem = null }
     // A new search starts at the top of the results (the list kept the scroll position of the previous one) – only while
     // typing, so returning from a title page keeps its place
-    // The on-screen keyboard keeps the focus on its keys, not the field, so "while typing" is any change of the search
-    // after the screen opened (the first row was left half scrolled under the filter chips)
+    // Any change of the search after the screen opened, and also when the list was only scrolled within its first row:
+    // the old check (first visible row > 0) missed that, and the first row stayed half hidden under the filter chips
     var shownQ by remember { mutableStateOf(q) }
     LaunchedEffect(q) {
         if (q == shownQ) return@LaunchedEffect
@@ -222,6 +223,8 @@ fun SearchScreen(
     val cmReady = q.length >= 2 && cm.first == q
     val cmM = if ((fl == 0 || fl == 1) && cmReady) cm.second.first else emptyList()
     val cmS = if ((fl == 0 || fl == 2) && cmReady) cm.second.second else emptyList()
+    val cmMAll = if (cmReady) cm.second.first else emptyList()
+    val cmSAll = if (cmReady) cm.second.second else emptyList()
     val per = person?.takeIf { fl == 0 || fl == 1 || fl == 2 }
     val (sg, st, sl) = if (fl == 0 || fl == 4) sport else Triple(emptyList(), emptyList(), emptyList())
     val sh = if (fl == 0 || fl == 3) shows else emptyList()
@@ -332,7 +335,7 @@ fun SearchScreen(
                         event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight && browseResults()
                     }, raw = true) { browseResults() }
                 }
-                // Below the keyboard: word suggestions while typing (remembered searches are on the right, above the results)
+                // Below the keyboard: word suggestions while typing, then the remembered searches as a short list
                 if (sugg.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     sugg.forEachIndexed { i, w ->
                         MiniChip(w.replaceFirstChar { it.uppercase() }, false, if (i == 0) Modifier.focusRequester(firstSugg) else Modifier, raw = true) {
@@ -340,25 +343,25 @@ fun SearchScreen(
                         }
                     }
                 }
+                // Remembered searches (kept until removed, synced): OK searches again, the small x removes one. The one
+                // being shown is left out; as many as fit under the keyboard.
+                val recent = AppSettings.searchHistory.filter { !it.equals(q, true) }.take(if (sugg.isEmpty()) 5 else 3)
+                if (recent.isNotEmpty()) {
+                    Text("RECENT", color = Color(0xFFA3AABB), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp,
+                        modifier = Modifier.padding(top = 6.dp), raw = true)
+                    recent.forEachIndexed { i, term ->
+                        RecentRow(term, if (i == 0) Modifier.focusRequester(firstHistory) else Modifier,
+                            onClick = { SearchState.query = term; AppSettings.addSearch(ctx, term) },
+                            onRemove = { AppSettings.removeSearch(ctx, term) })
+                    }
+                }
             }
             // Right: info panel of the highlighted title on top, the hits below
             Column(Modifier.weight(1f).fillMaxHeight()) {
-                // Remembered searches (kept until removed, synced): OK searches again, the small x removes one
-                val recent = AppSettings.searchHistory.toList().take(12)
-                if (recent.isNotEmpty()) {
-                    Text("Recent searches", color = Color(0xFF8A8F99), fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp,
-                        modifier = Modifier.padding(start = 24.dp, top = 18.dp, bottom = 6.dp), raw = true)
-                    LazyRow(contentPadding = PaddingValues(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(recent.size, key = { "r" + recent[it] }) { i ->
-                            val term = recent[i]
-                            RecentChip(term, if (i == 0) Modifier.focusRequester(firstHistory) else Modifier,
-                                onClick = { SearchState.query = term; AppSettings.addSearch(ctx, term) },
-                                onRemove = { AppSettings.removeSearch(ctx, term) })
-                        }
-                    }
-                }
-                if (q.length >= 2) Row(Modifier.padding(start = 24.dp, top = 14.dp, bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("All", "Movies", "TV Shows", "Live TV").forEachIndexed { i, n -> MiniChip(n, fl == i, raw = true) { SearchState.filter = i } }
+                // Tabs with how many each holds (counted over everything found, whatever tab is open)
+                if (q.length >= 2) Row(Modifier.padding(start = DS.PageX, top = 22.dp, bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(26.dp)) {
+                    val counts = listOf(null, cmMAll.size + rmAll.size, cmSAll.size + rs0.size, rl0.size + shows.size)
+                    listOf("All", "Movies", "TV Shows", "Live TV").forEachIndexed { i, n -> SearchTab(n, counts[i], fl == i) { SearchState.filter = i } }
                 }
                 if (q.length < 2 && top.isNotEmpty()) Text("Popular now", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(start = 24.dp, top = 18.dp, bottom = 4.dp), raw = true)
@@ -418,10 +421,12 @@ fun SearchScreen(
                     }
                     val report: (Item) -> Unit = { focusItem = it }
                     if (sg.any { it.state == 1 }) item(key = "games") { SearchGameRow(sg, fr("games"), onGame) }
-                    // Option B: tidy rows by type, shows then movies, best match first in each
+                    // Redesign "Screen 1": the best match as a large card with the next two beside it, then rows by type,
+                    // shows then movies, best match first in each
+                    if (both.isNotEmpty()) item(key = "best") { SearchTopResult(both, cardW, fr("cmm"), report, openS) }
                     val showsFirst = cmS.isNotEmpty() && (cmM.isEmpty() || both.firstOrNull()?.kind == Kind.SERIES)
-                    if (cmS.isNotEmpty()) item(key = "cmm") { SearchTitleRow("TV Shows", cmS, cardW, if (showsFirst) fr("cmm") else null, report, openS) }
-                    if (cmM.isNotEmpty()) item(key = "cmm2") { SearchTitleRow("Movies", cmM, cardW, if (!showsFirst) fr("cmm") else null, report, openS) }
+                    if (cmS.isNotEmpty()) item(key = "cmm") { SearchTitleRow("TV Shows", cmS, cardW, null, report, openS) }
+                    if (cmM.isNotEmpty()) item(key = "cmm2") { SearchTitleRow("Movies", cmM, cardW, null, report, openS) }
                     if (per != null) item(key = "person") { SearchTitleRow(per.first, per.second, cardW, fr("person"), report, openS) }
                     if (sg.isNotEmpty() && sg.none { it.state == 1 }) item(key = "games") { SearchGameRow(sg, fr("games"), onGame) }
                     if (st.isNotEmpty() || sl.isNotEmpty()) item(key = "teams") {
@@ -473,8 +478,13 @@ private fun SearchRowHeader(title: String, count: Int, headerReq: FocusRequester
             PillMemory.key = null
         }
     }
-    Row(Modifier.padding(start = DS.PageX, top = 22.dp), verticalAlignment = Alignment.CenterVertically) {
-        SmallPill("View all $count", Modifier.focusRequester(headerReq).onPreviewKeyEvent { ev ->
+    // Redesign "Screen 1": the row's name first, how many, and "View all" at the right end
+    Row(Modifier.fillMaxWidth().padding(start = DS.PageX, end = DS.PageX, top = 22.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(title, color = Color.White, fontSize = spx(DS.SectionTitleSp), fontWeight = FontWeight.Bold)
+        Spacer(Modifier.width(12.dp))
+        Text(count.toString(), color = Color(0xFF7D8496), fontSize = 16.sp, raw = true)
+        Spacer(Modifier.weight(1f))
+        SmallPill("View all", Modifier.focusRequester(headerReq).onPreviewKeyEvent { ev ->
             if (ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionDown) {
                 // First card not in view (row shifted sideways) or not yet composed: first to the start, then highlight.
                 // Before, the focus got stuck here because the failure was swallowed.
@@ -486,10 +496,6 @@ private fun SearchRowHeader(title: String, count: Int, headerReq: FocusRequester
                 true
             } else false
         }, trailing = AIcon.Right) { PillMemory.key = key; onAll() }
-        Spacer(Modifier.width(16.dp))
-        Box(Modifier.width(4.dp).height(22.dp).clip(RoundedCornerShape(2.dp)).background(FofVisual.Violet))
-        Spacer(Modifier.width(10.dp))
-        Text(title, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -591,15 +597,18 @@ internal object SearchSport {
     }
 }
 
-private val KB_DIGITS = "1234567890"
-private val KB_LETTERS = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
 private val KB_SYMBOLS = listOf("-/:;()&@\"", ".,?!'+=_%", "#*<>[]{}~")
 // Special letters for other languages (German, French, Spanish, Turkish, Nordic, Slavic ...)
 private val KB_SPECIAL = listOf("äöüßéèêàâç", "ñışğčćšžđå", "øæœíóúáãõ")
+private const val KB_COLS = 7
+private const val KB_ALPHA = "abcdefghijklmnopqrstuvwxyz"
+private val KB_NUMBERS = "1234567890" + KB_SYMBOLS.joinToString("")
+private val KB_ACCENTS = KB_SPECIAL.joinToString("")
 
 /**
- * QWERTY on-screen keyboard: a number row on top (no extra layer needed), three key rows, then layer switch (symbols / special letters),
- * backspace, wide space bar and clear.
+ * A–Z on-screen keyboard in 7 columns (redesign "Screen 1", 28 Nov 2026): letters in order, the layer key ("123" for
+ * numbers and symbols) and backspace in the last row, then space, special letters, phone, voice and clear. Right on the
+ * last key of a row goes to the results.
  */
 @Composable
 internal fun SearchKeyboard(
@@ -609,33 +618,31 @@ internal fun SearchKeyboard(
 ) {
     var symbols by remember { mutableStateOf(false) }
     var special by remember { mutableStateOf(false) }
-    val rows = if (symbols) KB_SYMBOLS else if (special) KB_SPECIAL else KB_LETTERS
-    // Compact keys (Netflix style): the keyboard is a tool, the results get the space
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        // Number row (always visible)
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
-            KB_DIGITS.forEachIndexed { c, k ->
-                KbKey(k.toString(), Modifier.weight(1f).then(if (c == 0) Modifier.focusRequester(firstKey) else Modifier), onFocusChange, if (c == KB_DIGITS.lastIndex) onRight else null) { onKey(k.toString()) }
-            }
-        }
-        rows.forEachIndexed { r, row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
-                // Row 2 is indented half a key like on a real keyboard
-                if (r == 1 && !symbols) Spacer(Modifier.weight(0.5f))
-                if (r == 2) KbKey(if (symbols) "ABC" else "#+=", Modifier.weight(1.5f), onFocusChange, null) { symbols = !symbols; special = false }
+    val chars = if (symbols) KB_NUMBERS else if (special) KB_ACCENTS else KB_ALPHA
+    // Characters, then the layer key and backspace, in rows of KB_COLS
+    val keys: List<String> = chars.map { it.toString() } + listOf(if (symbols) "abc" else "123", "⌫")
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        keys.chunked(KB_COLS).forEachIndexed { r, row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.fillMaxWidth()) {
                 row.forEachIndexed { c, k ->
-                    KbKey(k.toString(), Modifier.weight(1f), onFocusChange, if (r < 2 && c == row.lastIndex) onRight else null) { onKey(k.toString()) }
+                    val m = Modifier.weight(1f).then(if (r == 0 && c == 0) Modifier.focusRequester(firstKey) else Modifier)
+                    val right = if (c == row.lastIndex) onRight else null
+                    when (k) {
+                        "⌫" -> KbKey("", m, onFocusChange, right, icon = AIcon.Backspace) { onDelete() }
+                        "123", "abc" -> KbKey(k, m, onFocusChange, right) { symbols = !symbols; special = false }
+                        else -> KbKey(k, m, onFocusChange, right) { onKey(k) }
+                    }
                 }
-                if (r == 1 && !symbols) Spacer(Modifier.weight(0.5f))
-                if (r == 2) KbKey("⌫", Modifier.weight(1.5f), onFocusChange, onRight) { onDelete() }
+                // A short last row keeps the key width of the rows above
+                repeat(KB_COLS - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
-            KbKey("Leer", Modifier.weight(if (onPhone == null) (if (onVoice != null) 3.9f else 4.5f) else if (onVoice != null) 2f else 2.6f), onFocusChange, null) { onSpace() }
-            if (onPhone != null) KbKey("Handy", Modifier.weight(1.9f), onFocusChange, null, icon = AIcon.Phone) { onPhone() }
-            if (onVoice != null) KbKey("", Modifier.weight(0.9f), onFocusChange, null, icon = AIcon.Mic) { onVoice() }
-            KbKey(if (special) "abc" else "äöü", Modifier.weight(1.5f), onFocusChange, null) { special = !special; symbols = false }
-            KbKey("Alles", Modifier.weight(1.8f), onFocusChange, onRight) { onClear() }
+        Row(horizontalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.fillMaxWidth()) {
+            KbKey("Leer", Modifier.weight(2.4f), onFocusChange, null) { onSpace() }
+            KbKey(if (special) "abc" else "äöü", Modifier.weight(1.4f), onFocusChange, null) { special = !special; symbols = false }
+            if (onPhone != null) KbKey("", Modifier.weight(1f), onFocusChange, null, icon = AIcon.Phone) { onPhone() }
+            if (onVoice != null) KbKey("", Modifier.weight(1f), onFocusChange, null, icon = AIcon.Mic) { onVoice() }
+            KbKey("Alles", Modifier.weight(1.6f), onFocusChange, onRight) { onClear() }
         }
     }
 }
@@ -646,9 +653,9 @@ private fun KbKey(label: String, modifier: Modifier, onFocusChange: (Boolean) ->
     val sc by animateFloatAsState(if (f) focusScale(1.08f) else 1f, label = "kbkey")
     val shape = RoundedCornerShape(8.dp)
     Box(
-        // Netflix keyboard: no key boxes, grey letters; the selected key is a white square with dark text
-        modifier.height(38.dp).graphicsLayer { scaleX = sc; scaleY = sc }.clip(shape)
-            .background(if (f) DS.FocusFill else Color.Transparent)
+        // Dark key boxes, light letters; the selected key is white with dark text
+        modifier.height(40.dp).graphicsLayer { scaleX = sc; scaleY = sc }.clip(shape)
+            .background(if (f) DS.FocusFill else Color(0xFF1B2030))
             .onPreviewKeyEvent { e ->
                 if (onRight != null && e.type == KeyEventType.KeyDown && e.key == Key.DirectionRight) onRight() else false
             }
@@ -657,8 +664,8 @@ private fun KbKey(label: String, modifier: Modifier, onFocusChange: (Boolean) ->
         contentAlignment = Alignment.Center
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            if (icon != null) AppIcon(icon, if (f) DS.FocusInk else Color(0xFFB3B3B3), size = 18.dp)
-            if (label.isNotEmpty()) Text(label, color = if (f) DS.FocusInk else Color(0xFFB3B3B3), fontSize = if (label.length > 1) 13.sp else 19.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+            if (icon != null) AppIcon(icon, if (f) DS.FocusInk else Color(0xFFE6E8EE), size = 18.dp)
+            if (label.isNotEmpty()) Text(label, color = if (f) DS.FocusInk else Color(0xFFE6E8EE), fontSize = if (label.length > 1) 14.sp else 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
     }
 }
@@ -726,24 +733,119 @@ private fun SearchInfoPanel(item: Item?, modifier: Modifier) {
     }
 }
 
-/** A remembered search: the term (OK searches again) and a small x next to it (removes it). */
+/**
+ * Best match of a search (redesign "Screen 1"): a large picture card of the first title (scene picture, kind, title, year,
+ * genres, length) and the next two as compact rows beside it. OK opens the title.
+ */
 @Composable
-private fun RecentChip(term: String, modifier: Modifier, onClick: () -> Unit, onRemove: () -> Unit) {
+private fun SearchTopResult(best: List<Item>, cardW: Int, first: FocusRequester?, onFocus: (Item) -> Unit, onOpen: (Item) -> Unit) {
+    BoxWithConstraints(Modifier.fillMaxWidth().padding(start = DS.PageX, end = DS.PageX, top = 16.dp, bottom = 4.dp)) {
+        val h = (cardW * 1.4f).dp
+        val bigW = minOf(maxWidth * 0.58f, h * 16f / 9f)
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            TopResultCard(best[0], Modifier.width(bigW).height(h).then(if (first != null) Modifier.focusRequester(first) else Modifier), onFocus, onOpen)
+            val more = best.drop(1).take(2)
+            if (more.isNotEmpty()) Column(Modifier.weight(1f).height(h), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                more.forEach { MatchRow(it, Modifier.weight(1f).fillMaxWidth(), onFocus, onOpen) }
+                if (more.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+private fun kindLabel(i: Item) = when (i.kind) { Kind.MOVIE -> "Movie"; Kind.SERIES -> "TV Show"; else -> "Live TV" }
+
+@Composable
+private fun TopResultCard(item: Item, modifier: Modifier, onFocus: (Item) -> Unit, onOpen: (Item) -> Unit) {
+    val m = rememberMeta(item)
+    var f by remember { mutableStateOf(false) }
+    val sc by animateFloatAsState(if (f) focusScale(1.03f) else 1f, label = "topres")
+    val shape = RoundedCornerShape(14.dp)
+    Box(
+        modifier.restoreFocus(item.id).graphicsLayer { scaleX = sc; scaleY = sc }.clip(shape).background(Surf2)
+            .border(if (f) 3.dp else 1.dp, if (f) Color.White else DS.Hairline, shape)
+            .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus(item) }
+            .clickable { onOpen(item) }
+    ) {
+        val img = m?.backdrop?.let { cardBackdrop(it) } ?: m?.poster ?: item.logo
+        if (img != null) coil.compose.AsyncImage(img, item.title, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.35f to Color.Transparent, 1f to Color(0xF0080A12))))
+        Column(Modifier.align(Alignment.BottomStart).padding(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("TOP RESULT · " + kindLabel(item).uppercase(), color = Color(0xFFFFB4B8), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.4.sp, raw = true)
+            Text(item.title, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, raw = true)
+            val parts = listOfNotNull(m?.year ?: item.year?.toString(), m?.genres?.take(2)?.takeIf { it.isNotEmpty() }?.joinToString(", "),
+                m?.runtime?.takeIf { it > 0 }?.let { r -> if (r >= 60) "${r / 60}h ${r % 60}m" else "$r min" }, item.quality)
+            if (parts.isNotEmpty()) Text(parts.joinToString(" · "), color = Color(0xFFC9CEDA), fontSize = 15.sp, maxLines = 1, raw = true)
+        }
+    }
+}
+
+@Composable
+private fun MatchRow(item: Item, modifier: Modifier, onFocus: (Item) -> Unit, onOpen: (Item) -> Unit) {
+    val m = rememberMeta(item)
+    var f by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        modifier.restoreFocus(item.id).clip(shape).background(if (f) DS.FocusFill else Color(0x0DFFFFFF))
+            .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus(item) }
+            .clickable { onOpen(item) }.padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Box(Modifier.fillMaxHeight().aspectRatio(2f / 3f).clip(RoundedCornerShape(8.dp)).background(Surf2)) {
+            val img = m?.poster ?: item.logo
+            if (img != null) coil.compose.AsyncImage(img, item.title, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(item.title, color = if (f) DS.FocusInk else Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, raw = true)
+            val sub = listOfNotNull(kindLabel(item), m?.year ?: item.year?.toString(), m?.genres?.firstOrNull()).joinToString(" · ")
+            Text(sub, color = if (f) DS.FocusInk.copy(alpha = 0.75f) else Color(0xFFA3AABB), fontSize = 14.sp, maxLines = 1, raw = true)
+        }
+    }
+}
+
+/** A remembered search under the keyboard: the term (OK searches again) and a small x at the end (removes it). */
+@Composable
+private fun RecentRow(term: String, modifier: Modifier, onClick: () -> Unit, onRemove: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     var fx by remember { mutableStateOf(false) }
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    val shape = RoundedCornerShape(8.dp)
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            modifier.weight(1f).height(34.dp).clip(shape).background(if (f) DS.FocusFill else Color.Transparent)
+                .onFocusChanged { f = it.isFocused }.clickable(onClick = onClick).padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            AppIcon(AIcon.History, if (f) DS.FocusInk else Color(0xFF7D8496), size = 15.dp)
+            Text(term, color = if (f) DS.FocusInk else Color(0xFFD4D8E2), fontSize = 16.sp, fontWeight = FontWeight.Medium, maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, raw = true)
+        }
         Box(
-            modifier.height(34.dp).clip(RoundedCornerShape(topStart = 50.dp, bottomStart = 50.dp))
-                .background(if (f) DS.FocusFill else Color(0xFF1B2030))
-                .onFocusChanged { f = it.isFocused }.clickable(onClick = onClick).padding(start = 14.dp, end = 10.dp),
-            contentAlignment = Alignment.Center
-        ) { Text(term, color = if (f) DS.FocusInk else Color(0xFFDDDDDD), fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, raw = true) }
-        Box(
-            Modifier.height(34.dp).width(32.dp).clip(RoundedCornerShape(topEnd = 50.dp, bottomEnd = 50.dp))
-                .background(if (fx) Color(0xFFC8102E) else Color(0xFF1B2030))
+            Modifier.size(34.dp).clip(shape).background(if (fx) Color(0xFFC8102E) else Color.Transparent)
                 .onFocusChanged { fx = it.isFocused }.clickable(onClick = onRemove),
             contentAlignment = Alignment.Center
-        ) { Text("✕", color = if (fx) Color.White else Color(0xFF888888), fontSize = 13.sp, fontWeight = FontWeight.Bold, raw = true) }
+        ) { Text("✕", color = if (fx) Color.White else Color(0xFF7D8496), fontSize = 13.sp, fontWeight = FontWeight.Bold, raw = true) }
+    }
+}
+
+/** A result tab ("Movies 12"): bold white with a red line under it when open; white box when highlighted. */
+@Composable
+private fun SearchTab(label: String, count: Int?, selected: Boolean, onClick: () -> Unit) {
+    var f by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(8.dp)
+    Column(
+        Modifier.clip(shape).background(if (f) DS.FocusFill else Color.Transparent)
+            .onFocusChanged { f = it.isFocused }.clickable(onClick = onClick).padding(horizontal = 6.dp, vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(label, color = if (f) DS.FocusInk else if (selected) Color.White else Color(0xFFA3AABB), fontSize = 17.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold, maxLines = 1, raw = true)
+            if (count != null && count > 0) Text(count.toString(), color = if (f) DS.FocusInk else Color(0xFF7D8496), fontSize = 15.sp, maxLines = 1, raw = true)
+        }
+        Box(Modifier.padding(top = 6.dp).width(28.dp).height(3.dp).clip(RoundedCornerShape(2.dp))
+            .background(if (selected && !f) Color(0xFFE50914) else Color.Transparent))
     }
 }
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased – New search look
+
+- Keyboard: A–Z in order in a compact block, with clear key boxes; numbers and symbols behind "123", special letters
+  behind "äöü"; Space, phone, voice and Clear in the last row.
+- Recent searches sit as a short list under the keyboard (with an x to remove each) instead of above the results.
+- Tabs show how much each holds ("Movies 12 · TV Shows 8 · Live TV 3"); the open one is underlined in red.
+- The best match is a large picture card (kind, title, year, genres, length) with the next two matches beside it.
+- Every poster in the results has its title and year under it; each row shows its name and count first and
+  "View all" at the right.
+- On TV: larger channel logos on a light tile, "until 7:30" for what is on now, and a bar showing how far it has got.
+
 ## Unreleased – Search: results from the top, fitting channels, clean recent searches
 
 - Every new search shows its results from the top. Typing on the on-screen keyboard used to leave the first row half

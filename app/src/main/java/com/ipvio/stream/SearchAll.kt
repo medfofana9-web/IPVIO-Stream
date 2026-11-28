@@ -251,7 +251,12 @@ internal fun SearchTitleRow(title: String, list: List<Item>, cardW: Int, first: 
         ResultTitle(title)
         LazyRow(contentPadding = PaddingValues(horizontal = DS.PageX, vertical = 18.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
             itemsIndexed(list, key = { _, it -> "title|" + it.id }) { i, x ->
-                RowPosterCard(x, cardW.dp, Modifier.first(i, first).restoreFocus(x.id).onFocusChanged { if (it.hasFocus) onFocus(x) }, expand = false) { onOpen(x) }
+                // Redesign "Screen 1": the title (and year) under every poster
+                Column(Modifier.width(cardW.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    RowPosterCard(x, cardW.dp, Modifier.first(i, first).restoreFocus(x.id).onFocusChanged { if (it.hasFocus) onFocus(x) }, expand = false) { onOpen(x) }
+                    Text(x.title, color = Color.White, fontSize = spx(15), fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, raw = true)
+                    x.year?.let { Text(it.toString(), color = Muted, fontSize = spx(13), maxLines = 1, raw = true) }
+                }
             }
         }
     }
@@ -299,15 +304,17 @@ internal fun SearchShowRow(hits: List<GuideSearchLogic.Hit>, first: FocusRequest
         LazyRow(contentPadding = PaddingValues(horizontal = DS.PageX, vertical = 18.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             itemsIndexed(hits, key = { i, _ -> "e$i" }) { i, h ->
                 val e = h.entry!!
-                val sub = (if (e.start <= now) "Now" else hhmm(e.start)) + " · " + h.channel.title
-                SearchChip(e.title, sub, h.channel.logo, h.channel.title, Modifier.first(i, first), wide = true) { onPlay(h.channel) }
+                val onNow = e.start <= now && e.end > now
+                val sub = if (onNow) h.channel.title + " · until " + hhmm(e.end) else hhmm(e.start) + " · " + h.channel.title
+                val done = if (onNow && e.end > e.start) ((now - e.start).toFloat() / (e.end - e.start)).coerceIn(0f, 1f) else null
+                SearchChip(e.title, sub, h.channel.logo, h.channel.title, Modifier.first(i, first), wide = true, progress = done) { onPlay(h.channel) }
             }
         }
     }
 }
 
 @Composable
-private fun SearchChip(title: String, sub: String, logo: String?, fallback: String, modifier: Modifier = Modifier, wide: Boolean = false, onClick: () -> Unit) {
+private fun SearchChip(title: String, sub: String, logo: String?, fallback: String, modifier: Modifier = Modifier, wide: Boolean = false, progress: Float? = null, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     val sc by animateFloatAsState(if (f) focusScale(1.05f) else 1f, label = "searchchip")
     val shape = RoundedCornerShape(dpx(14))
@@ -321,12 +328,19 @@ private fun SearchChip(title: String, sub: String, logo: String?, fallback: Stri
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(dpx(12))
     ) {
-        Box(Modifier.size(dpx(52)).clip(RoundedCornerShape(50)).background(DS.Overlay2), contentAlignment = Alignment.Center) {
+        // TV guide hits (wide): the channel logo large on a light tile so it can be read from the sofa
+        if (wide) Box(Modifier.size(dpx(60)).clip(RoundedCornerShape(dpx(12))).background(Color(0xFFF2F3F6)), contentAlignment = Alignment.Center) {
+            TeamLogo(logo, fallback, dpx(50))
+        } else Box(Modifier.size(dpx(52)).clip(RoundedCornerShape(50)).background(DS.Overlay2), contentAlignment = Alignment.Center) {
             TeamLogo(logo, fallback, dpx(40))
         }
         Column(Modifier.weight(1f)) {
             Text(title, color = Color.White, fontSize = spx(17), fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, raw = true)
             Text(sub, color = Muted, fontSize = spx(14), maxLines = 1, overflow = TextOverflow.Ellipsis, raw = true)
+            // How far the show on now has got
+            if (progress != null) Box(Modifier.padding(top = dpx(6)).fillMaxWidth().height(dpx(3)).clip(RoundedCornerShape(50)).background(Color(0x1FFFFFFF))) {
+                Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Color(0xFFE50914)))
+            }
         }
     }
 }

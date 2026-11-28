@@ -1,5 +1,14 @@
 # Work state
 
+## 28 Nov 2026 (5) – search redesign "Screen 1" (approved by Med from the design canvas "Fof TV Search Redesign")
+- `SearchScreen.kt`: `SearchKeyboard` A–Z in 7 columns (layers: `KB_NUMBERS` = digits + symbols, `KB_ACCENTS`), key
+  boxes; `RecentRow` list under the keyboard (chips above the results removed); `SearchTab` with counts;
+  `SearchTopResult`/`TopResultCard`/`MatchRow` (best match card + two rows; takes the first-result focus);
+  `SearchRowHeader` title · count · View all at the right. `SearchAll.kt`: titles and year under posters in
+  `SearchTitleRow`; `SearchChip` wide = logo tile 60, `progress` bar for shows on now.
+- Kept: Browse results chip, word suggestions, voice/phone keys, all focus paths. German key labels stay translation keys.
+- Not tested on a TV. Check the perf-test screenshot p_search.png.
+
 ## 28 Nov 2026 (4) – search fixes (Med: "search should be and look better"; fixes now, redesign preview next)
 - `SearchScreen`: scroll to the top on every query change after opening (the keyboard keeps focus on its keys, so the old
   `fieldFocused` condition never held); auto-saved searches only when the last word is whole in a shown title;
